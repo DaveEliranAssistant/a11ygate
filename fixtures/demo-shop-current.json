@@ -1,0 +1,117 @@
+[
+  {
+    "_fixture": "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    "url": "https://demo.shop/",
+    "timestamp": "2026-10-15T09:00:00.000Z",
+    "testEngine": { "name": "axe-core", "version": "4.10.2" },
+    "violations": [
+      {
+        "id": "image-alt",
+        "impact": "serious",
+        "tags": ["cat.text-alternatives", "wcag2a", "wcag111"],
+        "help": "Images must have alternative text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/image-alt",
+        "nodes": [
+          {
+            "target": ["#main:nth-child(5) > img.hero-photo:nth-child(2)"],
+            "html": "<img class=\"hero-photo\" src=\"/hero.jpg\">"
+          }
+        ]
+      },
+      {
+        "id": "link-name",
+        "impact": "moderate",
+        "tags": ["cat.name-role-value", "wcag2a", "wcag244", "wcag412"],
+        "help": "Links must have discernible text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/link-name",
+        "nodes": [
+          {
+            "target": ["a.footer-promo"],
+            "html": "<a class=\"footer-promo\" href=\"/sale\"><img src=\"/sale.png\"></a>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "_fixture": "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    "url": "https://demo.shop/products",
+    "timestamp": "2026-10-15T09:00:05.000Z",
+    "testEngine": { "name": "axe-core", "version": "4.10.2" },
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "tags": ["cat.name-role-value", "wcag2a", "wcag412"],
+        "help": "Buttons must have discernible text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/button-name",
+        "nodes": [
+          {
+            "target": ["#ember9901 > button.add-to-cart"],
+            "html": "<button class=\"add-to-cart\" id=\"ember9901\"></button>"
+          }
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "tags": ["cat.language", "wcag2a", "wcag311"],
+        "help": "<html> element must have a lang attribute",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/html-has-lang",
+        "nodes": [
+          {
+            "target": ["html"],
+            "html": "<html>"
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": ["cat.color", "wcag2aa", "wcag143"],
+        "help": "Elements must have sufficient color contrast",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast",
+        "nodes": [
+          {
+            "target": [".product-card .price-tag"],
+            "html": "<span class=\"price-tag\" style=\"color:#c8c4bd\">€12</span>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "_fixture": "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    "url": "https://demo.shop/cart",
+    "timestamp": "2026-10-15T09:00:10.000Z",
+    "testEngine": { "name": "axe-core", "version": "4.10.2" },
+    "violations": [
+      {
+        "id": "label",
+        "impact": "serious",
+        "tags": ["cat.forms", "wcag2a", "wcag332", "wcag131"],
+        "help": "Form elements must have labels",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/label",
+        "nodes": [
+          {
+            "target": ["input.quantity"],
+            "html": "<input class=\"quantity\" type=\"number\" value=\"1\">"
+          }
+        ]
+      },
+      {
+        "id": "region",
+        "impact": "moderate",
+        "tags": ["cat.keyboard", "best-practice"],
+        "help": "All page content should be contained by landmarks",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region",
+        "nodes": [
+          {
+            "target": ["body"],
+            "html": "<body>"
+          }
+        ]
+      }
+    ]
+  }
+]

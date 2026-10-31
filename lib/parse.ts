@@ -1,0 +1,231 @@
+import { fingerprint, pagePath } from '@/lib/fingerprint';
+import { impactRank } from '@/lib/gate';
+import type { AxeNode, AxeResults, AxeViolation, Finding, Impact, PageInfo } from '@/lib/types';
+import { isImpact } from '@/lib/types';
+
+const ISO_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+export type ParseResult =
+  | { ok: true; results: AxeResults[]; synthetic: boolean }
+  | { ok: false; error: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stripBom(text: string): string {
+  return text.replace(/^\uFEFF/, '').trim();
+}
+
+function readImpact(
+  value: unknown,
+  path: string,
+): { ok: true; impact: Impact | null } | { ok: false; error: string } {
+  if (value === null || isImpact(value)) return { ok: true, impact: value };
+  return {
+    ok: false,
+    error: `${path} must be minor, moderate, serious, critical, or null`,
+  };
+}
+
+function validateNode(value: unknown, path: string): AxeNode | string {
+  if (!isRecord(value)) return `${path} must be an object`;
+  if (!Array.isArray(value.target) || value.target.length === 0) {
+    return `${path}.target must be an array of strings`;
+  }
+  if (!value.target.every((part) => typeof part === 'string' && part.trim().length > 0)) {
+    return `${path}.target must be an array of strings`;
+  }
+  if (typeof value.html !== 'string') return `${path}.html must be a string`;
+
+  const node: AxeNode = {
+    target: value.target,
+    html: value.html,
+  };
+  if (Object.prototype.hasOwnProperty.call(value, 'impact')) {
+    const impact = readImpact(value.impact, `${path}.impact`);
+    if (!impact.ok) return impact.error;
+    node.impact = impact.impact;
+  }
+  return node;
+}
+
+function validateViolation(value: unknown, path: string): AxeViolation | string {
+  if (!isRecord(value)) return `${path} must be an object`;
+  if (typeof value.id !== 'string' || value.id.trim().length === 0) {
+    return `${path}.id must be a non-empty string`;
+  }
+  if (!Object.prototype.hasOwnProperty.call(value, 'impact')) {
+    return `${path}.impact is missing`;
+  }
+  const impact = readImpact(value.impact, `${path}.impact`);
+  if (!impact.ok) return impact.error;
+  if (!Array.isArray(value.tags)) return `${path}.tags must be an array of strings`;
+  if (!value.tags.every((tag) => typeof tag === 'string')) {
+    return `${path}.tags must be an array of strings`;
+  }
+  if (typeof value.help !== 'string' || value.help.trim().length === 0) {
+    return `${path}.help must be a non-empty string`;
+  }
+  if (typeof value.helpUrl !== 'string' || value.helpUrl.trim().length === 0) {
+    return `${path}.helpUrl must be a non-empty string`;
+  }
+  if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
+    return `${path}.nodes must contain at least one node`;
+  }
+
+  const nodes: AxeNode[] = [];
+  for (let index = 0; index < value.nodes.length; index += 1) {
+    const node = validateNode(value.nodes[index], `${path}.nodes[${index}]`);
+    if (typeof node === 'string') return node;
+    nodes.push(node);
+  }
+
+  return {
+    id: value.id,
+    impact: impact.impact,
+    tags: value.tags,
+    help: value.help,
+    helpUrl: value.helpUrl,
+    nodes,
+  };
+}
+
+function isSynthetic(value: Record<string, unknown>): boolean {
+  return typeof value._fixture === 'string' && /synthetic/i.test(value._fixture);
+}
+
+function validateResult(value: unknown, path: string): { result: AxeResults; synthetic: boolean } | string {
+  if (!isRecord(value)) return `${path} must be an axe result object`;
+  if (typeof value.url !== 'string' || value.url.trim().length === 0) {
+    return `${path}.url must be a non-empty string`;
+  }
+  if (typeof value.timestamp !== 'string' || !ISO_TIMESTAMP.test(value.timestamp)) {
+    return `${path}.timestamp must be an ISO date string`;
+  }
+  if (
+    !isRecord(value.testEngine) ||
+    typeof value.testEngine.version !== 'string' ||
+    value.testEngine.version.trim().length === 0
+  ) {
+    return `${path}.testEngine.version must be a non-empty string`;
+  }
+  if (!Array.isArray(value.violations)) return `${path}.violations must be an array`;
+
+  const violations: AxeViolation[] = [];
+  for (let index = 0; index < value.violations.length; index += 1) {
+    const violation = validateViolation(value.violations[index], `${path}.violations[${index}]`);
+    if (typeof violation === 'string') return violation;
+    violations.push(violation);
+  }
+
+  return {
+    synthetic: isSynthetic(value),
+    result: {
+      url: value.url,
+      timestamp: value.timestamp,
+      testEngine: { version: value.testEngine.version },
+      violations,
+    },
+  };
+}
+
+export function parseAxeJson(text: string): ParseResult {
+  if (typeof text !== 'string') return { ok: false, error: 'Not valid JSON.' };
+  const source = stripBom(text);
+  if (source.length === 0) return { ok: false, error: 'The file is empty.' };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'could not parse JSON';
+    return { ok: false, error: `Not valid JSON: ${detail}` };
+  }
+
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) return { ok: false, error: 'The array does not contain any axe results.' };
+    const results: AxeResults[] = [];
+    let synthetic = false;
+    for (let index = 0; index < parsed.length; index += 1) {
+      const validated = validateResult(parsed[index], `results[${index}]`);
+      if (typeof validated === 'string') return { ok: false, error: validated };
+      results.push(validated.result);
+      synthetic = synthetic || validated.synthetic;
+    }
+    return { ok: true, results, synthetic };
+  }
+
+  if (!isRecord(parsed)) {
+    return { ok: false, error: 'Expected an axe result object or an array of axe results.' };
+  }
+
+  const validated = validateResult(parsed, 'result');
+  if (typeof validated === 'string') return { ok: false, error: validated };
+  return { ok: true, results: [validated.result], synthetic: validated.synthetic };
+}
+
+export function parseAxeDocuments(documents: readonly { name: string; text: string }[]): ParseResult {
+  if (documents.length === 0) return { ok: false, error: 'Choose at least one JSON file.' };
+  const results: AxeResults[] = [];
+  let synthetic = false;
+  for (const document of documents) {
+    const parsed = parseAxeJson(document.text);
+    if (!parsed.ok) return { ok: false, error: `${document.name}: ${parsed.error}` };
+    results.push(...parsed.results);
+    synthetic = synthetic || parsed.synthetic;
+  }
+  return { ok: true, results, synthetic };
+}
+
+export function findingsFromResults(results: readonly AxeResults[]): Finding[] {
+  const byFingerprint = new Map<string, Finding>();
+  for (const result of results) {
+    const path = pagePath(result.url);
+    for (const violation of result.violations) {
+      for (const node of violation.nodes) {
+        const selector = node.target.join(' ');
+        const resolvedImpact = node.impact !== undefined ? node.impact : violation.impact;
+        const finding: Finding = {
+          fingerprint: fingerprint(violation.id, selector, result.url),
+          ruleId: violation.id,
+          impact: resolvedImpact,
+          tags: violation.tags,
+          help: violation.help,
+          helpUrl: violation.helpUrl,
+          selector,
+          html: node.html,
+          url: result.url,
+          path,
+          engineVersion: result.testEngine.version,
+          timestamp: result.timestamp,
+        };
+        const existing = byFingerprint.get(finding.fingerprint);
+        if (!existing || impactRank(finding.impact) > impactRank(existing.impact)) {
+          byFingerprint.set(finding.fingerprint, finding);
+        }
+      }
+    }
+  }
+
+  return [...byFingerprint.values()].sort(
+    (a, b) =>
+      a.path.localeCompare(b.path) ||
+      a.ruleId.localeCompare(b.ruleId) ||
+      a.selector.localeCompare(b.selector),
+  );
+}
+
+export function pagesFromResults(results: readonly AxeResults[]): PageInfo[] {
+  return results.map((result) => ({
+    url: result.url,
+    path: pagePath(result.url),
+    timestamp: result.timestamp,
+    engineVersion: result.testEngine.version,
+  }));
+}
+
+export function engineVersions(results: readonly AxeResults[]): string[] {
+  return [...new Set(results.map((result) => result.testEngine.version))];
+}
