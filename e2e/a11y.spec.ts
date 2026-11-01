@@ -3,6 +3,7 @@ import { expectNoSeriousViolations } from './support';
 
 test('pages have no serious or critical accessibility violations', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByText('The waitlist is temporarily unavailable.')).toBeVisible();
   await expectNoSeriousViolations(page, 'home');
 
   await page.keyboard.press('Tab');

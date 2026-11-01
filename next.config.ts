@@ -10,7 +10,7 @@ function contentSecurityPolicy(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self'", // same-origin fetch only, including POST /api/waitlist
     "media-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -36,6 +36,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  serverExternalPackages: ['pg'],
   async headers() {
     return [
       { source: '/', headers: securityHeaders },

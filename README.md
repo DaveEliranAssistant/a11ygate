@@ -4,7 +4,7 @@ A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) int
 
 The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-The web app runs entirely in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and no upload. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
+The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
@@ -36,6 +36,16 @@ Exports, all generated locally:
 - CSV of findings
 
 Refreshing the tab can restore the last scan from `sessionStorage`. Clearing the scan, or closing the tab, drops it. Statement fields are not stored. Details are on the [Privacy](https://a11ygate.vercel.app/privacy) page.
+
+### Waitlist
+
+The landing page posts to `POST /api/waitlist`. Run this once against the production database before inviting people. It is idempotent (`CREATE TABLE IF NOT EXISTS`) and reads `DATABASE_URL_POOLED`, then `DATABASE_URL`:
+
+```bash
+DATABASE_URL_POOLED='postgres://…' npm run db:migrate
+```
+
+Without either variable the form says the waitlist is temporarily unavailable and the API returns 503. The table stores the normalized email, optional role and company, consent, `created_at`, source (`landing`), and a user-agent hash. It does not store an IP address.
 
 ### Produce axe JSON
 

@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { HERO_HEADING, PRIVACY_NOTE, WAITLIST_MAILTO } from '@/lib/copy';
+import { HERO_HEADING, PRIVACY_NOTE } from '@/lib/copy';
 import { useScanModel } from '@/lib/store';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { Exports } from '@/components/Exports';
 import { Findings } from '@/components/Findings';
 import { ImportPanel } from '@/components/ImportPanel';
 import { Summary } from '@/components/Summary';
+import { WaitlistForm } from '@/components/WaitlistForm';
 
 export function Workspace() {
   const { scan, model, error, notice, setGroupBy, setThreshold } = useScanModel();
@@ -27,11 +28,7 @@ export function Workspace() {
         Point it at the axe-core JSON your Playwright job already writes. The diff, the gate, and
         the evidence report stay in this browser.
       </p>
-      <div className="hero-actions">
-        <a className="button button-ink" href={WAITLIST_MAILTO}>
-          Join the waitlist
-        </a>
-      </div>
+      <WaitlistForm />
       <p className="privacy">
         {PRIVACY_NOTE} A11yGate has no account, no analytics, and no upload.{' '}
         <Link href="/privacy">Privacy details</Link>

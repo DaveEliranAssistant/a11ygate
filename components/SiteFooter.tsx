@@ -5,7 +5,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer no-print">
       <div className="footer-inner">
-        <p>Nothing leaves your browser. Scans, names, and emails stay on this device.</p>
+        <p>Scans stay in this browser. A waitlist email is stored only after you consent.</p>
         <p className="footer-disclaimer">{LEGAL_DISCLAIMER}</p>
         <p>
           <Link href="/privacy">Privacy</Link>
