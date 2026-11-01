@@ -5,7 +5,7 @@ import { findingsToCsv } from '@/lib/export-csv';
 import { prSummaryMarkdown } from '@/lib/export-markdown';
 import { findingsFromResults, parseAxeJson } from '@/lib/parse';
 import { statementMarkdown } from '@/lib/statement';
-import { DISCLAIMER } from '@/lib/copy';
+import { DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { makeFinding, minimalResult } from './helpers';
 
 describe('markdown and CSV export', () => {
@@ -37,6 +37,7 @@ describe('markdown and CSV export', () => {
     expect(markdown).toContain('| Still open | 0 |');
     expect(markdown).toContain('Contrast \\| minimum');
     expect(markdown).toContain(DISCLAIMER);
+    expect(markdown).toContain(LEGAL_DISCLAIMER);
     expect(markdown).toContain(
       'Automated checks cover only part of WCAG; this is evidence, not certification.',
     );
@@ -85,6 +86,7 @@ describe('markdown and CSV export', () => {
     expect(markdown).toContain('- Fixed: 3');
     expect(markdown).toContain('- Still open: 5');
     expect(markdown).toContain(DISCLAIMER);
+    expect(markdown).toContain(LEGAL_DISCLAIMER);
     expect(markdown).toContain('not a certification');
   });
 

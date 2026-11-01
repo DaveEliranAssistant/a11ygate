@@ -315,6 +315,11 @@ textarea {
   color: var(--fail);
 }
 
+.alert:focus {
+  outline: 3px solid var(--fail);
+  outline-offset: 3px;
+}
+
 .banner {
   margin-bottom: 1rem;
 }
@@ -487,9 +492,30 @@ code {
   color: var(--ink-soft);
 }
 
-.site-footer p {
+.footer-inner {
   max-width: 1120px;
   margin: 0 auto;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.footer-disclaimer {
+  color: var(--ink);
+  font-weight: 650;
+  max-width: 46rem;
+}
+
+.narrow {
+  max-width: 46rem;
+}
+
+main:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
 }
 
 .report-head {

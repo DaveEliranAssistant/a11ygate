@@ -1,4 +1,4 @@
-import { DISCLAIMER } from '@/lib/copy';
+import { DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { formatStandards } from '@/lib/mapping';
 import type { DiffResult, Impact, Verdict } from '@/lib/types';
 
@@ -46,6 +46,7 @@ export function prSummaryMarkdown(input: SummaryInput): string {
     ...section('Fixed', input.diff.fixedFindings),
     ...section('Still open', input.diff.stillOpen),
     DISCLAIMER,
+    LEGAL_DISCLAIMER,
     '',
   ];
   return lines.join('\n');

@@ -13,6 +13,8 @@ const eslintConfig = [
       'playwright-report/**',
       'test-results/**',
       'blob-report/**',
+      'packages/cli/dist/**',
+      'action/dist/**',
     ],
   },
 ];

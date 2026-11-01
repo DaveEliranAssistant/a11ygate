@@ -1,88 +1,151 @@
 # A11yGate
 
-A11yGate turns the axe-core results a team already produces in Playwright CI into an accessibility regression gate and an EU Accessibility Act (EAA) evidence report.
+A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) into an accessibility regression gate and an EU Accessibility Act evidence report.
 
-It is a client-side proof of concept. You import JSON. The diff, the gate, the report, and the accessibility-statement draft are computed in the browser. There is no account, no analytics, no payment, and no API that receives scan data.
+The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-## Privacy
+The web app runs entirely in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and no upload. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
 
-Nothing leaves your browser. Files you drop, JSON you paste, and the organisation name, contact email, and date you type for a statement draft stay on the page. The waitlist control is a `mailto:` link. It does not store an address.
+**Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
-Refreshing the tab can restore the last scan from `sessionStorage` in that tab. Clearing the scan, or closing the tab, drops it. Statement fields are not written to storage.
-
-## Run it
+## Web app
 
 ```bash
 npm install
 npm run dev
 ```
 
-Other checks:
+Import a current axe JSON file, and optionally a baseline. Each slot accepts:
 
-```bash
-npm run lint
-npm test
-npm run test:e2e
-npm run build
-```
+- one axe result object (`url`, `timestamp`, `testEngine.version`, `violations[]`)
+- an array of those objects, one per page
+- an envelope `{ "results": <object or array> }`
 
-`npm test` is Vitest. `npm run test:e2e` is one Playwright smoke test. The production build is a standard Next.js build (`next build`), which is what Vercel runs for a Next.js project. This repo is not wired to a deployment.
+Extra axe fields are ignored. Node `target` values may be strings or nested string arrays, which is how axe represents iframes and shadow DOM. A file that does not match is rejected with a specific error. Empty files are rejected. Files over **8 MB** are refused, because parsing happens in the browser.
 
-## Produce axe JSON
+**Load demo data** fills both slots with the synthetic Demo Shop fixtures. The expected result is **2 new, 3 fixed, 5 still open, and FAIL**. One new finding is a serious `color-contrast` on `/products`. The other new finding is a moderate `region` result, below the default threshold. The files in `fixtures/` are marked `_fixture: SYNTHETIC` and are not a real audit.
 
-Run axe in the Playwright tests you already have and write the `AxeResults` object to disk. `@axe-core/playwright` is not a dependency of this app. The snippet belongs in the project you are auditing:
-
-```ts
-import { test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
-import { writeFile } from 'node:fs/promises';
-
-test('capture axe results', async ({ page }, testInfo) => {
-  await page.goto('https://example.com');
-  const results = await new AxeBuilder({ page }).analyze();
-  await writeFile(testInfo.outputPath('axe.json'), JSON.stringify(results, null, 2));
-});
-```
-
-Repeat for each page, or concatenate the objects into one JSON array. A11yGate reads `url`, `timestamp`, `testEngine.version`, and `violations[]` (`id`, `impact`, `tags`, `help`, `helpUrl`, `nodes[].target`, `nodes[].html`). Extra axe fields are ignored. A file that does not match that shape is rejected with a specific error.
-
-## Baseline workflow
-
-1. Save a run you are willing to compare against, and download it later from A11yGate as **Download new baseline JSON** once you accept the current tree.
-2. Import the new run as the current run. Import the saved run as the baseline. Each slot accepts one result object or an array of page results.
-3. A11yGate fingerprints every node as `rule id + normalised selector + page path`. Normalisation strips `:nth-child()` / `:nth-of-type()` indexes, generated ids (Ember, React `useId`, long hashes), and CSS-module or emotion class hashes. The query string is not part of the path.
-4. The diff is **New** (current only), **Fixed** (baseline only), and **Still open** (both).
-5. The gate is **FAIL** when any new finding has an impact at or above the threshold. The default threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not. With no baseline, every current finding is new.
-6. Group the table by rule or by page. Open the evidence report to print or save a PDF from the browser.
-
-**Load demo data** fills both slots with synthetic Demo Shop fixtures: three pages (`/`, `/products`, `/cart`) over two runs. The expected result is 2 new, 3 fixed, 5 still open, and **FAIL**, caused by one new serious `color-contrast` finding. The other new finding is a moderate `region` result below the default threshold. The files in `fixtures/` are marked `_fixture: SYNTHETIC` and are not a real audit.
-
-## What the report contains
-
-The `/report` view is print-friendly. It records the scope, the time the report was generated, the axe engine version, the mapped findings, and a static manual-check list for keyboard, screen reader, and focus order. Those manual checks are not run by this tool.
-
-axe `wcag*` success-criterion tags are looked up in `lib/mapping.ts` to a WCAG 2.1/2.2 criterion (number, name, level A or AA) and an EN 301 549 clause (`9.x.x.x`). Tags that do not map to a criterion are shown as **best practice**. That table needs expert review before anyone treats it as compliance evidence.
+The `/report` view is an evidence report you can print from the browser. It records scope, engine version, mapped findings, and a manual-check list for keyboard, screen reader, and focus order. Those manual checks are not run by this tool. The standards table needs expert review before anyone treats it as compliance evidence.
 
 The statement draft asks for an organisation name, a contact email, and a date, then copies Markdown. It is a draft, not a filed legal statement.
 
 Exports, all generated locally:
 
 - new baseline JSON
-- Markdown pull-request summary
+- Markdown summary
 - CSV of findings
+
+Refreshing the tab can restore the last scan from `sessionStorage`. Clearing the scan, or closing the tab, drops it. Statement fields are not stored. Details are on the [Privacy](https://a11ygate.vercel.app/privacy) page.
+
+### Produce axe JSON
+
+`@axe-core/playwright` is a dev dependency of this repo so the app can check itself. The project you are auditing installs it separately:
+
+```ts
+import { test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+test('home', async ({ page }) => {
+  await page.goto('https://example.com/');
+  const results = await new AxeBuilder({ page }).analyze();
+  await mkdir('a11y-results', { recursive: true });
+  await writeFile('a11y-results/home.json', JSON.stringify(results, null, 2));
+});
+```
+
+Write one file per page. Parallel tests will not collide, and the CLI accepts repeated `--current` paths.
+
+## CLI
+
+The package in `packages/cli` is named `a11ygate`. It is not on npm yet. After `npm install` in this repo the local bin is:
+
+```bash
+npx a11ygate --help
+npx a11ygate --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json
+```
+
+That demo command exits **1** and prints **2 new, 3 fixed, 5 still open, FAIL**.
+
+```bash
+npx a11ygate --current axe.json --baseline a11y/baseline.json
+npx a11ygate --current home.json --current cart.json --threshold critical --json result.json
+npx a11ygate --current axe.json --update-baseline a11y/baseline.json --markdown summary.md
+```
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | No new finding is at or above the threshold. |
+| 1 | At least one new finding is at or above the threshold. |
+| 2 | The arguments or the JSON could not be read. |
+
+`--update-baseline` writes the current results as the next baseline and still uses the gate's exit code, so a run with new violations does not pass just because the file was updated. More detail is in `packages/cli/README.md`.
+
+## GitHub Action
+
+`action/action.yml` is a composite action. It runs the CLI, appends the Markdown summary to the job summary, and can post or update a single pull request comment (the comment contains `<!-- a11ygate -->`). It is not listed on the GitHub Marketplace.
+
+```yaml
+name: Accessibility
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+        with:
+          current: |
+            a11y-results/home.json
+            a11y-results/cart.json
+          baseline: a11y/baseline.json
+          threshold: serious
+          comment: true
+```
+
+From a checkout of this repository, `uses: ./action` points at the same action. `<ref>` must be a commit or branch that contains `action/`. Let the Playwright test write JSON and let A11yGate be the gate. Do not also assert `violations.length === 0` in that test, or the job fails before the summary is posted.
+
+`issues: write` lets the token create the pull request comment. The comment is skipped, with a warning, when the workflow event has no pull request number. Full input list: `action/README.md`.
+
+## Development
+
+```bash
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
+
+`npm test` is Vitest, including the CLI exit-code tests. It builds `packages/cli/dist/cli.mjs` and copies it to `action/dist/cli.mjs`. `npm run test:e2e` is Playwright against the production server, including an axe check of this app's own pages that fails on any serious or critical violation. Set `A11Y_E2E_SKIP_BUILD=1` to reuse a build you already produced.
+
+GitHub Actions runs those commands on every pull request and push (`.github/workflows/ci.yml`).
 
 ## Limits
 
-Automated checks cover only part of WCAG; this is evidence, not certification.
+Fingerprints are `rule id + normalised selector + page path`. Normalisation strips `:nth-child()` / `:nth-of-type()` indexes, generated ids, and CSS-module or emotion class hashes. The query string is not part of the path. A fingerprint can miss an element that moved to a different stable selector, and it can collapse two elements if normalisation removes the only difference between them.
 
-Axe does not decide conformance. Fingerprints can miss an element that moved to a different stable selector, and they can collapse two elements if normalisation removes the only difference between them. The EN 301 549 clause numbers follow the usual clause 9 mirror of the WCAG number; a specialist needs to confirm the edition, especially for WCAG 2.2 additions. The manual checks are a checklist, not results.
+With no baseline, every current finding is new.
 
-## Out of scope
+axe `wcag*` success-criterion tags are looked up in `lib/mapping.ts` to a WCAG 2.1/2.2 criterion and an EN 301 549 clause (`9.x.x.x`). Tags that do not map are **best practice**. Clause numbers follow the usual clause 9 mirror. A specialist needs to confirm the edition, especially for WCAG 2.2 additions.
 
-URL crawling, a backend, authentication, payments, a GitHub Action, and any model that summarises findings are intentionally absent.
+## Security headers
 
-## Roadmap
+The production response sets a Content-Security-Policy suitable for this client-only app (`default-src 'self'`, no remote script, style, or connect hosts, `frame-ancestors 'none'`), plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a Permissions-Policy that disables camera, microphone, geolocation, payment, and USB. `script-src` allows inline scripts because Next.js hydration uses them. `unsafe-eval` is added only while `next dev` is running. The e2e suite loads the production server and checks that the page still runs.
 
-- A GitHub Action that posts the Markdown summary as a pull-request comment
-- Saved history of runs
-- White-label report packs
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 Eliran Bar David.

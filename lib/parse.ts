@@ -1,5 +1,6 @@
 import { fingerprint, pagePath } from '@/lib/fingerprint';
 import { impactRank } from '@/lib/gate';
+import { axeJsonByteLength, axeJsonTooLargeMessage, MAX_AXE_JSON_BYTES } from '@/lib/limits';
 import type { AxeNode, AxeResults, AxeViolation, Finding, Impact, PageInfo } from '@/lib/types';
 import { isImpact } from '@/lib/types';
 
@@ -29,18 +30,39 @@ function readImpact(
   };
 }
 
+function readTarget(value: unknown, path: string): string[] | string {
+  if (!Array.isArray(value) || value.length === 0) {
+    return `${path}.target must be an array of strings`;
+  }
+  const flat: string[] = [];
+  for (const part of value) {
+    if (typeof part === 'string') {
+      if (part.trim().length === 0) return `${path}.target must be an array of strings`;
+      flat.push(part);
+      continue;
+    }
+    // axe frame and shadow selectors are nested string arrays.
+    if (
+      Array.isArray(part) &&
+      part.length > 0 &&
+      part.every((item) => typeof item === 'string' && item.trim().length > 0)
+    ) {
+      flat.push(part.join(' '));
+      continue;
+    }
+    return `${path}.target must be an array of strings`;
+  }
+  return flat;
+}
+
 function validateNode(value: unknown, path: string): AxeNode | string {
   if (!isRecord(value)) return `${path} must be an object`;
-  if (!Array.isArray(value.target) || value.target.length === 0) {
-    return `${path}.target must be an array of strings`;
-  }
-  if (!value.target.every((part) => typeof part === 'string' && part.trim().length > 0)) {
-    return `${path}.target must be an array of strings`;
-  }
+  const target = readTarget(value.target, path);
+  if (typeof target === 'string') return target;
   if (typeof value.html !== 'string') return `${path}.html must be a string`;
 
   const node: AxeNode = {
-    target: value.target,
+    target,
     html: value.html,
   };
   if (Object.prototype.hasOwnProperty.call(value, 'impact')) {
@@ -131,8 +153,32 @@ function validateResult(value: unknown, path: string): { result: AxeResults; syn
   };
 }
 
-export function parseAxeJson(text: string): ParseResult {
+function looksLikeAxeResult(value: Record<string, unknown>): boolean {
+  return Array.isArray(value.violations) || typeof value.url === 'string';
+}
+
+function unwrapEnvelope(value: unknown): unknown {
+  if (!isRecord(value) || looksLikeAxeResult(value)) return value;
+  if ('results' in value) return value.results;
+  return value;
+}
+
+function foreignShapeMessage(value: Record<string, unknown>): string | null {
+  if (looksLikeAxeResult(value)) return null;
+  if (Array.isArray(value.issues)) {
+    return 'This looks like a pa11y report. A11yGate reads axe-core JSON: one result object, or an array of result objects, with url, timestamp, testEngine.version, and violations.';
+  }
+  if (isRecord(value.audits) || isRecord(value.categories) || typeof value.lighthouseVersion === 'string') {
+    return 'This looks like a Lighthouse report. A11yGate reads axe-core JSON, not a Lighthouse export.';
+  }
+  return null;
+}
+
+function parseAxeJsonInner(text: string): ParseResult {
   if (typeof text !== 'string') return { ok: false, error: 'Not valid JSON.' };
+  if (text.length > MAX_AXE_JSON_BYTES || axeJsonByteLength(text) > MAX_AXE_JSON_BYTES) {
+    return { ok: false, error: axeJsonTooLargeMessage() };
+  }
   const source = stripBom(text);
   if (source.length === 0) return { ok: false, error: 'The file is empty.' };
 
@@ -142,6 +188,13 @@ export function parseAxeJson(text: string): ParseResult {
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'could not parse JSON';
     return { ok: false, error: `Not valid JSON: ${detail}` };
+  }
+
+  parsed = unwrapEnvelope(parsed);
+
+  if (isRecord(parsed)) {
+    const hint = foreignShapeMessage(parsed);
+    if (hint) return { ok: false, error: hint };
   }
 
   if (Array.isArray(parsed)) {
@@ -164,6 +217,17 @@ export function parseAxeJson(text: string): ParseResult {
   const validated = validateResult(parsed, 'result');
   if (typeof validated === 'string') return { ok: false, error: validated };
   return { ok: true, results: [validated.result], synthetic: validated.synthetic };
+}
+
+export function parseAxeJson(text: string): ParseResult {
+  try {
+    return parseAxeJsonInner(text);
+  } catch {
+    return {
+      ok: false,
+      error: 'Could not read this JSON. Check that it is an axe-core result and try again.',
+    };
+  }
 }
 
 export function parseAxeDocuments(documents: readonly { name: string; text: string }[]): ParseResult {

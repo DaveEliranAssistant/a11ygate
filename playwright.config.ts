@@ -17,10 +17,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --hostname 127.0.0.1 --port 3000',
+    command:
+      process.env.A11Y_E2E_SKIP_BUILD === '1'
+        ? 'npm run start -- --hostname 127.0.0.1 --port 3000'
+        : 'npm run build && npm run start -- --hostname 127.0.0.1 --port 3000',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 240_000,
     env: {
       NEXT_TELEMETRY_DISABLED: '1',
     },
