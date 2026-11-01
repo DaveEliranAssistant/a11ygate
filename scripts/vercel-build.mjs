@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { runVercelBuild } from './vercel-build-lib.mjs';
 
 const code = await runVercelBuild({
   env: process.env,
   async migrate() {
-    const child = spawnSync(process.execPath, [new URL('./migrate-waitlist.mjs', import.meta.url)], {
+    const child = spawnSync(process.execPath, [fileURLToPath(new URL('./migrate-waitlist.mjs', import.meta.url))], {
       encoding: 'utf8',
       env: process.env,
     });
