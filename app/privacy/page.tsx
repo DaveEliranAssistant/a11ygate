@@ -6,7 +6,7 @@ import { PRIVACY_CONTACT } from '@/lib/waitlist/messages';
 export const metadata: Metadata = {
   title: 'Privacy',
   description:
-    'Scans stay in your browser. The waitlist stores an email only if you join and consent. This launch does not track you.',
+    'Scans stay in your browser. The waitlist stores an email only if you join and consent. Vercel Web Analytics records cookieless, aggregated page views.',
   alternates: { canonical: '/privacy' },
 };
 
@@ -41,10 +41,17 @@ export default function PrivacyPage() {
         <ul>
           <li>There is no account and no sign-in.</li>
           <li>Scan files are not uploaded.</li>
-          <li>There is no analytics, advertising, or other tracking.</li>
+          <li>There is no advertising and no personal profile of visitors.</li>
           <li>A11yGate does not set cookies.</li>
           <li>There is no payment.</li>
         </ul>
+      </section>
+      <section aria-labelledby="analytics-heading">
+        <h2 id="analytics-heading">Page views</h2>
+        <p>
+          This site uses Vercel Web Analytics. It is cookieless and records aggregated page views.
+          It does not build a personal profile.
+        </p>
       </section>
       <section aria-labelledby="waitlist-privacy-heading">
         <h2 id="waitlist-privacy-heading">Waitlist</h2>
@@ -61,8 +68,7 @@ export default function PrivacyPage() {
         <p>
           To ask for deletion, email{' '}
           <a href={`mailto:${PRIVACY_CONTACT}?subject=A11yGate%20waitlist%20deletion`}>{PRIVACY_CONTACT}</a>
-          . This address is a placeholder for the owner to replace. Include the email address you
-          used on the form.
+          . Include the email address you used on the form.
         </p>
       </section>
       <section aria-labelledby="links-heading">

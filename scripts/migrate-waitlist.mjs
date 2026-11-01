@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { redactConnectionStrings } from './vercel-build-lib.mjs';
 
 const url = process.env.DATABASE_URL_POOLED?.trim() || process.env.DATABASE_URL?.trim();
 if (!url) {
@@ -19,7 +20,7 @@ try {
   console.log('waitlist_signups is ready.');
 } catch (error) {
   const message = error instanceof Error ? error.message : 'Migration failed.';
-  console.error(message.replace(/\/\/[^:]+:[^@]+@/g, '//***:***@'));
+  console.error(redactConnectionStrings(message, [url]));
   process.exitCode = 1;
 } finally {
   await client.end().catch(() => undefined);

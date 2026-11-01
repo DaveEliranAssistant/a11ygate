@@ -22,9 +22,9 @@ Exit codes:
   2  The arguments or the JSON could not be read.
 
 Examples:
-  npx a11ygate --current axe.json --baseline a11y/baseline.json
-  npx a11ygate --current home.json --current cart.json --threshold critical --json result.json
-  npx a11ygate --current axe.json --update-baseline a11y/baseline.json
+  npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
+  npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
+  npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
 
 A file larger than 8 MB is refused. The same diff and gate as the web app are used.
 `;

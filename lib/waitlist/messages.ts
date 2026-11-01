@@ -23,4 +23,4 @@ export const MAX_WAITLIST_BYTES = 4_096;
 
 export const WAITLIST_SOURCE = 'landing';
 
-export const PRIVACY_CONTACT = 'privacy@a11ygate.example';
+export const PRIVACY_CONTACT = 'dave.eliran.assistant@gmail.com';
