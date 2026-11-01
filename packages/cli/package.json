@@ -2,7 +2,7 @@
   "name": "a11ygate",
   "version": "0.1.0",
   "description": "Fail CI on new axe-core accessibility violations and write an evidence summary.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "a11ygate": "./dist/cli.mjs"
@@ -36,8 +36,5 @@
   ],
   "publishConfig": {
     "access": "public"
-  },
-  "scripts": {
-    "prepublishOnly": "node -e \"console.error('License is TBD. The owner must choose a license and remove this guard before publishing.'); process.exit(1)\""
   }
 }

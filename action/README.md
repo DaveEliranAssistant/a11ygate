@@ -14,7 +14,7 @@ Or from a checkout of this repository:
 - uses: ./action
 ```
 
-`<ref>` is a commit or branch that contains this action. The license is TBD; see the repository `LICENSE`.
+`<ref>` is a commit or branch that contains this action. Licensed under MIT. See the repository [LICENSE](../LICENSE).
 
 ## Inputs
 

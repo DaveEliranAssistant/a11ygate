@@ -148,4 +148,4 @@ The production response sets a Content-Security-Policy suitable for this client-
 
 ## License
 
-**TBD.** The owner has not chosen a license. `LICENSE` is a placeholder. The CLI `package.json` is `UNLICENSED` and `npm publish` is blocked until that decision is made. Do not publish the package to npm or the action to the Marketplace until then.
+[MIT](LICENSE). Copyright (c) 2026 Eliran Bar David.

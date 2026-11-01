@@ -2,7 +2,7 @@
 
 Command-line accessibility regression gate for [axe-core](https://github.com/dequelabs/axe-core) JSON. It uses the same diff and gate as the [A11yGate](https://a11ygate.vercel.app) web app: a run fails only when a **new** finding is at or above the impact threshold.
 
-This package is not published to npm yet. The license is **TBD** until the repository owner chooses one. `npm publish` is blocked on purpose.
+Licensed under the [MIT License](LICENSE).
 
 ## Usage
 
@@ -44,4 +44,4 @@ Accepted JSON shapes: one axe result object, an array of result objects, or `{ "
 
 ## License
 
-TBD. See `LICENSE`. Do not publish until the owner replaces `UNLICENSED` and removes the `prepublishOnly` guard in `package.json`.
+MIT. See [LICENSE](LICENSE).
