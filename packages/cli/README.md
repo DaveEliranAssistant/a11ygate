@@ -1,19 +1,19 @@
-# a11ygate
+# @qe-atlas/a11ygate
 
-Command-line accessibility regression gate for [axe-core](https://github.com/dequelabs/axe-core) JSON. It uses the same diff and gate as the [A11yGate](https://a11ygate.vercel.app) web app: a run fails only when a **new** finding is at or above the impact threshold.
+Command-line accessibility regression gate for [axe-core](https://github.com/dequelabs/axe-core) JSON. The npm package is `@qe-atlas/a11ygate` and the command name is `a11ygate`. It uses the same diff and gate as the [A11yGate](https://a11ygate.vercel.app) web app: a run fails only when a **new** finding is at or above the impact threshold.
 
 Licensed under the [MIT License](LICENSE).
 
 ## Usage
 
 ```bash
-npx a11ygate --current axe.json --baseline a11y/baseline.json
+npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
 ```
 
 From a checkout of this repository, after `npm install`:
 
 ```bash
-npx a11ygate --help
+npx @qe-atlas/a11ygate --help
 node packages/cli/dist/cli.mjs --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json
 ```
 

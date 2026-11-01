@@ -7,8 +7,11 @@ test('security headers, metadata, and the privacy page', async ({ page }) => {
   const headers = response!.headers();
   const csp = headers['content-security-policy'] ?? '';
   expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("script-src 'self'");
+  expect(csp).toContain("connect-src 'self'");
   expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).not.toContain('unsafe-eval');
+  expect(csp).not.toContain('va.vercel-scripts.com');
   expect(headers['x-content-type-options']).toBe('nosniff');
   expect(headers['x-frame-options']).toBe('DENY');
   expect(headers['referrer-policy']).toBe('no-referrer');
@@ -34,7 +37,9 @@ test('security headers, metadata, and the privacy page', async ({ page }) => {
   await page.goto('/privacy');
   await expect(page.getByRole('heading', { level: 1, name: 'Privacy' })).toBeVisible();
   await expect(page.getByRole('main').getByText('A11yGate does not set cookies.')).toBeVisible();
-  await expect(page.getByRole('main').getByText('no analytics, advertising, or other tracking')).toBeVisible();
+  await expect(page.getByRole('main').getByText('Vercel Web Analytics')).toBeVisible();
+  await expect(page.getByRole('main').getByText('cookieless')).toBeVisible();
+  await expect(page.getByRole('main').getByText('dave.eliran.assistant@gmail.com')).toBeVisible();
   await expect(page.getByRole('main').getByText(LEGAL_DISCLAIMER)).toBeVisible();
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })).toHaveAttribute(
     'href',

@@ -1,5 +1,5 @@
 {
-  "name": "a11ygate",
+  "name": "@qe-atlas/a11ygate",
   "version": "0.1.0",
   "description": "Fail CI on new axe-core accessibility violations and write an evidence summary.",
   "license": "MIT",

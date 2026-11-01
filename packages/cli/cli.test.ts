@@ -109,6 +109,7 @@ describe('a11ygate CLI', () => {
     expect(help.stdout).toContain('--current');
     expect(help.stdout).toContain('--baseline');
     expect(help.stdout).toContain('Exit codes');
+    expect(help.stdout).toContain('npx @qe-atlas/a11ygate');
 
     const version = await capture(['--version']);
     expect(version.code).toBe(0);

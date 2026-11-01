@@ -8,11 +8,9 @@ test('demo data gates the run and the report renders', async ({ page }) => {
       name: 'Turn the axe results you already have into an accessibility regression gate and EAA evidence report',
     }),
   ).toBeVisible();
-  await expect(page.getByText('Privacy: nothing leaves your browser.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Join the waitlist' })).toHaveAttribute(
-    'href',
-    /^mailto:waitlist@a11ygate\.example/,
-  );
+  await expect(page.getByText('Privacy: scans stay in your browser.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Join the waitlist' })).toBeVisible();
+  await expect(page.getByText('The waitlist is temporarily unavailable.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Load demo data' }).click();
   await expect(page.getByTestId('count-new')).toHaveText('2');

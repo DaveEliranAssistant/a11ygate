@@ -4,7 +4,7 @@ A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) int
 
 The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-The web app runs entirely in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and no upload. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
+The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
@@ -37,6 +37,14 @@ Exports, all generated locally:
 
 Refreshing the tab can restore the last scan from `sessionStorage`. Clearing the scan, or closing the tab, drops it. Statement fields are not stored. Details are on the [Privacy](https://a11ygate.vercel.app/privacy) page.
 
+### Waitlist
+
+The landing page posts to `POST /api/waitlist`. Vercel runs `npm run vercel-build`, which applies `sql/waitlist.sql` and then `next build`. The migration reads `DATABASE_URL_POOLED`, then `DATABASE_URL`. If neither is set, the migration is skipped and the build continues. If a URL is set and the migration fails, the build stops and the log does not include the connection string.
+
+`npm run build` does not migrate. Local development and GitHub Actions use that command. `npm run db:migrate` runs only the migration when a URL is already in the environment.
+
+Without a database URL the form says the waitlist is temporarily unavailable and the API returns 503. The table stores the normalized email, optional role and company, consent, `created_at`, source (`landing`), and a user-agent hash. It does not store an IP address. Deletion requests go to dave.eliran.assistant@gmail.com.
+
 ### Produce axe JSON
 
 `@axe-core/playwright` is a dev dependency of this repo so the app can check itself. The project you are auditing installs it separately:
@@ -58,19 +66,19 @@ Write one file per page. Parallel tests will not collide, and the CLI accepts re
 
 ## CLI
 
-The package in `packages/cli` is named `a11ygate`. It is not on npm yet. After `npm install` in this repo the local bin is:
+The npm package in `packages/cli` is `@qe-atlas/a11ygate`. The command name is still `a11ygate`. It is not on npm yet. After `npm install` in this repo the local bin is:
 
 ```bash
-npx a11ygate --help
-npx a11ygate --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json
+npx @qe-atlas/a11ygate --help
+npx @qe-atlas/a11ygate --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json
 ```
 
 That demo command exits **1** and prints **2 new, 3 fixed, 5 still open, FAIL**.
 
 ```bash
-npx a11ygate --current axe.json --baseline a11y/baseline.json
-npx a11ygate --current home.json --current cart.json --threshold critical --json result.json
-npx a11ygate --current axe.json --update-baseline a11y/baseline.json --markdown summary.md
+npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
+npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
+npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json --markdown summary.md
 ```
 
 | Exit code | Meaning |

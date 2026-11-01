@@ -63,7 +63,7 @@ async function readVersion(): Promise<string> {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(await readFile(candidate, 'utf8')) as { name?: string; version?: string };
-      if (parsed.name === 'a11ygate' && parsed.version) return parsed.version;
+      if (parsed.name === '@qe-atlas/a11ygate' && parsed.version) return parsed.version;
     } catch {
       // The bundle is copied into the action directory, so the package manifest may be elsewhere.
     }

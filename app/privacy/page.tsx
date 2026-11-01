@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
+import { PRIVACY_CONTACT } from '@/lib/waitlist/messages';
 
 export const metadata: Metadata = {
   title: 'Privacy',
   description:
-    'A11yGate processes accessibility scans in your browser. Nothing is uploaded, and this launch does not track you.',
+    'Scans stay in your browser. The waitlist stores an email only if you join and consent. Vercel Web Analytics records cookieless, aggregated page views.',
   alternates: { canonical: '/privacy' },
 };
 
@@ -15,7 +16,7 @@ export default function PrivacyPage() {
       <p className="kicker">Privacy</p>
       <h1>Privacy</h1>
       <p className="lede">
-        A11yGate runs entirely in your browser. The scans you import are not uploaded.
+        Scan files stay in your browser. The waitlist stores an email only if you join and consent.
       </p>
       <section aria-labelledby="processing-heading">
         <h2 id="processing-heading">What stays on this device</h2>
@@ -39,14 +40,35 @@ export default function PrivacyPage() {
         <h2 id="not-collected-heading">What this launch does not do</h2>
         <ul>
           <li>There is no account and no sign-in.</li>
-          <li>Scan data, names, and emails are not uploaded.</li>
-          <li>There is no analytics, advertising, or other tracking.</li>
+          <li>Scan files are not uploaded.</li>
+          <li>There is no advertising and no personal profile of visitors.</li>
           <li>A11yGate does not set cookies.</li>
           <li>There is no payment.</li>
         </ul>
+      </section>
+      <section aria-labelledby="analytics-heading">
+        <h2 id="analytics-heading">Page views</h2>
         <p>
-          The waitlist control is a mailto link. It opens your email app. A11yGate does not receive
-          or store that address.
+          This site uses Vercel Web Analytics. It is cookieless and records aggregated page views.
+          It does not build a personal profile.
+        </p>
+      </section>
+      <section aria-labelledby="waitlist-privacy-heading">
+        <h2 id="waitlist-privacy-heading">Waitlist</h2>
+        <p>If you join the waitlist and tick the consent box, the server stores:</p>
+        <ul>
+          <li>Your email address, normalized by trimming it and converting it to lower case.</li>
+          <li>Role and company, only when you type them.</li>
+          <li>That you consented to product updates.</li>
+          <li>The time you joined.</li>
+          <li>The source, which is the landing page.</li>
+          <li>A SHA-256 hash of the browser user agent. The raw user agent is not stored.</li>
+        </ul>
+        <p>Your IP address is not stored. The address is used only for a short in-memory rate limit on that server instance.</p>
+        <p>
+          To ask for deletion, email{' '}
+          <a href={`mailto:${PRIVACY_CONTACT}?subject=A11yGate%20waitlist%20deletion`}>{PRIVACY_CONTACT}</a>
+          . Include the email address you used on the form.
         </p>
       </section>
       <section aria-labelledby="links-heading">
