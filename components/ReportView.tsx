@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { DISCLAIMER } from '@/lib/copy';
 import { formatTimestamp, plural, statusLabel } from '@/lib/format';
 import { safeHttpUrl } from '@/lib/url';
 import { useScanModel } from '@/lib/store';
+import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { StandardsList } from '@/components/StandardsList';
 import { StatementDraft } from '@/components/StatementDraft';
 import { Summary } from '@/components/Summary';
@@ -14,9 +14,10 @@ export function ReportView() {
 
   if (!scan || !model) {
     return (
-      <main id="main" className="shell">
+      <main id="main" className="shell" tabIndex={-1}>
         <h1>EAA evidence report</h1>
         <p>{ready ? 'No scan is loaded. Load results on the workspace first.' : 'Checking this browser for a saved scan.'}</p>
+        <DisclaimerNote />
         <p>
           <Link href="/">Back to workspace</Link>
         </p>
@@ -27,7 +28,7 @@ export function ReportView() {
   const synthetic = scan.currentSynthetic || scan.baselineSynthetic;
 
   return (
-    <main id="main" className="shell">
+    <main id="main" className="shell" tabIndex={-1}>
       <div className="report-head">
         <div>
           <p className="kicker">A11yGate evidence report</p>
@@ -40,6 +41,7 @@ export function ReportView() {
       {synthetic ? (
         <p className="banner">Synthetic data. Demo Shop is not a real audit.</p>
       ) : null}
+      <DisclaimerNote />
       <section aria-labelledby="scope-heading">
         <h2 id="scope-heading">Scope</h2>
         <ul className="meta">
@@ -156,10 +158,6 @@ export function ReportView() {
           stillOpen: model.diff.stillOpen.length,
         }}
       />
-      <aside className="disclaimer" aria-labelledby="disclaimer-heading">
-        <h2 id="disclaimer-heading">Disclaimer</h2>
-        <p>{DISCLAIMER}</p>
-      </aside>
     </main>
   );
 }

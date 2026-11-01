@@ -23,6 +23,9 @@ export function SiteHeader() {
             <Link href="/report" aria-current={pathname === '/report' ? 'page' : undefined}>
               Report
             </Link>
+            <Link href="/privacy" aria-current={pathname === '/privacy' ? 'page' : undefined}>
+              Privacy
+            </Link>
           </div>
         </nav>
       </div>

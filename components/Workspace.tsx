@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { DISCLAIMER, HERO_HEADING, PRIVACY_NOTE, WAITLIST_MAILTO } from '@/lib/copy';
+import { useEffect, useRef } from 'react';
+import { HERO_HEADING, PRIVACY_NOTE, WAITLIST_MAILTO } from '@/lib/copy';
 import { useScanModel } from '@/lib/store';
+import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { Exports } from '@/components/Exports';
 import { Findings } from '@/components/Findings';
 import { ImportPanel } from '@/components/ImportPanel';
@@ -11,10 +13,15 @@ import { Summary } from '@/components/Summary';
 export function Workspace() {
   const { scan, model, error, notice, setGroupBy, setThreshold } = useScanModel();
   const synthetic = Boolean(scan && (scan.currentSynthetic || scan.baselineSynthetic));
+  const alertRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (error) alertRef.current?.focus();
+  }, [error]);
 
   return (
-    <main id="main" className="shell">
-      <p className="kicker">Proof of concept · client-side · EU Accessibility Act evidence</p>
+    <main id="main" className="shell" tabIndex={-1}>
+      <p className="kicker">Client-side · EU Accessibility Act evidence</p>
       <h1>{HERO_HEADING}</h1>
       <p className="lede">
         Point it at the axe-core JSON your Playwright job already writes. The diff, the gate, and
@@ -25,10 +32,13 @@ export function Workspace() {
           Join the waitlist
         </a>
       </div>
-      <p className="privacy">{PRIVACY_NOTE} A11yGate has no account, no analytics, and no upload.</p>
+      <p className="privacy">
+        {PRIVACY_NOTE} A11yGate has no account, no analytics, and no upload.{' '}
+        <Link href="/privacy">Privacy details</Link>
+      </p>
       <ImportPanel />
       {error ? (
-        <p className="alert" role="alert">
+        <p ref={alertRef} id="import-error" className="alert" role="alert" tabIndex={-1}>
           {error}
         </p>
       ) : null}
@@ -73,10 +83,7 @@ export function Workspace() {
               Open evidence report
             </Link>
           </p>
-          <aside className="disclaimer">
-            <h2>Disclaimer</h2>
-            <p>{DISCLAIMER}</p>
-          </aside>
+          <DisclaimerNote />
         </div>
       ) : null}
     </main>

@@ -1,4 +1,4 @@
-import { DISCLAIMER } from '@/lib/copy';
+import { DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import type { Impact, Verdict } from '@/lib/types';
 
 export type StatementInput = {
@@ -41,7 +41,7 @@ export function statementMarkdown(input: StatementInput): string {
     `- Fixed: ${input.counts.fixedCount}`,
     `- Still open: ${input.counts.stillOpen}`,
     '',
-    `${DISCLAIMER} This draft is not a legal accessibility statement and it is not a certification.`,
+    `${DISCLAIMER} This draft is not a legal accessibility statement and it is not a certification. ${LEGAL_DISCLAIMER}`,
     '',
   ].join('\n');
 }

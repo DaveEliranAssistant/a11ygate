@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { axeJsonTooLargeMessage, MAX_AXE_JSON_BYTES } from '@/lib/limits';
 import { findingsFromResults, parseAxeDocuments, parseAxeJson } from '@/lib/parse';
 import { minimalResult } from './helpers';
 
@@ -127,5 +128,47 @@ describe('parser validation', () => {
     expect(findings.find((finding) => finding.selector === '.price-tag')?.html).toBe(
       '<span class="price-tag">high</span>',
     );
+  });
+
+  it('accepts axe frame selectors and a results envelope', () => {
+    const framed = minimalResult();
+    const violation = framed.violations[0]!;
+    const parsed = parseAxeJson(
+      JSON.stringify({
+        results: [
+          {
+            ...framed,
+            violations: [
+              {
+                ...violation,
+                nodes: [{ target: ['iframe#checkout', ['#card-number']], html: '<input id="card-number">' }],
+              },
+            ],
+          },
+          minimalResult({ url: 'https://demo.shop/cart', violations: [] }),
+        ],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.results).toHaveLength(2);
+    expect(findingsFromResults(parsed.results)[0]?.selector).toBe('iframe#checkout #card-number');
+  });
+
+  it('rejects a payload over 8 MB with a stable message', () => {
+    const parsed = parseAxeJson(`{"pad":"${'x'.repeat(MAX_AXE_JSON_BYTES)}"}`);
+    expect(parsed).toEqual({ ok: false, error: axeJsonTooLargeMessage() });
+  });
+
+  it('names pa11y and Lighthouse files instead of crashing', () => {
+    expect(parseAxeJson(JSON.stringify({ issues: [] }))).toEqual({
+      ok: false,
+      error:
+        'This looks like a pa11y report. A11yGate reads axe-core JSON: one result object, or an array of result objects, with url, timestamp, testEngine.version, and violations.',
+    });
+    expect(parseAxeJson(JSON.stringify({ lighthouseVersion: '12.0.0', categories: {} }))).toEqual({
+      ok: false,
+      error: 'This looks like a Lighthouse report. A11yGate reads axe-core JSON, not a Lighthouse export.',
+    });
   });
 });

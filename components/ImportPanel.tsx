@@ -1,20 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { axeJsonTooLargeMessage, MAX_AXE_JSON_BYTES } from '@/lib/limits';
 import { parseAxeDocuments } from '@/lib/parse';
 import { inferProjectName } from '@/lib/project';
 import { useScan } from '@/lib/store';
 
 async function readFiles(files: File[]): Promise<{ name: string; text: string }[]> {
   return Promise.all(
-    files.map(async (file) => {
-      try {
-        return { name: file.name || 'pasted.json', text: await file.text() };
-      } catch {
-        return { name: file.name || 'file.json', text: '' };
-      }
-    }),
+    files.map(async (file) => ({
+      name: file.name || 'pasted.json',
+      text: await file.text(),
+    })),
   );
+}
+
+function fileProblem(files: File[]): string | null {
+  for (const file of files) {
+    const name = file.name || 'file.json';
+    if (file.size === 0) return `${name}: The file is empty.`;
+    if (file.size > MAX_AXE_JSON_BYTES) return `${name}: ${axeJsonTooLargeMessage()}`;
+  }
+  return null;
 }
 
 function DropFields({
@@ -22,15 +29,31 @@ function DropFields({
   legend,
   description,
   onParsed,
+  onError,
 }: {
   id: string;
   legend: string;
   description: string;
   onParsed: (payload: { name: string; text: string }[]) => void;
+  onError: (message: string) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [paste, setPaste] = useState('');
   const hintId = `${id}-hint`;
+
+  async function ingest(files: File[]) {
+    if (files.length === 0) return;
+    const problem = fileProblem(files);
+    if (problem) {
+      onError(problem);
+      return;
+    }
+    try {
+      onParsed(await readFiles(files));
+    } catch {
+      onError('Could not read that file. Try again with an axe-core JSON export.');
+    }
+  }
 
   return (
     <fieldset
@@ -50,11 +73,7 @@ function DropFields({
       onDrop={(event) => {
         event.preventDefault();
         setDragOver(false);
-        const files = [...event.dataTransfer.files];
-        if (files.length === 0) return;
-        void readFiles(files).then(onParsed).catch(() => {
-          onParsed([{ name: 'unreadable.json', text: '' }]);
-        });
+        void ingest([...event.dataTransfer.files]);
       }}
     >
       <legend>{legend}</legend>
@@ -71,10 +90,7 @@ function DropFields({
           onChange={(event) => {
             const files = [...(event.target.files ?? [])];
             event.target.value = '';
-            if (files.length === 0) return;
-            void readFiles(files).then(onParsed).catch(() => {
-          onParsed([{ name: 'unreadable.json', text: '' }]);
-        });
+            void ingest(files);
           }}
         />
       </label>
@@ -123,39 +139,46 @@ export function ImportPanel() {
     };
   }, []);
 
+  function accept(kind: 'current' | 'baseline', documents: { name: string; text: string }[]) {
+    let parsed: ReturnType<typeof parseAxeDocuments>;
+    try {
+      parsed = parseAxeDocuments(documents);
+    } catch {
+      reportError('Could not read that JSON. Check that it is an axe-core result and try again.');
+      return;
+    }
+    if (!parsed.ok) {
+      reportError(parsed.error);
+      return;
+    }
+    if (kind === 'current') {
+      setCurrent(parsed.results, inferProjectName(parsed.results), parsed.synthetic);
+      return;
+    }
+    setBaseline(parsed.results, parsed.synthetic);
+  }
+
   return (
     <section className="panel" aria-labelledby="import-heading">
       <h2 id="import-heading">Import</h2>
       <p>
-        Each file is one axe result, or an array of results from several pages. The optional
-        baseline is the previous run.
+        Each file is one axe result, an array of page results, or an object with a results array.
+        Files over 8 MB are refused. The optional baseline is the previous run.
       </p>
       <div className="import-grid">
         <DropFields
           id="current"
           legend="Current run"
           description="Required. The run you want to gate."
-          onParsed={(documents) => {
-            const parsed = parseAxeDocuments(documents);
-            if (!parsed.ok) {
-              reportError(parsed.error);
-              return;
-            }
-            setCurrent(parsed.results, inferProjectName(parsed.results), parsed.synthetic);
-          }}
+          onError={reportError}
+          onParsed={(documents) => accept('current', documents)}
         />
         <DropFields
           id="baseline"
           legend="Baseline"
           description="Optional. Findings only in this run are marked fixed."
-          onParsed={(documents) => {
-            const parsed = parseAxeDocuments(documents);
-            if (!parsed.ok) {
-              reportError(parsed.error);
-              return;
-            }
-            setBaseline(parsed.results, parsed.synthetic);
-          }}
+          onError={reportError}
+          onParsed={(documents) => accept('baseline', documents)}
         />
       </div>
       <div className="row-actions">
