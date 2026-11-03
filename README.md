@@ -157,3 +157,8 @@ The production response sets a Content-Security-Policy suitable for this client-
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 Eliran Bar David.
+
+
+## Unreleased coverage and manual-evidence increment
+
+The review branch adds coverage-aware comparison, actionable finding guidance, explicit baseline-acceptance review and structured browser-local/manual CLI evidence. Published CLI 0.1.0 does not include these additions. Read [the evidence policy](docs/CI_EVIDENCE_POLICY.md) and the [pinned Action CI installation path](https://github.com/DaveEliranAssistant/a11ygate-action/blob/8db16426676b05ed4daf69392b237af7b9973049/docs/CI_INSTALL.md). The separate Action review PR carries the tested adoption guide; no release or certification is implied.
