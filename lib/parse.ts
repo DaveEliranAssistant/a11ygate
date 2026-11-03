@@ -147,6 +147,7 @@ function validateResult(value: unknown, path: string): { result: AxeResults; syn
   }
   if ('scanStatus' in value && value.scanStatus !== 'complete' && value.scanStatus !== 'failed') return `${path}.scanStatus must be complete or failed`;
   if ('scanError' in value && (typeof value.scanError !== 'string' || !value.scanError.trim())) return `${path}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== 'failed') return `${path}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
   if (value.scanStatus === 'failed' && !value.scanError) return `${path}.scanError is required for failed scans`;
   const incomplete: AxeViolation[] = [];
   if ('incomplete' in value) {

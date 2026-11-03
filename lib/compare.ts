@@ -43,7 +43,7 @@ export function compareScans(current: readonly AxeResults[], baseline: readonly 
     const a=next.get(key)??[], b=base.get(key)??[];
     if(!a.length)issue(key,'missing-page','Page was in the baseline but is absent from the current input; previous findings are unassessed, not fixed.');
     if(a.length>1 || b.length>1)issue(key,'duplicate-page','Multiple scans for this page/state are ambiguous; provide distinct query/hash states or separate comparisons.');
-    if([...a,...b].some(r=>r.scanStatus==='failed'))issue(key,'failed-scan',[...a,...b].filter(r=>r.scanStatus==='failed').map(r=>r.scanError).join('; '));
+    if([...a,...b].some(r=>r.scanStatus==='failed' || !!r.scanError))issue(key,'failed-scan',[...a,...b].filter(r=>r.scanStatus==='failed').map(r=>r.scanError).join('; '));
     if(a.length===1 && b.length===1 && config(a[0])!==config(b[0]))issue(key,'configuration-changed','Engine, toolOptions, scanConfig or testEnvironment differs or is missing on one side; absence is not a fix.');
     if([...a,...b].some(r=>!r.toolOptions && !r.scanConfig))issue(key,'configuration-unrecorded','Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified.',false);
     if([...a].some(r=>(r.incomplete?.length??0)>0))issue(key,'axe-needs-review','axe incomplete results require human review; they are not passes or accepted fixes.',false);

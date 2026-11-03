@@ -34,6 +34,8 @@ test('manual evidence defaults to not-assessed, survives navigation and never ch
 });
 test('invalid import never leaves an old PASS visible as the attempted result' ,async({page})=>{
  await page.goto('/');await load(page,'current',scan('https://synthetic.test/'));await expect(page.getByTestId('verdict')).toHaveText('PASS');
- await page.locator('#current-paste').fill('{');await page.getByRole('button',{name:'Parse pasted current JSON'}).click();
- await expect(page.locator('#import-error')).toContainText('Not valid JSON');await expect(page.getByTestId('verdict')).toHaveCount(0);
+ for(const [raw,message] of [['{','Not valid JSON'],[JSON.stringify({...scan('https://synthetic.test/'),scanStatus:'complete',scanError:'navigation timed out'}),'scanError requires']]){
+ await load(page,'current',scan('https://synthetic.test/'));await page.locator('#current-paste').fill(raw);await page.getByRole('button',{name:'Parse pasted current JSON'}).click();
+ await expect(page.locator('#import-error')).toContainText(message);await expect(page.getByTestId('verdict')).toHaveCount(0);}
+
 });

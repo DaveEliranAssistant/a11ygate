@@ -1,4 +1,4 @@
-import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { readFile, realpath, stat, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './args';
@@ -164,9 +164,13 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   }
 
   // Resolve symlinks and inode aliases before any output can overwrite input evidence.
+  try {
   const identify = async (file: string) => {
     const absolute = resolveInput(cwd, file);
-    const canonical = await realpath(absolute).catch(async () => path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute)));
+    const canonical = await realpath(absolute).catch(async () => {
+      if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error('Dangling symlinks are not safe output/input paths.');
+      return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+    });
     const info = await stat(absolute).catch(() => null);
     return {canonical, inode: info ? `${info.dev}:${info.ino}` : null};
   };
@@ -183,6 +187,10 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
       return 2;
     }
     seen.push(id);
+  }
+  } catch (error) {
+    stderr((error instanceof Error ? error.message : 'Unsafe output path.') + '\n');
+    return 2;
   }
 
   const currentRead = await readDocuments(options.current, cwd);

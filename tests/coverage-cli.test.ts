@@ -1,5 +1,5 @@
 import { describe,it,expect } from 'vitest';
-import { mkdtemp,writeFile,readFile,rm } from 'node:fs/promises';
+import { mkdtemp,writeFile,readFile,rm,symlink,lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';import path from 'node:path';
 import { run } from '../packages/cli/src/run';import { minimalResult } from './helpers';
 async function scenario(current:unknown,baseline:unknown,args:string[]=[]){
@@ -9,6 +9,10 @@ async function scenario(current:unknown,baseline:unknown,args:string[]=[]){
  return {dir,c,b,j,invoke,out:()=>out,err:()=>err};
 }
 describe('actual CLI coverage and baseline proposal',()=>{
+ it('rejects dangling output symlink aliases before writing a baseline or acceptance sidecar',async()=>{
+  const s=await scenario(minimalResult(),minimalResult());const target=path.join(s.dir,'proposed.json');await symlink(target,target+'.review.json');
+  try{expect(await s.invoke(['--update-baseline',target])).toBe(2);expect((await lstat(target+'.review.json')).isSymbolicLink()).toBe(true);await expect(readFile(target,'utf8')).rejects.toMatchObject({code:'ENOENT'});}finally{await rm(s.dir,{recursive:true,force:true});}
+ });
  it('records manual assertions separately without clearing automated failures; malformed manual input is an error',async()=>{
   const s=await scenario(minimalResult(),minimalResult({violations:[]}));const f=path.join(s.dir,'manual.json');
   const entry={id:'synthetic',scope:'/products',check:'Keyboard',reviewer:'Synthetic Reviewer',date:'2026-11-03',status:'passed',notes:'Synthetic evidence, not a real review.'};

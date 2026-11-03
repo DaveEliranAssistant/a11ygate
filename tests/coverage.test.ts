@@ -62,7 +62,7 @@ describe('coverage-aware regression evidence', () => {
   expect(g.userImpact).toMatch(/vision|contrast/i);expect(g.remediation).toMatch(/contrast|color/i);expect(g.verification.length).toBeGreaterThan(1);
  });
  it('rejects malformed coverage metadata and invalid calendar timestamps',()=>{
-  for(const extra of [{scanStatus:'success-ish'},{toolOptions:[]},{scanConfig:'mobile'},{timestamp:'2026-13-99T22:00:00Z'},{timestamp:'2026-02-30T22:00:00Z'},{scanStatus:'failed',scanError:''}]){
+  for(const extra of [{scanStatus:'success-ish'},{toolOptions:[]},{scanConfig:'mobile'},{timestamp:'2026-13-99T22:00:00Z'},{timestamp:'2026-02-30T22:00:00Z'},{scanStatus:'failed',scanError:''},{scanError:'navigation timed out'},{scanStatus:'complete',scanError:'navigation timed out'}]){
    expect(parseAxeJson(JSON.stringify(page(undefined,extra))).ok).toBe(false);
   }
  });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { readFile, realpath, stat, lstat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -604,6 +604,7 @@ function validateResult(value, path2) {
   }
   if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path2}.scanStatus must be complete or failed`;
   if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path2}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path2}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
   if (value.scanStatus === "failed" && !value.scanError) return `${path2}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
@@ -796,7 +797,7 @@ function compareScans(current, baseline) {
     const a = next.get(key) ?? [], b = base.get(key) ?? [];
     if (!a.length) issue(key, "missing-page", "Page was in the baseline but is absent from the current input; previous findings are unassessed, not fixed.");
     if (a.length > 1 || b.length > 1) issue(key, "duplicate-page", "Multiple scans for this page/state are ambiguous; provide distinct query/hash states or separate comparisons.");
-    if ([...a, ...b].some((r) => r.scanStatus === "failed")) issue(key, "failed-scan", [...a, ...b].filter((r) => r.scanStatus === "failed").map((r) => r.scanError).join("; "));
+    if ([...a, ...b].some((r) => r.scanStatus === "failed" || !!r.scanError)) issue(key, "failed-scan", [...a, ...b].filter((r) => r.scanStatus === "failed").map((r) => r.scanError).join("; "));
     if (a.length === 1 && b.length === 1 && config(a[0]) !== config(b[0])) issue(key, "configuration-changed", "Engine, toolOptions, scanConfig or testEnvironment differs or is missing on one side; absence is not a fix.");
     if ([...a, ...b].some((r) => !r.toolOptions && !r.scanConfig)) issue(key, "configuration-unrecorded", "Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified.", false);
     if ([...a].some((r) => (r.incomplete?.length ?? 0) > 0)) issue(key, "axe-needs-review", "axe incomplete results require human review; they are not passes or accepted fixes.", false);
@@ -958,25 +959,33 @@ async function run(argv, io = {}) {
     stderr("Pass at least one current axe JSON file with --current.\n");
     return 2;
   }
-  const identify = async (file) => {
-    const absolute = resolveInput(cwd, file);
-    const canonical2 = await realpath(absolute).catch(async () => path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute)));
-    const info = await stat(absolute).catch(() => null);
-    return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
-  };
-  const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
-  const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
-  const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0].filter((x) => !!x);
-  const seen = [];
-  for (const output of outputs) {
-    const id = await identify(output);
-    const same = (x) => x.canonical === id.canonical || !!(id.inode && x.inode === id.inode);
-    const protectedInputs = output === options.updateBaseline ? baselineProtectedInputs : inputs;
-    if (protectedInputs.some(same) || seen.some(same)) {
-      stderr("Output paths must be distinct and must not overwrite input evidence.\n");
-      return 2;
+  try {
+    const identify = async (file) => {
+      const absolute = resolveInput(cwd, file);
+      const canonical2 = await realpath(absolute).catch(async () => {
+        if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
+        return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+      });
+      const info = await stat(absolute).catch(() => null);
+      return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
+    };
+    const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
+    const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
+    const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0].filter((x) => !!x);
+    const seen = [];
+    for (const output of outputs) {
+      const id = await identify(output);
+      const same = (x) => x.canonical === id.canonical || !!(id.inode && x.inode === id.inode);
+      const protectedInputs = output === options.updateBaseline ? baselineProtectedInputs : inputs;
+      if (protectedInputs.some(same) || seen.some(same)) {
+        stderr("Output paths must be distinct and must not overwrite input evidence.\n");
+        return 2;
+      }
+      seen.push(id);
     }
-    seen.push(id);
+  } catch (error) {
+    stderr((error instanceof Error ? error.message : "Unsafe output path.") + "\n");
+    return 2;
   }
   const currentRead = await readDocuments(options.current, cwd);
   if (!currentRead.ok) {
