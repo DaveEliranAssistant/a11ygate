@@ -7,6 +7,13 @@ import { isImpact } from '@/lib/types';
 const ISO_TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || !ISO_TIMESTAMP.test(value) || !Number.isFinite(Date.parse(value))) return false;
+  const day = value.slice(0, 10);
+  const calendar = new Date(day + 'T00:00:00Z');
+  return Number.isFinite(calendar.getTime()) && calendar.toISOString().slice(0, 10) === day && Number(value.slice(11, 13)) < 24 && Number(value.slice(14, 16)) < 60 && Number(value.slice(17, 19)) < 60;
+}
+
 export type ParseResult =
   | { ok: true; results: AxeResults[]; synthetic: boolean }
   | { ok: false; error: string };
@@ -123,7 +130,7 @@ function validateResult(value: unknown, path: string): { result: AxeResults; syn
   if (typeof value.url !== 'string' || value.url.trim().length === 0) {
     return `${path}.url must be a non-empty string`;
   }
-  if (typeof value.timestamp !== 'string' || !ISO_TIMESTAMP.test(value.timestamp)) {
+  if (!isIsoTimestamp(value.timestamp)) {
     return `${path}.timestamp must be an ISO date string`;
   }
   if (
@@ -135,6 +142,21 @@ function validateResult(value: unknown, path: string): { result: AxeResults; syn
   }
   if (!Array.isArray(value.violations)) return `${path}.violations must be an array`;
 
+  for (const key of ['toolOptions', 'scanConfig', 'testEnvironment']) {
+    if (key in value && !isRecord(value[key])) return `${path}.${key} must be an object`;
+  }
+  if ('scanStatus' in value && value.scanStatus !== 'complete' && value.scanStatus !== 'failed') return `${path}.scanStatus must be complete or failed`;
+  if ('scanError' in value && (typeof value.scanError !== 'string' || !value.scanError.trim())) return `${path}.scanError must be a non-empty string`;
+  if (value.scanStatus === 'failed' && !value.scanError) return `${path}.scanError is required for failed scans`;
+  const incomplete: AxeViolation[] = [];
+  if ('incomplete' in value) {
+    if (!Array.isArray(value.incomplete)) return `${path}.incomplete must be an array`;
+    for (let i = 0; i < value.incomplete.length; i++) {
+      const item = validateViolation(value.incomplete[i], `${path}.incomplete[${i}]`);
+      if (typeof item === 'string') return item;
+      incomplete.push(item);
+    }
+  }
   const violations: AxeViolation[] = [];
   for (let index = 0; index < value.violations.length; index += 1) {
     const violation = validateViolation(value.violations[index], `${path}.violations[${index}]`);
@@ -149,6 +171,12 @@ function validateResult(value: unknown, path: string): { result: AxeResults; syn
       timestamp: value.timestamp,
       testEngine: { version: value.testEngine.version },
       violations,
+      ...('toolOptions' in value ? {toolOptions: value.toolOptions as Record<string, unknown>} : {}),
+      ...('scanConfig' in value ? {scanConfig: value.scanConfig as Record<string, unknown>} : {}),
+      ...('testEnvironment' in value ? {testEnvironment: value.testEnvironment as Record<string, unknown>} : {}),
+      ...('scanStatus' in value ? {scanStatus: value.scanStatus as 'complete' | 'failed'} : {}),
+      ...(typeof value.scanError === 'string' ? {scanError: value.scanError} : {}),
+      ...('incomplete' in value ? {incomplete} : {}),
     },
   };
 }

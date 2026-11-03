@@ -22,5 +22,6 @@ export function plural(count: number, noun: string): string {
 export function statusLabel(status: DiffStatus): string {
   if (status === 'new') return 'New';
   if (status === 'fixed') return 'Fixed';
+  if (status === 'unassessed') return 'Unassessed — not verified fixed';
   return 'Still open';
 }

@@ -1,4 +1,4 @@
-import type { Finding, Impact, Verdict } from '@/lib/types';
+import type { CoverageComparison, Finding, Impact, Verdict } from '@/lib/types';
 
 const RANK: Record<Impact, number> = {
   minor: 1,
@@ -20,8 +20,9 @@ export function gatingFindings<T extends Finding>(findings: readonly T[], thresh
   return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
 }
 
-export function gateVerdict(newFindings: readonly Finding[], threshold: Impact): Verdict {
-  return gatingFindings(newFindings, threshold).length > 0 ? 'FAIL' : 'PASS';
+export function gateVerdict(newFindings: readonly Finding[], threshold: Impact, coverage?: CoverageComparison): Verdict {
+  if (gatingFindings(newFindings, threshold).length > 0) return 'FAIL';
+  return coverage?.status === 'incomplete' ? 'INCOMPLETE' : 'PASS';
 }
 
 export function verdictReason(newFindings: readonly Finding[], threshold: Impact): string {

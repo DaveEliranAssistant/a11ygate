@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { meetsThreshold } from '@/lib/gate';
 import { statusLabel } from '@/lib/format';
+import { findingGuidance } from '@/lib/guidance';
 import { safeHttpUrl } from '@/lib/url';
 import { isImpact, type DiffedFinding, type GroupBy, type Impact } from '@/lib/types';
 import { StandardsList } from '@/components/StandardsList';
@@ -126,6 +127,7 @@ export function Findings({ groups, groupBy, threshold, onGroupBy, onThreshold }:
                   <tbody>
                     {group.findings.map((finding) => {
                       const help = safeHttpUrl(finding.helpUrl);
+                      const guidance = findingGuidance(finding);
                       return (
                         <tr key={`${finding.status}-${finding.fingerprint}`}>
                           <td className={`status status-${finding.status}`}>{statusLabel(finding.status)}</td>
@@ -151,6 +153,10 @@ export function Findings({ groups, groupBy, threshold, onGroupBy, onThreshold }:
                             ) : (
                               finding.help
                             )}
+                            <p><strong>User impact:</strong> {guidance.userImpact}</p>
+                            <p><strong>Remediation:</strong> {guidance.remediation}</p>
+                            <p><strong>Verification:</strong> {guidance.verification.join(' ')}</p>
+                            {finding.assessmentReason ? <p>{finding.assessmentReason}</p> : null}
                           </td>
                         </tr>
                       );

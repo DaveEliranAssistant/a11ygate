@@ -9,11 +9,12 @@ export type CliOptions = {
   markdown?: string;
   json?: string;
   updateBaseline?: string;
+  manualEvidence?: string;
 };
 
 export type ParsedArgs = { ok: true; options: CliOptions } | { ok: false; error: string };
 
-const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdown' | 'json' | 'updateBaseline'> = {
+const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdown' | 'json' | 'updateBaseline' | 'manualEvidence'> = {
   '--current': 'current',
   '-c': 'current',
   '--baseline': 'baseline',
@@ -25,6 +26,7 @@ const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdo
   '--json': 'json',
   '-j': 'json',
   '--update-baseline': 'updateBaseline',
+  '--manual-evidence': 'manualEvidence',
 };
 
 function flagName(token: string): { name: string; inline?: string } {
@@ -53,6 +55,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let markdown: string | undefined;
   let json: string | undefined;
   let updateBaseline: string | undefined;
+  let manualEvidence: string | undefined;
   let help = false;
   let version = false;
   let thresholdText: string | undefined;
@@ -93,7 +96,8 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     else if (field === 'threshold') thresholdText = value;
     else if (field === 'markdown') markdown = value;
     else if (field === 'json') json = value;
-    else updateBaseline = value;
+    else if (field === 'updateBaseline') updateBaseline = value;
+    else manualEvidence = value;
   }
 
   if (!help && !version && thresholdText !== undefined) {
@@ -108,6 +112,6 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   return {
     ok: true,
-    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline },
+    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence },
   };
 }
