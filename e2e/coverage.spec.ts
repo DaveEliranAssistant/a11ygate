@@ -29,7 +29,10 @@ test('manual evidence defaults to not-assessed, survives navigation and never ch
  for(const [id,value] of Object.entries({id:'keyboard-synthetic',scope:'/ synthetic desktop',check:'Keyboard traversal',reviewer:'Synthetic Reviewer',date:'2026-11-03',notes:'Synthetic record, not a completed human assessment.'}))await page.locator('#manual-'+id).fill(value);
  await page.getByRole('button',{name:'Add manual evidence'}).click();await expect(page.getByText('Keyboard traversal: not-assessed',{exact:true})).toBeVisible();
  await expect(page.getByTestId('verdict')).toHaveText('PASS');await page.getByRole('link',{name:'Report',exact:true}).click();
+ await expect(page).toHaveURL(/\/report$/);await expect(page.getByRole('heading',{name:'EAA evidence report',exact:true})).toBeVisible();
  await expect(page.getByText('Keyboard traversal: not-assessed',{exact:true})).toBeVisible();await page.reload();await expect(page.getByText('Keyboard traversal: not-assessed',{exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Mapped findings',exact:true})).toHaveCount(1);
+ await expect(page.getByRole('region',{name:'Mapped findings table',exact:true})).toBeVisible();
  const a=await new AxeBuilder({page}).analyze();expect(a.violations).toEqual([]);
 });
 test('invalid import never leaves an old PASS visible as the attempted result' ,async({page})=>{

@@ -81,7 +81,7 @@ export function ReportView() {
           Standards mapping needs expert review before it is used as compliance evidence. Tags with
           no success criterion are shown as best practice.
         </p>
-        <div className="table-scroll" tabIndex={0} role="region" aria-label="Mapped findings">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Mapped findings table">
           <table>
             <caption className="sr-only">Mapped findings for {scan.projectName}</caption>
             <thead>
