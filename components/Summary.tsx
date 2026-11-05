@@ -30,7 +30,7 @@ export function Summary({ diff, verdict, reason }: SummaryProps) {
           </p>
         </li>
         <li
-          className={verdict === 'FAIL' ? 'verdict fail' : 'verdict pass'}
+          className={verdict === 'PASS' ? 'verdict pass' : 'verdict fail'}
           aria-live="polite"
           aria-atomic="true"
         >
@@ -41,6 +41,11 @@ export function Summary({ diff, verdict, reason }: SummaryProps) {
           <p className="reason">{reason}</p>
         </li>
       </ul>
+      <h3>Scan coverage</h3>
+      <p>Coverage: <strong>{diff.coverage?.status ?? 'unverified'}</strong>. Previously reported but now unassessed: {diff.unassessed?.length ?? 0}. Existing debt remains visible above; PASS is only a regression gate, not an accessibility clearance.</p>
+      <ul>{diff.coverage?.issues.map((issue, i) => <li key={i}><code>{issue.code}</code>: <code>{issue.page}</code> — {issue.detail}</li>)}</ul>
+      <h4>Unassessed scope</h4>
+      <ul>{(diff.coverage?.unassessedScope ?? ['Scan coverage was not supplied.']).map(item => <li key={item}>{item}</li>)}</ul>
     </section>
   );
 }

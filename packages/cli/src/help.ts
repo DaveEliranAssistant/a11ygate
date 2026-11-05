@@ -12,14 +12,15 @@ Options:
                                Exit 1 only when a new finding is at or above this impact.
   -m, --markdown <file>        Also write the Markdown summary to this file. It is always printed.
   -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
-      --update-baseline <file> Write the current results as a baseline JSON file.
+      --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
+      --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
   -h, --help                   Show this help.
       --version                Show the version.
 
 Exit codes:
-  0  No new finding is at or above the threshold.
+  0  No detected new finding is at or above the threshold; existing debt/unassessed scope remain.
   1  At least one new finding is at or above the threshold.
-  2  The arguments or the JSON could not be read.
+  2  Incomplete scan coverage, unsafe outputs, invalid evidence, or unreadable arguments/JSON.
 
 Examples:
   npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
@@ -27,5 +28,7 @@ Examples:
   npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
 
 A file larger than 8 MB is refused. The same diff and gate as the web app are used.
+This source build is unreleased; published 0.1.0 does not include these coverage/manual features.
+PASS is not legal advice or certification. Baseline updates never clear the current gate result.
 `;
 }

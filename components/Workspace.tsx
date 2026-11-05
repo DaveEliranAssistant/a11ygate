@@ -7,12 +7,13 @@ import { useScanModel } from '@/lib/store';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { Exports } from '@/components/Exports';
 import { Findings } from '@/components/Findings';
+import { ManualEvidence } from '@/components/ManualEvidence';
 import { ImportPanel } from '@/components/ImportPanel';
 import { Summary } from '@/components/Summary';
 import { WaitlistForm } from '@/components/WaitlistForm';
 
 export function Workspace() {
-  const { scan, model, error, notice, setGroupBy, setThreshold } = useScanModel();
+  const { scan, model, error, notice, setGroupBy, setThreshold, setManualChecks } = useScanModel();
   const synthetic = Boolean(scan && (scan.currentSynthetic || scan.baselineSynthetic));
   const alertRef = useRef<HTMLParagraphElement>(null);
 
@@ -67,6 +68,7 @@ export function Workspace() {
             onThreshold={setThreshold}
           />
           <Exports
+            manualChecks={scan.manualChecks ?? []}
             projectName={scan.projectName}
             verdict={model.verdict}
             threshold={scan.threshold}
@@ -80,6 +82,7 @@ export function Workspace() {
               Open evidence report
             </Link>
           </p>
+          <ManualEvidence checks={scan.manualChecks ?? []} onChange={setManualChecks} />
           <DisclaimerNote />
         </div>
       ) : null}

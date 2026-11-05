@@ -1,3 +1,4 @@
+import type { ManualCheck } from '@/lib/manual-evidence';
 export const IMPACTS = ['minor', 'moderate', 'serious', 'critical'] as const;
 
 export type Impact = (typeof IMPACTS)[number];
@@ -24,6 +25,12 @@ export type AxeResults = {
     version: string;
   };
   violations: AxeViolation[];
+  toolOptions?: Record<string, unknown>;
+  scanConfig?: Record<string, unknown>;
+  testEnvironment?: Record<string, unknown>;
+  scanStatus?: 'complete' | 'failed';
+  scanError?: string;
+  incomplete?: AxeViolation[];
 };
 
 export type Finding = {
@@ -48,10 +55,11 @@ export type PageInfo = {
   engineVersion: string;
 };
 
-export type DiffStatus = 'new' | 'fixed' | 'still-open';
+export type DiffStatus = 'new' | 'fixed' | 'still-open' | 'unassessed';
 
 export type DiffedFinding = Finding & {
   status: DiffStatus;
+  assessmentReason?: string;
 };
 
 export type DiffResult = {
@@ -59,9 +67,19 @@ export type DiffResult = {
   fixedFindings: DiffedFinding[];
   stillOpen: DiffedFinding[];
   all: DiffedFinding[];
+  unassessed?: DiffedFinding[];
+  coverage?: CoverageComparison;
 };
 
-export type Verdict = 'PASS' | 'FAIL';
+export type CoverageComparison = {
+  status: 'complete' | 'incomplete' | 'unverified';
+  issues: { page: string; code: string; detail: string }[];
+  pages: { page: string; current: number; baseline: number; comparable: boolean }[];
+  unassessedScope: string[];
+  unassessedFindings: number;
+};
+
+export type Verdict = 'PASS' | 'FAIL' | 'INCOMPLETE';
 
 export type GroupBy = 'rule' | 'page';
 
@@ -77,6 +95,7 @@ export type ScanState = {
   projectName: string;
   currentSynthetic: boolean;
   baselineSynthetic: boolean;
+  manualChecks?: ManualCheck[];
   currentResults: AxeResults[];
   baselineResults: AxeResults[] | null;
   threshold: Impact;

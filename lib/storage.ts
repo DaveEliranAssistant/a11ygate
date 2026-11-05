@@ -1,4 +1,5 @@
 import { parseAxeJson } from '@/lib/parse';
+import { parseManualEvidence } from '@/lib/manual-evidence';
 import type { AxeResults, ScanState } from '@/lib/types';
 import { isImpact } from '@/lib/types';
 
@@ -35,11 +36,14 @@ export function reviveScan(raw: string): ScanState | null {
     baselineResults = baseline.results;
   }
 
+  const manual = parseManualEvidence(JSON.stringify({schemaVersion:1,checks:value.manualChecks ?? []}));
+  if (!manual.ok) return null;
   return {
     projectName: value.projectName,
     currentSynthetic: value.currentSynthetic,
     baselineSynthetic: value.baselineSynthetic,
     currentResults: current.results,
+    ...(value.manualChecks === undefined ? {} : {manualChecks: manual.checks}),
     baselineResults,
     threshold: value.threshold,
     groupBy: value.groupBy,

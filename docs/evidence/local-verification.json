@@ -1,0 +1,19 @@
+{
+  "scope": "local verification, not remote CI or customer qualification",
+  "productRuntimeCommit": "11df7f0f49c27727d80113795d98fa97c91a5169",
+  "actionRuntimeCommit": "73e911d1b19ba4aeb52be94fa37de6c668225cf3",
+  "productTests": 96,
+  "productBrowserTests": 8,
+  "typecheck": "passed",
+  "lint": "passed",
+  "productionBuild": "passed as part of Playwright webServer",
+  "actionTestsNode24": 16,
+  "node24": "24.22.2",
+  "syntheticConsumerCases": 12,
+  "strictQeV1RecordsValidated": 13,
+  "baselineSha256": "93238fc58270938ff69b628d4d51c828dfdaf55eb50b85465337a7a9fba2cb5d",
+  "baselineUnchanged": true,
+  "independentSourceReview": "passed after two reproduced fixes; source review, not reviewer test execution",
+  "manualChecks": "self-reported, separate from automated verdict",
+  "customerMetrics": "not measured"
+}

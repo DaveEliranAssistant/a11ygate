@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { formatTimestamp, plural, statusLabel } from '@/lib/format';
 import { safeHttpUrl } from '@/lib/url';
+import { findingGuidance } from '@/lib/guidance';
 import { useScanModel } from '@/lib/store';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { StandardsList } from '@/components/StandardsList';
 import { StatementDraft } from '@/components/StatementDraft';
 import { Summary } from '@/components/Summary';
+import { ManualEvidence } from '@/components/ManualEvidence';
 
 export function ReportView() {
-  const { ready, scan, model } = useScanModel();
+  const { ready, scan, model, setManualChecks } = useScanModel();
 
   if (!scan || !model) {
     return (
@@ -79,7 +81,7 @@ export function ReportView() {
           Standards mapping needs expert review before it is used as compliance evidence. Tags with
           no success criterion are shown as best practice.
         </p>
-        <div className="table-scroll" tabIndex={0} role="region" aria-label="Mapped findings">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Mapped findings table">
           <table>
             <caption className="sr-only">Mapped findings for {scan.projectName}</caption>
             <thead>
@@ -120,6 +122,10 @@ export function ReportView() {
                       ) : (
                         finding.help
                       )}
+                      <p><strong>User impact:</strong> {findingGuidance(finding).userImpact}</p>
+                      <p><strong>Remediation:</strong> {findingGuidance(finding).remediation}</p>
+                      <p><strong>Verification:</strong> {findingGuidance(finding).verification.join(' ')}</p>
+                      {finding.assessmentReason ? <p>{finding.assessmentReason}</p> : null}
                     </td>
                   </tr>
                 );
@@ -148,6 +154,7 @@ export function ReportView() {
           </li>
         </ul>
       </section>
+      <ManualEvidence checks={scan.manualChecks ?? []} onChange={setManualChecks} />
       <StatementDraft
         projectName={scan.projectName}
         verdict={model.verdict}

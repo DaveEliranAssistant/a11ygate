@@ -9,10 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 import { loadDemo } from '@/lib/demo';
-import { diffScans } from '@/lib/diff';
+import type { ManualCheck } from '@/lib/manual-evidence';
+import { compareScans } from '@/lib/compare';
 import { gateVerdict, verdictReason } from '@/lib/gate';
 import { groupFindings } from '@/lib/group';
-import { engineVersions, findingsFromResults, pagesFromResults } from '@/lib/parse';
+import { engineVersions, pagesFromResults } from '@/lib/parse';
 import { STORAGE_KEY, reviveScan } from '@/lib/storage';
 import type { AxeResults, GroupBy, Impact, ScanState } from '@/lib/types';
 
@@ -28,6 +29,7 @@ type ScanContextValue = Snapshot & {
   setGroupBy: (groupBy: GroupBy) => void;
   setCurrent: (results: AxeResults[], projectName: string, synthetic: boolean) => void;
   setBaseline: (results: AxeResults[] | null, synthetic: boolean) => void;
+  setManualChecks: (checks: ManualCheck[]) => void;
   loadDemoData: () => void;
   clearScan: () => void;
   reportError: (message: string) => void;
@@ -130,6 +132,7 @@ const actions = {
       currentSynthetic: synthetic,
       baselineSynthetic: scan?.baselineSynthetic ?? false,
       currentResults: results,
+      manualChecks: [],
       baselineResults: scan?.baselineResults ?? null,
       threshold: scan?.threshold ?? 'serious',
       groupBy: scan?.groupBy ?? 'rule',
@@ -155,6 +158,13 @@ const actions = {
     notice = results
       ? pageNotice(results.length, 'baseline')
       : 'Baseline removed. Every current finding is treated as new.';
+    publish();
+    persist();
+  },
+  setManualChecks(checks: ManualCheck[]) {
+    if (!scan) return;
+    edited = true;
+    scan = { ...scan, manualChecks: checks };
     publish();
     persist();
   },
@@ -211,17 +221,13 @@ export function useScanModel() {
   const context = useScan();
   const currentScan = context.scan;
   const model = useMemo(() => {
-    if (!currentScan) return null;
-    const currentFindings = findingsFromResults(currentScan.currentResults);
-    const baselineFindings = currentScan.baselineResults
-      ? findingsFromResults(currentScan.baselineResults)
-      : null;
-    const diff = diffScans(currentFindings, baselineFindings);
-    const verdict = gateVerdict(diff.newFindings, currentScan.threshold);
+    if (!currentScan || context.error) return null;
+    const diff = compareScans(currentScan.currentResults, currentScan.baselineResults);
+    const verdict = gateVerdict(diff.newFindings, currentScan.threshold, diff.coverage);
     return {
       diff,
       verdict,
-      reason: verdictReason(diff.newFindings, currentScan.threshold),
+      reason: verdict === 'INCOMPLETE' ? 'Missing, failed or materially incomparable scan coverage prevents a regression PASS.' : verdictReason(diff.newFindings, currentScan.threshold),
       groups: groupFindings(diff.all, currentScan.groupBy),
       pages: pagesFromResults(currentScan.currentResults),
       baselinePages: currentScan.baselineResults
@@ -229,7 +235,7 @@ export function useScanModel() {
         : [],
       engines: engineVersions(currentScan.currentResults),
     };
-  }, [currentScan]);
+  }, [currentScan, context.error]);
 
   return { ...context, model };
 }

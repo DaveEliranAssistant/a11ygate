@@ -45,7 +45,7 @@ export function diffScans(current: readonly Finding[], baseline: readonly Findin
   fixedFindings.sort(byLocation);
   stillOpen.sort(byLocation);
 
-  const statusOrder = { new: 0, fixed: 1, 'still-open': 2 } as const;
+  const statusOrder = { new: 0, fixed: 1, 'still-open': 2, unassessed: 3 } as const;
   const all = [...newFindings, ...fixedFindings, ...stillOpen].sort(
     (a, b) => statusOrder[a.status] - statusOrder[b.status] || byLocation(a, b),
   );

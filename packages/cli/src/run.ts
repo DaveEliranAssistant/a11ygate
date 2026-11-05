@@ -1,14 +1,16 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, realpath, stat, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './args';
 import { helpText } from './help';
-import { baselineDocument } from '@/lib/export-baseline';
+import { baselineDocument, baselineReview } from '@/lib/export-baseline';
+import { findingGuidance } from '@/lib/guidance';
+import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
 import { prSummaryMarkdown } from '@/lib/export-markdown';
-import { diffScans } from '@/lib/diff';
+import { compareScans } from '@/lib/compare';
 import { gateVerdict, verdictReason } from '@/lib/gate';
 import { axeJsonTooLargeMessage, MAX_AXE_JSON_BYTES } from '@/lib/limits';
-import { findingsFromResults, parseAxeDocuments } from '@/lib/parse';
+import { parseAxeDocuments } from '@/lib/parse';
 import { inferProjectName } from '@/lib/project';
 import type { AxeResults, DiffedFinding, Impact, Verdict } from '@/lib/types';
 
@@ -73,6 +75,9 @@ async function readVersion(): Promise<string> {
 
 function findingJson(finding: DiffedFinding) {
   return {
+    status: finding.status,
+    assessmentReason: finding.assessmentReason,
+    guidance: findingGuidance(finding),
     fingerprint: finding.fingerprint,
     ruleId: finding.ruleId,
     impact: finding.impact,
@@ -93,17 +98,27 @@ function reportJson(input: {
   threshold: Impact;
   reason: string;
   generatedAt: string;
-  diff: ReturnType<typeof diffScans>;
+  diff: ReturnType<typeof compareScans>;
+  currentResults: AxeResults[];
+  manualChecks: ManualCheck[];
+  synthetic: boolean;
 }): string {
   return `${JSON.stringify(
     {
       tool: 'a11ygate',
+      schemaVersion: 2,
+      releaseStatus: 'unreleased-source-build',
+      synthetic: input.synthetic,
       version: input.version,
       projectName: input.projectName,
       verdict: input.verdict,
       threshold: input.threshold,
       reason: input.reason,
       generatedAt: input.generatedAt,
+      coverage: input.diff.coverage,
+      baselineReview: baselineReview(input.currentResults, input.diff),
+      manualChecks: input.manualChecks,
+      manualEvidenceNotice: 'Self-reported human evidence, not identity-verified or automatically assessed; never improves the automated gate. Unrecorded scopes remain unassessed.',
       counts: {
         new: input.diff.newFindings.length,
         fixed: input.diff.fixedFindings.length,
@@ -113,6 +128,7 @@ function reportJson(input: {
         new: input.diff.newFindings.map(findingJson),
         fixed: input.diff.fixedFindings.map(findingJson),
         stillOpen: input.diff.stillOpen.map(findingJson),
+        unassessed: (input.diff.unassessed ?? []).map(findingJson),
       },
     },
     null,
@@ -144,6 +160,36 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   }
   if (options.current.length === 0) {
     stderr('Pass at least one current axe JSON file with --current.\n');
+    return 2;
+  }
+
+  // Resolve symlinks and inode aliases before any output can overwrite input evidence.
+  try {
+  const identify = async (file: string) => {
+    const absolute = resolveInput(cwd, file);
+    const canonical = await realpath(absolute).catch(async () => {
+      if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error('Dangling symlinks are not safe output/input paths.');
+      return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+    });
+    const info = await stat(absolute).catch(() => null);
+    return {canonical, inode: info ? `${info.dev}:${info.ino}` : null};
+  };
+  const inputs = await Promise.all([...options.current, ...options.baseline, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
+  const baselineProtectedInputs = await Promise.all([...options.current, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
+  const outputs = [options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
+  const seen: Awaited<ReturnType<typeof identify>>[] = [];
+  for (const output of outputs) {
+    const id = await identify(output);
+    const same = (x: typeof id) => x.canonical === id.canonical || !!(id.inode && x.inode === id.inode);
+    const protectedInputs = output === options.updateBaseline ? baselineProtectedInputs : inputs;
+    if (protectedInputs.some(same) || seen.some(same)) {
+      stderr('Output paths must be distinct and must not overwrite input evidence.\n');
+      return 2;
+    }
+    seen.push(id);
+  }
+  } catch (error) {
+    stderr((error instanceof Error ? error.message : 'Unsafe output path.') + '\n');
     return 2;
   }
 
@@ -179,12 +225,19 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     stderr('Note: at least one file is marked as a synthetic fixture, not a real audit.\n');
   }
 
-  const diff = diffScans(
-    findingsFromResults(current.results),
-    baselineResults ? findingsFromResults(baselineResults) : null,
-  );
-  const verdict = gateVerdict(diff.newFindings, options.threshold);
-  const reason = verdictReason(diff.newFindings, options.threshold);
+  let manualChecks: ManualCheck[] = [];
+  if (options.manualEvidence) {
+    const manualRead = await readDocuments([options.manualEvidence], cwd);
+    if (!manualRead.ok) { stderr(manualRead.error + '\n'); return 2; }
+    const manual = parseManualEvidence(manualRead.documents[0].text);
+    if (!manual.ok) { stderr(manual.error + '\n'); return 2; }
+    manualChecks = manual.checks;
+  }
+  const diff = compareScans(current.results, baselineResults);
+  const verdict = gateVerdict(diff.newFindings, options.threshold, diff.coverage);
+  const reason = verdict === 'INCOMPLETE'
+    ? 'Missing, failed or materially incomparable scan coverage prevents a regression PASS.'
+    : verdictReason(diff.newFindings, options.threshold);
   const projectName = inferProjectName(current.results);
   const generatedAt = now().toISOString();
   const version = await readVersion();
@@ -195,11 +248,18 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     diff,
     generatedAt,
     reason,
+    manualChecks,
+    synthetic: current.synthetic || baselineSynthetic,
   });
-  const json = reportJson({ version, projectName, verdict, threshold: options.threshold, reason, generatedAt, diff });
+  const json = reportJson({ version, projectName, verdict, threshold: options.threshold, reason, generatedAt, diff, currentResults: current.results, manualChecks, synthetic: current.synthetic || baselineSynthetic });
 
   if (options.updateBaseline) {
+    if (diff.coverage?.status === 'incomplete') {
+      stderr('Refusing baseline update: scan coverage is incomplete. Existing baseline is unchanged.\n');
+      return 2;
+    }
     try {
+      await writeFile(resolveInput(cwd, options.updateBaseline + '.review.json'), JSON.stringify(baselineReview(current.results, diff), null, 2) + '\n', 'utf8');
       await writeFile(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), 'utf8');
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}\n`);
@@ -227,5 +287,5 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   }
 
   stdout(options.json === '-' ? json : markdown);
-  return verdict === 'FAIL' ? 1 : 0;
+  return verdict === 'FAIL' ? 1 : verdict === 'INCOMPLETE' ? 2 : 0;
 }

@@ -176,7 +176,7 @@ export function ImportPanel() {
         <DropFields
           id="baseline"
           legend="Baseline"
-          description="Optional. Findings only in this run are marked fixed."
+          description="Optional. Previous findings are only marked fixed when the page and recorded scan configuration are comparable; missing or failed scans are unassessed."
           onError={reportError}
           onParsed={(documents) => accept('baseline', documents)}
         />
