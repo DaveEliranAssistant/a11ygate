@@ -4,7 +4,7 @@ A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) int
 
 The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. The CLI is published on npm as `@qe-atlas/a11ygate@0.1.0`. The Action runs from this public repository as `DaveEliranAssistant/a11ygate/action@<ref>`. The waitlist does not gate the CLI, the Action, or the browser demo.
+The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. The CLI is published on npm as `@qe-atlas/a11ygate@0.1.0`. The Action is published as `DaveEliranAssistant/a11ygate-action@v1`. The waitlist does not gate the CLI, the Action, or the browser demo.
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
@@ -91,7 +91,7 @@ npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json -
 
 ## GitHub Action
 
-`action/action.yml` is a composite action. It runs the CLI, appends the Markdown summary to the job summary, and can post or update a single pull request comment (the comment contains `<!-- a11ygate -->`). It is not listed on the GitHub Marketplace.
+`action/action.yml` is a composite action. It runs the CLI, appends the Markdown summary to the job summary, and can post or update a single pull request comment (the comment contains `<!-- a11ygate -->`). The published Action is listed on the [GitHub Marketplace as A11yGate axe-core Regression Gate](https://github.com/marketplace/actions/a11ygate-axe-core-regression-gate) by DaveEliranAssistant.
 
 ```yaml
 name: Accessibility
@@ -113,7 +113,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
-      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+      - uses: DaveEliranAssistant/a11ygate-action@v1
         with:
           current: |
             a11y-results/home.json
@@ -123,11 +123,11 @@ jobs:
           comment: true
 ```
 
-`a11y/baseline.json` must exist before this runs, and every path under `current` must be a file your tests write. A missing file exits 2. Record the baseline on the runner. The Action at `main` also compares scan configuration and browser environment, so a baseline from CLI 0.1.0 or from another machine stops it with INCOMPLETE and exit 2. For the first run, replace the A11yGate step with these steps, download the artifact, review it, and commit `a11y/baseline.json`:
+`a11y/baseline.json` must exist before this runs, and every path under `current` must be a file your tests write. A missing file exits 2. Record the baseline on the runner. The Action at `v1` also compares scan configuration and browser environment, so a baseline from CLI 0.1.0 or from another machine stops it with INCOMPLETE and exit 2. For the first run, replace the A11yGate step with these steps, download the artifact, review it, and commit `a11y/baseline.json`:
 
 ```yaml
       - run: mkdir -p a11y
-      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+      - uses: DaveEliranAssistant/a11ygate-action@v1
         continue-on-error: true
         with:
           current: |
@@ -140,7 +140,7 @@ jobs:
           path: a11y/
 ```
 
-From a checkout of this repository, `uses: ./action` points at the same action. `<ref>` must be a commit or branch that contains `action/`. Let the Playwright test write JSON and let A11yGate be the gate. Do not also assert `violations.length === 0` in that test, or the job fails before the summary is posted.
+From a checkout of this repository, `uses: ./action` points at the same action. Let the Playwright test write JSON and let A11yGate be the gate. Do not also assert `violations.length === 0` in that test, or the job fails before the summary is posted.
 
 `issues: write` lets the token create the pull request comment. The comment is skipped, with a warning, when the workflow event has no pull request number. Full input list: `action/README.md`.
 
