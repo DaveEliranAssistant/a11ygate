@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { CiCommands } from '@/components/CiCommands';
 import {
   WAITLIST_INVALID,
   WAITLIST_SUCCESS,
@@ -110,6 +111,11 @@ export function WaitlistForm() {
     <section className="waitlist" aria-labelledby="waitlist-heading">
       <h2 id="waitlist-heading">Join the waitlist</h2>
       <p>Product updates only. Scan files stay in this browser.</p>
+      {phase === 'done' ? null : (
+        <p>
+          You do not need to wait. <a href="#ci-setup">Run it in CI now</a>.
+        </p>
+      )}
       {phase === 'loading' ? (
         <p role="status">Checking whether the waitlist is open.</p>
       ) : null}
@@ -117,9 +123,13 @@ export function WaitlistForm() {
         <p role="status">{WAITLIST_UNAVAILABLE}</p>
       ) : null}
       {phase === 'done' ? (
-        <p ref={successRef} id="waitlist-success" role="status" tabIndex={-1}>
-          {WAITLIST_SUCCESS}
-        </p>
+        <>
+          <p ref={successRef} id="waitlist-success" role="status" tabIndex={-1}>
+            {WAITLIST_SUCCESS}
+          </p>
+          <h3>Run it in CI now</h3>
+          <CiCommands stepHeading="h4" />
+        </>
       ) : null}
       {phase === 'ready' ? (
         <form noValidate onSubmit={onSubmit} aria-busy={pending}>

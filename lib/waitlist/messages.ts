@@ -1,4 +1,5 @@
-export const WAITLIST_SUCCESS = 'You are on the waitlist.';
+export const WAITLIST_SUCCESS =
+  'You are on the waitlist. You do not need to wait. The CLI, the GitHub Action, and the browser demo are open now.';
 
 export const WAITLIST_UNAVAILABLE = 'The waitlist is temporarily unavailable.';
 
