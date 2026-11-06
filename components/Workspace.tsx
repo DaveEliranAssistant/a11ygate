@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { HERO_HEADING, PRIVACY_NOTE } from '@/lib/copy';
 import { useScanModel } from '@/lib/store';
+import { CiCommands } from '@/components/CiCommands';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
 import { Exports } from '@/components/Exports';
 import { Findings } from '@/components/Findings';
@@ -86,6 +87,10 @@ export function Workspace() {
           <DisclaimerNote />
         </div>
       ) : null}
+      <section id="ci-setup" className="ci-setup" aria-labelledby="ci-setup-heading">
+        <h2 id="ci-setup-heading">Run it in CI now</h2>
+        <CiCommands stepHeading="h3" />
+      </section>
     </main>
   );
 }

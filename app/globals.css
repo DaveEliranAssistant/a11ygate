@@ -187,6 +187,22 @@ a:hover {
   background: var(--paper-2);
 }
 
+.ci-setup {
+  max-width: 42rem;
+  margin-top: 2rem;
+}
+
+.ci-commands pre {
+  margin: 0 0 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border: 2px solid var(--ink);
+  overflow-x: auto;
+}
+
+.ci-commands h4 {
+  margin: 0 0 0.35rem;
+}
+
 .field-error {
   margin: 0.25rem 0 0;
   color: var(--fail);

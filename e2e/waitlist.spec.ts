@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { CI_AXE_SNIPPET, CI_CLI_COMMANDS } from '../lib/copy';
 import { expectNoSeriousViolations } from './support';
 
 test('waitlist form shows default, error, and success states', async ({ page }) => {
@@ -36,6 +37,16 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Join the waitlist' })).toBeVisible();
+  await expect(page.locator('.waitlist').getByRole('link', { name: 'Run it in CI now' })).toHaveAttribute(
+    'href',
+    '#ci-setup',
+  );
+  const landing = page.locator('#ci-setup');
+  await expect(landing.getByRole('heading', { level: 2, name: 'Run it in CI now' })).toBeVisible();
+  await expect(landing).toContainText(CI_AXE_SNIPPET);
+  await expect(landing).toContainText(CI_CLI_COMMANDS);
+  await expect(landing).toContainText('uses: DaveEliranAssistant/a11ygate/action@<ref>');
+  await expect(page.getByRole('button', { name: 'Load demo data' })).toBeEnabled();
   await expect(page.getByLabel('Email')).toBeVisible();
   await expect(page.getByLabel('Role (optional)')).toBeVisible();
   await expect(page.getByLabel('Company (optional)')).toBeVisible();
@@ -58,7 +69,12 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
   await page.getByRole('button', { name: 'Join the waitlist' }).click();
   const success = page.locator('#waitlist-success');
   await expect(success).toContainText('You are on the waitlist.');
+  await expect(success).toContainText('You do not need to wait.');
   await expect(success).toBeFocused();
+  const thanks = page.locator('.waitlist');
+  await expect(thanks).toContainText(CI_AXE_SNIPPET);
+  await expect(thanks).toContainText(CI_CLI_COMMANDS);
+  await expect(thanks).toContainText('uses: DaveEliranAssistant/a11ygate/action@<ref>');
   expect(posts).toBe(2);
   await expectNoSeriousViolations(page, 'waitlist success');
 });

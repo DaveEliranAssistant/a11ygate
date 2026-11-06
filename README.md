@@ -4,7 +4,7 @@ A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) int
 
 The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. Neither is published yet.
+The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. The CLI is published on npm as `@qe-atlas/a11ygate@0.1.0`. The Action runs from this public repository as `DaveEliranAssistant/a11ygate/action@<ref>`. The waitlist does not gate the CLI, the Action, or the browser demo.
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
@@ -66,7 +66,7 @@ Write one file per page. Parallel tests will not collide, and the CLI accepts re
 
 ## CLI
 
-The npm package in `packages/cli` is `@qe-atlas/a11ygate`. The command name is still `a11ygate`. It is not on npm yet. After `npm install` in this repo the local bin is:
+The npm package in `packages/cli` is `@qe-atlas/a11ygate`. The command name is still `a11ygate`. `@qe-atlas/a11ygate@0.1.0` is published on npm, so `npx` runs it with no install. Inside a checkout of this repo, after `npm install`, `npx` runs the local bin instead. The `fixtures/` paths below exist only in a checkout.
 
 ```bash
 npx @qe-atlas/a11ygate --help
@@ -121,6 +121,23 @@ jobs:
           baseline: a11y/baseline.json
           threshold: serious
           comment: true
+```
+
+`a11y/baseline.json` must exist before this runs, and every path under `current` must be a file your tests write. A missing file exits 2. Record the baseline on the runner. The Action at `main` also compares scan configuration and browser environment, so a baseline from CLI 0.1.0 or from another machine stops it with INCOMPLETE and exit 2. For the first run, replace the A11yGate step with these steps, download the artifact, review it, and commit `a11y/baseline.json`:
+
+```yaml
+      - run: mkdir -p a11y
+      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+        continue-on-error: true
+        with:
+          current: |
+            a11y-results/home.json
+            a11y-results/cart.json
+          update-baseline: a11y/baseline.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a11y-baseline
+          path: a11y/
 ```
 
 From a checkout of this repository, `uses: ./action` points at the same action. `<ref>` must be a commit or branch that contains `action/`. Let the Playwright test write JSON and let A11yGate be the gate. Do not also assert `violations.length === 0` in that test, or the job fails before the summary is posted.
