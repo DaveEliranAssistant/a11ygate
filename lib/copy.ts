@@ -54,7 +54,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
-      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+      - uses: DaveEliranAssistant/a11ygate-action@v1
         with:
           current: |
             a11y-results/home.json
@@ -63,7 +63,7 @@ jobs:
           comment: true`;
 
 export const CI_FIRST_RUN_STEPS = `      - run: mkdir -p a11y
-      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+      - uses: DaveEliranAssistant/a11ygate-action@v1
         continue-on-error: true
         with:
           current: |
