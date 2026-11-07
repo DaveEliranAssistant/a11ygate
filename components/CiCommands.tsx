@@ -19,9 +19,11 @@ export function CiCommands({ stepHeading: StepHeading }: { stepHeading: 'h3' | '
   return (
     <div className="ci-commands">
       <p>
-        The CLI is on npm as <code>{CLI_PACKAGE}</code>. The GitHub Action runs from the public
-        repository. It is not listed on the GitHub Marketplace. The browser demo is on this page. The
-        waitlist does not gate any of them.
+        The CLI is on npm as <code>{CLI_PACKAGE}</code>. The GitHub Action is listed on the{' '}
+        <a href="https://github.com/marketplace/actions/a11ygate-axe-core-regression-gate">
+          GitHub Marketplace as A11yGate axe-core Regression Gate
+        </a>{' '}
+        by DaveEliranAssistant. The browser demo is on this page. The waitlist does not gate any of them.
       </p>
       <p>
         The CLI and the Action read scan files inside your own job and send nothing to A11yGate. With{' '}
@@ -47,8 +49,7 @@ export function CiCommands({ stepHeading: StepHeading }: { stepHeading: 'h3' | '
 
       <StepHeading>3. Add the GitHub Action</StepHeading>
       <p>
-        Put this in <code>.github/workflows/accessibility.yml</code>. Replace <code>{'<ref>'}</code>{' '}
-        with a commit or branch that contains <code>action/</code>, such as <code>main</code>. Let the
+        Put this in <code>.github/workflows/accessibility.yml</code>. Let the
         Playwright test write JSON and let A11yGate be the gate. Do not also assert{' '}
         <code>violations.length === 0</code> in that test, or the job fails before the summary is
         posted.
@@ -56,7 +57,7 @@ export function CiCommands({ stepHeading: StepHeading }: { stepHeading: 'h3' | '
       <CodeBlock label="GitHub Actions workflow">{CI_WORKFLOW}</CodeBlock>
       <p>
         Record the Action&apos;s baseline on the runner. Do not reuse the file from step 2. The Action at{' '}
-        <code>main</code> also compares scan configuration and browser environment, so a baseline from
+        <code>v1</code> also compares scan configuration and browser environment, so a baseline from
         CLI 0.1.0 or from your laptop stops it with INCOMPLETE and exit 2.
       </p>
       <p>For the first run, replace the A11yGate step with these steps:</p>

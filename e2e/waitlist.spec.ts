@@ -45,7 +45,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
   await expect(landing.getByRole('heading', { level: 2, name: 'Run it in CI now' })).toBeVisible();
   await expect(landing).toContainText(CI_AXE_SNIPPET);
   await expect(landing).toContainText(CI_CLI_COMMANDS);
-  await expect(landing).toContainText('uses: DaveEliranAssistant/a11ygate/action@<ref>');
+  await expect(landing).toContainText('uses: DaveEliranAssistant/a11ygate-action@v1');
   await expect(page.getByRole('button', { name: 'Load demo data' })).toBeEnabled();
   await expect(page.getByLabel('Email')).toBeVisible();
   await expect(page.getByLabel('Role (optional)')).toBeVisible();
@@ -74,7 +74,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
   const thanks = page.locator('.waitlist');
   await expect(thanks).toContainText(CI_AXE_SNIPPET);
   await expect(thanks).toContainText(CI_CLI_COMMANDS);
-  await expect(thanks).toContainText('uses: DaveEliranAssistant/a11ygate/action@<ref>');
+  await expect(thanks).toContainText('uses: DaveEliranAssistant/a11ygate-action@v1');
   expect(posts).toBe(2);
   await expectNoSeriousViolations(page, 'waitlist success');
 });
