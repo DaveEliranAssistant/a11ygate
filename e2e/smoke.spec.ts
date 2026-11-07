@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 
 test('demo data gates the run and the report renders', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Give feedback' })).toHaveAttribute(
+    'href', 'https://github.com/DaveEliranAssistant/a11ygate/discussions/categories/ideas',
+  );
   await expect(
     page.getByRole('heading', {
       level: 1,

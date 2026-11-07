@@ -9,6 +9,8 @@ export function SiteFooter() {
         <p className="footer-disclaimer">{LEGAL_DISCLAIMER}</p>
         <p>
           <Link href="/privacy">Privacy</Link>
+          {' · '}
+          <a href="https://github.com/DaveEliranAssistant/a11ygate/discussions/categories/ideas">Give feedback</a>
         </p>
       </div>
     </footer>

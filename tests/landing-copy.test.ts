@@ -16,6 +16,8 @@ describe('landing and README adoption copy', () => {
   it('drops the stale unpublished wording from the README', () => {
     expect(readme).not.toContain('Neither is published yet');
     expect(readme).not.toContain('not on npm yet');
+    expect(readme).not.toContain('Unreleased coverage and manual-evidence increment');
+    expect(readme).toContain('[Give feedback](https://github.com/DaveEliranAssistant/a11ygate/discussions/categories/ideas)');
   });
 
   it('reuses the commands documented in the README', () => {
