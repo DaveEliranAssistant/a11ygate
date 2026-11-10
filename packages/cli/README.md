@@ -34,6 +34,24 @@ The Demo Shop fixtures exit **1** with **2 new, 3 fixed, 5 still open**, and ver
 
 Accepted JSON shapes: one axe result object, an array of result objects, or `{ "results": <object or array> }`. Node `target` values may be strings or nested string arrays (iframes and shadow DOM). Files over 8 MB are refused.
 
+## Evidence report
+
+```bash
+npx @qe-atlas/a11ygate report --current axe.json --baseline a11y/baseline.json --out a11y-report.html
+```
+
+`a11ygate report` takes `--current`, `--baseline`, and `--threshold`, and writes a self-contained HTML (default), Markdown, or JSON report: scan date, commit and branch, tool versions, pages scanned, new/baselined/fixed counts, violations grouped by axe rule with impact and mapped WCAG 2.x success criteria, and the trend versus the baseline. It always carries the disclaimer *Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.*
+
+| Option | Meaning |
+| --- | --- |
+| `-f, --format <format>` | `html`, `md`, or `json`. Inferred from the `--out` extension when omitted; defaults to `html`. |
+| `-o, --out <file>` | Report path. Omit or use `-` to print it. |
+| `--generated-at <iso>` | Fix the timestamp for reproducible output. |
+| `--commit <sha>` | Commit to record. Defaults to `GITHUB_SHA`. |
+| `--branch <name>` | Branch to record. Defaults to `GITHUB_HEAD_REF`, then `GITHUB_REF_NAME`. |
+
+`report` exits 0 once the report is written, whatever the verdict, and 2 on errors. The same input always gives the same report apart from the timestamp. This command is in the source build only; published 0.1.0 does not include it.
+
 ## Exit codes
 
 | Code | Meaning |

@@ -89,6 +89,29 @@ npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json -
 
 `--update-baseline` writes the current results as the next baseline and still uses the gate's exit code, so a run with new violations does not pass just because the file was updated. More detail is in `packages/cli/README.md`.
 
+### Evidence report
+
+`a11ygate report` writes an evidence report from the same scan results and baseline. It takes `--current`, `--baseline`, and `--threshold` like the gate, plus `--format html|md|json` and `--out <file>`. The HTML report is a single file with inline CSS and no scripts, fonts, images, or other external assets, so it can be attached to a ticket or archived as a CI artifact.
+
+```bash
+npx @qe-atlas/a11ygate report --current a11y-results/home.json --baseline a11y/baseline.json --out a11y-report.html
+npx @qe-atlas/a11ygate report --current a11y-results/home.json --baseline a11y/baseline.json --format md --out a11y-report.md
+npx @qe-atlas/a11ygate report --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json --format json --out -
+```
+
+The report contains:
+
+- the generation time, the commit and branch (from `--commit` and `--branch`, or `GITHUB_SHA` and `GITHUB_HEAD_REF`/`GITHUB_REF_NAME` in GitHub Actions), and the A11yGate and axe-core versions
+- the pages scanned, with per-page counts and scan coverage issues
+- a summary of new, baselined (still open), fixed, and unassessed violations, plus the gate verdict at the chosen threshold
+- violations grouped by axe rule, with impact and the WCAG 2.x success criteria mapped from the rule's axe tags (rules with no criterion tag are listed as best practice)
+- the per-rule trend versus the baseline
+- this fixed disclaimer: *Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.*
+
+The format comes from `--format`, then from the `--out` extension (`.md`, `.markdown`, `.json`), and defaults to HTML. Omit `--out`, or pass `--out -`, to print the report. `report` exits **0** once the report is written, whatever the gate verdict, and **2** on unreadable input or an unsafe output path. Run the gate separately to fail the build.
+
+Output is deterministic: the same inputs give byte-identical reports except for the timestamp, and `--generated-at 2026-11-10T09:00:00Z` fixes that too. Example output for the Demo Shop fixtures is in `tests/__snapshots__/evidence-report/` (`demo-shop.html`, `demo-shop.md`, `demo-shop.json`).
+
 ## GitHub Action
 
 `action/action.yml` is a composite action. It runs the CLI, appends the Markdown summary to the job summary, and can post or update a single pull request comment (the comment contains `<!-- a11ygate -->`). The published Action is listed on the [GitHub Marketplace as A11yGate axe-core Regression Gate](https://github.com/marketplace/actions/a11ygate-axe-core-regression-gate) by DaveEliranAssistant.
@@ -142,7 +165,7 @@ jobs:
 
 From a checkout of this repository, `uses: ./action` points at the same action. Let the Playwright test write JSON and let A11yGate be the gate. Do not also assert `violations.length === 0` in that test, or the job fails before the summary is posted.
 
-`issues: write` lets the token create the pull request comment. The comment is skipped, with a warning, when the workflow event has no pull request number. Full input list: `action/README.md`.
+`issues: write` lets the token create the pull request comment. The comment is skipped, with a warning, when the workflow event has no pull request number. Set `report: a11y-report.html` (and optionally `report-format`) to also write the evidence report, then upload it with `actions/upload-artifact`. The report step does not change the gate's exit code, except that a report that cannot be written fails an otherwise passing run. Full input list: `action/README.md`.
 
 ## Development
 
