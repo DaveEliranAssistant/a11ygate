@@ -26,10 +26,27 @@ Or from a checkout of this repository:
 | `markdown` | temp file | Where to write the Markdown summary. |
 | `json` | temp file | Where to write the JSON result. |
 | `update-baseline` | empty | Path to overwrite with the current results. |
+| `report` | empty | Also write an evidence report to this path. Sets the `report` output. |
+| `report-format` | inferred | `html`, `md`, or `json`. Empty infers it from the `report` extension, defaulting to `html`. |
 | `comment` | `false` | Post or update a single pull request comment. |
 | `token` | `github.token` | Token for that comment. |
 
 The comment is marked with `<!-- a11ygate -->` and updated in place on later runs. The job summary receives the same Markdown. The step exits with the CLI code: **0** pass, **1** new violations at or above the threshold, **2** unreadable input.
+
+The evidence report is written by a separate `a11ygate report` run before the gate (so it compares against the baseline as committed, even with `update-baseline`). It does not change the gate's exit code, except that a report that cannot be written turns a passing run into exit 2. Upload it as an artifact:
+
+```yaml
+      - uses: DaveEliranAssistant/a11ygate/action@<ref>
+        with:
+          current: a11y-results/home.json
+          baseline: a11y/baseline.json
+          report: a11y-report.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-evidence-report
+          path: a11y-report.html
+```
 
 Commenting needs `issues: write` so the token can create an issue comment on the pull request.
 

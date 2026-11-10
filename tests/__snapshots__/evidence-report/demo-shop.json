@@ -1,0 +1,512 @@
+{
+  "tool": "a11ygate",
+  "reportSchemaVersion": 1,
+  "disclaimer": "Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.",
+  "generatedAt": "2026-11-10T09:00:00.000Z",
+  "projectName": "demo.shop",
+  "synthetic": true,
+  "source": {
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "branch": "feat/checkout"
+  },
+  "tools": {
+    "a11ygate": "0.1.0",
+    "axeCore": {
+      "current": [
+        "4.10.2"
+      ],
+      "baseline": [
+        "4.10.2"
+      ]
+    }
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "threshold": "serious",
+    "reason": "1 new finding at or above serious: color-contrast."
+  },
+  "summary": {
+    "new": 2,
+    "baselined": 5,
+    "fixed": 3,
+    "unassessed": 0,
+    "currentViolations": 7,
+    "baselineViolations": 8,
+    "rulesWithCurrentViolations": 7
+  },
+  "coverage": {
+    "status": "unverified",
+    "issues": [
+      {
+        "page": "/",
+        "code": "configuration-unrecorded",
+        "detail": "Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified."
+      },
+      {
+        "page": "/cart",
+        "code": "configuration-unrecorded",
+        "detail": "Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified."
+      },
+      {
+        "page": "/products",
+        "code": "configuration-unrecorded",
+        "detail": "Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified."
+      }
+    ],
+    "unassessedScope": [
+      "Only supplied page/query/hash states are assessed; undiscovered pages and interactions are unassessed.",
+      "Manual keyboard, screen-reader and usability checks are not performed by the automated gate.",
+      "Origins are intentionally ignored for local CI hosts; equivalent environments must be established by the caller.",
+      "Normalized selectors are heuristic identities, not proof that every affected element is unchanged."
+    ]
+  },
+  "pages": [
+    {
+      "url": "https://demo.shop/",
+      "page": "/",
+      "scannedAt": "2026-10-15T09:00:00.000Z",
+      "axeCore": "4.10.2",
+      "scanStatus": "complete",
+      "violations": 2,
+      "new": 0,
+      "baselined": 2,
+      "inBaseline": true
+    },
+    {
+      "url": "https://demo.shop/cart",
+      "page": "/cart",
+      "scannedAt": "2026-10-15T09:00:10.000Z",
+      "axeCore": "4.10.2",
+      "scanStatus": "complete",
+      "violations": 2,
+      "new": 1,
+      "baselined": 1,
+      "inBaseline": true
+    },
+    {
+      "url": "https://demo.shop/products",
+      "page": "/products",
+      "scannedAt": "2026-10-15T09:00:05.000Z",
+      "axeCore": "4.10.2",
+      "scanStatus": "complete",
+      "violations": 3,
+      "new": 1,
+      "baselined": 2,
+      "inBaseline": true
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "button-name",
+      "impact": "critical",
+      "help": "Buttons must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/button-name",
+      "wcag": [
+        {
+          "number": "4.1.2",
+          "name": "Name, Role, Value",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.name-role-value",
+        "wcag2a",
+        "wcag412"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "critical",
+          "url": "https://demo.shop/products",
+          "selector": "#ember9901 > button.add-to-cart",
+          "html": "<button class=\"add-to-cart\" id=\"ember9901\"></button>",
+          "fingerprint": "button-name|button.add-to-cart|/products",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must have sufficient color contrast",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast",
+      "wcag": [
+        {
+          "number": "1.4.3",
+          "name": "Contrast (Minimum)",
+          "level": "AA",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.color",
+        "wcag143",
+        "wcag2aa"
+      ],
+      "counts": {
+        "new": 1,
+        "baselined": 0,
+        "fixed": 1,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "new",
+          "impact": "serious",
+          "url": "https://demo.shop/products",
+          "selector": ".product-card .price-tag",
+          "html": "<span class=\"price-tag\" style=\"color:#c8c4bd\">€12</span>",
+          "fingerprint": "color-contrast|.product-card .price-tag|/products",
+          "assessmentReason": null
+        },
+        {
+          "status": "fixed",
+          "impact": "serious",
+          "url": "https://demo.shop/",
+          "selector": ".legacy-banner",
+          "html": "<div class=\"legacy-banner\">Sale ends Sunday</div>",
+          "fingerprint": "color-contrast|.legacy-banner|/",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "html-has-lang",
+      "impact": "serious",
+      "help": "<html> element must have a lang attribute",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/html-has-lang",
+      "wcag": [
+        {
+          "number": "3.1.1",
+          "name": "Language of Page",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.language",
+        "wcag2a",
+        "wcag311"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "serious",
+          "url": "https://demo.shop/products",
+          "selector": "html",
+          "html": "<html>",
+          "fingerprint": "html-has-lang|html|/products",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "image-alt",
+      "impact": "serious",
+      "help": "Images must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/image-alt",
+      "wcag": [
+        {
+          "number": "1.1.1",
+          "name": "Non-text Content",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.text-alternatives",
+        "wcag111",
+        "wcag2a"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "serious",
+          "url": "https://demo.shop/",
+          "selector": "#main:nth-child(5) > img.hero-photo:nth-child(2)",
+          "html": "<img class=\"hero-photo\" src=\"/hero.jpg\">",
+          "fingerprint": "image-alt|#main > img.hero-photo|/",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "label",
+      "impact": "serious",
+      "help": "Form elements must have labels",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/label",
+      "wcag": [
+        {
+          "number": "1.3.1",
+          "name": "Info and Relationships",
+          "level": "A",
+          "wcag": "2.1"
+        },
+        {
+          "number": "3.3.2",
+          "name": "Labels or Instructions",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.forms",
+        "wcag131",
+        "wcag2a",
+        "wcag332"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "serious",
+          "url": "https://demo.shop/cart",
+          "selector": "input.quantity",
+          "html": "<input class=\"quantity\" type=\"number\" value=\"1\">",
+          "fingerprint": "label|input.quantity|/cart",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "link-name",
+      "impact": "moderate",
+      "help": "Links must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/link-name",
+      "wcag": [
+        {
+          "number": "2.4.4",
+          "name": "Link Purpose (In Context)",
+          "level": "A",
+          "wcag": "2.1"
+        },
+        {
+          "number": "4.1.2",
+          "name": "Name, Role, Value",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.name-role-value",
+        "wcag244",
+        "wcag2a",
+        "wcag412"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "moderate",
+          "url": "https://demo.shop/",
+          "selector": "a.footer-promo",
+          "html": "<a class=\"footer-promo\" href=\"/sale\"><img src=\"/sale.png\"></a>",
+          "fingerprint": "link-name|a.footer-promo|/",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "region",
+      "impact": "moderate",
+      "help": "All page content should be contained by landmarks",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region",
+      "wcag": [],
+      "bestPractice": true,
+      "tags": [
+        "best-practice",
+        "cat.keyboard"
+      ],
+      "counts": {
+        "new": 1,
+        "baselined": 0,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "new",
+          "impact": "moderate",
+          "url": "https://demo.shop/cart",
+          "selector": "body",
+          "html": "<body>",
+          "fingerprint": "region|body|/cart",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "aria-required-attr",
+      "impact": "critical",
+      "help": "Required ARIA attributes must be provided",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-required-attr",
+      "wcag": [
+        {
+          "number": "4.1.2",
+          "name": "Name, Role, Value",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.aria",
+        "wcag2a",
+        "wcag412"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 0,
+        "fixed": 1,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "fixed",
+          "impact": "critical",
+          "url": "https://demo.shop/products",
+          "selector": "[role=\"slider\"]",
+          "html": "<div role=\"slider\"></div>",
+          "fingerprint": "aria-required-attr|[role=\"slider\"]|/products",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "document-title",
+      "impact": "serious",
+      "help": "Documents must have <title> element to aid in navigation",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/document-title",
+      "wcag": [
+        {
+          "number": "2.4.2",
+          "name": "Page Titled",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "cat.text-alternatives",
+        "wcag242",
+        "wcag2a"
+      ],
+      "counts": {
+        "new": 0,
+        "baselined": 0,
+        "fixed": 1,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "fixed",
+          "impact": "serious",
+          "url": "https://demo.shop/cart",
+          "selector": "html",
+          "html": "<html lang=\"en\">",
+          "fingerprint": "document-title|html|/cart",
+          "assessmentReason": null
+        }
+      ]
+    }
+  ],
+  "trend": {
+    "baselineSupplied": true,
+    "totals": {
+      "baseline": 8,
+      "current": 7,
+      "delta": -1
+    },
+    "rules": [
+      {
+        "ruleId": "aria-required-attr",
+        "baseline": 1,
+        "current": 0,
+        "delta": -1
+      },
+      {
+        "ruleId": "document-title",
+        "baseline": 1,
+        "current": 0,
+        "delta": -1
+      },
+      {
+        "ruleId": "button-name",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "color-contrast",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "html-has-lang",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "image-alt",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "label",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "link-name",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0
+      },
+      {
+        "ruleId": "region",
+        "baseline": 0,
+        "current": 1,
+        "delta": 1
+      }
+    ]
+  }
+}
