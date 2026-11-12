@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { readFile, realpath, stat, lstat, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
+import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/types.ts
+var IMPACTS = ["minor", "moderate", "serious", "critical"];
 function isImpact(value) {
   return value === "minor" || value === "moderate" || value === "serious" || value === "critical";
 }
@@ -110,6 +111,7 @@ function helpText() {
 
 Usage:
   a11ygate --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]   (see a11ygate scan --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
@@ -140,58 +142,172 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 `;
 }
 
-// lib/export-baseline.ts
-function baselineReview(results, diff) {
-  return { schemaVersion: 1, approval: "review-required", acceptedFindings: [...diff.newFindings, ...diff.stillOpen], newlyAccepted: diff.newFindings, retained: diff.stillOpen, noLongerObserved: diff.fixedFindings, unassessed: diff.unassessed ?? [], pages: results.map((r) => r.url), coverage: diff.coverage, warning: "This proposal accepts the listed current findings as existing debt, not resolved issues. Review and commit separately; no approval or certification is implied." };
-}
-function baselineDocument(results) {
-  return `${JSON.stringify(results, null, 2)}
-`;
-}
+// packages/cli/src/scan.ts
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
-// lib/guidance.ts
-var rules = {
-  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
-  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
-  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
-  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
-};
-function findingGuidance(f) {
-  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
-}
-
-// lib/limits.ts
-var MAX_AXE_JSON_BYTES = 8 * 1024 * 1024;
-function axeJsonByteLength(text) {
-  return new TextEncoder().encode(text).byteLength;
-}
-function axeJsonTooLargeMessage() {
-  return "This file is larger than 8 MB. A11yGate reads scans in the browser, so split the results by page or remove the passes, incomplete, and inapplicable arrays before importing.";
-}
-
-// lib/manual-evidence.ts
-function parseManualEvidence(text) {
-  try {
-    if (text.length > MAX_AXE_JSON_BYTES || axeJsonByteLength(text) > MAX_AXE_JSON_BYTES) throw Error("Manual evidence exceeds 8 MB.");
-    const v = JSON.parse(text);
-    if (!v || v.schemaVersion !== 1 || !Array.isArray(v.checks) || v.checks.length > 200) throw Error("Expected schemaVersion 1 and at most 200 checks.");
-    const ids = /* @__PURE__ */ new Set();
-    const checks = [];
-    for (const x of v.checks) {
-      if (!x || typeof x !== "object" || Array.isArray(x)) throw Error("Every manual check must be an object.");
-      for (const [key, max] of Object.entries({ id: 120, scope: 1024, check: 256, reviewer: 120, date: 10, notes: 4e3 })) {
-        if (typeof x[key] !== "string" || !x[key].trim() || x[key].length > max || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(x[key])) throw Error("Manual check " + key + " is missing, too long or invalid.");
+// lib/scan/robots.ts
+var ROBOTS_AGENT = "a11ygate";
+function parseRobots(text, agent = ROBOTS_AGENT) {
+  const groups = [];
+  let current = null;
+  let lastWasAgent = false;
+  for (const raw of text.split(/\r\n|\r|\n/)) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (key === "user-agent") {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
       }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(x.date) || !Number.isFinite(Date.parse(x.date)) || new Date(x.date).toISOString().slice(0, 10) !== x.date) throw Error("Manual date must be a real ISO YYYY-MM-DD date.");
-      if (!["passed", "failed", "not-assessed"].includes(x.status)) throw Error("Manual status must be passed, failed or not-assessed.");
-      if (ids.has(x.id)) throw Error("Manual check IDs must be unique.");
-      ids.add(x.id);
-      checks.push({ id: x.id, scope: x.scope, check: x.check, reviewer: x.reviewer, date: x.date, status: x.status, notes: x.notes });
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+      continue;
     }
-    return { ok: true, checks };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Invalid manual evidence." };
+    lastWasAgent = false;
+    if (!current) continue;
+    if (key === "disallow" || key === "allow") {
+      if (value === "") continue;
+      current.rules.push({ allow: key === "allow", pattern: value });
+    }
   }
+  const name = agent.toLowerCase();
+  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
+  return { rules: rules2 };
+}
+function patternToRegExp(pattern) {
+  const anchored = pattern.endsWith("$");
+  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}
+function isAllowedByRobots(robots, pathAndQuery) {
+  if (!robots || robots.rules.length === 0) return true;
+  let best = null;
+  for (const rule of robots.rules) {
+    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
+    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
+      best = rule;
+    }
+  }
+  return best ? best.allow : true;
+}
+function robotsAllowsUrl(robots, url) {
+  const parsed = new URL(url);
+  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
+}
+async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
+    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
+    const text = (await response.text()).slice(0, 512 * 1024);
+    return { rules: parseRobots(text), note: "robots.txt honoured." };
+  } catch {
+    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// lib/scan/url.ts
+var MAX_CRAWL_PAGES = 20;
+var NON_HTML_EXTENSION = /\.(?:pdf|zip|gz|tgz|rar|7z|tar|dmg|exe|msi|apk|iso|png|jpe?g|gif|webp|avif|svg|ico|bmp|tiff?|mp3|wav|ogg|m4a|mp4|m4v|mov|avi|webm|mkv|css|js|mjs|json|xml|rss|atom|txt|csv|xlsx?|docx?|pptx?|odt|ods|woff2?|ttf|otf|eot)$/i;
+var LOGOUT_LIKE = /(?:^|[\/_\-.?=&])(?:log-?out|log-?off|sign-?out|sign-?off|logoff|signout|end-?session|destroy-?session)(?:$|[\/_\-.?=&])/i;
+function normalizeUrl(input, base) {
+  let url;
+  try {
+    url = base === void 0 ? new URL(input) : new URL(input, base);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.username || url.password) return null;
+  url.hash = "";
+  return url.toString();
+}
+function classifyLink(href, pageUrl, origin) {
+  const url = normalizeUrl(href, pageUrl);
+  if (!url) return { ok: false, reason: "not-http", url: href };
+  if (new URL(url).origin !== origin) return { ok: false, reason: "external", url };
+  const parsed = new URL(url);
+  if (NON_HTML_EXTENSION.test(parsed.pathname)) return { ok: false, reason: "non-html", url };
+  if (LOGOUT_LIKE.test(parsed.pathname + parsed.search)) return { ok: false, reason: "logout", url };
+  return { ok: true, url };
+}
+function isHtmlContentType(value) {
+  if (!value) return true;
+  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
+  return type === "" || type === "text/html" || type === "application/xhtml+xml";
+}
+
+// lib/scan/crawl.ts
+var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function clampPages(requested) {
+  if (!Number.isFinite(requested) || requested < 1) return 1;
+  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
+}
+async function crawl(options) {
+  const start = normalizeUrl(options.startUrl);
+  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
+  const origin = new URL(start).origin;
+  const maxPages = clampPages(options.maxPages);
+  const sleep = options.sleep ?? defaultSleep;
+  const crawling = maxPages > 1;
+  const queue = [start];
+  const seen = /* @__PURE__ */ new Set([start]);
+  const pages = [];
+  const skipped = [];
+  const skippedSeen = /* @__PURE__ */ new Set();
+  const skip = (entry) => {
+    const key = entry.reason + " " + entry.url;
+    if (skippedSeen.has(key)) return;
+    skippedSeen.add(key);
+    skipped.push(entry);
+  };
+  let visits = 0;
+  while (queue.length > 0) {
+    const url = queue.shift();
+    if (pages.length >= maxPages) {
+      skip({ url, reason: "cap" });
+      continue;
+    }
+    if (!robotsAllowsUrl(options.robots, url)) {
+      skip({ url, reason: "robots" });
+      continue;
+    }
+    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
+    visits += 1;
+    options.log?.(`Scanning ${url}`);
+    const outcome = await options.visit(url, crawling);
+    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
+      skip({ url, reason: "redirected-off-origin" });
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
+      continue;
+    }
+    if (outcome.result) {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
+    } else {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
+    }
+    if (!crawling) continue;
+    const base = outcome.finalUrl || url;
+    for (const href of outcome.links) {
+      const link = classifyLink(href, base, origin);
+      if (!link.ok) {
+        skip({ url: link.url, reason: link.reason, from: url });
+        continue;
+      }
+      if (seen.has(link.url)) continue;
+      seen.add(link.url);
+      queue.push(link.url);
+    }
+  }
+  return { pages, skipped };
 }
 
 // lib/copy.ts
@@ -298,6 +414,17 @@ function formatStandards(tags) {
   ).join(" | ");
 }
 
+// lib/guidance.ts
+var rules = {
+  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
+  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
+  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
+  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
+};
+function findingGuidance(f) {
+  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
+}
+
 // lib/export-markdown.ts
 function cell(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
@@ -356,43 +483,62 @@ function prSummaryMarkdown(input) {
   return lines.join("\n");
 }
 
-// lib/diff.ts
-function byLocation(a, b) {
-  return a.path.localeCompare(b.path) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector);
+// lib/gate.ts
+var RANK = {
+  minor: 1,
+  moderate: 2,
+  serious: 3,
+  critical: 4
+};
+function impactRank(impact) {
+  if (!impact) return 0;
+  return RANK[impact];
 }
-function indexByFingerprint(findings) {
-  const indexed = /* @__PURE__ */ new Map();
+function meetsThreshold(impact, threshold) {
+  return impactRank(impact) >= impactRank(threshold);
+}
+function gatingFindings(findings, threshold) {
+  return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
+}
+function gateVerdict(newFindings, threshold, coverage) {
+  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
+  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
+}
+function verdictReason(newFindings, threshold) {
+  const gating = gatingFindings(newFindings, threshold);
+  if (gating.length === 0) {
+    return `No new finding is at or above ${threshold}.`;
+  }
+  const rules2 = [...new Set(gating.map((finding) => finding.ruleId))];
+  const noun = gating.length === 1 ? "finding" : "findings";
+  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
+}
+
+// lib/group.ts
+function groupLabel(key, value) {
+  if (key === "impact" && value === "unknown") return "unknown impact";
+  return value;
+}
+function groupFindings(findings, by) {
+  const groups = /* @__PURE__ */ new Map();
   for (const finding of findings) {
-    if (!indexed.has(finding.fingerprint)) indexed.set(finding.fingerprint, finding);
+    const key = by === "rule" ? finding.ruleId : by === "page" ? finding.path : finding.impact ?? "unknown";
+    const existing = groups.get(key);
+    if (existing) existing.push(finding);
+    else groups.set(key, [finding]);
   }
-  return indexed;
-}
-function diffScans(current, baseline) {
-  const base = indexByFingerprint(baseline ?? []);
-  const next = indexByFingerprint(current);
-  const newFindings = [];
-  const stillOpen = [];
-  for (const finding of next.values()) {
-    if (base.has(finding.fingerprint)) {
-      stillOpen.push({ ...finding, status: "still-open" });
-    } else {
-      newFindings.push({ ...finding, status: "new" });
-    }
+  const grouped = [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: groupLabel(by, key),
+    findings: items
+  }));
+  if (by === "impact") {
+    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
+    grouped.sort((a, b) => rank(b.key) - rank(a.key));
+  } else {
+    grouped.sort((a, b) => a.label.localeCompare(b.label));
   }
-  const fixedFindings = [];
-  for (const finding of base.values()) {
-    if (!next.has(finding.fingerprint)) {
-      fixedFindings.push({ ...finding, status: "fixed" });
-    }
-  }
-  newFindings.sort(byLocation);
-  fixedFindings.sort(byLocation);
-  stillOpen.sort(byLocation);
-  const statusOrder = { new: 0, fixed: 1, "still-open": 2, unassessed: 3 };
-  const all = [...newFindings, ...fixedFindings, ...stillOpen].sort(
-    (a, b) => statusOrder[a.status] - statusOrder[b.status] || byLocation(a, b)
-  );
-  return { newFindings, fixedFindings, stillOpen, all };
+  return grouped;
 }
 
 // lib/fingerprint.ts
@@ -444,50 +590,28 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path2 = parsed.pathname || "/";
-    if (path2.length > 1 && path2.endsWith("/")) path2 = path2.slice(0, -1);
-    return path2 || "/";
+    let path3 = parsed.pathname || "/";
+    if (path3.length > 1 && path3.endsWith("/")) path3 = path3.slice(0, -1);
+    return path3 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path2 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path2.length > 1 && path2.endsWith("/")) path2 = path2.slice(0, -1);
-    return path2;
+    let path3 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path3.length > 1 && path3.endsWith("/")) path3 = path3.slice(0, -1);
+    return path3;
   }
 }
 function fingerprint(ruleId, selector, url) {
   return `${ruleId}|${normaliseSelector(selector)}|${pagePath(url)}`;
 }
 
-// lib/gate.ts
-var RANK = {
-  minor: 1,
-  moderate: 2,
-  serious: 3,
-  critical: 4
-};
-function impactRank(impact) {
-  if (!impact) return 0;
-  return RANK[impact];
+// lib/limits.ts
+var MAX_AXE_JSON_BYTES = 8 * 1024 * 1024;
+function axeJsonByteLength(text) {
+  return new TextEncoder().encode(text).byteLength;
 }
-function meetsThreshold(impact, threshold) {
-  return impactRank(impact) >= impactRank(threshold);
-}
-function gatingFindings(findings, threshold) {
-  return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
-}
-function gateVerdict(newFindings, threshold, coverage) {
-  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
-  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
-}
-function verdictReason(newFindings, threshold) {
-  const gating = gatingFindings(newFindings, threshold);
-  if (gating.length === 0) {
-    return `No new finding is at or above ${threshold}.`;
-  }
-  const rules2 = [...new Set(gating.map((finding) => finding.ruleId))];
-  const noun = gating.length === 1 ? "finding" : "findings";
-  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
+function axeJsonTooLargeMessage() {
+  return "This file is larger than 8 MB. A11yGate reads scans in the browser, so split the results by page or remove the passes, incomplete, and inapplicable arrays before importing.";
 }
 
 // lib/parse.ts
@@ -504,21 +628,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path2) {
+function readImpact(value, path3) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path2} must be minor, moderate, serious, critical, or null`
+    error: `${path3} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path2) {
+function readTarget(value, path3) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path2}.target must be an array of strings`;
+    return `${path3}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path2}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path3}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -526,52 +650,52 @@ function readTarget(value, path2) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path2}.target must be an array of strings`;
+    return `${path3}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path2) {
-  if (!isRecord(value)) return `${path2} must be an object`;
-  const target = readTarget(value.target, path2);
+function validateNode(value, path3) {
+  if (!isRecord(value)) return `${path3} must be an object`;
+  const target = readTarget(value.target, path3);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path2}.html must be a string`;
+  if (typeof value.html !== "string") return `${path3}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path2}.impact`);
+    const impact = readImpact(value.impact, `${path3}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path2) {
-  if (!isRecord(value)) return `${path2} must be an object`;
+function validateViolation(value, path3) {
+  if (!isRecord(value)) return `${path3} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path2}.id must be a non-empty string`;
+    return `${path3}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path2}.impact is missing`;
+    return `${path3}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path2}.impact`);
+  const impact = readImpact(value.impact, `${path3}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path2}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path3}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path2}.tags must be an array of strings`;
+    return `${path3}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path2}.help must be a non-empty string`;
+    return `${path3}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path2}.helpUrl must be a non-empty string`;
+    return `${path3}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path2}.nodes must contain at least one node`;
+    return `${path3}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path2}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path3}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -587,37 +711,37 @@ function validateViolation(value, path2) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path2) {
-  if (!isRecord(value)) return `${path2} must be an axe result object`;
+function validateResult(value, path3) {
+  if (!isRecord(value)) return `${path3} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path2}.url must be a non-empty string`;
+    return `${path3}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path2}.timestamp must be an ISO date string`;
+    return `${path3}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path2}.testEngine.version must be a non-empty string`;
+    return `${path3}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path2}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path3}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path2}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path3}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path2}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path2}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path2}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path2}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path3}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path3}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path3}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path3}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path2}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path3}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path2}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path3}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path2}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path3}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -718,7 +842,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path2 = pagePath(result.url);
+    const path3 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -733,7 +857,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path2,
+          path: path3,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -747,6 +871,605 @@ function findingsFromResults(results) {
   return [...byFingerprint.values()].sort(
     (a, b) => a.path.localeCompare(b.path) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
   );
+}
+
+// lib/scan/report.ts
+var FAIL_ON_VALUES = [...IMPACTS, "none"];
+function isFailOn(value) {
+  return typeof value === "string" && FAIL_ON_VALUES.includes(value);
+}
+var AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa", "best-practice"];
+var SCAN_BOUNDARIES = [
+  "Only scan sites you own or are explicitly authorized to test.",
+  "Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.",
+  "Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.",
+  "Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured."
+];
+function emptyCounts() {
+  return { critical: 0, serious: 0, moderate: 0, minor: 0, unknown: 0 };
+}
+function selectorsFor(result, ruleId, selector) {
+  const node = result.violations.find((v) => v.id === ruleId)?.nodes.find((n) => n.target.join(" ") === selector);
+  return node ? [...node.target] : [selector];
+}
+function toScanFinding(finding, result) {
+  const hits = lookupStandards(finding.tags);
+  const wcag = hits.flatMap(
+    (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag, en301549: hit.en301549 }] : []
+  );
+  return {
+    pageUrl: finding.url,
+    ruleId: finding.ruleId,
+    impact: finding.impact,
+    selector: finding.selector,
+    selectors: selectorsFor(result, finding.ruleId, finding.selector),
+    html: finding.html,
+    help: finding.help,
+    helpUrl: finding.helpUrl,
+    tags: finding.tags,
+    wcag,
+    bestPractice: wcag.length === 0,
+    fingerprint: finding.fingerprint
+  };
+}
+function gatingScanFindings(findings, failOn) {
+  if (failOn === "none") return [];
+  return findings.filter((f) => meetsThreshold(f.impact, failOn));
+}
+function scanExitCode(findings, failOn) {
+  return gatingScanFindings(findings, failOn).length > 0 ? 1 : 0;
+}
+function buildScanReport(input) {
+  const pages = [];
+  const findings = [];
+  const results = [];
+  const totals = emptyCounts();
+  for (const page of input.crawl.pages) {
+    const byImpact = emptyCounts();
+    let pageFindings = [];
+    if (page.result) {
+      results.push(page.result);
+      pageFindings = findingsFromResults([page.result]).map((f) => toScanFinding(f, page.result));
+      for (const f of pageFindings) {
+        byImpact[f.impact ?? "unknown"] += 1;
+        totals[f.impact ?? "unknown"] += 1;
+      }
+      findings.push(...pageFindings);
+    }
+    pages.push({
+      url: page.url,
+      finalUrl: page.finalUrl,
+      status: page.status,
+      scanStatus: page.scanStatus,
+      ...page.error ? { error: page.error } : {},
+      violations: page.result?.violations.length ?? 0,
+      findings: pageFindings.length,
+      byImpact
+    });
+  }
+  const gating = gatingScanFindings(findings, input.failOn);
+  const verdict = gating.length > 0 ? "FAIL" : "PASS";
+  const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
+  return {
+    tool: "a11ygate",
+    kind: "site-scan",
+    schemaVersion: 1,
+    version: input.version,
+    axeVersion: results[0]?.testEngine.version ?? null,
+    scannedAt: input.scannedAt,
+    startUrl: input.startUrl,
+    origin: new URL(input.startUrl).origin,
+    verdict,
+    failOn: input.failOn,
+    reason,
+    options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
+    counts: {
+      pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
+      pagesFailed: input.crawl.pages.filter((p) => p.scanStatus === "failed").length,
+      skippedLinks: input.crawl.skipped.length,
+      findings: findings.length,
+      byImpact: totals
+    },
+    pages,
+    skipped: input.crawl.skipped,
+    findings,
+    boundaries: SCAN_BOUNDARIES,
+    results
+  };
+}
+function groupByCriterion(findings) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    const keys = finding.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
+    for (const { key, label } of keys) {
+      const group2 = groups.get(key) ?? { key, label, findings: [] };
+      group2.findings.push(finding);
+      groups.set(key, group2);
+    }
+  }
+  const order = (key) => key === "best-practice" ? [Infinity] : key.split(".").map(Number);
+  return [...groups.values()].sort((a, b) => {
+    const x = order(a.key);
+    const y = order(b.key);
+    for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+      const d = (x[i] ?? 0) - (y[i] ?? 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  });
+}
+function groupBySeverity(findings) {
+  const asDiffed = findings.map((f, index) => ({
+    fingerprint: String(index),
+    ruleId: f.ruleId,
+    impact: f.impact,
+    tags: f.tags,
+    help: f.help,
+    helpUrl: f.helpUrl,
+    selector: f.selector,
+    html: f.html,
+    url: f.pageUrl,
+    path: f.pageUrl,
+    engineVersion: "",
+    timestamp: "",
+    status: "new"
+  }));
+  return groupFindings(asDiffed, "impact").map((group2) => ({
+    key: group2.key,
+    label: group2.label,
+    findings: group2.findings.map((f) => findings[Number(f.fingerprint)])
+  }));
+}
+function sortFindings(findings) {
+  return [...findings].sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId));
+}
+function code(value) {
+  return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
+}
+function heading(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
+}
+function mdFinding(f) {
+  return `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+}
+function scanMarkdown(report) {
+  const lines = [
+    `# A11yGate site scan \u2014 ${cell(report.startUrl)}`,
+    "",
+    `**Verdict: ${report.verdict}** (fail on: ${report.failOn})`,
+    "",
+    cell(report.reason),
+    "",
+    "| Severity | Findings |",
+    "| --- | --- |",
+    ...["critical", "serious", "moderate", "minor", "unknown"].map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
+    "",
+    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${report.axeVersion ?? "n/a"}; A11yGate ${report.version}.`,
+    "",
+    "## Pages",
+    "",
+    "| Page | HTTP | Status | Findings |",
+    "| --- | --- | --- | --- |",
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
+    "",
+    "## Findings by WCAG criterion",
+    ""
+  ];
+  const byCriterion = groupByCriterion(report.findings);
+  if (byCriterion.length === 0) lines.push("None detected.", "");
+  for (const group2 of byCriterion) {
+    lines.push(`### ${heading(group2.label)}`, "", ...sortFindings(group2.findings).map(mdFinding), "");
+  }
+  lines.push("## Findings by severity", "");
+  const bySeverity = groupBySeverity(report.findings);
+  if (bySeverity.length === 0) lines.push("None detected.", "");
+  for (const group2 of bySeverity) {
+    lines.push(`### ${heading(group2.label)} (${group2.findings.length})`, "", ...group2.findings.map(mdFinding), "");
+  }
+  const robotsSkipped = report.skipped.filter((s) => s.reason === "robots" || s.reason === "cap");
+  if (robotsSkipped.length > 0) {
+    lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
+  }
+  lines.push("## Scope and boundaries", "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
+  return lines.join("\n");
+}
+function esc(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function safeHref(url) {
+  return /^https?:\/\//i.test(url) ? esc(url) : "#";
+}
+function htmlFinding(f) {
+  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+}
+function htmlGroups(title, groups) {
+  if (groups.length === 0) return `<h2>${esc(title)}</h2><p>None detected.</p>`;
+  return `<h2>${esc(title)}</h2>` + groups.map((g) => `<section><h3>${esc(g.label)} (${g.findings.length})</h3><ul>${sortFindings(g.findings).map(htmlFinding).join("")}</ul></section>`).join("");
+}
+function scanHtml(report) {
+  const counts = ["critical", "serious", "moderate", "minor", "unknown"].map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("");
+  const pages = report.pages.map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc(p.scanStatus)}${p.error ? " \u2014 " + esc(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate site scan \u2014 ${esc(report.startUrl)}</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fff}
+code{background:#f2f2f2;padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid #767676;padding:.25rem .5rem;text-align:left}
+li{margin:.5rem 0}.impact{font-weight:600}.critical,.serious{color:#a00000}.moderate{color:#6b4e00}
+.verdict{font-size:1.25rem;font-weight:700}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+a{color:#0b57d0}
+</style>
+</head>
+<body>
+<main>
+<h1>A11yGate site scan</h1>
+<p>Start URL: <code>${esc(report.startUrl)}</code></p>
+<p class="verdict">Verdict: ${esc(report.verdict)} (fail on: ${esc(report.failOn)})</p>
+<p>${esc(report.reason)}</p>
+<p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${esc(report.axeVersion ?? "n/a")}; A11yGate ${esc(report.version)}.</p>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
+<h2>Pages</h2>
+<table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
+${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
+${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
+<h2>Scope and boundaries</h2>
+<ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
+<p>${esc(DISCLAIMER)}</p>
+<p>${esc(LEGAL_DISCLAIMER)}</p>
+</main>
+</body>
+</html>
+`;
+}
+
+// packages/cli/src/scan.ts
+var DEFAULT_DELAY_MS = 1e3;
+var NAVIGATION_TIMEOUT_MS = 3e4;
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms"]);
+function parseScanArgs(argv) {
+  const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, warnings: [] };
+  const positionals = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index] ?? "";
+    if (token === "--help" || token === "-h") {
+      options.help = true;
+      continue;
+    }
+    if (!token.startsWith("-") || token === "-") {
+      positionals.push(token);
+      continue;
+    }
+    const eq = token.indexOf("=");
+    const name = eq === -1 ? token : token.slice(0, eq);
+    const inline = eq === -1 ? void 0 : token.slice(eq + 1);
+    if (name === "--crawl") {
+      let text = inline;
+      if (text === void 0 && /^\d+$/.test(argv[index + 1] ?? "")) {
+        text = argv[index + 1];
+        index += 1;
+      }
+      if (text === void 0) {
+        options.maxPages = MAX_CRAWL_PAGES;
+        continue;
+      }
+      if (!/^\d+$/.test(text) || Number(text) < 1) return { ok: false, error: "--crawl needs a whole number of pages from 1 to 20." };
+      const requested = Number(text);
+      if (requested > MAX_CRAWL_PAGES) options.warnings.push(`--crawl ${requested} exceeds the hard maximum; scanning at most ${MAX_CRAWL_PAGES} pages.`);
+      options.maxPages = clampPages(requested);
+      continue;
+    }
+    if (!VALUE_FLAGS2.has(name)) return { ok: false, error: `Unknown scan option ${token}.` };
+    const value = inline !== void 0 ? inline : argv[index + 1];
+    if (inline === void 0) index += 1;
+    if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
+      return { ok: false, error: `${name} needs a value.` };
+    }
+    if (name === "--fail-on") {
+      if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
+      options.failOn = value;
+    } else if (name === "--delay-ms") {
+      if (!/^\d+$/.test(value) || Number(value) > 6e4) return { ok: false, error: "--delay-ms needs a whole number of milliseconds from 0 to 60000." };
+      options.delayMs = Number(value);
+    } else if (name === "--out-dir") options.outDir = value;
+    else if (name === "--json") options.json = value;
+    else if (name === "--markdown") options.markdown = value;
+    else options.html = value;
+  }
+  if (options.help) return { ok: true, options };
+  if (positionals.length === 0) return { ok: false, error: "Pass the URL to scan: a11ygate scan <url>." };
+  if (positionals.length > 1) return { ok: false, error: `Unexpected argument ${positionals[1]}.` };
+  const url = normalizeUrl(positionals[0]);
+  if (!url) return { ok: false, error: `Not a valid http(s) URL: ${positionals[0]}` };
+  options.url = url;
+  if (options.outDir && (options.json || options.markdown || options.html)) {
+    return { ok: false, error: "Use either --out-dir or --json/--markdown/--html, not both." };
+  }
+  return { ok: true, options };
+}
+function scanHelpText() {
+  return `a11ygate scan \u2014 load live pages in headless Chromium and run axe-core
+
+Usage:
+  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
+                      [--json <file>] [--markdown <file>] [--html <file>] [--delay-ms <ms>]
+
+Options:
+  --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
+                       (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
+  --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
+  --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
+  --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
+  --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
+  --html <file>        Write a self-contained HTML summary.
+  --delay-ms <ms>      Pause between page loads. Default: ${DEFAULT_DELAY_MS}.
+
+Requires the optional peer dependencies:
+  npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium
+
+Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
+login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
+finds a subset of issues; PASS is not conformance, certification or legal advice.
+
+Exit codes:
+  0  No finding is at or above --fail-on.
+  1  At least one finding is at or above --fail-on.
+  2  Bad arguments, missing browser/dependencies, or the start page is unreachable.
+`;
+}
+var ScanSetupError = class extends Error {
+};
+var INSTALL_HINT = "a11ygate scan needs the optional peer dependencies playwright and @axe-core/playwright.\nInstall them with: npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium\n";
+function flattenTarget(target) {
+  return target.map((part) => Array.isArray(part) ? part.map(String).join(" ") : String(part)).filter((s) => s.trim().length > 0);
+}
+function toAxeResults(url, axe, userAgent) {
+  const violations = axe.violations.map((v) => ({
+    id: v.id,
+    impact: isImpact(v.impact) ? v.impact : null,
+    tags: [...v.tags],
+    help: v.help || v.id,
+    helpUrl: v.helpUrl || `https://dequeuniversity.com/rules/axe/${v.id}`,
+    nodes: v.nodes.map((n) => ({ target: flattenTarget(n.target), html: n.html, ...n.impact !== void 0 ? { impact: isImpact(n.impact) ? n.impact : null } : {} })).filter((n) => n.target.length > 0)
+  })).filter((v) => v.nodes.length > 0);
+  return {
+    url,
+    timestamp: new Date(axe.timestamp).toISOString(),
+    testEngine: { version: axe.testEngine.version },
+    violations,
+    toolOptions: { runOnly: { type: "tag", values: [...AXE_TAGS] } },
+    scanConfig: { source: "a11ygate scan", readOnly: true, browser: "chromium", userAgent },
+    ...axe.testEnvironment && typeof axe.testEnvironment === "object" ? { testEnvironment: axe.testEnvironment } : {},
+    scanStatus: "complete"
+  };
+}
+function isModuleNotFound(error) {
+  const code2 = error?.code;
+  return code2 === "ERR_MODULE_NOT_FOUND" || code2 === "MODULE_NOT_FOUND";
+}
+var playwrightEngine = async ({ userAgent, origin }) => {
+  let playwright;
+  let axeModule;
+  try {
+    playwright = await import("playwright");
+    axeModule = await import("@axe-core/playwright");
+  } catch (error) {
+    if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
+    throw error;
+  }
+  const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.split("\n")[0] : "unknown error";
+    throw new ScanSetupError(`Could not launch headless Chromium (${detail}).
+Install it with: npx playwright install chromium
+`);
+  }
+  const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true });
+  return {
+    visit: async (url, collectLinks) => {
+      const page = await context.newPage();
+      page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
+      try {
+        const response = await page.goto(url, { waitUntil: "load", timeout: NAVIGATION_TIMEOUT_MS });
+        const status = response?.status() ?? null;
+        const finalUrl = page.url();
+        const contentType = response?.headers()["content-type"] ?? null;
+        if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
+        if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
+        if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
+        const links = collectLinks ? await page.$$eval("a[href]", (anchors) => anchors.map((a) => a.href)) : [];
+        const axe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+        return { status, finalUrl, contentType, links, result: toAxeResults(url, axe, userAgent) };
+      } catch (error) {
+        const detail = error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
+        return { status: null, finalUrl: url, links: [], error: detail };
+      } finally {
+        await page.close().catch(() => void 0);
+      }
+    },
+    close: async () => {
+      await context.close().catch(() => void 0);
+      await browser.close().catch(() => void 0);
+    }
+  };
+};
+function scanUserAgent(version) {
+  return `Mozilla/5.0 (compatible; A11yGate/${version}; +https://a11ygate.vercel.app) read-only accessibility scan`;
+}
+async function runScan(argv, io = {}) {
+  const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
+  const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
+  const cwd = io.cwd ?? process.cwd();
+  const now = io.now ?? (() => /* @__PURE__ */ new Date());
+  const version = io.version ?? "0.0.0";
+  const parsed = parseScanArgs(argv);
+  if (!parsed.ok) {
+    stderr(`${parsed.error}
+Run a11ygate scan --help for usage.
+`);
+    return 2;
+  }
+  const options = parsed.options;
+  if (options.help) {
+    stdout(scanHelpText());
+    return 0;
+  }
+  for (const warning of options.warnings) stderr(`${warning}
+`);
+  const userAgent = scanUserAgent(version);
+  const origin = new URL(options.url).origin;
+  const fetchImpl = io.fetch ?? globalThis.fetch;
+  const robots = await fetchRobots(origin, userAgent, fetchImpl);
+  if (!robotsAllowsUrl(robots.rules, options.url)) {
+    stderr(`${options.url} is disallowed by ${origin}/robots.txt; nothing was scanned.
+`);
+    return 2;
+  }
+  let engine;
+  try {
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin });
+  } catch (error) {
+    stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+  let result;
+  try {
+    result = await crawl({
+      startUrl: options.url,
+      maxPages: options.maxPages,
+      delayMs: options.delayMs,
+      robots: robots.rules,
+      visit: engine.visit,
+      sleep: io.sleep,
+      log: (message) => stderr(`${message}
+`)
+    });
+  } finally {
+    await engine.close();
+  }
+  const first = result.pages[0];
+  if (!first || first.scanStatus !== "complete") {
+    stderr(`Start page could not be scanned: ${first?.error ?? "unreachable"}
+`);
+    return 2;
+  }
+  const report = buildScanReport({
+    crawl: result,
+    version,
+    scannedAt: now().toISOString(),
+    startUrl: options.url,
+    failOn: options.failOn,
+    maxPages: options.maxPages,
+    delayMs: options.delayMs,
+    userAgent,
+    robotsNote: robots.note
+  });
+  const json = `${JSON.stringify(report, null, 2)}
+`;
+  const markdown = scanMarkdown(report);
+  const targets = options.outDir ? [
+    [path.join(options.outDir, "a11ygate-scan.json"), json],
+    [path.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)]
+  ] : [
+    [options.json === "-" ? void 0 : options.json, json],
+    [options.markdown, markdown],
+    [options.html, options.html ? scanHtml(report) : ""]
+  ];
+  try {
+    if (options.outDir) await mkdir(path.resolve(cwd, options.outDir), { recursive: true });
+    for (const [file, content] of targets) {
+      if (file) await writeFile(path.resolve(cwd, file), content, "utf8");
+    }
+  } catch (error) {
+    const code2 = error.code;
+    stderr(`Could not write the scan report${code2 ? ` (${code2})` : ""}.
+`);
+    return 2;
+  }
+  stdout(options.json === "-" ? json : markdown);
+  return scanExitCode(report.findings, options.failOn);
+}
+
+// lib/export-baseline.ts
+function baselineReview(results, diff) {
+  return { schemaVersion: 1, approval: "review-required", acceptedFindings: [...diff.newFindings, ...diff.stillOpen], newlyAccepted: diff.newFindings, retained: diff.stillOpen, noLongerObserved: diff.fixedFindings, unassessed: diff.unassessed ?? [], pages: results.map((r) => r.url), coverage: diff.coverage, warning: "This proposal accepts the listed current findings as existing debt, not resolved issues. Review and commit separately; no approval or certification is implied." };
+}
+function baselineDocument(results) {
+  return `${JSON.stringify(results, null, 2)}
+`;
+}
+
+// lib/manual-evidence.ts
+function parseManualEvidence(text) {
+  try {
+    if (text.length > MAX_AXE_JSON_BYTES || axeJsonByteLength(text) > MAX_AXE_JSON_BYTES) throw Error("Manual evidence exceeds 8 MB.");
+    const v = JSON.parse(text);
+    if (!v || v.schemaVersion !== 1 || !Array.isArray(v.checks) || v.checks.length > 200) throw Error("Expected schemaVersion 1 and at most 200 checks.");
+    const ids = /* @__PURE__ */ new Set();
+    const checks = [];
+    for (const x of v.checks) {
+      if (!x || typeof x !== "object" || Array.isArray(x)) throw Error("Every manual check must be an object.");
+      for (const [key, max] of Object.entries({ id: 120, scope: 1024, check: 256, reviewer: 120, date: 10, notes: 4e3 })) {
+        if (typeof x[key] !== "string" || !x[key].trim() || x[key].length > max || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(x[key])) throw Error("Manual check " + key + " is missing, too long or invalid.");
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(x.date) || !Number.isFinite(Date.parse(x.date)) || new Date(x.date).toISOString().slice(0, 10) !== x.date) throw Error("Manual date must be a real ISO YYYY-MM-DD date.");
+      if (!["passed", "failed", "not-assessed"].includes(x.status)) throw Error("Manual status must be passed, failed or not-assessed.");
+      if (ids.has(x.id)) throw Error("Manual check IDs must be unique.");
+      ids.add(x.id);
+      checks.push({ id: x.id, scope: x.scope, check: x.check, reviewer: x.reviewer, date: x.date, status: x.status, notes: x.notes });
+    }
+    return { ok: true, checks };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Invalid manual evidence." };
+  }
+}
+
+// lib/diff.ts
+function byLocation(a, b) {
+  return a.path.localeCompare(b.path) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector);
+}
+function indexByFingerprint(findings) {
+  const indexed = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    if (!indexed.has(finding.fingerprint)) indexed.set(finding.fingerprint, finding);
+  }
+  return indexed;
+}
+function diffScans(current, baseline) {
+  const base = indexByFingerprint(baseline ?? []);
+  const next = indexByFingerprint(current);
+  const newFindings = [];
+  const stillOpen = [];
+  for (const finding of next.values()) {
+    if (base.has(finding.fingerprint)) {
+      stillOpen.push({ ...finding, status: "still-open" });
+    } else {
+      newFindings.push({ ...finding, status: "new" });
+    }
+  }
+  const fixedFindings = [];
+  for (const finding of base.values()) {
+    if (!next.has(finding.fingerprint)) {
+      fixedFindings.push({ ...finding, status: "fixed" });
+    }
+  }
+  newFindings.sort(byLocation);
+  fixedFindings.sort(byLocation);
+  stillOpen.sort(byLocation);
+  const statusOrder = { new: 0, fixed: 1, "still-open": 2, unassessed: 3 };
+  const all = [...newFindings, ...fixedFindings, ...stillOpen].sort(
+    (a, b) => statusOrder[a.status] - statusOrder[b.status] || byLocation(a, b)
+  );
+  return { newFindings, fixedFindings, stillOpen, all };
 }
 
 // lib/compare.ts
@@ -786,8 +1509,8 @@ function compareScans(current, baseline) {
     "Normalized selectors are heuristic identities, not proof that every affected element is unchanged."
   ], unassessedFindings: 0 };
   const blocked = /* @__PURE__ */ new Set();
-  const issue = (page, code, detail, blocking = true) => {
-    coverage.issues.push({ page, code, detail });
+  const issue = (page, code2, detail, blocking = true) => {
+    coverage.issues.push({ page, code: code2, detail });
     if (blocking) {
       blocked.add(page);
       coverage.status = "incomplete";
@@ -839,7 +1562,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path.resolve(cwd, file);
+  return path2.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -854,24 +1577,24 @@ async function readDocuments(files, cwd) {
       }
       documents.push({ name: file, text: await readFile(absolute, "utf8") });
     } catch (error) {
-      const code = error.code;
-      if (code === "ENOENT") return { ok: false, error: `${file}: file not found.` };
+      const code2 = error.code;
+      if (code2 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
       return { ok: false, error: `${file}: could not read the file.` };
     }
   }
   return { ok: true, documents };
 }
 function writeFailure(file, error) {
-  const code = error.code;
-  if (code === "ENOENT") return `${file}: the directory does not exist.`;
-  if (code === "EISDIR") return `${file}: is a directory, not a file.`;
+  const code2 = error.code;
+  if (code2 === "ENOENT") return `${file}: the directory does not exist.`;
+  if (code2 === "EISDIR") return `${file}: is a directory, not a file.`;
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path.dirname(fileURLToPath(import.meta.url));
+  const here = path2.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path.join(here, "..", "package.json"),
-    path.join(here, "..", "..", "packages", "cli", "package.json")
+    path2.join(here, "..", "package.json"),
+    path2.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
@@ -938,6 +1661,7 @@ async function run(argv, io = {}) {
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
+  if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
     stderr(`${parsed.error}
@@ -964,7 +1688,7 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath(absolute).catch(async () => {
         if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+        return path2.join(await realpath(path2.dirname(absolute)).catch(() => path2.dirname(absolute)), path2.basename(absolute));
       });
       const info = await stat(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -1057,8 +1781,8 @@ async function run(argv, io = {}) {
       return 2;
     }
     try {
-      await writeFile(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile2(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile2(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -1069,7 +1793,7 @@ async function run(argv, io = {}) {
   }
   if (options.markdown) {
     try {
-      await writeFile(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile2(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -1078,7 +1802,7 @@ async function run(argv, io = {}) {
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile2(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -1091,8 +1815,8 @@ async function run(argv, io = {}) {
 
 // packages/cli/src/bin.ts
 void run(process.argv.slice(2)).then(
-  (code) => {
-    process.exitCode = code;
+  (code2) => {
+    process.exitCode = code2;
   },
   (error) => {
     const message = error instanceof Error ? error.message : "A11yGate failed.";

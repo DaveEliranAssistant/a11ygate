@@ -12,6 +12,18 @@
     "README.md",
     "LICENSE"
   ],
+  "peerDependencies": {
+    "@axe-core/playwright": ">=4.8.0",
+    "playwright": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "@axe-core/playwright": {
+      "optional": true
+    },
+    "playwright": {
+      "optional": true
+    }
+  },
   "engines": {
     "node": ">=20"
   },

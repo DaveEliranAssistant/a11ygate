@@ -1,0 +1,3 @@
+# Fixture robots.txt for the A11yGate scan tests.
+User-agent: *
+Disallow: /private/
