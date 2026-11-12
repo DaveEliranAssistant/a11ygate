@@ -11,13 +11,34 @@ const current = path.join(repoRoot, 'fixtures/demo-shop-current.json');
 const baseline = path.join(repoRoot, 'fixtures/demo-shop-baseline.json');
 const cliBin = path.join(repoRoot, 'packages/cli/dist/cli.mjs');
 const actionBin = path.join(repoRoot, 'action/dist/cli.mjs');
+const actionRun = path.join(repoRoot, 'action/run.mjs');
 
-async function capture(args: string[], cwd = repoRoot) {
+async function runAction(dir: string, env: Record<string, string>) {
+  const outputFile = path.join(dir, 'github-output');
+  await writeFile(outputFile, '');
+  const child = spawnSync(process.execPath, [actionRun], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH ?? '',
+      RUNNER_TEMP: dir,
+      GITHUB_OUTPUT: outputFile,
+      A11Y_CURRENT: current,
+      A11Y_BASELINE: baseline,
+      NODE_ENV: 'test',
+      ...env,
+    },
+  });
+  return { status: child.status, stderr: child.stderr, outputs: await readFile(outputFile, 'utf8') };
+}
+
+async function capture(args: string[], cwd = repoRoot, env: Record<string, string | undefined> = {}) {
   let stdout = '';
   let stderr = '';
   const code = await run(args, {
     cwd,
     now: () => new Date('2026-10-31T12:00:00.000Z'),
+    env,
     stdout: (chunk) => {
       stdout += chunk;
     },
@@ -155,5 +176,159 @@ describe('a11ygate CLI', () => {
       expect(result.stdout).toContain('| Still open | 5 |');
       expect(result.stdout).toContain('**Verdict: FAIL**');
     }
+  });
+
+  describe('report', () => {
+    it('writes a self-contained HTML evidence report and exits 0 even when the gate fails', async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-report-'));
+      try {
+        const out = path.join(dir, 'evidence.html');
+        const result = await capture(['report', '--current', current, '--baseline', baseline, '--out', out], repoRoot, {
+          GITHUB_SHA: 'abc1234',
+          GITHUB_HEAD_REF: '',
+          GITHUB_REF_NAME: 'main',
+        });
+        expect(result.code, result.stderr).toBe(0);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toContain('Wrote evidence report');
+        const html = await readFile(out, 'utf8');
+        expect(html).toContain('<html lang="en">');
+        expect(html).toContain('<time datetime="2026-10-31T12:00:00.000Z">');
+        expect(html).toContain('<code>abc1234</code>');
+        expect(html).toContain('<code>main</code>');
+        expect(html).toContain('FAIL at threshold serious');
+        expect(html).not.toMatch(/<script|<link|<[a-z][^>]*\ssrc=/i);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('infers the format from --out, honours --format, and prints with --out -', async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-report-'));
+      try {
+        const md = path.join(dir, 'evidence.md');
+        expect((await capture(['report', '-c', current, '-b', baseline, '-o', md])).code).toBe(0);
+        expect(await readFile(md, 'utf8')).toMatch(/^# Accessibility evidence report — demo\.shop/);
+
+        const printed = await capture(['report', '-c', current, '-b', baseline, '--format', 'json', '--out', '-']);
+        expect(printed.code).toBe(0);
+        const report = JSON.parse(printed.stdout) as { summary: { new: number; baselined: number; fixed: number } };
+        expect(report.summary).toMatchObject({ new: 2, baselined: 5, fixed: 3 });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('gives byte-identical output for the same input and --generated-at', async () => {
+      const args = ['report', '-c', current, '-b', baseline, '--generated-at', '2026-11-10T09:00:00Z', '--commit', 'abc', '--branch', 'main'];
+      const first = await capture(args, repoRoot, { GITHUB_SHA: 'ignored-by-flag' });
+      const second = await capture(args);
+      expect(first.code).toBe(0);
+      expect(first.stdout).toBe(second.stdout);
+      expect(first.stdout).toContain('2026-11-10T09:00:00.000Z');
+      expect(first.stdout).not.toContain('2026-10-31T12:00:00.000Z');
+    });
+
+    it('rejects bad report arguments and output paths that alias inputs', async () => {
+      const bad = await capture(['report', '-c', current, '--format', 'pdf']);
+      expect(bad.code).toBe(2);
+      expect(bad.stderr).toContain('Unknown report format');
+
+      const badDate = await capture(['report', '-c', current, '--generated-at', 'yesterday']);
+      expect(badDate.code).toBe(2);
+      expect(badDate.stderr).toContain('--generated-at');
+
+      const gateOnly = await capture(['report', '-c', current, '--markdown', 'x.md']);
+      expect(gateOnly.code).toBe(2);
+      expect(gateOnly.stderr).toContain('not available with a11ygate report');
+
+      const reportOnly = await capture(['-c', current, '--out', 'x.html']);
+      expect(reportOnly.code).toBe(2);
+      expect(reportOnly.stderr).toContain('only available with a11ygate report');
+
+      const alias = await capture(['report', '-c', current, '--out', current]);
+      expect(alias.code).toBe(2);
+      expect(alias.stderr).toContain('must not overwrite input evidence');
+
+      const help = await capture(['report', '--help']);
+      expect(help.code).toBe(0);
+      expect(help.stdout).toContain('a11ygate report');
+    });
+
+    it('builds the report from a11ygate scan JSON, compared with a previous scan', async () => {
+      const scan = path.join(repoRoot, 'fixtures/scan-report/current.json');
+      const previous = path.join(repoRoot, 'fixtures/scan-report/previous.json');
+      const result = await capture(['report', '--scan', scan, '--previous-scan', previous, '--format', 'json']);
+      expect(result.code, result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout) as {
+        input: string;
+        scope: { startUrl: string; scannedAt: string };
+        trend: { totals: { new: number; fixed: number; stillOpen: number } };
+      };
+      expect(report.input).toBe('site-scan');
+      expect(report.scope).toMatchObject({ startUrl: 'https://shop.example/', scannedAt: '2026-11-12T09:00:00.000Z' });
+      expect(report.trend.totals).toMatchObject({ new: 4, fixed: 1, stillOpen: 2 });
+
+      const md = await capture(['report', '--scan', scan, '--format', 'md']);
+      expect(md.code).toBe(0);
+      expect(md.stdout).toContain('No previous scan was supplied');
+
+      const axeAsScan = await capture(['report', '--scan', current]);
+      expect(axeAsScan.code).toBe(2);
+      expect(axeAsScan.stderr).toContain('not an a11ygate scan report');
+
+      const both = await capture(['report', '--scan', scan, '--current', current]);
+      expect(both.code).toBe(2);
+
+      const alias = await capture(['report', '--scan', scan, '--out', scan]);
+      expect(alias.code).toBe(2);
+      expect(alias.stderr).toContain('must not overwrite input evidence');
+    });
+
+    it('the built binaries write the report', () => {
+      for (const bin of [cliBin, actionBin]) {
+        const result = spawnSync(process.execPath, [bin, 'report', '--current', current, '--baseline', baseline, '--format', 'md'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+        });
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout).toContain('Automated testing only. Not a WCAG audit, certification or legal advice.');
+        expect(result.stdout).toContain('| Baselined (still open) | 5 |');
+      }
+    });
+  });
+
+  describe('action report inputs', () => {
+    it('writes the report and sets the report output without changing the gate exit code', async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-action-'));
+      try {
+        const report = path.join(dir, 'evidence.md');
+        const result = await runAction(dir, { A11Y_REPORT: report, GITHUB_SHA: 'abc1234', GITHUB_HEAD_REF: 'feat/x' });
+        expect(result.status, result.stderr).toBe(1);
+        expect(result.outputs).toContain(`report=${report}\n`);
+        expect(result.outputs).toContain('verdict=FAIL');
+        const markdown = await readFile(report, 'utf8');
+        expect(markdown).toContain('| Commit | `abc1234` |');
+        expect(markdown).toContain('| Branch | `feat/x` |');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('fails a passing gate when the report cannot be written', async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-action-'));
+      try {
+        const result = await runAction(dir, {
+          A11Y_THRESHOLD: 'critical',
+          A11Y_REPORT: path.join(dir, 'missing-dir', 'evidence.html'),
+        });
+        expect(result.status).toBe(2);
+        expect(result.outputs).toContain('verdict=PASS');
+        expect(result.outputs).not.toContain('report=');
+        expect(result.stderr).toContain('the directory does not exist');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
   });
 });

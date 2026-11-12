@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="generator" content="a11ygate">
+<title>Accessibility evidence report — www.w3.org</title>
+<style>:root{color-scheme:light;--fg:#1b1f24;--muted:#4b5563;--line:#d0d7de;--bg:#ffffff;--soft:#f6f8fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:72rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+h1{font-size:1.75rem;margin:0 0 .5rem}
+h2{font-size:1.35rem;margin:2.5rem 0 .75rem;border-bottom:1px solid var(--line);padding-bottom:.25rem}
+h3{font-size:1.15rem;margin:1.75rem 0 .5rem}
+h4{font-size:1.05rem;margin:1.5rem 0 .5rem}
+.disclaimer{border:2px solid #9a6700;background:#fff8c5;padding:.75rem 1rem;border-radius:.375rem;font-weight:600}
+.synthetic{border:2px solid #cf222e;background:#ffebe9;padding:.5rem 1rem;border-radius:.375rem;font-weight:700}
+table{border-collapse:collapse;width:100%;margin:.5rem 0 1rem;font-size:.9375rem}
+caption{text-align:left;font-weight:600;padding:.25rem 0}
+th,td{border:1px solid var(--line);padding:.375rem .5rem;text-align:left;vertical-align:top}
+thead th{background:var(--soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;overflow-wrap:anywhere;word-break:break-word}
+.muted{color:var(--muted)}
+.impact{display:inline-block;padding:0 .4rem;border-radius:.25rem;border:1px solid currentColor;font-size:.8125rem;font-weight:600;text-transform:uppercase}
+.impact-critical{color:#a40e26}.impact-serious{color:#9a3412}.impact-moderate{color:#7c4a03}.impact-minor,.impact-unspecified,.impact-unknown{color:#374151}
+a{color:#0550ae}
+@media print{
+@page{margin:1.5cm}
+body{font-size:11pt}
+main{max-width:none;padding:0}
+.sheet{break-before:page}
+h2,h3,h4,caption{break-after:avoid}
+table{break-inside:auto}
+thead{display:table-header-group}
+tr,li{break-inside:avoid}
+a{color:inherit}
+a[href]::after{content:" (" attr(href) ")";font-size:.85em;overflow-wrap:anywhere}
+}</style>
+</head>
+<body>
+<main>
+<h1>Accessibility evidence report — www.w3.org</h1>
+<p class="disclaimer" role="note">Automated testing only. Not a WCAG audit, certification or legal advice. Automated tools such as axe-core detect only a subset of accessibility issues.</p>
+<h2 id="scan">Scan details</h2>
+<table>
+<caption>Scan details</caption>
+<tbody>
+<tr><th scope="row">Scanned at</th><td><time datetime="2026-11-12T12:25:34.378Z">2026-11-12T12:25:34.378Z</time></td></tr>
+<tr><th scope="row">Previous scan</th><td>none supplied</td></tr>
+<tr><th scope="row">Generated</th><td><time datetime="2026-11-12T13:00:00.000Z">2026-11-12T13:00:00.000Z</time></td></tr>
+<tr><th scope="row">Commit</th><td><span class="muted">not recorded</span></td></tr>
+<tr><th scope="row">Branch</th><td><span class="muted">not recorded</span></td></tr>
+<tr><th scope="row">A11yGate</th><td>0.1.0</td></tr>
+<tr><th scope="row">axe-core (current)</th><td>4.14.0</td></tr>
+<tr><th scope="row">axe-core (previous scan)</th><td>no previous scan</td></tr>
+<tr><th scope="row">Gate</th><td>FAIL at threshold serious — 42 new findings at or above serious: aria-allowed-attr, aria-prohibited-attr, button-name, color-contrast, html-has-lang, image-alt, link-name, select-name, target-size.</td></tr>
+<tr><th scope="row">Coverage</th><td>complete</td></tr>
+</tbody>
+</table>
+<h2 id="summary">Summary</h2>
+<table>
+<caption>Current violations by severity</caption>
+<thead><tr><th scope="col">Severity</th><th scope="col" class="num">Current violations</th></tr></thead>
+<tbody>
+<tr><td>Critical</td><td class="num">30</td></tr>
+<tr><td>Serious</td><td class="num">12</td></tr>
+<tr><td>Moderate</td><td class="num">50</td></tr>
+<tr><td>Minor</td><td class="num">0</td></tr>
+<tr><td>Unknown</td><td class="num">0</td></tr>
+<tr><td>Total</td><td class="num">92</td></tr>
+</tbody>
+</table>
+<table>
+<caption>Violations by status</caption>
+<thead><tr><th scope="col">Status</th><th scope="col" class="num">Violations</th></tr></thead>
+<tbody>
+<tr><td>New</td><td class="num">92</td></tr>
+<tr><td>Still open</td><td class="num">0</td></tr>
+<tr><td>Fixed</td><td class="num">0</td></tr>
+<tr><td>Unassessed (not verified fixed)</td><td class="num">0</td></tr>
+<tr><td>Current total</td><td class="num">92</td></tr>
+</tbody>
+</table>
+<p>Rules with current violations: 11. WCAG success criteria with findings: 6. Best-practice rules: 2.</p>
+<section class="sheet" aria-labelledby="scope">
+<h2 id="scope">Scope</h2>
+<table>
+<caption>Scan scope</caption>
+<tbody>
+<tr><th scope="row">Start URL</th><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td></tr>
+<tr><th scope="row">Origin</th><td><code>https://www.w3.org</code></td></tr>
+<tr><th scope="row">Page limit</th><td>5</td></tr>
+<tr><th scope="row">Delay between pages</th><td>1000 ms</td></tr>
+<tr><th scope="row">robots.txt</th><td>robots.txt honoured.</td></tr>
+<tr><th scope="row">User agent</th><td><code>Mozilla/5.0 (compatible; A11yGate/0.1.0; +https://a11ygate.vercel.app) read-only accessibility scan</code></td></tr>
+<tr><th scope="row">axe-core tags</th><td>wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22a, wcag22aa, best-practice</td></tr>
+</tbody>
+</table>
+<h3>Boundaries</h3>
+<ul>
+<li>Only scan sites you own or are explicitly authorized to test.</li>
+<li>Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.</li>
+<li>Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.</li>
+<li>Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured.</li>
+</ul>
+<h2 id="pages">Pages scanned</h2>
+<table>
+<caption>Pages scanned</caption>
+<thead><tr><th scope="col">Page</th><th scope="col">Scanned</th><th scope="col">axe-core</th><th scope="col">Scan</th><th scope="col" class="num">Violations</th><th scope="col" class="num">New</th><th scope="col" class="num">Still open</th><th scope="col">In previous scan</th></tr></thead>
+<tbody>
+<tr><td><code>https://www.w3.org/</code></td><td>2026-11-12T12:25:24.785Z</td><td>4.14.0</td><td>complete</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td>no</td></tr>
+<tr><td><code>https://www.w3.org/WAI/</code></td><td>2026-11-12T12:25:28.903Z</td><td>4.14.0</td><td>complete</td><td class="num">3</td><td class="num">3</td><td class="num">0</td><td>no</td></tr>
+<tr><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td>2026-11-12T12:25:31.512Z</td><td>4.14.0</td><td>complete</td><td class="num">7</td><td class="num">7</td><td class="num">0</td><td>no</td></tr>
+<tr><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td>2026-11-12T12:25:22.256Z</td><td>4.14.0</td><td>complete</td><td class="num">57</td><td class="num">57</td><td class="num">0</td><td>no</td></tr>
+<tr><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td>2026-11-12T12:25:33.798Z</td><td>4.14.0</td><td>complete</td><td class="num">25</td><td class="num">25</td><td class="num">0</td><td>no</td></tr>
+</tbody>
+</table>
+<h3>Links skipped and why</h3>
+<table>
+<caption>Links skipped and why</caption>
+<thead><tr><th scope="col">Reason</th><th scope="col" class="num">Links</th><th scope="col">Examples</th></tr></thead>
+<tbody>
+<tr><td>Page limit reached (--crawl cap)</td><td class="num">169</td><td><code>https://www.w3.org/2005/02/TranslationPolicy</code><br><code>https://www.w3.org/Consortium/Legal/copyright-documents</code><br><code>https://www.w3.org/Consortium/Legal/copyright-software</code><br><code>https://www.w3.org/Consortium/Legal/ipr-notice</code><br><code>https://www.w3.org/Consortium/Legal/privacy-statement</code><br><code>https://www.w3.org/International/i18n-drafts/nav/about</code><br><code>https://www.w3.org/Member/</code><br><code>https://www.w3.org/People/shadi/</code><br><code>https://www.w3.org/TR/</code><br><code>https://www.w3.org/TR/2008/NOTE-WCAG20-TECHS-20081211/F1</code><br><span class="muted">…and 159 more (full list in the JSON report)</span></td></tr>
+<tr><td>Different origin (not crawled)</td><td class="num">12</td><td><code>http://www.csail.mit.edu/</code><br><code>http://www.ercim.org/</code><br><code>http://www.keio.ac.jp/</code><br><code>https://auth.w3.org/?url=https://www.w3.org/</code><br><code>https://github.com/w3c/</code><br><code>https://status.w3.org/</code><br><code>https://w3c.social/@w3c</code><br><code>https://w3c.social/@wai</code><br><code>https://www.fordfoundation.org/</code><br><code>https://www.fordfoundation.org/work/challenging-inequality/technology-and-society/</code><br><span class="muted">…and 2 more (full list in the JSON report)</span></td></tr>
+<tr><td>Not an http(s) link (javascript:, mailto:, …)</td><td class="num">6</td><td><code>javascript:location.href=&#39;home.html&#39;;</code><br><code>javascript:location.href=&#39;news.html&#39;;</code><br><code>javascript:location.href=&#39;survey.html&#39;;</code><br><code>javascript:location.href=&#39;tickets.html&#39;;</code><br><code>mailto:wai-eo-editors@w3.org</code><br><code>mailto:wai@w3.org</code></td></tr>
+<tr><td>Not an HTML page (file download)</td><td class="num">1</td><td><code>https://www.w3.org/WAI/demos/bad/bad.zip</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="sheet" aria-labelledby="trend">
+<h2 id="trend">Trend versus previous scan</h2>
+<p>No previous scan was supplied, so every current violation is reported as new.</p>
+</section>
+<section class="sheet" aria-labelledby="criteria">
+<h2 id="criteria">Findings by WCAG success criterion</h2>
+<p class="muted">WCAG success criteria are mapped from axe-core rule tags. The mapping needs expert review before it is relied on. A rule mapped to more than one criterion is listed under the first.</p>
+<h3 id="sc-1.1.1">WCAG 1.1.1 Non-text Content (Level A, WCAG 2.1)</h3>
+<p>Current findings: 27.</p>
+<section class="rule">
+<h4 id="rule-image-alt"><code>image-alt</code> <span class="impact impact-critical">critical</span></h4>
+<p>Images must have alternative text (<a href="https://dequeuniversity.com/rules/axe/4.14/image-alt?application=playwright">rule documentation for image-alt</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.</li>
+<li>WCAG: 1.1.1 Non-text Content (Level A, WCAG 2.1)</li>
+<li>Counts: 27 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of image-alt</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.newsheadline:nth-child(1) &gt; img[src$=&quot;headline_middle.gif&quot;][width=&quot;23&quot;][height=&quot;24&quot;]</code></td><td><code>&lt;img src=&quot;./img/headline_middle.gif&quot; width=&quot;23&quot; height=&quot;24&quot; align=&quot;absmiddle&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[name=&quot;nav_facts&quot;]</code></td><td><code>&lt;img name=&quot;nav_facts&quot; src=&quot;./img/nav_facts.gif&quot; width=&quot;105&quot; height=&quot;23&quot; hspace=&quot;9&quot; border=&quot;0px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[name=&quot;nav_home&quot;]</code></td><td><code>&lt;img name=&quot;nav_home&quot; src=&quot;./img/nav_home.gif&quot; width=&quot;88&quot; height=&quot;27&quot; hspace=&quot;15&quot; border=&quot;0px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_bottom.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_bottom.gif&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_bottom_left.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_bottom_left.gif&quot; width=&quot;10px&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_bottom_right.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_bottom_right.gif&quot; width=&quot;10px&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_left.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_left.gif&quot; width=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_left_top.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_left_top.gif&quot; width=&quot;10px&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_right.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_right.gif&quot; width=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_right_top.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_right_top.gif&quot; width=&quot;10px&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;border_top.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/border_top.gif&quot; height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;mark.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/mark.gif&quot; width=&quot;158px&quot; height=&quot;7px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;marker2_t.gif&quot;][height=&quot;30px&quot;][width=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_t.gif&quot; width=&quot;1px&quot; height=&quot;30px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;nav_news.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/nav_news.gif&quot; name=&quot;nav_news&quot; width=&quot;90&quot; height=&quot;21&quot; hspace=&quot;12&quot; border=&quot;0px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;nav_survey.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/nav_survey.gif&quot; name=&quot;nav_survey&quot; width=&quot;107&quot; height=&quot;32&quot; hspace=&quot;8&quot; border=&quot;0px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;teaser_right1.jpg&quot;]</code></td><td><code>&lt;img src=&quot;./img/teaser_right1.jpg&quot; width=&quot;150px&quot; height=&quot;106px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;teaser_right2.jpg&quot;]</code></td><td><code>&lt;img src=&quot;./img/teaser_right2.jpg&quot; width=&quot;150px&quot; height=&quot;154px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;top_logo_next_end.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/top_logo_next_end.gif&quot; width=&quot;24px&quot; height=&quot;86px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;top_logo_next_start.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/top_logo_next_start.gif&quot; width=&quot;22px&quot; height=&quot;86px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[src$=&quot;top_weather.gif&quot;]</code></td><td><code>&lt;img src=&quot;./img/top_weather.gif&quot; width=&quot;128px&quot; height=&quot;86px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>img[width=&quot;1&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_t.gif&quot; width=&quot;1&quot; height=&quot;30px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[background=&quot;./img/marker2_w.gif&quot;][width=&quot;150px&quot;] &gt; img[src$=&quot;marker2_w.gif&quot;][width=&quot;78px&quot;][height=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_w.gif&quot; width=&quot;78px&quot; height=&quot;1px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[colspan=&quot;5&quot;][background=&quot;./img/marker2_w.gif&quot;][width=&quot;780px&quot;] &gt; img[src$=&quot;marker2_w.gif&quot;][width=&quot;78px&quot;][height=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;.img/marker2_w.gif&quot; width=&quot;78px&quot; height=&quot;1px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[width=&quot;151px&quot;][background=&quot;./img/marker2_w.gif&quot;] &gt; img[src$=&quot;marker2_w.gif&quot;][width=&quot;78px&quot;][height=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_w.gif&quot; width=&quot;78px&quot; height=&quot;1px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[width=&quot;155px&quot;][background=&quot;./img/marker2_w.gif&quot;] &gt; img[src$=&quot;marker2_w.gif&quot;][width=&quot;78px&quot;][height=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_w.gif&quot; width=&quot;78px&quot; height=&quot;1px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[width=&quot;20px&quot;]:nth-child(2) &gt; img[src$=&quot;blank_5x5.gif&quot;][height=&quot;5px&quot;][width=&quot;20px&quot;]</code></td><td><code>&lt;img src=&quot;./img/blank_5x5.gif&quot; width=&quot;20px&quot; height=&quot;5px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>tr[height=&quot;1px&quot;]:nth-child(3) &gt; td[width=&quot;154px&quot;][background=&quot;./img/marker2_w.gif&quot;] &gt; img[src$=&quot;marker2_w.gif&quot;][width=&quot;78px&quot;][height=&quot;1px&quot;]</code></td><td><code>&lt;img src=&quot;./img/marker2_w.gif&quot; width=&quot;78px&quot; height=&quot;1px&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-1.4.3">WCAG 1.4.3 Contrast (Minimum) (Level AA, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-color-contrast"><code>color-contrast</code> <span class="impact impact-serious">serious</span></h4>
+<p>Elements must meet minimum color contrast ratio thresholds (<a href="https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=playwright">rule documentation for color-contrast</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.</li>
+<li>WCAG: 1.4.3 Contrast (Minimum) (Level AA, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of color-contrast</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>tr[height=&quot;25px&quot;]:nth-child(2) &gt; td[bgcolor=&quot;#A9B8BF&quot;][width=&quot;150px&quot;] &gt; font[color=&quot;#41545D&quot;][size=&quot;2&quot;] &gt; b</code></td><td><code>&lt;b&gt;Free Penguins&lt;/b&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-2.4.4">WCAG 2.4.4 Link Purpose (In Context) (Level A, WCAG 2.1)</h3>
+<p>Current findings: 5.</p>
+<section class="rule">
+<h4 id="rule-link-name"><code>link-name</code> <span class="impact impact-serious">serious</span></h4>
+<p>Links must have discernible text (<a href="https://dequeuniversity.com/rules/axe/4.14/link-name?application=playwright">rule documentation for link-name</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Links must have discernible text Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 2.4.4 Link Purpose (In Context) (Level A, WCAG 2.1); 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 5 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of link-name</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#home &gt; a[onfocus=&quot;blur();&quot;]</code></td><td><code>&lt;a href=&quot;javascript:location.href=&#39;home.html&#39;;&quot; onfocus=&quot;blur();&quot;&gt;&lt;img name=&quot;nav_home&quot; src=&quot;./img/nav_home.gif&quot; width=&quot;88&quot; height=&quot;27&quot; hspace=&quot;15&quot; border=&quot;0px&quot;&gt;&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#news &gt; a[onfocus=&quot;blur();&quot;]</code></td><td><code>&lt;a href=&quot;javascript:location.href=&#39;news.html&#39;;&quot; onfocus=&quot;blur();&quot;&gt;&lt;img src=&quot;./img/nav_news.gif&quot; name=&quot;nav_news&quot; width=&quot;90&quot; height=&quot;21&quot; hspace=&quot;12&quot; border=&quot;0px&quot;&gt;&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#survey &gt; a[onfocus=&quot;blur();&quot;]</code></td><td><code>&lt;a href=&quot;javascript:location.href=&#39;survey.html&#39;;&quot; onfocus=&quot;blur();&quot;&gt;&lt;img src=&quot;./img/nav_survey.gif&quot; name=&quot;nav_survey&quot; width=&quot;107&quot; height=&quot;32&quot; hspace=&quot;8&quot; border=&quot;0px&quot;&gt;&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#tickets &gt; a[onfocus=&quot;blur();&quot;]</code></td><td><code>&lt;a href=&quot;javascript:location.href=&#39;tickets.html&#39;;&quot; onfocus=&quot;blur();&quot;&gt;&lt;img name=&quot;nav_facts&quot; src=&quot;./img/nav_facts.gif&quot; width=&quot;105&quot; height=&quot;23&quot; hspace=&quot;9&quot; border=&quot;0px&quot;&gt;&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.story:nth-child(1) &gt; span &gt; a[href$=&quot;news.html&quot;][onfocus=&quot;blur();&quot;]</code></td><td><code>&lt;a href=&quot;news.html&quot; onfocus=&quot;blur();&quot;&gt;&lt;img src=&quot;./img/morearrow.gif&quot; width=&quot;48&quot; height=&quot;10&quot; alt=&quot;&quot; border=&quot;0&quot; onmouseover=&quot;this.src=&#39;./img/morearrow_a.gif&#39;&quot; onmouseout=&quot;this.src=&#39;./img/morearrow.gif&#39;&quot; style=&quot;vertical-align: bottom&quot;&gt;&lt;/a&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-2.5.8">WCAG 2.5.8 Target Size (Minimum) (Level AA, WCAG 2.2)</h3>
+<p>Current findings: 4.</p>
+<section class="rule">
+<h4 id="rule-target-size"><code>target-size</code> <span class="impact impact-serious">serious</span></h4>
+<p>All touch targets must be 24px large, or leave sufficient space (<a href="https://dequeuniversity.com/rules/axe/4.14/target-size?application=playwright">rule documentation for target-size</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> All touch targets must be 24px large, or leave sufficient space Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 2.5.8 Target Size (Minimum) (Level AA, WCAG 2.2)</li>
+<li>Counts: 4 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of target-size</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.accessible &gt; .report[href$=&quot;home.html&quot;]</code></td><td><code>&lt;a href=&quot;../after/reports/home.html&quot; class=&quot;report&quot;&gt;&lt;span class=&quot;hidden&quot;&gt;Accessible Home Page &lt;/span&gt; Report&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.inaccessible &gt; .report[href$=&quot;home.html&quot;]</code></td><td><code>&lt;a href=&quot;./reports/home.html&quot; class=&quot;report&quot;&gt;&lt;span class=&quot;hidden&quot;&gt;Inaccessible Home Page &lt;/span&gt; Report&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.accessible &gt; .page[href$=&quot;home.html&quot;]</code></td><td><code>&lt;a href=&quot;../../after/home.html&quot; class=&quot;page&quot;&gt;&lt;span class=&quot;hidden&quot;&gt;Accessible &lt;/span&gt;Home Page&lt;/a&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.inaccessible &gt; .page[href$=&quot;home.html&quot;]</code></td><td><code>&lt;a href=&quot;../home.html&quot; class=&quot;page&quot;&gt;&lt;span class=&quot;hidden&quot;&gt;Inaccessible &lt;/span&gt;Home Page&lt;/a&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-3.1.1">WCAG 3.1.1 Language of Page (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-html-has-lang"><code>html-has-lang</code> <span class="impact impact-serious">serious</span></h4>
+<p>&lt;html&gt; element must have a lang attribute (<a href="https://dequeuniversity.com/rules/axe/4.14/html-has-lang?application=playwright">rule documentation for html-has-lang</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> &lt;html&gt; element must have a lang attribute Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 3.1.1 Language of Page (Level A, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of html-has-lang</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>html</code></td><td><code>&lt;html&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-4.1.2">WCAG 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</h3>
+<p>Current findings: 4.</p>
+<section class="rule">
+<h4 id="rule-aria-allowed-attr"><code>aria-allowed-attr</code> <span class="impact impact-critical">critical</span></h4>
+<p>Elements must only use supported ARIA attributes (<a href="https://dequeuniversity.com/rules/axe/4.14/aria-allowed-attr?application=playwright">rule documentation for aria-allowed-attr</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Elements must only use supported ARIA attributes Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of aria-allowed-attr</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/</code></td><td><code>iframe .ytmVideoInfoVideoTitle</code></td><td><code>&lt;a class=&quot;ytmVideoInfoVideoTitle&quot; aria-level=&quot;2&quot; href=&quot;https://www.youtube.com/watch?v=iWO5N3n1DXU&quot;&gt;&lt;span class=&quot;ytAttributedStringHost ytmVideoInfoLink ytAttributedStringWhiteSpaceNoWrap&quot; style=&quot;&quot;&gt;Web Accessibility Perspectives: Video Captions&lt;/span&gt;&lt;/a&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="rule">
+<h4 id="rule-button-name"><code>button-name</code> <span class="impact impact-critical">critical</span></h4>
+<p>Buttons must have discernible text (<a href="https://dequeuniversity.com/rules/axe/4.14/button-name?application=playwright">rule documentation for button-name</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Give the button a clear accessible name matching its visible purpose; prefer visible text.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of button-name</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/</code></td><td><code>iframe .ytmVideoInfoChannelAvatar</code></td><td><code>&lt;button class=&quot;ytmVideoInfoLink ytmVideoInfoChannelAvatar&quot;&gt;&lt;img class=&quot;ytCoreImageHost ytmVideoInfoChannelLogo ytCoreImageFillParentHeight ytCoreImageFillParentWidth ytCoreImageContentModeScaleAspectFill&quot; alt=&quot;thumbnail-image&quot; style=&quot;background-color: transparent;&quot;&gt;&lt;/button&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="rule">
+<h4 id="rule-select-name"><code>select-name</code> <span class="impact impact-critical">critical</span></h4>
+<p>Select element must have an accessible name (<a href="https://dequeuniversity.com/rules/axe/4.14/select-name?application=playwright">rule documentation for select-name</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Select element must have an accessible name Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of select-name</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-critical">critical</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>select</code></td><td><code>&lt;select onchange=&quot;location.href = this.value;&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="rule">
+<h4 id="rule-aria-prohibited-attr"><code>aria-prohibited-attr</code> <span class="impact impact-serious">serious</span></h4>
+<p>Elements must only use permitted ARIA attributes (<a href="https://dequeuniversity.com/rules/axe/4.14/aria-prohibited-attr?application=playwright">rule documentation for aria-prohibited-attr</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Elements must only use permitted ARIA attributes Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of aria-prohibited-attr</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://www.w3.org/WAI/</code></td><td><code>iframe #movie_player</code></td><td><code>&lt;div class=&quot;html5-video-player ytp-hide-controls ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-livebadge-color unstarted-mode ytp-small-mode&quot; tabindex=&quot;&quot; id=&quot;movie_player&quot; data-version=&quot;/s/player/a5c2aafe/player_embed.vflset/en_US/base.js&quot; aria-label=&quot;YouTube Video Player&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+</section>
+<section class="sheet" aria-labelledby="best-practice">
+<h2 id="best-practice">Best-practice rules (no WCAG success criterion)</h2>
+<section class="rule">
+<h3 id="rule-landmark-one-main"><code>landmark-one-main</code> <span class="impact impact-moderate">moderate</span></h3>
+<p>Document should have one main landmark (<a href="https://dequeuniversity.com/rules/axe/4.14/landmark-one-main?application=playwright">rule documentation for landmark-one-main</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Document should have one main landmark Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: none mapped (best practice)</li>
+<li>Counts: 3 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of landmark-one-main</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>html</code></td><td><code>&lt;html lang=&quot;en&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>html</code></td><td><code>&lt;html&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>html</code></td><td><code>&lt;html lang=&quot;en&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="rule">
+<h3 id="rule-region"><code>region</code> <span class="impact impact-moderate">moderate</span></h3>
+<p>All page content should be contained by landmarks (<a href="https://dequeuniversity.com/rules/axe/4.14/region?application=playwright">rule documentation for region</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> All page content should be contained by landmarks Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: none mapped (best practice)</li>
+<li>Counts: 47 new, 0 still open, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of region</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>#logos</code></td><td><code>&lt;p id=&quot;logos&quot;&gt;&lt;a href=&quot;https://www.w3.org/&quot; title=&quot;W3C Home&quot;&gt;&lt;img alt=&quot;W3C logo&quot; src=&quot;./img/w3c.png&quot; height=&quot;48&quot; width=&quot;72&quot;&gt;&lt;/a&gt;&lt;a href=&quot;https://www.w3.org/WAI/&quot; title=&quot;WAI Home&quot;&gt;&lt;img alt=&quot;Web Accessibility Initiative (WAI) logo&quot; src=&quot;./img/wai.png&quot; height=&quot;48&quot;&gt;&lt;/a&gt;&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>#meta-footer</code></td><td><code>&lt;div id=&quot;meta-footer&quot; class=&quot;meta&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>#mnav</code></td><td><code>&lt;div id=&quot;mnav&quot; class=&quot;accessible&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>#page</code></td><td><code>&lt;div id=&quot;page&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>.subline</code></td><td><code>&lt;p class=&quot;subline&quot;&gt;Improving a Web site using Web Content Accessibility Guidelines (WCAG) 2.0&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/Overview.html</code></td><td><code>h1</code></td><td><code>&lt;h1&gt;&lt;span class=&quot;subhead&quot;&gt;Overview &lt;/span&gt;Before and After Demonstration&lt;/h1&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#logos</code></td><td><code>&lt;p id=&quot;logos&quot;&gt;&lt;a href=&quot;https://www.w3.org/&quot; title=&quot;W3C Home&quot;&gt;&lt;img alt=&quot;W3C logo&quot; src=&quot;../img/w3c.png&quot; height=&quot;48&quot; width=&quot;72&quot;&gt;&lt;/a&gt;&lt;a href=&quot;https://www.w3.org/WAI/&quot; title=&quot;WAI Home&quot;&gt;&lt;img alt=&quot;Web Accessibility Initiative (WAI) logo&quot; src=&quot;../img/wai.png&quot; height=&quot;48&quot;&gt;&lt;/a&gt;&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#main &gt; p:nth-child(2)</code></td><td><code>&lt;p&gt;Citylights is the new portal for visitors and residents. Find out what&#39;s on, book tickets, and get the latest news.&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#meta-footer</code></td><td><code>&lt;div id=&quot;meta-footer&quot; class=&quot;meta&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#mnav</code></td><td><code>&lt;div id=&quot;mnav&quot; class=&quot;inaccessible&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>#startcontent</code></td><td><code>&lt;p class=&quot;skip&quot; id=&quot;startcontent&quot;&gt;Demo starts here&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.headline</code></td><td><code>&lt;p class=&quot;headline&quot;&gt;Welcome to CityLights&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.newsbar:nth-child(2)</code></td><td><code>&lt;div class=&quot;newsbar&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.subheadline</code></td><td><code>&lt;p class=&quot;subheadline&quot;&gt;Elsewhere on the Web&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>.subline</code></td><td><code>&lt;p class=&quot;subline&quot;&gt;Improving a Web site using Web Content Accessibility Guidelines (WCAG) 2.0&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>h1</code></td><td><code>&lt;h1&gt;&lt;span class=&quot;subhead&quot;&gt;Inaccessible Home Page&lt;/span&gt;&lt;span class=&quot;hidden&quot;&gt; -&lt;/span&gt; Before and After Demonstration&lt;/h1&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>p:nth-child(7)</code></td><td><code>&lt;p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>table[height=&quot;144px&quot;]</code></td><td><code>&lt;table width=&quot;780px&quot; height=&quot;144px&quot; border=&quot;0px&quot; cellspacing=&quot;0px&quot; cellpadding=&quot;0px&quot; bgcolor=&quot;WHITE&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>table[height=&quot;17px&quot;][bgcolor=&quot;#EDEDED&quot;][cellpadding=&quot;0px&quot;]</code></td><td><code>&lt;table width=&quot;780px&quot; height=&quot;17px&quot; border=&quot;0px&quot; cellspacing=&quot;0px&quot; cellpadding=&quot;0px&quot; bgcolor=&quot;#EDEDED&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[background=&quot;./img/border_left.gif&quot;]</code></td><td><code>&lt;td width=&quot;10px&quot; background=&quot;./img/border_left.gif&quot;&gt;&lt;img src=&quot;./img/border_left.gif&quot; width=&quot;10px&quot;&gt;&lt;/td&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[background=&quot;./img/border_right.gif&quot;]</code></td><td><code>&lt;td width=&quot;10px&quot; background=&quot;./img/border_right.gif&quot;&gt;&lt;img src=&quot;./img/border_right.gif&quot; width=&quot;10px&quot;&gt;&lt;/td&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[bgcolor=&quot;#E4E4E4&quot;]</code></td><td><code>&lt;td width=&quot;155px&quot; bgcolor=&quot;#E4E4E4&quot; valign=&quot;TOP&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[width=&quot;151px&quot;][valign=&quot;TOP&quot;]</code></td><td><code>&lt;td width=&quot;151px&quot; valign=&quot;TOP&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>td[width=&quot;20px&quot;]:nth-child(2)</code></td><td><code>&lt;td width=&quot;20px&quot;&gt;&lt;img src=&quot;./img/blank_5x5.gif&quot; width=&quot;20px&quot; height=&quot;5px&quot;&gt;&lt;/td&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/home.html</code></td><td><code>tr[height=&quot;10px&quot;]:nth-child(1)</code></td><td><code>&lt;tr height=&quot;10px&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#logos</code></td><td><code>&lt;p id=&quot;logos&quot;&gt;&lt;a href=&quot;https://www.w3.org/&quot; title=&quot;W3C Home&quot;&gt;&lt;img alt=&quot;W3C logo&quot; src=&quot;../../img/w3c.png&quot; height=&quot;48&quot; width=&quot;72&quot;&gt;&lt;/a&gt;&lt;a href=&quot;https://www.w3.org/WAI/&quot; title=&quot;WAI Home&quot;&gt;&lt;img alt=&quot;Web Accessibility Initiative (WAI) logo&quot; src=&quot;../../img/wai.png&quot; height=&quot;48&quot;&gt;&lt;/a&gt;&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#meta-footer</code></td><td><code>&lt;div id=&quot;meta-footer&quot; class=&quot;meta&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#mnav</code></td><td><code>&lt;div id=&quot;mnav&quot; class=&quot;inaccessible&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#o &gt; caption</code></td><td><code>&lt;caption&gt;Conformance of Home Page to WCAG 2.0 - Operable&lt;/caption&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#o &gt; tbody &gt; .guideline.fail:nth-child(1)</code></td><td><code>&lt;tr class=&quot;guideline fail&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#o &gt; thead</code></td><td><code>&lt;thead&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;/td&gt;
+              &lt;th&gt;#&lt;/th&gt;
+              &lt;th&gt;Title&lt;/th&gt;
+              &lt;th&gt;Description&lt;/th&gt;
+              &lt;th&gt;Result&lt;/th&gt;
+            &lt;/tr&gt;
+          &lt;/thead&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#p &gt; caption</code></td><td><code>&lt;caption&gt;Conformance of Home Page to WCAG 2.0 - Perceivable&lt;/caption&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#p &gt; tbody &gt; .guideline.fail:nth-child(1)</code></td><td><code>&lt;tr class=&quot;guideline fail&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#p &gt; tbody &gt; .guideline.pass</code></td><td><code>&lt;tr class=&quot;guideline pass&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#p &gt; thead</code></td><td><code>&lt;thead&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;/td&gt;
+              &lt;th&gt;#&lt;/th&gt;
+              &lt;th&gt;Title&lt;/th&gt;
+              &lt;th&gt;Description&lt;/th&gt;
+              &lt;th&gt;Result&lt;/th&gt;
+            &lt;/tr&gt;
+          &lt;/thead&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#r &gt; caption</code></td><td><code>&lt;caption&gt;Conformance of Home Page to WCAG 2.0 - Robust&lt;/caption&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#r &gt; tbody &gt; .guideline.fail</code></td><td><code>&lt;tr class=&quot;guideline fail&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#r &gt; thead</code></td><td><code>&lt;thead&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;/td&gt;
+              &lt;th&gt;#&lt;/th&gt;
+              &lt;th&gt;Title&lt;/th&gt;
+              &lt;th&gt;Description&lt;/th&gt;
+              &lt;th&gt;Result&lt;/th&gt;
+            &lt;/tr&gt;
+          &lt;/thead&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#u &gt; caption</code></td><td><code>&lt;caption&gt;Conformance of Home Page to WCAG 2.0 - Understandable&lt;/caption&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#u &gt; tbody &gt; .guideline.fail:nth-child(1)</code></td><td><code>&lt;tr class=&quot;guideline fail&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>#u &gt; thead</code></td><td><code>&lt;thead&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;/td&gt;
+              &lt;th&gt;#&lt;/th&gt;
+              &lt;th&gt;Title&lt;/th&gt;
+              &lt;th&gt;Description&lt;/th&gt;
+              &lt;th&gt;Result&lt;/th&gt;
+            &lt;/tr&gt;
+          &lt;/thead&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.guideline.fail:nth-child(23)</code></td><td><code>&lt;tr class=&quot;guideline fail&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.guideline.pass:nth-child(8)</code></td><td><code>&lt;tr class=&quot;guideline pass&quot;&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.reportControls:nth-child(2)</code></td><td><code>&lt;div class=&quot;reportControls&quot;&gt;&lt;a href=&quot;#&quot;&gt;Expand all rows&lt;/a&gt; &lt;a href=&quot;#&quot;&gt;Collapse all rows&lt;/a&gt;&lt;/div&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>.subline</code></td><td><code>&lt;p class=&quot;subline&quot;&gt;Improving a Web site using Web Content Accessibility Guidelines (WCAG) 2.0&lt;/p&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>h1</code></td><td><code>&lt;h1&gt;&lt;span class=&quot;subhead&quot;&gt;Inaccessible Home Page Report &lt;/span&gt;Before and After Demonstration&lt;/h1&gt;</code></td></tr>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://www.w3.org/WAI/demos/bad/before/reports/home.html</code></td><td><code>h2:nth-child(1)</code></td><td><code>&lt;h2&gt;&lt;a name=&quot;perceivable&quot; id=&quot;perceivable&quot;&gt;Perceivable&lt;/a&gt;&lt;/h2&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+</section>
+<h2 id="disclaimer">Disclaimer</h2>
+<p>Automated testing only. Not a WCAG audit, certification or legal advice. Automated tools such as axe-core detect only a subset of accessibility issues.</p>
+</main>
+</body>
+</html>

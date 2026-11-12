@@ -110,25 +110,25 @@ function outputPaths() {
   return { markdown, json };
 }
 
-function runCli(markdownPath, jsonPath) {
+function inputArgs() {
   const cli = path.join(actionDir, 'dist', 'cli.mjs');
   if (!existsSync(cli)) {
     process.stderr.write(`A11yGate CLI bundle is missing at ${cli}.\n`);
-    return 2;
+    return null;
   }
   const current = splitPaths(process.env.A11Y_CURRENT);
   if (current.length === 0) {
     process.stderr.write('The current input is empty. Pass one axe JSON path per line.\n');
-    return 2;
+    return null;
   }
-  const args = [cli];
+  const args = [];
   for (const file of current) args.push('--current', file);
   for (const file of splitPaths(process.env.A11Y_BASELINE)) args.push('--baseline', file);
   args.push('--threshold', (process.env.A11Y_THRESHOLD || 'serious').trim() || 'serious');
-  args.push('--markdown', markdownPath, '--json', jsonPath);
-  const update = (process.env.A11Y_UPDATE_BASELINE || '').trim();
-  if (update) args.push('--update-baseline', update);
+  return { cli, args };
+}
 
+function spawnCli(args) {
   const child = spawnSync(process.execPath, args, { encoding: 'utf8' });
   if (child.stdout) process.stdout.write(child.stdout);
   if (child.stderr) process.stderr.write(child.stderr);
@@ -137,6 +137,27 @@ function runCli(markdownPath, jsonPath) {
     return 2;
   }
   return child.status === null ? 2 : child.status;
+}
+
+function runCli(markdownPath, jsonPath) {
+  const input = inputArgs();
+  if (!input) return 2;
+  const args = [input.cli, ...input.args, '--markdown', markdownPath, '--json', jsonPath];
+  const update = (process.env.A11Y_UPDATE_BASELINE || '').trim();
+  if (update) args.push('--update-baseline', update);
+  return spawnCli(args);
+}
+
+/** The evidence report is a separate CLI run so the gate's exit code and outputs stay unchanged. */
+function runReport(reportPath) {
+  const input = inputArgs();
+  if (!input) return 2;
+  const args = [input.cli, 'report', ...input.args, '--out', reportPath];
+  const format = (process.env.A11Y_REPORT_FORMAT || '').trim();
+  if (format) args.push('--format', format);
+  const code = spawnCli(args);
+  if (code === 0) setOutput('report', reportPath);
+  return code;
 }
 
 function readSummary(markdownPath, fallback) {
@@ -165,6 +186,10 @@ function writeResultOutputs(jsonPath, exitCode) {
   }
 }
 
+// The report runs first so it compares against the baseline as committed, before any update-baseline write.
+// It still runs on INCOMPLETE coverage, where the report is the useful explanation.
+const reportPath = (process.env.A11Y_REPORT || '').trim();
+const reportCode = reportPath ? runReport(reportPath) : 0;
 const paths = outputPaths();
 const exitCode = runCli(paths.markdown, paths.json);
 const summary = readSummary(paths.markdown, '');
@@ -172,6 +197,7 @@ writeSummary(summary);
 writeResultOutputs(paths.json, exitCode);
 
 let code = exitCode;
+if (reportCode !== 0 && code === 0) code = 2;
 if (isYes(process.env.A11Y_COMMENT)) {
   if (!summary.trim()) {
     process.stderr.write('A11yGate produced no summary to comment.\n');
