@@ -5,6 +5,7 @@ import { parseArgs } from './args';
 import { helpText } from './help';
 import { runScan } from './scan';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
+import { buildEvidenceReport, inferReportFormat, renderEvidenceReport } from '@/lib/evidence-report';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
 import { prSummaryMarkdown } from '@/lib/export-markdown';
@@ -20,6 +21,7 @@ export type RunIo = {
   stdout?: (chunk: string) => void;
   stderr?: (chunk: string) => void;
   now?: () => Date;
+  env?: Record<string, string | undefined>;
 };
 
 type ReadOk = { ok: true; documents: { name: string; text: string }[] };
@@ -142,6 +144,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   const stderr = io.stderr ?? ((chunk: string) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => new Date());
+  const env = io.env ?? process.env;
 
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
 
@@ -166,6 +169,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     return 2;
   }
 
+  const reportOut = options.out && options.out !== '-' ? options.out : undefined;
   // Resolve symlinks and inode aliases before any output can overwrite input evidence.
   try {
   const identify = async (file: string) => {
@@ -179,7 +183,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   };
   const inputs = await Promise.all([...options.current, ...options.baseline, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
   const baselineProtectedInputs = await Promise.all([...options.current, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
-  const outputs = [options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
+  const outputs = [reportOut, options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
   const seen: Awaited<ReturnType<typeof identify>>[] = [];
   for (const output of outputs) {
     const id = await identify(output);
@@ -242,8 +246,38 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     ? 'Missing, failed or materially incomparable scan coverage prevents a regression PASS.'
     : verdictReason(diff.newFindings, options.threshold);
   const projectName = inferProjectName(current.results);
-  const generatedAt = now().toISOString();
+  const generatedAt = options.generatedAt ?? now().toISOString();
   const version = await readVersion();
+
+  if (options.command === 'report') {
+    const report = buildEvidenceReport({
+      generatedAt,
+      version,
+      projectName,
+      verdict,
+      threshold: options.threshold,
+      reason,
+      synthetic: current.synthetic || baselineSynthetic,
+      commit: options.commit ?? env.GITHUB_SHA ?? null,
+      branch: options.branch ?? (env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME || null),
+      current: current.results,
+      baseline: baselineResults,
+      diff,
+    });
+    const rendered = renderEvidenceReport(report, options.format ?? inferReportFormat(reportOut));
+    if (!reportOut) {
+      stdout(rendered);
+      return 0;
+    }
+    try {
+      await writeFile(resolveInput(cwd, reportOut), rendered, 'utf8');
+    } catch (error) {
+      stderr(`${writeFailure(reportOut, error)}\n`);
+      return 2;
+    }
+    stderr(`Wrote evidence report ${reportOut}\n`);
+    return 0;
+  }
   const markdown = prSummaryMarkdown({
     projectName,
     verdict,

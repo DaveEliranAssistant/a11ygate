@@ -19,6 +19,9 @@ export function cell(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_\[\]()!|]/g, '\\$&').replace(/[\r\n]/g, ' ');
 }
 
+/** Escape a value for a Markdown table cell or inline text. */
+export const markdownCell = cell;
+
 function findingLine(finding: DiffResult['all'][number]): string {
   const selector = finding.selector.replace(/`/g, "'");
   const impact = finding.impact ?? 'unspecified';
