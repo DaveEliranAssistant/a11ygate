@@ -15,7 +15,7 @@ export type SummaryInput = {
   synthetic?: boolean;
 };
 
-function cell(value: string): string {
+export function cell(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_\[\]()!|]/g, '\\$&').replace(/[\r\n]/g, ' ');
 }
 
