@@ -95,26 +95,28 @@ The source build also has `a11ygate scan <url>`. It loads one page, or with `--c
 
 ### Evidence report
 
-`a11ygate report` writes an evidence report from the same scan results and baseline. It takes `--current`, `--baseline`, and `--threshold` like the gate, plus `--format html|md|json` and `--out <file>`. The HTML report is a single file with inline CSS and no scripts, fonts, images, or other external assets, so it can be attached to a ticket or archived as a CI artifact.
+`a11ygate report` writes an evidence report from the same scan results and baseline, or from the JSON written by `a11ygate scan`. It takes `--current`, `--baseline`, and `--threshold` like the gate, or `--scan <file>` with an optional `--previous-scan <file>`, plus `--format html|md|json` and `--out <file>`. The HTML report is a single file with inline CSS and no scripts, fonts, images, or other external assets, so it can be attached to a ticket or archived as a CI artifact.
 
 ```bash
 npx @qe-atlas/a11ygate report --current a11y-results/home.json --baseline a11y/baseline.json --out a11y-report.html
 npx @qe-atlas/a11ygate report --current a11y-results/home.json --baseline a11y/baseline.json --format md --out a11y-report.md
 npx @qe-atlas/a11ygate report --current fixtures/demo-shop-current.json --baseline fixtures/demo-shop-baseline.json --format json --out -
+npx @qe-atlas/a11ygate report --scan a11ygate-scan.json --previous-scan last-month-scan.json --out report.html
 ```
 
 The report contains:
 
 - the generation time, the commit and branch (from `--commit` and `--branch`, or `GITHUB_SHA` and `GITHUB_HEAD_REF`/`GITHUB_REF_NAME` in GitHub Actions), and the A11yGate and axe-core versions
+- with `--scan`, the scan date-time and scope: start URL, page limit, pages that failed, links skipped and why, and the scanner's read-only boundaries
 - the pages scanned, with per-page counts and scan coverage issues
-- a summary of new, baselined (still open), fixed, and unassessed violations, plus the gate verdict at the chosen threshold
-- violations grouped by axe rule, with impact and the WCAG 2.x success criteria mapped from the rule's axe tags (rules with no criterion tag are listed as best practice)
-- the per-rule trend versus the baseline
-- this fixed disclaimer: *Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.*
+- current violations by severity, and new, still-open, fixed, and unassessed counts, plus the gate verdict at the chosen threshold
+- findings grouped by the WCAG 2.1/2.2 success criterion mapped from the rule's axe tags, each with severity, page URL, selector, the axe help link and how-to-fix guidance; rules with no criterion tag are listed separately as best practice
+- the per-rule trend (new, fixed, still open, and totals) versus the baseline or previous scan
+- this fixed disclaimer, in every format, which no flag removes: *Automated testing only. Not a WCAG audit, certification or legal advice. Automated tools such as axe-core detect only a subset of accessibility issues.*
 
 The format comes from `--format`, then from the `--out` extension (`.md`, `.markdown`, `.json`), and defaults to HTML. Omit `--out`, or pass `--out -`, to print the report. `report` exits **0** once the report is written, whatever the gate verdict, and **2** on unreadable input or an unsafe output path. Run the gate separately to fail the build.
 
-Output is deterministic: the same inputs give byte-identical reports except for the timestamp, and `--generated-at 2026-11-10T09:00:00Z` fixes that too. Example output for the Demo Shop fixtures is in `tests/__snapshots__/evidence-report/` (`demo-shop.html`, `demo-shop.md`, `demo-shop.json`).
+Output is deterministic: the same inputs give byte-identical reports except for the timestamp, and `--generated-at 2026-11-10T09:00:00Z` fixes that too. Example output for the Demo Shop fixtures is in `tests/__snapshots__/evidence-report/` (`demo-shop.*` from the gate inputs, `scan-shop.*` from a scan fixture). A sample report from a real scan of the W3C "Before and After" demo site is in [`examples/`](examples/README.md). The HTML prints to PDF with one section per page.
 
 ## GitHub Action
 

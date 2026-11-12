@@ -38,12 +38,17 @@ Accepted JSON shapes: one axe result object, an array of result objects, or `{ "
 
 ```bash
 npx @qe-atlas/a11ygate report --current axe.json --baseline a11y/baseline.json --out a11y-report.html
+npx @qe-atlas/a11ygate report --scan a11ygate-scan.json --previous-scan last-month-scan.json --out report.html
 ```
 
-`a11ygate report` takes `--current`, `--baseline`, and `--threshold`, and writes a self-contained HTML (default), Markdown, or JSON report: scan date, commit and branch, tool versions, pages scanned, new/baselined/fixed counts, violations grouped by axe rule with impact and mapped WCAG 2.x success criteria, and the trend versus the baseline. It always carries the disclaimer *Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.*
+`a11ygate report` reads either the gate inputs (`--current`, `--baseline`, `--threshold`) or the JSON written by `a11ygate scan` (`--scan`, optionally `--previous-scan` for an older scan of the same site; `--scan` cannot be combined with `--current`/`--baseline`). It writes a self-contained HTML (default), Markdown, or JSON report: scan date-time, commit and branch, A11yGate and axe-core versions, current violations by severity, pages scanned, new/still-open/fixed counts, findings grouped by WCAG 2.1/2.2 success criterion (severity, page URL, selector, axe help link and how-to-fix guidance), best-practice rules listed separately, and the per-rule trend (new, fixed, still open, totals) versus the baseline or previous scan. With `--scan` it also lists the scope: start URL, page limit, pages that failed, links skipped and why, and the scanner's read-only boundaries. The HTML has inline CSS, no scripts or remote assets, and print CSS (a page break per section, rows kept whole, link URLs printed), so it can be printed to PDF.
+
+Every format always carries this disclaimer, and no flag removes it: *Automated testing only. Not a WCAG audit, certification or legal advice. Automated tools such as axe-core detect only a subset of accessibility issues.* A sample built from a scan of the W3C "Before and After" demo is in [`examples/`](../../examples/README.md).
 
 | Option | Meaning |
 | --- | --- |
+| `--scan <file>` | `a11ygate scan` JSON (kind `site-scan`) to report on, instead of `--current`. |
+| `--previous-scan <file>` | An older `a11ygate scan` JSON to compare with. Needs `--scan`. |
 | `-f, --format <format>` | `html`, `md`, or `json`. Inferred from the `--out` extension when omitted; defaults to `html`. |
 | `-o, --out <file>` | Report path. Omit or use `-` to print it. |
 | `--generated-at <iso>` | Fix the timestamp for reproducible output. |
