@@ -255,6 +255,36 @@ describe('a11ygate CLI', () => {
       expect(help.stdout).toContain('a11ygate report');
     });
 
+    it('builds the report from a11ygate scan JSON, compared with a previous scan', async () => {
+      const scan = path.join(repoRoot, 'fixtures/scan-report/current.json');
+      const previous = path.join(repoRoot, 'fixtures/scan-report/previous.json');
+      const result = await capture(['report', '--scan', scan, '--previous-scan', previous, '--format', 'json']);
+      expect(result.code, result.stderr).toBe(0);
+      const report = JSON.parse(result.stdout) as {
+        input: string;
+        scope: { startUrl: string; scannedAt: string };
+        trend: { totals: { new: number; fixed: number; stillOpen: number } };
+      };
+      expect(report.input).toBe('site-scan');
+      expect(report.scope).toMatchObject({ startUrl: 'https://shop.example/', scannedAt: '2026-11-12T09:00:00.000Z' });
+      expect(report.trend.totals).toMatchObject({ new: 4, fixed: 1, stillOpen: 2 });
+
+      const md = await capture(['report', '--scan', scan, '--format', 'md']);
+      expect(md.code).toBe(0);
+      expect(md.stdout).toContain('No previous scan was supplied');
+
+      const axeAsScan = await capture(['report', '--scan', current]);
+      expect(axeAsScan.code).toBe(2);
+      expect(axeAsScan.stderr).toContain('not an a11ygate scan report');
+
+      const both = await capture(['report', '--scan', scan, '--current', current]);
+      expect(both.code).toBe(2);
+
+      const alias = await capture(['report', '--scan', scan, '--out', scan]);
+      expect(alias.code).toBe(2);
+      expect(alias.stderr).toContain('must not overwrite input evidence');
+    });
+
     it('the built binaries write the report', () => {
       for (const bin of [cliBin, actionBin]) {
         const result = spawnSync(process.execPath, [bin, 'report', '--current', current, '--baseline', baseline, '--format', 'md'], {
@@ -262,7 +292,7 @@ describe('a11ygate CLI', () => {
           encoding: 'utf8',
         });
         expect(result.status, result.stderr).toBe(0);
-        expect(result.stdout).toContain('Automated checks only (axe-core).');
+        expect(result.stdout).toContain('Automated testing only. Not a WCAG audit, certification or legal advice.');
         expect(result.stdout).toContain('| Baselined (still open) | 5 |');
       }
     });

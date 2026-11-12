@@ -75,9 +75,7 @@ describe('evidence report helpers', () => {
 describe('buildEvidenceReport', () => {
   it('summarises new, baselined and fixed violations and the trend on the demo fixtures', () => {
     const report = buildEvidenceReport(demo());
-    expect(report.disclaimer).toBe(
-      'Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.',
-    );
+    expect(report.disclaimer).toContain('Automated testing only. Not a WCAG audit, certification or legal advice.');
     expect(report.summary).toEqual({
       new: 2,
       baselined: 5,
@@ -86,13 +84,18 @@ describe('buildEvidenceReport', () => {
       currentViolations: 7,
       baselineViolations: 8,
       rulesWithCurrentViolations: 7,
+      bySeverity: report.summary.bySeverity,
     });
-    expect(report.trend.totals).toEqual({ baseline: 8, current: 7, delta: -1 });
+    expect(Object.values(report.summary.bySeverity).reduce((a, b) => a + b, 0)).toBe(7);
+    expect(report.trend.totals).toEqual({ baseline: 8, current: 7, delta: -1, new: 2, fixed: 3, stillOpen: 5 });
     expect(report.trend.rules.find((row) => row.ruleId === 'region')).toEqual({
       ruleId: 'region',
       baseline: 0,
       current: 1,
       delta: 1,
+      new: 1,
+      fixed: 0,
+      stillOpen: 0,
     });
     expect(report.pages.map((page) => page.url)).toEqual([
       'https://demo.shop/',

@@ -9,6 +9,10 @@ export type CliOptions = {
   version: boolean;
   current: string[];
   baseline: string[];
+  /** `a11ygate report --scan`: JSON written by `a11ygate scan`. */
+  scan?: string;
+  /** `a11ygate report --previous-scan`: an older scan JSON to compare with. */
+  previousScan?: string;
   threshold: Impact;
   markdown?: string;
   json?: string;
@@ -26,6 +30,8 @@ export type ParsedArgs = { ok: true; options: CliOptions } | { ok: false; error:
 type ValueField =
   | 'current'
   | 'baseline'
+  | 'scan'
+  | 'previousScan'
   | 'threshold'
   | 'markdown'
   | 'json'
@@ -42,6 +48,8 @@ const VALUE_FLAGS: Record<string, ValueField> = {
   '-c': 'current',
   '--baseline': 'baseline',
   '-b': 'baseline',
+  '--scan': 'scan',
+  '--previous-scan': 'previousScan',
   '--threshold': 'threshold',
   '-t': 'threshold',
   '--markdown': 'markdown',
@@ -60,7 +68,7 @@ const VALUE_FLAGS: Record<string, ValueField> = {
 };
 
 const GATE_ONLY: readonly ValueField[] = ['markdown', 'json', 'updateBaseline', 'manualEvidence'];
-const REPORT_ONLY: readonly ValueField[] = ['format', 'out', 'generatedAt', 'commit', 'branch'];
+const REPORT_ONLY: readonly ValueField[] = ['scan', 'previousScan', 'format', 'out', 'generatedAt', 'commit', 'branch'];
 
 function flagName(token: string): { name: string; inline?: string } {
   const eq = token.indexOf('=');
@@ -92,6 +100,8 @@ export function parseArgs(input: readonly string[]): ParsedArgs {
   let json: string | undefined;
   let updateBaseline: string | undefined;
   let manualEvidence: string | undefined;
+  let scan: string | undefined;
+  let previousScan: string | undefined;
   let formatText: string | undefined;
   let out: string | undefined;
   let generatedAtText: string | undefined;
@@ -140,6 +150,11 @@ export function parseArgs(input: readonly string[]): ParsedArgs {
 
     if (field === 'current') current.push(value);
     else if (field === 'baseline') baseline.push(value);
+    else if (field === 'scan' || field === 'previousScan') {
+      if ((field === 'scan' ? scan : previousScan) !== undefined) return { ok: false, error: `${name} can only be given once.` };
+      if (field === 'scan') scan = value;
+      else previousScan = value;
+    }
     else if (field === 'threshold') thresholdText = value;
     else if (field === 'markdown') markdown = value;
     else if (field === 'json') json = value;
@@ -150,6 +165,15 @@ export function parseArgs(input: readonly string[]): ParsedArgs {
     else if (field === 'generatedAt') generatedAtText = value;
     else if (field === 'commit') commit = value;
     else branch = value;
+  }
+
+  if (!help && !version) {
+    if (scan !== undefined && (current.length > 0 || baseline.length > 0)) {
+      return { ok: false, error: 'Use either --scan (with --previous-scan) or --current (with --baseline), not both.' };
+    }
+    if (previousScan !== undefined && scan === undefined) {
+      return { ok: false, error: '--previous-scan needs --scan.' };
+    }
   }
 
   let format: ReportFormat | undefined;
@@ -187,6 +211,8 @@ export function parseArgs(input: readonly string[]): ParsedArgs {
       version: version && !help,
       current,
       baseline,
+      scan,
+      previousScan,
       threshold,
       markdown,
       json,

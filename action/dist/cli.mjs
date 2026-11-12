@@ -659,7 +659,8 @@ function prSummaryMarkdown(input) {
 }
 
 // lib/evidence-report.ts
-var REPORT_DISCLAIMER = "Automated checks only (axe-core). Not a WCAG conformance audit, certification, or legal advice. Automated tools detect a subset of accessibility issues.";
+var REQUIRED_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+var REPORT_DISCLAIMER = `${REQUIRED_DISCLAIMER} Automated tools such as axe-core detect only a subset of accessibility issues.`;
 function isReportFormat(value) {
   return value === "html" || value === "md" || value === "json";
 }
@@ -668,6 +669,38 @@ function inferReportFormat(out) {
   if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "md";
   if (lower.endsWith(".json")) return "json";
   return "html";
+}
+function parseSiteScan(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "The scan file is not valid JSON." };
+  }
+  const doc = value;
+  if (!doc || typeof doc !== "object" || doc.tool !== "a11ygate" || doc.kind !== "site-scan") {
+    return { ok: false, error: 'This is not an a11ygate scan report (kind "site-scan"). Use --current for axe-core JSON.' };
+  }
+  if (doc.schemaVersion !== 1) return { ok: false, error: `Unsupported scan schemaVersion ${String(doc.schemaVersion)}.` };
+  if (typeof doc.scannedAt !== "string" || typeof doc.startUrl !== "string" || !Array.isArray(doc.results)) {
+    return { ok: false, error: "The scan report is missing scannedAt, startUrl or results." };
+  }
+  const options = doc.options ?? { maxPages: 0, delayMs: 0, tags: [], userAgent: "", robots: "" };
+  return {
+    ok: true,
+    scan: {
+      version: typeof doc.version === "string" ? doc.version : "unknown",
+      axeVersion: typeof doc.axeVersion === "string" ? doc.axeVersion : null,
+      scannedAt: doc.scannedAt,
+      startUrl: doc.startUrl,
+      origin: typeof doc.origin === "string" ? doc.origin : "",
+      options,
+      pages: Array.isArray(doc.pages) ? doc.pages : [],
+      skipped: Array.isArray(doc.skipped) ? doc.skipped : [],
+      boundaries: Array.isArray(doc.boundaries) ? doc.boundaries.filter((b) => typeof b === "string") : [],
+      results: doc.results
+    }
+  };
 }
 var STATUS = {
   new: "new",
@@ -746,6 +779,7 @@ function buildRules(diff) {
     )[0];
     const tags = uniqueSorted(findings.flatMap((finding) => finding.tags));
     const wcag = wcagCriteria(tags);
+    const guidance = findingGuidance({ ruleId, help: reference.help });
     return {
       ruleId,
       impact: maxImpact(current.length ? current : findings),
@@ -754,6 +788,8 @@ function buildRules(diff) {
       wcag,
       bestPractice: wcag.length === 0,
       tags,
+      fix: guidance.remediation,
+      userImpact: guidance.userImpact,
       counts,
       findings: findings.map(reportFinding).sort(
         (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || compareText(a.url, b.url) || compareText(a.selector, b.selector) || compareText(a.fingerprint, b.fingerprint)
@@ -763,6 +799,83 @@ function buildRules(diff) {
   return rules2.sort(
     (a, b) => Number(currentCount(b.counts) > 0) - Number(currentCount(a.counts) > 0) || impactRank(b.impact) - impactRank(a.impact) || compareText(a.ruleId, b.ruleId)
   );
+}
+function computeTrend(rules2) {
+  const rows = rules2.map((rule) => {
+    const baseline = baselineCount(rule.counts);
+    const now = currentCount(rule.counts);
+    return {
+      ruleId: rule.ruleId,
+      baseline,
+      current: now,
+      delta: now - baseline,
+      new: rule.counts.new,
+      fixed: rule.counts.fixed,
+      stillOpen: rule.counts.baselined
+    };
+  }).sort((a, b) => a.delta - b.delta || compareText(a.ruleId, b.ruleId));
+  const totals = rows.reduce(
+    (sum, row2) => ({
+      baseline: sum.baseline + row2.baseline,
+      current: sum.current + row2.current,
+      delta: sum.delta + row2.delta,
+      new: sum.new + row2.new,
+      fixed: sum.fixed + row2.fixed,
+      stillOpen: sum.stillOpen + row2.stillOpen
+    }),
+    { baseline: 0, current: 0, delta: 0, new: 0, fixed: 0, stillOpen: 0 }
+  );
+  return { rules: rows, totals };
+}
+var SKIP_LABEL = {
+  cap: "Page limit reached (--crawl cap)",
+  external: "Different origin (not crawled)",
+  "not-http": "Not an http(s) link (javascript:, mailto:, \u2026)",
+  "non-html": "Not an HTML page (file download)",
+  robots: "Disallowed by robots.txt",
+  logout: "Looks like a logout/sign-out link (never followed)",
+  "redirected-off-origin": "Redirected to another origin"
+};
+function buildScope(scan) {
+  const { current } = scan;
+  const groups = /* @__PURE__ */ new Map();
+  for (const link of current.skipped) {
+    const set = groups.get(link.reason) ?? /* @__PURE__ */ new Set();
+    set.add(link.url);
+    groups.set(link.reason, set);
+  }
+  return {
+    startUrl: current.startUrl,
+    origin: current.origin,
+    scannedAt: current.scannedAt,
+    previousScannedAt: scan.previous?.scannedAt ?? null,
+    maxPages: current.options.maxPages,
+    delayMs: current.options.delayMs,
+    robots: current.options.robots,
+    userAgent: current.options.userAgent,
+    axeTags: [...current.options.tags],
+    pages: current.pages.map((page) => ({
+      url: page.url,
+      finalUrl: page.finalUrl,
+      status: page.status,
+      scanStatus: page.scanStatus,
+      error: page.error ?? null
+    })),
+    skipped: [...groups.entries()].map(([reason, urls]) => ({ reason, label: SKIP_LABEL[reason] ?? reason, count: urls.size, urls: uniqueSorted(urls) })).sort((a, b) => b.count - a.count || compareText(a.reason, b.reason)),
+    boundaries: [...current.boundaries]
+  };
+}
+function groupByCriterion(rules2) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const rule of rules2) {
+    const primary = rule.wcag[0];
+    if (!primary) continue;
+    const group2 = groups.get(primary.number) ?? { criterion: primary, ruleIds: [], currentFindings: 0 };
+    group2.ruleIds.push(rule.ruleId);
+    group2.currentFindings += currentCount(rule.counts);
+    groups.set(primary.number, group2);
+  }
+  return [...groups.values()].sort((a, b) => compareCriterion(a.criterion.number, b.criterion.number));
 }
 function buildEvidenceReport(input) {
   const { diff } = input;
@@ -785,16 +898,15 @@ function buildEvidenceReport(input) {
       inBaseline: baselinePages.has(page)
     };
   }).sort((a, b) => compareText(a.url, b.url) || compareText(a.scannedAt, b.scannedAt));
-  const trendRules = baselineSupplied ? rules2.map((rule) => {
-    const baseline = baselineCount(rule.counts);
-    const now = currentCount(rule.counts);
-    return { ruleId: rule.ruleId, baseline, current: now, delta: now - baseline };
-  }).sort((a, b) => a.delta - b.delta || compareText(a.ruleId, b.ruleId)) : [];
+  const trend = computeTrend(rules2);
+  const bySeverity = { critical: 0, serious: 0, moderate: 0, minor: 0, unknown: 0 };
+  for (const finding of current) bySeverity[finding.impact ?? "unknown"] += 1;
   const baselineViolations = baselineSupplied ? diff.stillOpen.length + diff.fixedFindings.length + (diff.unassessed?.length ?? 0) : null;
   return {
     tool: "a11ygate",
     reportSchemaVersion: 1,
     disclaimer: REPORT_DISCLAIMER,
+    input: input.scan ? "site-scan" : "axe-results",
     generatedAt: input.generatedAt,
     projectName: input.projectName,
     synthetic: input.synthetic,
@@ -814,8 +926,10 @@ function buildEvidenceReport(input) {
       unassessed: diff.unassessed?.length ?? 0,
       currentViolations: current.length,
       baselineViolations,
-      rulesWithCurrentViolations: rules2.filter((rule) => currentCount(rule.counts) > 0).length
+      rulesWithCurrentViolations: rules2.filter((rule) => currentCount(rule.counts) > 0).length,
+      bySeverity
     },
+    scope: input.scan ? buildScope(input.scan) : null,
     coverage: {
       status: diff.coverage?.status ?? "unverified",
       issues: [...diff.coverage?.issues ?? []].sort(
@@ -825,19 +939,25 @@ function buildEvidenceReport(input) {
     },
     pages,
     rules: rules2,
+    criteria: groupByCriterion(rules2),
     trend: {
       baselineSupplied,
-      totals: baselineViolations === null ? null : { baseline: baselineViolations, current: current.length, delta: current.length - baselineViolations },
-      rules: trendRules
+      totals: baselineSupplied ? trend.totals : null,
+      rules: baselineSupplied ? trend.rules : []
     }
   };
 }
-var STATUS_LABEL = {
-  new: "New",
-  baselined: "Baselined",
-  fixed: "Fixed",
-  unassessed: "Unassessed (not verified fixed)"
-};
+function statusLabel(report, status) {
+  if (status === "baselined") return report.input === "site-scan" ? "Still open" : "Baselined (still open)";
+  if (status === "unassessed") return "Unassessed (not verified fixed)";
+  return status === "new" ? "New" : "Fixed";
+}
+function comparedWith(report) {
+  return report.input === "site-scan" ? "previous scan" : "baseline";
+}
+function capitalise(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 function criterionLabel(criterion) {
   if (!criterion.name) return `${criterion.number} (not in A11yGate's criterion table)`;
   return `${criterion.number} ${criterion.name} (Level ${criterion.level}, WCAG ${criterion.wcag})`;
@@ -851,57 +971,145 @@ function impactLabel(impact) {
 function safeHref(url) {
   return /^https?:\/\/[^\s"'<>]+$/i.test(url) ? url : null;
 }
-var MAPPING_NOTE = "WCAG success criteria are mapped from axe-core rule tags. The mapping needs expert review before it is relied on.";
+var SEVERITIES = ["critical", "serious", "moderate", "minor", "unknown"];
+var SKIPPED_EXAMPLES = 10;
+var MAPPING_NOTE = "WCAG success criteria are mapped from axe-core rule tags. The mapping needs expert review before it is relied on. A rule mapped to more than one criterion is listed under the first.";
+function bestPracticeRules(report) {
+  return report.rules.filter((rule) => rule.bestPractice);
+}
+function rulesFor(report, ruleIds) {
+  return report.rules.filter((rule) => ruleIds.includes(rule.ruleId));
+}
+function trendSentence(report) {
+  const totals = report.trend.totals;
+  if (!totals) {
+    return report.input === "site-scan" ? "No previous scan was supplied, so every current violation is reported as new." : "No baseline was supplied, so every current violation is reported as new.";
+  }
+  return `Total violations: ${totals.baseline} in the ${comparedWith(report)}, ${totals.current} now (${signed(totals.delta)}): ${totals.new} new, ${totals.fixed} fixed, ${totals.stillOpen} still open.`;
+}
 function evidenceReportJson(report) {
-  return `${JSON.stringify(report, null, 2)}
+  return `${JSON.stringify({ ...report, disclaimer: REPORT_DISCLAIMER }, null, 2)}
 `;
 }
 var md = markdownCell;
 function codeSpan(value) {
   return `\`${value.replace(/`/g, "'").replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ")}\``;
 }
+function markdownRule(report, rule, heading2) {
+  const href = safeHref(rule.helpUrl);
+  return [
+    `${heading2} ${md(rule.ruleId)} \u2014 ${impactLabel(rule.impact)}`,
+    "",
+    `${md(rule.help)}${href ? ` ([rule documentation](${href}))` : ""}`,
+    "",
+    `- How to fix: ${md(rule.fix)}`,
+    `- WCAG: ${rule.bestPractice ? "none mapped (best practice)" : rule.wcag.map((criterion) => md(criterionLabel(criterion))).join("; ")}`,
+    `- Counts: ${rule.counts.new} new, ${rule.counts.baselined} ${report.input === "site-scan" ? "still open" : "baselined"}, ${rule.counts.fixed} fixed, ${rule.counts.unassessed} unassessed`,
+    "",
+    "| Status | Severity | Page | Selector | Element |",
+    "| --- | --- | --- | --- | --- |",
+    ...rule.findings.map(
+      (finding) => `| ${statusLabel(report, finding.status)}${finding.assessmentReason ? ` \u2014 ${md(finding.assessmentReason)}` : ""} | ${impactLabel(finding.impact)} | ${md(finding.url)} | ${codeSpan(finding.selector)} | ${codeSpan(finding.html)} |`
+    ),
+    ""
+  ];
+}
 function evidenceReportMarkdown(report) {
-  const { summary, trend } = report;
+  const { summary, trend, scope } = report;
+  const scanMode = report.input === "site-scan";
   const lines = [
     `# Accessibility evidence report \u2014 ${md(report.projectName)}`,
     "",
-    `> ${report.disclaimer}`,
+    `> **${REPORT_DISCLAIMER}**`,
     "",
     ...report.synthetic ? ["**SYNTHETIC evidence \u2014 not a real audit or customer assessment.**", ""] : [],
     "## Scan details",
     "",
     "| Field | Value |",
     "| --- | --- |",
+    ...scope ? [
+      `| Scanned at | ${md(scope.scannedAt)} |`,
+      `| Previous scan | ${scope.previousScannedAt ? md(scope.previousScannedAt) : "none supplied"} |`
+    ] : [],
     `| Generated | ${md(report.generatedAt)} |`,
     `| Commit | ${report.source.commit ? codeSpan(report.source.commit) : "not recorded"} |`,
     `| Branch | ${report.source.branch ? codeSpan(report.source.branch) : "not recorded"} |`,
     `| A11yGate | ${md(report.tools.a11ygate)} |`,
     `| axe-core (current) | ${md(report.tools.axeCore.current.join(", ") || "unknown")} |`,
-    `| axe-core (baseline) | ${trend.baselineSupplied ? md(report.tools.axeCore.baseline.join(", ") || "unknown") : "no baseline"} |`,
+    `| axe-core (${comparedWith(report)}) | ${trend.baselineSupplied ? md(report.tools.axeCore.baseline.join(", ") || "unknown") : `no ${comparedWith(report)}`} |`,
     `| Gate | ${report.gate.verdict} at threshold ${report.gate.threshold} \u2014 ${md(report.gate.reason)} |`,
     `| Coverage | ${report.coverage.status} |`,
     "",
     "## Summary",
     "",
+    "| Severity | Current violations |",
+    "| --- | --- |",
+    ...SEVERITIES.map((severity) => `| ${capitalise(severity)} | ${summary.bySeverity[severity]} |`),
+    `| Total | ${summary.currentViolations} |`,
+    "",
     "| Status | Violations |",
     "| --- | --- |",
     `| New | ${summary.new} |`,
-    `| Baselined (still open) | ${summary.baselined} |`,
+    `| ${statusLabel(report, "baselined")} | ${summary.baselined} |`,
     `| Fixed | ${summary.fixed} |`,
     `| Unassessed (not verified fixed) | ${summary.unassessed} |`,
     `| Current total | ${summary.currentViolations} |`,
     "",
-    `Rules with current violations: ${summary.rulesWithCurrentViolations}.`,
-    "",
+    `Rules with current violations: ${summary.rulesWithCurrentViolations}. WCAG success criteria with findings: ${report.criteria.length}. Best-practice rules: ${bestPracticeRules(report).length}.`,
+    ""
+  ];
+  if (scope) {
+    lines.push(
+      "## Scope",
+      "",
+      "| Field | Value |",
+      "| --- | --- |",
+      `| Start URL | ${md(scope.startUrl)} |`,
+      `| Origin | ${md(scope.origin)} |`,
+      `| Page limit | ${scope.maxPages} |`,
+      `| Delay between pages | ${scope.delayMs} ms |`,
+      `| robots.txt | ${md(scope.robots)} |`,
+      `| User agent | ${codeSpan(scope.userAgent)} |`,
+      `| axe-core tags | ${md(scope.axeTags.join(", "))} |`,
+      "",
+      "### Boundaries",
+      "",
+      ...scope.boundaries.map((boundary) => `- ${md(boundary)}`),
+      ""
+    );
+  }
+  lines.push(
     "## Pages scanned",
     "",
-    "| Page | Scanned | axe-core | Scan | Violations | New | Baselined | In baseline |",
+    `| Page | Scanned | axe-core | Scan | Violations | New | ${scanMode ? "Still open" : "Baselined"} | In ${comparedWith(report)} |`,
     "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...report.pages.map(
       (page) => `| ${md(page.url)} | ${md(page.scannedAt)} | ${md(page.axeCore)} | ${page.scanStatus} | ${page.violations} | ${page.new} | ${page.baselined} | ${page.inBaseline ? "yes" : "no"} |`
     ),
     ""
-  ];
+  );
+  if (scope) {
+    const notScanned = scope.pages.filter((page) => page.scanStatus !== "complete");
+    if (notScanned.length > 0) {
+      lines.push(
+        "### Pages not scanned",
+        "",
+        ...notScanned.map((page) => `- ${md(page.url)} \u2014 ${page.scanStatus}${page.error ? `: ${md(page.error)}` : ""}`),
+        ""
+      );
+    }
+    lines.push("### Links skipped and why", "");
+    if (scope.skipped.length === 0) lines.push("No links were skipped.", "");
+    for (const group2 of scope.skipped) {
+      const extra = group2.urls.length - SKIPPED_EXAMPLES;
+      lines.push(
+        `- ${md(group2.label)}: ${group2.count}`,
+        ...group2.urls.slice(0, SKIPPED_EXAMPLES).map((url) => `  - ${codeSpan(url)}`),
+        ...extra > 0 ? [`  - \u2026and ${extra} more (full list in the JSON report)`] : []
+      );
+    }
+    if (scope.skipped.length > 0) lines.push("");
+  }
   if (report.coverage.issues.length > 0) {
     lines.push(
       "### Coverage issues",
@@ -910,40 +1118,29 @@ function evidenceReportMarkdown(report) {
       ""
     );
   }
-  lines.push("## Trend versus baseline", "");
-  if (!trend.baselineSupplied || !trend.totals) {
-    lines.push("No baseline was supplied, so every current violation is reported as new.", "");
-  } else {
+  lines.push(`## Trend versus ${comparedWith(report)}`, "", trendSentence(report), "");
+  if (trend.totals) {
     lines.push(
-      `Total violations: ${trend.totals.baseline} in the baseline, ${trend.totals.current} now (${signed(trend.totals.delta)}).`,
-      "",
-      "| Rule | Baseline | Current | Change |",
-      "| --- | --- | --- | --- |",
-      ...trend.rules.map((row2) => `| ${md(row2.ruleId)} | ${row2.baseline} | ${row2.current} | ${signed(row2.delta)} |`),
-      ""
-    );
-  }
-  lines.push("## Violations by rule", "", MAPPING_NOTE, "");
-  if (report.rules.length === 0) lines.push("No violations were reported.", "");
-  for (const rule of report.rules) {
-    const href = safeHref(rule.helpUrl);
-    lines.push(
-      `### ${md(rule.ruleId)} \u2014 ${impactLabel(rule.impact)}`,
-      "",
-      `${md(rule.help)}${href ? ` ([rule documentation](${href}))` : ""}`,
-      "",
-      `- WCAG: ${rule.bestPractice ? "none mapped (best practice)" : rule.wcag.map((criterion) => md(criterionLabel(criterion))).join("; ")}`,
-      `- Counts: ${rule.counts.new} new, ${rule.counts.baselined} baselined, ${rule.counts.fixed} fixed, ${rule.counts.unassessed} unassessed`,
-      "",
-      "| Status | Impact | Page | Selector | Element |",
-      "| --- | --- | --- | --- | --- |",
-      ...rule.findings.map(
-        (finding) => `| ${STATUS_LABEL[finding.status]}${finding.assessmentReason ? ` \u2014 ${md(finding.assessmentReason)}` : ""} | ${impactLabel(finding.impact)} | ${md(finding.url)} | ${codeSpan(finding.selector)} | ${codeSpan(finding.html)} |`
+      `| Rule | New | Fixed | Still open | ${capitalise(comparedWith(report))} | Current | Change |`,
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      ...trend.rules.map(
+        (row2) => `| ${md(row2.ruleId)} | ${row2.new} | ${row2.fixed} | ${row2.stillOpen} | ${row2.baseline} | ${row2.current} | ${signed(row2.delta)} |`
       ),
+      `| **Total** | ${trend.totals.new} | ${trend.totals.fixed} | ${trend.totals.stillOpen} | ${trend.totals.baseline} | ${trend.totals.current} | ${signed(trend.totals.delta)} |`,
       ""
     );
   }
-  lines.push("## Disclaimer", "", report.disclaimer, "");
+  lines.push("## Findings by WCAG success criterion", "", MAPPING_NOTE, "");
+  if (report.criteria.length === 0) lines.push("No findings were mapped to a WCAG success criterion.", "");
+  for (const group2 of report.criteria) {
+    lines.push(`### WCAG ${md(criterionLabel(group2.criterion))}`, "", `Current findings: ${group2.currentFindings}.`, "");
+    for (const rule of rulesFor(report, group2.ruleIds)) lines.push(...markdownRule(report, rule, "####"));
+  }
+  const bestPractice = bestPracticeRules(report);
+  lines.push("## Best-practice rules (no WCAG success criterion)", "");
+  if (bestPractice.length === 0) lines.push("No best-practice findings.", "");
+  for (const rule of bestPractice) lines.push(...markdownRule(report, rule, "###"));
+  lines.push("## Disclaimer", "", REPORT_DISCLAIMER, "");
   return lines.join("\n");
 }
 function esc(value) {
@@ -956,7 +1153,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-appl
 main{max-width:72rem;margin:0 auto;padding:2rem 1.25rem 4rem}
 h1{font-size:1.75rem;margin:0 0 .5rem}
 h2{font-size:1.35rem;margin:2.5rem 0 .75rem;border-bottom:1px solid var(--line);padding-bottom:.25rem}
-h3{font-size:1.1rem;margin:1.75rem 0 .5rem}
+h3{font-size:1.15rem;margin:1.75rem 0 .5rem}
+h4{font-size:1.05rem;margin:1.5rem 0 .5rem}
 .disclaimer{border:2px solid #9a6700;background:#fff8c5;padding:.75rem 1rem;border-radius:.375rem;font-weight:600}
 .synthetic{border:2px solid #cf222e;background:#ffebe9;padding:.5rem 1rem;border-radius:.375rem;font-weight:700}
 table{border-collapse:collapse;width:100%;margin:.5rem 0 1rem;font-size:.9375rem}
@@ -964,12 +1162,23 @@ caption{text-align:left;font-weight:600;padding:.25rem 0}
 th,td{border:1px solid var(--line);padding:.375rem .5rem;text-align:left;vertical-align:top}
 thead th{background:var(--soft)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;word-break:break-word}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;overflow-wrap:anywhere;word-break:break-word}
 .muted{color:var(--muted)}
 .impact{display:inline-block;padding:0 .4rem;border-radius:.25rem;border:1px solid currentColor;font-size:.8125rem;font-weight:600;text-transform:uppercase}
-.impact-critical{color:#a40e26}.impact-serious{color:#9a3412}.impact-moderate{color:#7c4a03}.impact-minor,.impact-unspecified{color:#374151}
+.impact-critical{color:#a40e26}.impact-serious{color:#9a3412}.impact-moderate{color:#7c4a03}.impact-minor,.impact-unspecified,.impact-unknown{color:#374151}
 a{color:#0550ae}
-@media print{main{padding:0}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
+@media print{
+@page{margin:1.5cm}
+body{font-size:11pt}
+main{max-width:none;padding:0}
+.sheet{break-before:page}
+h2,h3,h4,caption{break-after:avoid}
+table{break-inside:auto}
+thead{display:table-header-group}
+tr,li{break-inside:avoid}
+a{color:inherit}
+a[href]::after{content:" (" attr(href) ")";font-size:.85em;overflow-wrap:anywhere}
+}
 `.trim();
 function impactBadge(impact) {
   const label = impactLabel(impact);
@@ -1003,9 +1212,40 @@ ${rows.join("\n")}
 function codeOrMissing(value) {
   return value ? `<code>${esc(value)}</code>` : '<span class="muted">not recorded</span>';
 }
+function htmlRule(report, rule, level) {
+  const href = safeHref(rule.helpUrl);
+  return [
+    '<section class="rule">',
+    `<h${level} id="rule-${esc(rule.ruleId)}"><code>${esc(rule.ruleId)}</code> ${impactBadge(rule.impact)}</h${level}>`,
+    `<p>${esc(rule.help)}${href ? ` (<a href="${esc(href)}">rule documentation for ${esc(rule.ruleId)}</a>)` : ""}</p>`,
+    "<ul>",
+    `<li><strong>How to fix:</strong> ${esc(rule.fix)}</li>`,
+    `<li>WCAG: ${rule.bestPractice ? "none mapped (best practice)" : rule.wcag.map((criterion) => esc(criterionLabel(criterion))).join("; ")}</li>`,
+    `<li>Counts: ${rule.counts.new} new, ${rule.counts.baselined} ${report.input === "site-scan" ? "still open" : "baselined"}, ${rule.counts.fixed} fixed, ${rule.counts.unassessed} unassessed</li>`,
+    "</ul>",
+    table(
+      `Occurrences of ${rule.ruleId}`,
+      ["Status", "Severity", "Page", "Selector", "Element"],
+      rule.findings.map(
+        (finding) => row([
+          td(
+            esc(statusLabel(report, finding.status)) + (finding.assessmentReason ? ` <span class="muted">\u2014 ${esc(finding.assessmentReason)}</span>` : "")
+          ),
+          td(impactBadge(finding.impact)),
+          td(`<code>${esc(finding.url)}</code>`),
+          td(`<code>${esc(finding.selector)}</code>`),
+          td(`<code>${esc(finding.html)}</code>`)
+        ])
+      )
+    ),
+    "</section>"
+  ];
+}
 function evidenceReportHtml(report) {
-  const { summary, trend } = report;
+  const { summary, trend, scope } = report;
+  const scanMode = report.input === "site-scan";
   const title = `Accessibility evidence report \u2014 ${report.projectName}`;
+  const compared = comparedWith(report);
   const parts = [
     "<!doctype html>",
     '<html lang="en">',
@@ -1020,40 +1260,77 @@ function evidenceReportHtml(report) {
     "<body>",
     "<main>",
     `<h1>${esc(title)}</h1>`,
-    `<p class="disclaimer" role="note">${esc(report.disclaimer)}</p>`,
+    `<p class="disclaimer" role="note">${esc(REPORT_DISCLAIMER)}</p>`,
     ...report.synthetic ? ['<p class="synthetic" role="note">SYNTHETIC evidence \u2014 not a real audit or customer assessment.</p>'] : [],
     '<h2 id="scan">Scan details</h2>',
     keyValueTable("Scan details", [
+      ...scope ? [
+        ["Scanned at", `<time datetime="${esc(scope.scannedAt)}">${esc(scope.scannedAt)}</time>`],
+        [
+          "Previous scan",
+          scope.previousScannedAt ? `<time datetime="${esc(scope.previousScannedAt)}">${esc(scope.previousScannedAt)}</time>` : "none supplied"
+        ]
+      ] : [],
       ["Generated", `<time datetime="${esc(report.generatedAt)}">${esc(report.generatedAt)}</time>`],
       ["Commit", codeOrMissing(report.source.commit)],
       ["Branch", codeOrMissing(report.source.branch)],
       ["A11yGate", esc(report.tools.a11ygate)],
       ["axe-core (current)", esc(report.tools.axeCore.current.join(", ") || "unknown")],
       [
-        "axe-core (baseline)",
-        trend.baselineSupplied ? esc(report.tools.axeCore.baseline.join(", ") || "unknown") : "no baseline"
+        `axe-core (${compared})`,
+        trend.baselineSupplied ? esc(report.tools.axeCore.baseline.join(", ") || "unknown") : `no ${compared}`
       ],
       ["Gate", `${esc(report.gate.verdict)} at threshold ${esc(report.gate.threshold)} \u2014 ${esc(report.gate.reason)}`],
       ["Coverage", esc(report.coverage.status)]
     ]),
     '<h2 id="summary">Summary</h2>',
     table(
+      "Current violations by severity",
+      ["Severity", "Current violations"],
+      [
+        ...SEVERITIES.map((severity) => row([td(capitalise(severity)), td(summary.bySeverity[severity], true)])),
+        row([td("Total"), td(summary.currentViolations, true)])
+      ],
+      [1]
+    ),
+    table(
       "Violations by status",
       ["Status", "Violations"],
       [
         row([td("New"), td(summary.new, true)]),
-        row([td("Baselined (still open)"), td(summary.baselined, true)]),
+        row([td(esc(statusLabel(report, "baselined"))), td(summary.baselined, true)]),
         row([td("Fixed"), td(summary.fixed, true)]),
         row([td("Unassessed (not verified fixed)"), td(summary.unassessed, true)]),
         row([td("Current total"), td(summary.currentViolations, true)])
       ],
       [1]
     ),
-    `<p>Rules with current violations: ${summary.rulesWithCurrentViolations}.</p>`,
+    `<p>Rules with current violations: ${summary.rulesWithCurrentViolations}. WCAG success criteria with findings: ${report.criteria.length}. Best-practice rules: ${bestPracticeRules(report).length}.</p>`,
+    `<section class="sheet" aria-labelledby="${scope ? "scope" : "pages"}">`
+  ];
+  if (scope) {
+    parts.push(
+      '<h2 id="scope">Scope</h2>',
+      keyValueTable("Scan scope", [
+        ["Start URL", `<code>${esc(scope.startUrl)}</code>`],
+        ["Origin", `<code>${esc(scope.origin)}</code>`],
+        ["Page limit", String(scope.maxPages)],
+        ["Delay between pages", `${scope.delayMs} ms`],
+        ["robots.txt", esc(scope.robots)],
+        ["User agent", `<code>${esc(scope.userAgent)}</code>`],
+        ["axe-core tags", esc(scope.axeTags.join(", "))]
+      ]),
+      "<h3>Boundaries</h3>",
+      "<ul>",
+      ...scope.boundaries.map((boundary) => `<li>${esc(boundary)}</li>`),
+      "</ul>"
+    );
+  }
+  parts.push(
     '<h2 id="pages">Pages scanned</h2>',
     table(
       "Pages scanned",
-      ["Page", "Scanned", "axe-core", "Scan", "Violations", "New", "Baselined", "In baseline"],
+      ["Page", "Scanned", "axe-core", "Scan", "Violations", "New", scanMode ? "Still open" : "Baselined", `In ${compared}`],
       report.pages.map(
         (page) => row([
           td(`<code>${esc(page.url)}</code>`),
@@ -1068,7 +1345,40 @@ function evidenceReportHtml(report) {
       ),
       [4, 5, 6]
     )
-  ];
+  );
+  if (scope) {
+    const notScanned = scope.pages.filter((page) => page.scanStatus !== "complete");
+    if (notScanned.length > 0) {
+      parts.push(
+        "<h3>Pages not scanned</h3>",
+        "<ul>",
+        ...notScanned.map(
+          (page) => `<li><code>${esc(page.url)}</code> \u2014 ${esc(page.scanStatus)}${page.error ? `: ${esc(page.error)}` : ""}</li>`
+        ),
+        "</ul>"
+      );
+    }
+    parts.push("<h3>Links skipped and why</h3>");
+    if (scope.skipped.length === 0) parts.push("<p>No links were skipped.</p>");
+    else {
+      parts.push(
+        table(
+          "Links skipped and why",
+          ["Reason", "Links", "Examples"],
+          scope.skipped.map((group2) => {
+            const extra = group2.urls.length - SKIPPED_EXAMPLES;
+            const examples = group2.urls.slice(0, SKIPPED_EXAMPLES).map((url) => `<code>${esc(url)}</code>`).join("<br>");
+            return row([
+              td(esc(group2.label)),
+              td(group2.count, true),
+              td(examples + (extra > 0 ? `<br><span class="muted">\u2026and ${extra} more (full list in the JSON report)</span>` : ""))
+            ]);
+          }),
+          [1]
+        )
+      );
+    }
+  }
   if (report.coverage.issues.length > 0) {
     parts.push(
       "<h3>Coverage issues</h3>",
@@ -1079,60 +1389,69 @@ function evidenceReportHtml(report) {
       "</ul>"
     );
   }
-  parts.push('<h2 id="trend">Trend versus baseline</h2>');
-  if (!trend.baselineSupplied || !trend.totals) {
-    parts.push("<p>No baseline was supplied, so every current violation is reported as new.</p>");
-  } else {
+  parts.push(
+    "</section>",
+    '<section class="sheet" aria-labelledby="trend">',
+    `<h2 id="trend">Trend versus ${compared}</h2>`,
+    `<p>${esc(trendSentence(report))}</p>`
+  );
+  if (trend.totals) {
     parts.push(
-      `<p>Total violations: ${trend.totals.baseline} in the baseline, ${trend.totals.current} now (${signed(trend.totals.delta)}).</p>`,
       table(
-        "Violations per rule, baseline and current",
-        ["Rule", "Baseline", "Current", "Change"],
-        trend.rules.map(
-          (entry) => row([
-            td(`<code>${esc(entry.ruleId)}</code>`),
-            td(entry.baseline, true),
-            td(entry.current, true),
-            td(signed(entry.delta), true)
+        `Violations per rule, ${compared} and current`,
+        ["Rule", "New", "Fixed", "Still open", capitalise(compared), "Current", "Change"],
+        [
+          ...trend.rules.map(
+            (entry) => row([
+              td(`<code>${esc(entry.ruleId)}</code>`),
+              td(entry.new, true),
+              td(entry.fixed, true),
+              td(entry.stillOpen, true),
+              td(entry.baseline, true),
+              td(entry.current, true),
+              td(signed(entry.delta), true)
+            ])
+          ),
+          row([
+            '<th scope="row">Total</th>',
+            td(trend.totals.new, true),
+            td(trend.totals.fixed, true),
+            td(trend.totals.stillOpen, true),
+            td(trend.totals.baseline, true),
+            td(trend.totals.current, true),
+            td(signed(trend.totals.delta), true)
           ])
-        ),
-        [1, 2, 3]
+        ],
+        [1, 2, 3, 4, 5, 6]
       )
     );
   }
-  parts.push('<h2 id="rules">Violations by rule</h2>', `<p class="muted">${esc(MAPPING_NOTE)}</p>`);
-  if (report.rules.length === 0) parts.push("<p>No violations were reported.</p>");
-  for (const rule of report.rules) {
-    const href = safeHref(rule.helpUrl);
-    parts.push(
-      "<section>",
-      `<h3 id="rule-${esc(rule.ruleId)}"><code>${esc(rule.ruleId)}</code> ${impactBadge(rule.impact)}</h3>`,
-      `<p>${esc(rule.help)}${href ? ` (<a href="${esc(href)}">rule documentation</a>)` : ""}</p>`,
-      "<ul>",
-      `<li>WCAG: ${rule.bestPractice ? "none mapped (best practice)" : rule.wcag.map((criterion) => esc(criterionLabel(criterion))).join("; ")}</li>`,
-      `<li>Counts: ${rule.counts.new} new, ${rule.counts.baselined} baselined, ${rule.counts.fixed} fixed, ${rule.counts.unassessed} unassessed</li>`,
-      "</ul>",
-      table(
-        `Occurrences of ${rule.ruleId}`,
-        ["Status", "Impact", "Page", "Selector", "Element"],
-        rule.findings.map(
-          (finding) => row([
-            td(
-              esc(STATUS_LABEL[finding.status]) + (finding.assessmentReason ? ` <span class="muted">\u2014 ${esc(finding.assessmentReason)}</span>` : "")
-            ),
-            td(impactBadge(finding.impact)),
-            td(`<code>${esc(finding.url)}</code>`),
-            td(`<code>${esc(finding.selector)}</code>`),
-            td(`<code>${esc(finding.html)}</code>`)
-          ])
-        )
-      ),
-      "</section>"
-    );
-  }
   parts.push(
+    "</section>",
+    '<section class="sheet" aria-labelledby="criteria">',
+    '<h2 id="criteria">Findings by WCAG success criterion</h2>',
+    `<p class="muted">${esc(MAPPING_NOTE)}</p>`
+  );
+  if (report.criteria.length === 0) parts.push("<p>No findings were mapped to a WCAG success criterion.</p>");
+  for (const group2 of report.criteria) {
+    parts.push(
+      `<h3 id="sc-${esc(group2.criterion.number)}">WCAG ${esc(criterionLabel(group2.criterion))}</h3>`,
+      `<p>Current findings: ${group2.currentFindings}.</p>`
+    );
+    for (const rule of rulesFor(report, group2.ruleIds)) parts.push(...htmlRule(report, rule, 4));
+  }
+  const bestPractice = bestPracticeRules(report);
+  parts.push(
+    "</section>",
+    '<section class="sheet" aria-labelledby="best-practice">',
+    '<h2 id="best-practice">Best-practice rules (no WCAG success criterion)</h2>'
+  );
+  if (bestPractice.length === 0) parts.push("<p>No best-practice findings.</p>");
+  for (const rule of bestPractice) parts.push(...htmlRule(report, rule, 3));
+  parts.push(
+    "</section>",
     '<h2 id="disclaimer">Disclaimer</h2>',
-    `<p>${esc(report.disclaimer)}</p>`,
+    `<p>${esc(REPORT_DISCLAIMER)}</p>`,
     "</main>",
     "</body>",
     "</html>",
@@ -1152,6 +1471,8 @@ var VALUE_FLAGS = {
   "-c": "current",
   "--baseline": "baseline",
   "-b": "baseline",
+  "--scan": "scan",
+  "--previous-scan": "previousScan",
   "--threshold": "threshold",
   "-t": "threshold",
   "--markdown": "markdown",
@@ -1169,7 +1490,7 @@ var VALUE_FLAGS = {
   "--branch": "branch"
 };
 var GATE_ONLY = ["markdown", "json", "updateBaseline", "manualEvidence"];
-var REPORT_ONLY = ["format", "out", "generatedAt", "commit", "branch"];
+var REPORT_ONLY = ["scan", "previousScan", "format", "out", "generatedAt", "commit", "branch"];
 function flagName(token) {
   const eq = token.indexOf("=");
   if (eq === -1) return { name: token };
@@ -1198,6 +1519,8 @@ function parseArgs(input) {
   let json;
   let updateBaseline;
   let manualEvidence;
+  let scan;
+  let previousScan;
   let formatText;
   let out;
   let generatedAtText;
@@ -1242,7 +1565,11 @@ function parseArgs(input) {
     }
     if (field === "current") current.push(value);
     else if (field === "baseline") baseline.push(value);
-    else if (field === "threshold") thresholdText = value;
+    else if (field === "scan" || field === "previousScan") {
+      if ((field === "scan" ? scan : previousScan) !== void 0) return { ok: false, error: `${name} can only be given once.` };
+      if (field === "scan") scan = value;
+      else previousScan = value;
+    } else if (field === "threshold") thresholdText = value;
     else if (field === "markdown") markdown = value;
     else if (field === "json") json = value;
     else if (field === "updateBaseline") updateBaseline = value;
@@ -1252,6 +1579,14 @@ function parseArgs(input) {
     else if (field === "generatedAt") generatedAtText = value;
     else if (field === "commit") commit = value;
     else branch = value;
+  }
+  if (!help && !version) {
+    if (scan !== void 0 && (current.length > 0 || baseline.length > 0)) {
+      return { ok: false, error: "Use either --scan (with --previous-scan) or --current (with --baseline), not both." };
+    }
+    if (previousScan !== void 0 && scan === void 0) {
+      return { ok: false, error: "--previous-scan needs --scan." };
+    }
   }
   let format;
   if (formatText !== void 0) {
@@ -1285,6 +1620,8 @@ function parseArgs(input) {
       version: version && !help,
       current,
       baseline,
+      scan,
+      previousScan,
       threshold,
       markdown,
       json,
@@ -1307,6 +1644,7 @@ Usage:
   a11ygate --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]   (see a11ygate scan --help)
   a11ygate report --current <file> [--baseline <file>] [--format html|md|json] [--out <file>]
+  a11ygate report --scan <scan.json> [--previous-scan <older.json>] [--format html|md|json] [--out <file>]
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
@@ -1322,13 +1660,18 @@ Options:
       --version                Show the version.
 
 Evidence report (a11ygate report):
-  Takes the same --current, --baseline and --threshold options, plus:
+  Takes the same --current, --baseline and --threshold options, or instead:
+      --scan <file>            JSON written by a11ygate scan (kind "site-scan"). Adds scope, pages skipped and why,
+                               and the scanner's read-only boundaries to the report.
+      --previous-scan <file>   An older a11ygate scan JSON. The trend shows new, fixed and still-open per rule.
+  plus:
   -f, --format <format>        html (default), md, or json. Inferred from the --out extension when omitted.
   -o, --out <file>             Write the report to this file. Omit or use - to print it.
       --generated-at <iso>     Fix the report timestamp, for reproducible output. Default: now.
       --commit <sha>           Commit to record. Default: $GITHUB_SHA when set.
       --branch <name>          Branch to record. Default: $GITHUB_HEAD_REF or $GITHUB_REF_NAME when set.
-  The HTML report is one self-contained file with no external assets or scripts.
+  The HTML report is one self-contained file with no external assets or scripts, and prints cleanly to PDF.
+  Every format always states: Automated testing only. Not a WCAG audit, certification or legal advice.
   report exits 0 once the report is written, whatever the gate verdict, and 2 on errors.
 
 Exit codes:
@@ -1341,6 +1684,7 @@ Examples:
   npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
   npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
   npx @qe-atlas/a11ygate report --current axe.json --baseline a11y/baseline.json --out a11y-report.html
+  npx @qe-atlas/a11ygate report --scan a11ygate-scan.json --previous-scan last-month.json --out report.html
 
 A file larger than 8 MB is refused. The same diff and gate as the web app are used.
 This source build is unreleased; published 0.1.0 does not include these coverage/manual features.
@@ -1647,7 +1991,7 @@ function buildScanReport(input) {
     results
   };
 }
-function groupByCriterion(findings) {
+function groupByCriterion2(findings) {
   const groups = /* @__PURE__ */ new Map();
   for (const finding of findings) {
     const keys = finding.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
@@ -1725,7 +2069,7 @@ function scanMarkdown(report) {
     "## Findings by WCAG criterion",
     ""
   ];
-  const byCriterion = groupByCriterion(report.findings);
+  const byCriterion = groupByCriterion2(report.findings);
   if (byCriterion.length === 0) lines.push("None detected.", "");
   for (const group2 of byCriterion) {
     lines.push(`### ${heading(group2.label)}`, "", ...sortFindings(group2.findings).map(mdFinding), "");
@@ -1785,7 +2129,7 @@ a{color:#0b57d0}
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
 <h2>Pages</h2>
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
-${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
+${htmlGroups("Findings by WCAG criterion", groupByCriterion2(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
 <h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc2(b)}</li>`).join("")}</ul>
@@ -2240,8 +2584,12 @@ async function run(argv, io = {}) {
 `);
     return 0;
   }
-  if (options.current.length === 0) {
-    stderr("Pass at least one current axe JSON file with --current.\n");
+  const currentFiles = options.scan ? [options.scan] : options.current;
+  const baselineFiles = options.scan ? options.previousScan ? [options.previousScan] : [] : options.baseline;
+  if (currentFiles.length === 0) {
+    stderr(
+      options.command === "report" ? "Pass a scan JSON with --scan, or at least one current axe JSON file with --current.\n" : "Pass at least one current axe JSON file with --current.\n"
+    );
     return 2;
   }
   const reportOut = options.out && options.out !== "-" ? options.out : void 0;
@@ -2255,8 +2603,8 @@ async function run(argv, io = {}) {
       const info = await stat(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
     };
-    const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
-    const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
+    const inputs = await Promise.all([...currentFiles, ...baselineFiles, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
+    const baselineProtectedInputs = await Promise.all([...currentFiles, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outputs = [reportOut, options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0].filter((x) => !!x);
     const seen = [];
     for (const output of outputs) {
@@ -2273,11 +2621,21 @@ async function run(argv, io = {}) {
     stderr((error instanceof Error ? error.message : "Unsafe output path.") + "\n");
     return 2;
   }
-  const currentRead = await readDocuments(options.current, cwd);
+  const currentRead = await readDocuments(currentFiles, cwd);
   if (!currentRead.ok) {
     stderr(`${currentRead.error}
 `);
     return 2;
+  }
+  let siteScan = null;
+  if (options.scan) {
+    const parsedScan = parseSiteScan(currentRead.documents[0]?.text ?? "");
+    if (!parsedScan.ok) {
+      stderr(`${options.scan}: ${parsedScan.error}
+`);
+      return 2;
+    }
+    siteScan = parsedScan.scan;
   }
   const current = parseAxeDocuments(currentRead.documents);
   if (!current.ok) {
@@ -2287,12 +2645,22 @@ async function run(argv, io = {}) {
   }
   let baselineResults = null;
   let baselineSynthetic = false;
-  if (options.baseline.length > 0) {
-    const baselineRead = await readDocuments(options.baseline, cwd);
+  let previousScan = null;
+  if (baselineFiles.length > 0) {
+    const baselineRead = await readDocuments(baselineFiles, cwd);
     if (!baselineRead.ok) {
       stderr(`${baselineRead.error}
 `);
       return 2;
+    }
+    if (options.previousScan) {
+      const parsedPrevious = parseSiteScan(baselineRead.documents[0]?.text ?? "");
+      if (!parsedPrevious.ok) {
+        stderr(`${options.previousScan}: ${parsedPrevious.error}
+`);
+        return 2;
+      }
+      previousScan = parsedPrevious.scan;
     }
     const baseline = parseAxeDocuments(baselineRead.documents);
     if (!baseline.ok) {
@@ -2328,6 +2696,7 @@ async function run(argv, io = {}) {
   const version = await readVersion();
   if (options.command === "report") {
     const report = buildEvidenceReport({
+      scan: siteScan ? { current: siteScan, previous: previousScan } : null,
       generatedAt,
       version,
       projectName,
