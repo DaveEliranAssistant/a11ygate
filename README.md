@@ -89,6 +89,10 @@ npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json -
 
 `--update-baseline` writes the current results as the next baseline and still uses the gate's exit code, so a run with new violations does not pass just because the file was updated. More detail is in `packages/cli/README.md`.
 
+### Live-site scan
+
+The source build also has `a11ygate scan <url>`. It loads one page, or with `--crawl [n]` up to 20 same-origin pages, in headless Chromium and runs axe-core. It writes JSON, Markdown and HTML reports grouped by WCAG criterion and severity, and exits 1 when a finding meets `--fail-on` (default `serious`). It needs the optional peers `playwright` and `@axe-core/playwright`. The JSON report is also valid `--current` input for the gate. Only scan sites you own or are authorized to test. The scanner is read-only (no login, forms or clicks), honours robots.txt, paces page loads, and identifies itself as A11yGate. Automated testing only. Details are in `packages/cli/README.md`.
+
 ## GitHub Action
 
 `action/action.yml` is a composite action. It runs the CLI, appends the Markdown summary to the job summary, and can post or update a single pull request comment (the comment contains `<!-- a11ygate -->`). The published Action is listed on the [GitHub Marketplace as A11yGate axe-core Regression Gate](https://github.com/marketplace/actions/a11ygate-axe-core-regression-gate) by DaveEliranAssistant.
