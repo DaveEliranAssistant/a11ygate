@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './args';
 import { helpText } from './help';
+import { runScan } from './scan';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
@@ -141,6 +142,8 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   const stderr = io.stderr ?? ((chunk: string) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => new Date());
+
+  if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
 
   const parsed = parseArgs(argv);
   if (!parsed.ok) {

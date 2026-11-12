@@ -3,6 +3,7 @@ export function helpText(): string {
 
 Usage:
   a11ygate --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]   (see a11ygate scan --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.

@@ -21,6 +21,8 @@ await build({
   outfile,
   banner: { js: '#!/usr/bin/env node' },
   legalComments: 'none',
+  // Optional peer dependencies for `a11ygate scan`; loaded with dynamic import at runtime.
+  external: ['playwright', 'playwright-core', '@axe-core/playwright'],
   logLevel: 'warning',
   plugins: [
     {
