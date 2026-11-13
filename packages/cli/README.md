@@ -34,6 +34,29 @@ The Demo Shop fixtures exit **1** with **2 new, 3 fixed, 5 still open**, and ver
 
 Accepted JSON shapes: one axe result object, an array of result objects, or `{ "results": <object or array> }`. Node `target` values may be strings or nested string arrays (iframes and shadow DOM). Files over 8 MB are refused.
 
+## Evidence report
+
+```bash
+npx @qe-atlas/a11ygate report --current axe.json --baseline a11y/baseline.json --out a11y-report.html
+npx @qe-atlas/a11ygate report --scan a11ygate-scan.json --previous-scan last-month-scan.json --out report.html
+```
+
+`a11ygate report` reads either the gate inputs (`--current`, `--baseline`, `--threshold`) or the JSON written by `a11ygate scan` (`--scan`, optionally `--previous-scan` for an older scan of the same site; `--scan` cannot be combined with `--current`/`--baseline`). It writes a self-contained HTML (default), Markdown, or JSON report: scan date-time, commit and branch, A11yGate and axe-core versions, current violations by severity, pages scanned, new/still-open/fixed counts, findings grouped by WCAG 2.1/2.2 success criterion (severity, page URL, selector, axe help link and how-to-fix guidance), best-practice rules listed separately, and the per-rule trend (new, fixed, still open, totals) versus the baseline or previous scan. With `--scan` it also lists the scope: start URL, page limit, pages that failed, links skipped and why, and the scanner's read-only boundaries. The HTML has inline CSS, no scripts or remote assets, and print CSS (a page break per section, rows kept whole, link URLs printed), so it can be printed to PDF.
+
+Every format always carries this disclaimer, and no flag removes it: *Automated testing only. Not a WCAG audit, certification or legal advice. Automated axe-core checks detect only a subset of accessibility issues. They do not cover all of WCAG or the European Accessibility Act (EAA), and this report is not a claim of full compliance.* A sample built from a scan of the W3C "Before and After" demo is in [`examples/`](../../examples/README.md).
+
+| Option | Meaning |
+| --- | --- |
+| `--scan <file>` | `a11ygate scan` JSON (kind `site-scan`) to report on, instead of `--current`. |
+| `--previous-scan <file>` | An older `a11ygate scan` JSON to compare with. Needs `--scan`. |
+| `-f, --format <format>` | `html`, `md`, or `json`. Inferred from the `--out` extension when omitted; defaults to `html`. |
+| `-o, --out <file>` | Report path. Omit or use `-` to print it. |
+| `--generated-at <iso>` | Fix the timestamp for reproducible output. |
+| `--commit <sha>` | Commit to record. Defaults to `GITHUB_SHA`. |
+| `--branch <name>` | Branch to record. Defaults to `GITHUB_HEAD_REF`, then `GITHUB_REF_NAME`. |
+
+`report` exits 0 once the report is written, whatever the verdict, and 2 on errors. The same input always gives the same report apart from the timestamp. This command is in the source build only; published 0.1.0 does not include it.
+
 ## Exit codes
 
 | Code | Meaning |
