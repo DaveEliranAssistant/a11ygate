@@ -1,0 +1,478 @@
+{
+  "tool": "a11ygate",
+  "reportSchemaVersion": 1,
+  "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice. Automated axe-core checks detect only a subset of accessibility issues. They do not cover all of WCAG or the European Accessibility Act (EAA), and this report is not a claim of full compliance.",
+  "input": "site-scan",
+  "generatedAt": "2026-11-12T10:00:00.000Z",
+  "projectName": "shop.example",
+  "synthetic": false,
+  "source": {
+    "commit": null,
+    "branch": null
+  },
+  "tools": {
+    "a11ygate": "0.1.0",
+    "axeCore": {
+      "current": [
+        "4.14.0"
+      ],
+      "baseline": [
+        "4.14.0"
+      ]
+    }
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "threshold": "serious",
+    "reason": "3 new findings at or above serious: color-contrast, target-size."
+  },
+  "summary": {
+    "new": 4,
+    "baselined": 2,
+    "fixed": 1,
+    "unassessed": 0,
+    "currentViolations": 6,
+    "baselineViolations": 3,
+    "rulesWithCurrentViolations": 5,
+    "bySeverity": {
+      "critical": 2,
+      "serious": 3,
+      "moderate": 1,
+      "minor": 0,
+      "unknown": 0
+    }
+  },
+  "scope": {
+    "startUrl": "https://shop.example/",
+    "origin": "https://shop.example",
+    "scannedAt": "2026-11-12T09:00:00.000Z",
+    "previousScannedAt": "2026-11-01T09:00:00.000Z",
+    "maxPages": 3,
+    "delayMs": 1000,
+    "robots": "robots.txt honoured.",
+    "userAgent": "Mozilla/5.0 (compatible; A11yGate/0.1.0; +https://a11ygate.vercel.app) read-only accessibility scan",
+    "axeTags": [
+      "wcag2a",
+      "wcag2aa",
+      "wcag21a",
+      "wcag21aa",
+      "wcag22a",
+      "wcag22aa",
+      "best-practice"
+    ],
+    "pages": [
+      {
+        "url": "https://shop.example/",
+        "finalUrl": "https://shop.example/",
+        "status": 200,
+        "scanStatus": "complete",
+        "error": null
+      },
+      {
+        "url": "https://shop.example/about",
+        "finalUrl": "https://shop.example/about",
+        "status": 200,
+        "scanStatus": "complete",
+        "error": null
+      },
+      {
+        "url": "https://shop.example/gone",
+        "finalUrl": "https://shop.example/gone",
+        "status": 404,
+        "scanStatus": "failed",
+        "error": "HTTP 404"
+      }
+    ],
+    "skipped": [
+      {
+        "reason": "cap",
+        "label": "Page limit reached (--crawl cap)",
+        "count": 1,
+        "urls": [
+          "https://shop.example/blog"
+        ]
+      },
+      {
+        "reason": "external",
+        "label": "Different origin (not crawled)",
+        "count": 1,
+        "urls": [
+          "https://other.example/"
+        ]
+      },
+      {
+        "reason": "not-http",
+        "label": "Not an http(s) link (javascript:, mailto:, …)",
+        "count": 1,
+        "urls": [
+          "mailto:hi@shop.example"
+        ]
+      },
+      {
+        "reason": "robots",
+        "label": "Disallowed by robots.txt",
+        "count": 1,
+        "urls": [
+          "https://shop.example/private/"
+        ]
+      }
+    ],
+    "boundaries": [
+      "Only scan sites you own or are explicitly authorized to test.",
+      "Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.",
+      "Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.",
+      "Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured."
+    ]
+  },
+  "coverage": {
+    "status": "complete",
+    "issues": [],
+    "unassessedScope": [
+      "Only supplied page/query/hash states are assessed; undiscovered pages and interactions are unassessed.",
+      "Manual keyboard, screen-reader and usability checks are not performed by the automated gate.",
+      "Origins are intentionally ignored for local CI hosts; equivalent environments must be established by the caller.",
+      "Normalized selectors are heuristic identities, not proof that every affected element is unchanged."
+    ]
+  },
+  "pages": [
+    {
+      "url": "https://shop.example/",
+      "page": "/",
+      "scannedAt": "2026-11-12T09:00:00.000Z",
+      "axeCore": "4.14.0",
+      "scanStatus": "complete",
+      "violations": 4,
+      "new": 3,
+      "baselined": 1,
+      "inBaseline": true
+    },
+    {
+      "url": "https://shop.example/about",
+      "page": "/about",
+      "scannedAt": "2026-11-12T09:00:00.000Z",
+      "axeCore": "4.14.0",
+      "scanStatus": "complete",
+      "violations": 2,
+      "new": 1,
+      "baselined": 1,
+      "inBaseline": true
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "image-alt",
+      "impact": "critical",
+      "help": "Images must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/image-alt",
+      "wcag": [
+        {
+          "number": "1.1.1",
+          "name": "Non-text Content",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "wcag111",
+        "wcag2a"
+      ],
+      "fix": "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.",
+      "userImpact": "People using screen readers may miss the purpose or information conveyed by the image.",
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "critical",
+          "url": "https://shop.example/",
+          "selector": "img.hero",
+          "html": "<img class=\"hero\" src=\"hero.jpg\">",
+          "fingerprint": "image-alt|img.hero|/",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "label",
+      "impact": "critical",
+      "help": "Form elements must have labels",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/label",
+      "wcag": [
+        {
+          "number": "1.3.1",
+          "name": "Info and Relationships",
+          "level": "A",
+          "wcag": "2.1"
+        },
+        {
+          "number": "4.1.2",
+          "name": "Name, Role, Value",
+          "level": "A",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "wcag131",
+        "wcag2a",
+        "wcag412"
+      ],
+      "fix": "Associate a visible label with the control and expose instructions/errors programmatically.",
+      "userImpact": "People using assistive technology may not know what input is expected.",
+      "counts": {
+        "new": 0,
+        "baselined": 1,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "baselined",
+          "impact": "critical",
+          "url": "https://shop.example/about",
+          "selector": "#email",
+          "html": "<input id=\"email\" type=\"email\">",
+          "fingerprint": "label|#email|/about",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast",
+      "wcag": [
+        {
+          "number": "1.4.3",
+          "name": "Contrast (Minimum)",
+          "level": "AA",
+          "wcag": "2.1"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "wcag143",
+        "wcag2aa"
+      ],
+      "fix": "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.",
+      "userImpact": "People with low vision or color-vision differences may not be able to read the affected content.",
+      "counts": {
+        "new": 2,
+        "baselined": 0,
+        "fixed": 1,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "new",
+          "impact": "serious",
+          "url": "https://shop.example/",
+          "selector": ".price",
+          "html": "<span class=\"price\">€12</span>",
+          "fingerprint": "color-contrast|.price|/",
+          "assessmentReason": null
+        },
+        {
+          "status": "new",
+          "impact": "serious",
+          "url": "https://shop.example/",
+          "selector": "footer a",
+          "html": "<a href=\"/contact\">Contact</a>",
+          "fingerprint": "color-contrast|footer a|/",
+          "assessmentReason": null
+        },
+        {
+          "status": "fixed",
+          "impact": "serious",
+          "url": "https://shop.example/about",
+          "selector": ".old-banner",
+          "html": "<p class=\"old-banner\">Old</p>",
+          "fingerprint": "color-contrast|.old-banner|/about",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "target-size",
+      "impact": "serious",
+      "help": "All touch targets must be 24px large, or leave sufficient space",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/target-size",
+      "wcag": [
+        {
+          "number": "2.5.8",
+          "name": "Target Size (Minimum)",
+          "level": "AA",
+          "wcag": "2.2"
+        }
+      ],
+      "bestPractice": false,
+      "tags": [
+        "wcag22aa",
+        "wcag258"
+      ],
+      "fix": "All touch targets must be 24px large, or leave sufficient space Consult the rule guidance and review the actual component; automated advice is not a verified fix.",
+      "userImpact": "The affected element may prevent people using assistive technology from perceiving or operating the content (target-size); assess the actual user journey.",
+      "counts": {
+        "new": 1,
+        "baselined": 0,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "new",
+          "impact": "serious",
+          "url": "https://shop.example/about",
+          "selector": "a.tiny",
+          "html": "<a class=\"tiny\" href=\"/terms\">T</a>",
+          "fingerprint": "target-size|a.tiny|/about",
+          "assessmentReason": null
+        }
+      ]
+    },
+    {
+      "ruleId": "region",
+      "impact": "moderate",
+      "help": "All page content should be contained by landmarks",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/region",
+      "wcag": [],
+      "bestPractice": true,
+      "tags": [
+        "best-practice"
+      ],
+      "fix": "All page content should be contained by landmarks Consult the rule guidance and review the actual component; automated advice is not a verified fix.",
+      "userImpact": "The affected element may prevent people using assistive technology from perceiving or operating the content (region); assess the actual user journey.",
+      "counts": {
+        "new": 1,
+        "baselined": 0,
+        "fixed": 0,
+        "unassessed": 0
+      },
+      "findings": [
+        {
+          "status": "new",
+          "impact": "moderate",
+          "url": "https://shop.example/",
+          "selector": "div.banner",
+          "html": "<div class=\"banner\">Sale</div>",
+          "fingerprint": "region|div.banner|/",
+          "assessmentReason": null
+        }
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "criterion": {
+        "number": "1.1.1",
+        "name": "Non-text Content",
+        "level": "A",
+        "wcag": "2.1"
+      },
+      "ruleIds": [
+        "image-alt"
+      ],
+      "currentFindings": 1
+    },
+    {
+      "criterion": {
+        "number": "1.3.1",
+        "name": "Info and Relationships",
+        "level": "A",
+        "wcag": "2.1"
+      },
+      "ruleIds": [
+        "label"
+      ],
+      "currentFindings": 1
+    },
+    {
+      "criterion": {
+        "number": "1.4.3",
+        "name": "Contrast (Minimum)",
+        "level": "AA",
+        "wcag": "2.1"
+      },
+      "ruleIds": [
+        "color-contrast"
+      ],
+      "currentFindings": 2
+    },
+    {
+      "criterion": {
+        "number": "2.5.8",
+        "name": "Target Size (Minimum)",
+        "level": "AA",
+        "wcag": "2.2"
+      },
+      "ruleIds": [
+        "target-size"
+      ],
+      "currentFindings": 1
+    }
+  ],
+  "trend": {
+    "baselineSupplied": true,
+    "totals": {
+      "baseline": 3,
+      "current": 6,
+      "delta": 3,
+      "new": 4,
+      "fixed": 1,
+      "stillOpen": 2
+    },
+    "rules": [
+      {
+        "ruleId": "image-alt",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0,
+        "new": 0,
+        "fixed": 0,
+        "stillOpen": 1
+      },
+      {
+        "ruleId": "label",
+        "baseline": 1,
+        "current": 1,
+        "delta": 0,
+        "new": 0,
+        "fixed": 0,
+        "stillOpen": 1
+      },
+      {
+        "ruleId": "color-contrast",
+        "baseline": 1,
+        "current": 2,
+        "delta": 1,
+        "new": 2,
+        "fixed": 1,
+        "stillOpen": 0
+      },
+      {
+        "ruleId": "region",
+        "baseline": 0,
+        "current": 1,
+        "delta": 1,
+        "new": 1,
+        "fixed": 0,
+        "stillOpen": 0
+      },
+      {
+        "ruleId": "target-size",
+        "baseline": 0,
+        "current": 1,
+        "delta": 1,
+        "new": 1,
+        "fixed": 0,
+        "stillOpen": 0
+      }
+    ]
+  }
+}

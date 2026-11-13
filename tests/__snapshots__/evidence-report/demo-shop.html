@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="generator" content="a11ygate">
+<title>Accessibility evidence report — demo.shop</title>
+<style>:root{color-scheme:light;--fg:#1b1f24;--muted:#4b5563;--line:#d0d7de;--bg:#ffffff;--soft:#f6f8fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:72rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+h1{font-size:1.75rem;margin:0 0 .5rem}
+h2{font-size:1.35rem;margin:2.5rem 0 .75rem;border-bottom:1px solid var(--line);padding-bottom:.25rem}
+h3{font-size:1.15rem;margin:1.75rem 0 .5rem}
+h4{font-size:1.05rem;margin:1.5rem 0 .5rem}
+.disclaimer{border:2px solid #9a6700;background:#fff8c5;padding:.75rem 1rem;border-radius:.375rem;font-weight:600}
+.synthetic{border:2px solid #cf222e;background:#ffebe9;padding:.5rem 1rem;border-radius:.375rem;font-weight:700}
+table{border-collapse:collapse;width:100%;margin:.5rem 0 1rem;font-size:.9375rem}
+caption{text-align:left;font-weight:600;padding:.25rem 0}
+th,td{border:1px solid var(--line);padding:.375rem .5rem;text-align:left;vertical-align:top}
+thead th{background:var(--soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;overflow-wrap:anywhere;word-break:break-word}
+.muted{color:var(--muted)}
+.impact{display:inline-block;padding:0 .4rem;border-radius:.25rem;border:1px solid currentColor;font-size:.8125rem;font-weight:600;text-transform:uppercase}
+.impact-critical{color:#a40e26}.impact-serious{color:#9a3412}.impact-moderate{color:#7c4a03}.impact-minor,.impact-unspecified,.impact-unknown{color:#374151}
+a{color:#0550ae}
+@media print{
+@page{margin:1.5cm}
+body{font-size:11pt}
+main{max-width:none;padding:0}
+.sheet{break-before:page}
+h2,h3,h4,caption{break-after:avoid}
+table{break-inside:auto}
+thead{display:table-header-group}
+tr,li{break-inside:avoid}
+a{color:inherit}
+a[href]::after{content:" (" attr(href) ")";font-size:.85em;overflow-wrap:anywhere}
+}</style>
+</head>
+<body>
+<main>
+<h1>Accessibility evidence report — demo.shop</h1>
+<p class="disclaimer" role="note">Automated testing only. Not a WCAG audit, certification or legal advice. Automated axe-core checks detect only a subset of accessibility issues. They do not cover all of WCAG or the European Accessibility Act (EAA), and this report is not a claim of full compliance.</p>
+<p class="synthetic" role="note">SYNTHETIC evidence — not a real audit or customer assessment.</p>
+<h2 id="scan">Scan details</h2>
+<table>
+<caption>Scan details</caption>
+<tbody>
+<tr><th scope="row">Generated</th><td><time datetime="2026-11-10T09:00:00.000Z">2026-11-10T09:00:00.000Z</time></td></tr>
+<tr><th scope="row">Commit</th><td><code>0123456789abcdef0123456789abcdef01234567</code></td></tr>
+<tr><th scope="row">Branch</th><td><code>feat/checkout</code></td></tr>
+<tr><th scope="row">A11yGate</th><td>0.1.0</td></tr>
+<tr><th scope="row">axe-core (current)</th><td>4.10.2</td></tr>
+<tr><th scope="row">axe-core (baseline)</th><td>4.10.2</td></tr>
+<tr><th scope="row">Gate</th><td>FAIL at threshold serious — 1 new finding at or above serious: color-contrast.</td></tr>
+<tr><th scope="row">Coverage</th><td>unverified</td></tr>
+</tbody>
+</table>
+<h2 id="summary">Summary</h2>
+<table>
+<caption>Current violations by severity</caption>
+<thead><tr><th scope="col">Severity</th><th scope="col" class="num">Current violations</th></tr></thead>
+<tbody>
+<tr><td>Critical</td><td class="num">1</td></tr>
+<tr><td>Serious</td><td class="num">4</td></tr>
+<tr><td>Moderate</td><td class="num">2</td></tr>
+<tr><td>Minor</td><td class="num">0</td></tr>
+<tr><td>Unknown</td><td class="num">0</td></tr>
+<tr><td>Total</td><td class="num">7</td></tr>
+</tbody>
+</table>
+<table>
+<caption>Violations by status</caption>
+<thead><tr><th scope="col">Status</th><th scope="col" class="num">Violations</th></tr></thead>
+<tbody>
+<tr><td>New</td><td class="num">2</td></tr>
+<tr><td>Baselined (still open)</td><td class="num">5</td></tr>
+<tr><td>Fixed</td><td class="num">3</td></tr>
+<tr><td>Unassessed (not verified fixed)</td><td class="num">0</td></tr>
+<tr><td>Current total</td><td class="num">7</td></tr>
+</tbody>
+</table>
+<p>Rules with current violations: 7. WCAG success criteria with findings: 7. Best-practice rules: 1.</p>
+<section class="sheet" aria-labelledby="pages">
+<h2 id="pages">Pages scanned</h2>
+<table>
+<caption>Pages scanned</caption>
+<thead><tr><th scope="col">Page</th><th scope="col">Scanned</th><th scope="col">axe-core</th><th scope="col">Scan</th><th scope="col" class="num">Violations</th><th scope="col" class="num">New</th><th scope="col" class="num">Baselined</th><th scope="col">In baseline</th></tr></thead>
+<tbody>
+<tr><td><code>https://demo.shop/</code></td><td>2026-10-15T09:00:00.000Z</td><td>4.10.2</td><td>complete</td><td class="num">2</td><td class="num">0</td><td class="num">2</td><td>yes</td></tr>
+<tr><td><code>https://demo.shop/cart</code></td><td>2026-10-15T09:00:10.000Z</td><td>4.10.2</td><td>complete</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td>yes</td></tr>
+<tr><td><code>https://demo.shop/products</code></td><td>2026-10-15T09:00:05.000Z</td><td>4.10.2</td><td>complete</td><td class="num">3</td><td class="num">1</td><td class="num">2</td><td>yes</td></tr>
+</tbody>
+</table>
+<h3>Coverage issues</h3>
+<ul>
+<li><strong>configuration-unrecorded</strong> on <code>/</code>: Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified.</li>
+<li><strong>configuration-unrecorded</strong> on <code>/cart</code>: Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified.</li>
+<li><strong>configuration-unrecorded</strong> on <code>/products</code>: Rule selection, exclusions, viewport and authentication context were not fully recorded; equivalence is unverified.</li>
+</ul>
+</section>
+<section class="sheet" aria-labelledby="trend">
+<h2 id="trend">Trend versus baseline</h2>
+<p>Total violations: 8 in the baseline, 7 now (-1): 2 new, 3 fixed, 5 still open.</p>
+<table>
+<caption>Violations per rule, baseline and current</caption>
+<thead><tr><th scope="col">Rule</th><th scope="col" class="num">New</th><th scope="col" class="num">Fixed</th><th scope="col" class="num">Still open</th><th scope="col" class="num">Baseline</th><th scope="col" class="num">Current</th><th scope="col" class="num">Change</th></tr></thead>
+<tbody>
+<tr><td><code>aria-required-attr</code></td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">-1</td></tr>
+<tr><td><code>document-title</code></td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">-1</td></tr>
+<tr><td><code>button-name</code></td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>color-contrast</code></td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>html-has-lang</code></td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>image-alt</code></td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>label</code></td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>link-name</code></td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td><code>region</code></td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">+1</td></tr>
+<tr><th scope="row">Total</th><td class="num">2</td><td class="num">3</td><td class="num">5</td><td class="num">8</td><td class="num">7</td><td class="num">-1</td></tr>
+</tbody>
+</table>
+</section>
+<section class="sheet" aria-labelledby="criteria">
+<h2 id="criteria">Findings by WCAG success criterion</h2>
+<p class="muted">WCAG success criteria are mapped from axe-core rule tags. The mapping needs expert review before it is relied on. A rule mapped to more than one criterion is listed under the first.</p>
+<h3 id="sc-1.1.1">WCAG 1.1.1 Non-text Content (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-image-alt"><code>image-alt</code> <span class="impact impact-serious">serious</span></h4>
+<p>Images must have alternative text (<a href="https://dequeuniversity.com/rules/axe/4.10/image-alt">rule documentation for image-alt</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.</li>
+<li>WCAG: 1.1.1 Non-text Content (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 1 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of image-alt</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Baselined (still open)</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/</code></td><td><code>#main:nth-child(5) &gt; img.hero-photo:nth-child(2)</code></td><td><code>&lt;img class=&quot;hero-photo&quot; src=&quot;/hero.jpg&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-1.3.1">WCAG 1.3.1 Info and Relationships (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-label"><code>label</code> <span class="impact impact-serious">serious</span></h4>
+<p>Form elements must have labels (<a href="https://dequeuniversity.com/rules/axe/4.10/label">rule documentation for label</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Associate a visible label with the control and expose instructions/errors programmatically.</li>
+<li>WCAG: 1.3.1 Info and Relationships (Level A, WCAG 2.1); 3.3.2 Labels or Instructions (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 1 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of label</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Baselined (still open)</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/cart</code></td><td><code>input.quantity</code></td><td><code>&lt;input class=&quot;quantity&quot; type=&quot;number&quot; value=&quot;1&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-1.4.3">WCAG 1.4.3 Contrast (Minimum) (Level AA, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-color-contrast"><code>color-contrast</code> <span class="impact impact-serious">serious</span></h4>
+<p>Elements must have sufficient color contrast (<a href="https://dequeuniversity.com/rules/axe/4.10/color-contrast">rule documentation for color-contrast</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.</li>
+<li>WCAG: 1.4.3 Contrast (Minimum) (Level AA, WCAG 2.1)</li>
+<li>Counts: 1 new, 0 baselined, 1 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of color-contrast</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/products</code></td><td><code>.product-card .price-tag</code></td><td><code>&lt;span class=&quot;price-tag&quot; style=&quot;color:#c8c4bd&quot;&gt;€12&lt;/span&gt;</code></td></tr>
+<tr><td>Fixed</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/</code></td><td><code>.legacy-banner</code></td><td><code>&lt;div class=&quot;legacy-banner&quot;&gt;Sale ends Sunday&lt;/div&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-2.4.2">WCAG 2.4.2 Page Titled (Level A, WCAG 2.1)</h3>
+<p>Current findings: 0.</p>
+<section class="rule">
+<h4 id="rule-document-title"><code>document-title</code> <span class="impact impact-serious">serious</span></h4>
+<p>Documents must have &lt;title&gt; element to aid in navigation (<a href="https://dequeuniversity.com/rules/axe/4.10/document-title">rule documentation for document-title</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Documents must have &lt;title&gt; element to aid in navigation Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 2.4.2 Page Titled (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 0 baselined, 1 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of document-title</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Fixed</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/cart</code></td><td><code>html</code></td><td><code>&lt;html lang=&quot;en&quot;&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-2.4.4">WCAG 2.4.4 Link Purpose (In Context) (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-link-name"><code>link-name</code> <span class="impact impact-moderate">moderate</span></h4>
+<p>Links must have discernible text (<a href="https://dequeuniversity.com/rules/axe/4.10/link-name">rule documentation for link-name</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Links must have discernible text Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 2.4.4 Link Purpose (In Context) (Level A, WCAG 2.1); 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 1 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of link-name</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Baselined (still open)</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://demo.shop/</code></td><td><code>a.footer-promo</code></td><td><code>&lt;a class=&quot;footer-promo&quot; href=&quot;/sale&quot;&gt;&lt;img src=&quot;/sale.png&quot;&gt;&lt;/a&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-3.1.1">WCAG 3.1.1 Language of Page (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-html-has-lang"><code>html-has-lang</code> <span class="impact impact-serious">serious</span></h4>
+<p>&lt;html&gt; element must have a lang attribute (<a href="https://dequeuniversity.com/rules/axe/4.10/html-has-lang">rule documentation for html-has-lang</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> &lt;html&gt; element must have a lang attribute Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 3.1.1 Language of Page (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 1 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of html-has-lang</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Baselined (still open)</td><td><span class="impact impact-serious">serious</span></td><td><code>https://demo.shop/products</code></td><td><code>html</code></td><td><code>&lt;html&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<h3 id="sc-4.1.2">WCAG 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</h3>
+<p>Current findings: 1.</p>
+<section class="rule">
+<h4 id="rule-button-name"><code>button-name</code> <span class="impact impact-critical">critical</span></h4>
+<p>Buttons must have discernible text (<a href="https://dequeuniversity.com/rules/axe/4.10/button-name">rule documentation for button-name</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Give the button a clear accessible name matching its visible purpose; prefer visible text.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 1 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of button-name</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Baselined (still open)</td><td><span class="impact impact-critical">critical</span></td><td><code>https://demo.shop/products</code></td><td><code>#ember9901 &gt; button.add-to-cart</code></td><td><code>&lt;button class=&quot;add-to-cart&quot; id=&quot;ember9901&quot;&gt;&lt;/button&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+<section class="rule">
+<h4 id="rule-aria-required-attr"><code>aria-required-attr</code> <span class="impact impact-critical">critical</span></h4>
+<p>Required ARIA attributes must be provided (<a href="https://dequeuniversity.com/rules/axe/4.10/aria-required-attr">rule documentation for aria-required-attr</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> Required ARIA attributes must be provided Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: 4.1.2 Name, Role, Value (Level A, WCAG 2.1)</li>
+<li>Counts: 0 new, 0 baselined, 1 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of aria-required-attr</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>Fixed</td><td><span class="impact impact-critical">critical</span></td><td><code>https://demo.shop/products</code></td><td><code>[role=&quot;slider&quot;]</code></td><td><code>&lt;div role=&quot;slider&quot;&gt;&lt;/div&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+</section>
+<section class="sheet" aria-labelledby="best-practice">
+<h2 id="best-practice">Best-practice rules (no WCAG success criterion)</h2>
+<section class="rule">
+<h3 id="rule-region"><code>region</code> <span class="impact impact-moderate">moderate</span></h3>
+<p>All page content should be contained by landmarks (<a href="https://dequeuniversity.com/rules/axe/4.10/region">rule documentation for region</a>)</p>
+<ul>
+<li><strong>How to fix:</strong> All page content should be contained by landmarks Consult the rule guidance and review the actual component; automated advice is not a verified fix.</li>
+<li>WCAG: none mapped (best practice)</li>
+<li>Counts: 1 new, 0 baselined, 0 fixed, 0 unassessed</li>
+</ul>
+<table>
+<caption>Occurrences of region</caption>
+<thead><tr><th scope="col">Status</th><th scope="col">Severity</th><th scope="col">Page</th><th scope="col">Selector</th><th scope="col">Element</th></tr></thead>
+<tbody>
+<tr><td>New</td><td><span class="impact impact-moderate">moderate</span></td><td><code>https://demo.shop/cart</code></td><td><code>body</code></td><td><code>&lt;body&gt;</code></td></tr>
+</tbody>
+</table>
+</section>
+</section>
+<h2 id="disclaimer">Disclaimer</h2>
+<p>Automated testing only. Not a WCAG audit, certification or legal advice. Automated axe-core checks detect only a subset of accessibility issues. They do not cover all of WCAG or the European Accessibility Act (EAA), and this report is not a claim of full compliance.</p>
+</main>
+</body>
+</html>

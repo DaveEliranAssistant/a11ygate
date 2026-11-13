@@ -5,6 +5,7 @@ import { parseArgs } from './args';
 import { helpText } from './help';
 import { runScan } from './scan';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
+import { buildEvidenceReport, inferReportFormat, parseSiteScan, renderEvidenceReport, type SiteScanSource } from '@/lib/evidence-report';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
 import { prSummaryMarkdown } from '@/lib/export-markdown';
@@ -20,6 +21,7 @@ export type RunIo = {
   stdout?: (chunk: string) => void;
   stderr?: (chunk: string) => void;
   now?: () => Date;
+  env?: Record<string, string | undefined>;
 };
 
 type ReadOk = { ok: true; documents: { name: string; text: string }[] };
@@ -142,6 +144,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   const stderr = io.stderr ?? ((chunk: string) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => new Date());
+  const env = io.env ?? process.env;
 
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
 
@@ -161,11 +164,19 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     stdout(`${await readVersion()}\n`);
     return 0;
   }
-  if (options.current.length === 0) {
-    stderr('Pass at least one current axe JSON file with --current.\n');
+  // `report --scan` reads the scan JSON's raw axe results as current input and --previous-scan as the baseline.
+  const currentFiles = options.scan ? [options.scan] : options.current;
+  const baselineFiles = options.scan ? (options.previousScan ? [options.previousScan] : []) : options.baseline;
+  if (currentFiles.length === 0) {
+    stderr(
+      options.command === 'report'
+        ? 'Pass a scan JSON with --scan, or at least one current axe JSON file with --current.\n'
+        : 'Pass at least one current axe JSON file with --current.\n',
+    );
     return 2;
   }
 
+  const reportOut = options.out && options.out !== '-' ? options.out : undefined;
   // Resolve symlinks and inode aliases before any output can overwrite input evidence.
   try {
   const identify = async (file: string) => {
@@ -177,9 +188,9 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     const info = await stat(absolute).catch(() => null);
     return {canonical, inode: info ? `${info.dev}:${info.ino}` : null};
   };
-  const inputs = await Promise.all([...options.current, ...options.baseline, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
-  const baselineProtectedInputs = await Promise.all([...options.current, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
-  const outputs = [options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
+  const inputs = await Promise.all([...currentFiles, ...baselineFiles, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
+  const baselineProtectedInputs = await Promise.all([...currentFiles, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
+  const outputs = [reportOut, options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
   const seen: Awaited<ReturnType<typeof identify>>[] = [];
   for (const output of outputs) {
     const id = await identify(output);
@@ -196,10 +207,19 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     return 2;
   }
 
-  const currentRead = await readDocuments(options.current, cwd);
+  const currentRead = await readDocuments(currentFiles, cwd);
   if (!currentRead.ok) {
     stderr(`${currentRead.error}\n`);
     return 2;
+  }
+  let siteScan: SiteScanSource | null = null;
+  if (options.scan) {
+    const parsedScan = parseSiteScan(currentRead.documents[0]?.text ?? '');
+    if (!parsedScan.ok) {
+      stderr(`${options.scan}: ${parsedScan.error}\n`);
+      return 2;
+    }
+    siteScan = parsedScan.scan;
   }
   const current = parseAxeDocuments(currentRead.documents);
   if (!current.ok) {
@@ -209,11 +229,20 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
 
   let baselineResults: AxeResults[] | null = null;
   let baselineSynthetic = false;
-  if (options.baseline.length > 0) {
-    const baselineRead = await readDocuments(options.baseline, cwd);
+  let previousScan: SiteScanSource | null = null;
+  if (baselineFiles.length > 0) {
+    const baselineRead = await readDocuments(baselineFiles, cwd);
     if (!baselineRead.ok) {
       stderr(`${baselineRead.error}\n`);
       return 2;
+    }
+    if (options.previousScan) {
+      const parsedPrevious = parseSiteScan(baselineRead.documents[0]?.text ?? '');
+      if (!parsedPrevious.ok) {
+        stderr(`${options.previousScan}: ${parsedPrevious.error}\n`);
+        return 2;
+      }
+      previousScan = parsedPrevious.scan;
     }
     const baseline = parseAxeDocuments(baselineRead.documents);
     if (!baseline.ok) {
@@ -242,8 +271,39 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     ? 'Missing, failed or materially incomparable scan coverage prevents a regression PASS.'
     : verdictReason(diff.newFindings, options.threshold);
   const projectName = inferProjectName(current.results);
-  const generatedAt = now().toISOString();
+  const generatedAt = options.generatedAt ?? now().toISOString();
   const version = await readVersion();
+
+  if (options.command === 'report') {
+    const report = buildEvidenceReport({
+      scan: siteScan ? { current: siteScan, previous: previousScan } : null,
+      generatedAt,
+      version,
+      projectName,
+      verdict,
+      threshold: options.threshold,
+      reason,
+      synthetic: current.synthetic || baselineSynthetic,
+      commit: options.commit ?? env.GITHUB_SHA ?? null,
+      branch: options.branch ?? (env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME || null),
+      current: current.results,
+      baseline: baselineResults,
+      diff,
+    });
+    const rendered = renderEvidenceReport(report, options.format ?? inferReportFormat(reportOut));
+    if (!reportOut) {
+      stdout(rendered);
+      return 0;
+    }
+    try {
+      await writeFile(resolveInput(cwd, reportOut), rendered, 'utf8');
+    } catch (error) {
+      stderr(`${writeFailure(reportOut, error)}\n`);
+      return 2;
+    }
+    stderr(`Wrote evidence report ${reportOut}\n`);
+    return 0;
+  }
   const markdown = prSummaryMarkdown({
     projectName,
     verdict,
