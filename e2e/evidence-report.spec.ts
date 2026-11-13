@@ -31,6 +31,12 @@ test('generates an HTML evidence report from the sample scan and axe-checks it o
   const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-report-e2e-'));
   try {
     const out = path.join(dir, 'report.html');
+    // GitHub Actions sets GITHUB_SHA and GITHUB_REF_NAME. The committed sample records neither,
+    // so drop those variables or the generated HTML will not match the saved report.
+    const env = { ...process.env };
+    delete env.GITHUB_SHA;
+    delete env.GITHUB_HEAD_REF;
+    delete env.GITHUB_REF_NAME;
     const generated = spawnSync(
       process.execPath,
       [
@@ -45,7 +51,7 @@ test('generates an HTML evidence report from the sample scan and axe-checks it o
         '--out',
         out,
       ],
-      { cwd: repoRoot, encoding: 'utf8' },
+      { cwd: repoRoot, encoding: 'utf8', env },
     );
     expect(generated.status, generated.stderr).toBe(0);
 
