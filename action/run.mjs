@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCommentBody, findA11yComment } from './comment.mjs';
+import { postSuggestions } from './suggestions.mjs';
 
 const actionDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,7 +48,7 @@ async function github(pathname, { method = 'GET', body, token, api }) {
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`GitHub comment failed (${response.status}). ${text.slice(0, 300)}`);
+    throw new Error(`GitHub request failed (${response.status}). ${text.slice(0, 300)}`);
   }
   if (!text) return null;
   return JSON.parse(text);
@@ -100,6 +101,43 @@ async function upsertComment(markdown) {
     body: { body },
     token,
     api,
+  });
+}
+
+function warning(message) {
+  process.stderr.write(`::warning::${String(message).replace(/\r?\n/g, ' ')}\n`);
+}
+
+/** Rule-based suggested changes. Failures only warn; they never change the exit code. */
+async function suggestFixes(jsonPath) {
+  const pr = (process.env.A11Y_PR_NUMBER || '').trim();
+  const token = process.env.A11Y_TOKEN || '';
+  const repo = process.env.A11Y_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
+  if (!/^\d+$/.test(pr) || !token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return;
+  let report;
+  try {
+    report = JSON.parse(readFileSync(jsonPath, 'utf8'));
+  } catch {
+    warning('A11yGate skipped suggested changes because the JSON result could not be read.');
+    return;
+  }
+  let api;
+  try {
+    api = apiOrigin();
+  } catch (error) {
+    warning(error instanceof Error ? error.message : 'Invalid GitHub API URL.');
+    return;
+  }
+  await postSuggestions({
+    report,
+    repo,
+    pr,
+    headSha: (process.env.A11Y_HEAD_SHA || '').trim(),
+    workspace: process.env.GITHUB_WORKSPACE || process.cwd(),
+    lang: (process.env.A11Y_SUGGEST_LANG || '').trim() || 'en',
+    github: (pathname, options = {}) => github(pathname, { ...options, token, api }),
+    warn: warning,
+    info: (message) => process.stdout.write(`${message}\n`),
   });
 }
 
@@ -182,6 +220,9 @@ if (isYes(process.env.A11Y_COMMENT)) {
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : 'Could not post the pull request comment.'}\n`);
       if (code === 0) code = 1;
+    }
+    if (isYes(process.env.A11Y_SUGGEST_FIXES ?? 'true')) {
+      await suggestFixes(paths.json);
     }
   }
 }

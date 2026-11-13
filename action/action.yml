@@ -33,6 +33,14 @@ inputs:
     description: Post or update a single pull request comment. true or false.
     required: false
     default: 'false'
+  suggest-fixes:
+    description: When comment is true, also post rule-based suggested changes as pull request review comments on lines in the diff. Needs pull-requests write. true or false.
+    required: false
+    default: 'true'
+  suggest-lang:
+    description: Language code used by the html-has-lang suggestion. A TODO(a11ygate) comment asks a human to confirm it.
+    required: false
+    default: en
   token:
     description: Token used to post the pull request comment. Defaults to the job token.
     required: false
@@ -68,7 +76,10 @@ runs:
         A11Y_JSON: ${{ inputs.json }}
         A11Y_UPDATE_BASELINE: ${{ inputs.update-baseline }}
         A11Y_COMMENT: ${{ inputs.comment }}
+        A11Y_SUGGEST_FIXES: ${{ inputs.suggest-fixes }}
+        A11Y_SUGGEST_LANG: ${{ inputs.suggest-lang }}
         A11Y_TOKEN: ${{ inputs.token }}
+        A11Y_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         A11Y_PR_NUMBER: ${{ github.event.pull_request.number }}
         A11Y_REPOSITORY: ${{ github.repository }}
         A11Y_API_URL: ${{ github.api_url }}
