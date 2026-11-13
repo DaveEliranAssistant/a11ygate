@@ -148,6 +148,12 @@ From a checkout of this repository, `uses: ./action` points at the same action. 
 
 `issues: write` lets the token create the pull request comment. The comment is skipped, with a warning, when the workflow event has no pull request number. Full input list: `action/README.md`.
 
+### Rule-based suggested changes
+
+The action in this repository's `action/` directory (not yet the published `v1`) can also post GitHub "suggested changes" on pull request lines. With `comment: true` and `suggest-fixes: true` (the default), it posts a review comment with a ```` ```suggestion ```` block for a new finding when a fixed, no-model rule applies and the element maps to exactly one line inside the pull request diff. The rules cover `label` (reuse the existing visible label), `button-name` and `link-name` (`aria-label` from a `title` or icon name, otherwise a placeholder), `image-alt` (`alt=""` plus a TODO comment), clickable `div`/`span` (to `<button type="button">`), and `html-has-lang` (`lang` from `suggest-lang`, default `en`, plus a TODO comment).
+
+A11yGate never commits. A person reviews each suggestion and clicks **Apply suggestion**. Text containing `TODO(a11ygate)` is a placeholder, not final text: it can make the automated check pass while the page is still not accessible, so replace it before merging. A11yGate never writes label, alt or aria text of its own. Findings outside the diff stay in the summary comment only. Line suggestions need `pull-requests: write` in addition to `issues: write`. A failed suggestion only logs a warning. These are automated checks of a few rules, not a full accessibility review or a compliance claim.
+
 ## Development
 
 ```bash

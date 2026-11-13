@@ -27,11 +27,34 @@ Or from a checkout of this repository:
 | `json` | temp file | Where to write the JSON result. |
 | `update-baseline` | empty | Path to overwrite with the current results. |
 | `comment` | `false` | Post or update a single pull request comment. |
-| `token` | `github.token` | Token for that comment. |
+| `suggest-fixes` | `true` | With `comment: true`, also post rule-based suggested changes on lines in the pull request diff. |
+| `suggest-lang` | `en` | Language code for the `html-has-lang` suggestion. |
+| `token` | `github.token` | Token for the comment and the suggested changes. |
 
 The comment is marked with `<!-- a11ygate -->` and updated in place on later runs. The job summary receives the same Markdown. The step exits with the CLI code: **0** pass, **1** new violations at or above the threshold, **2** unreadable input.
 
 Commenting needs `issues: write` so the token can create an issue comment on the pull request.
+
+## Suggested changes
+
+When `comment` and `suggest-fixes` are both true, the action also posts pull request review comments with a ```` ```suggestion ```` block. It does this only for **new** findings, only for these rule-based fixes, and only when the element maps to exactly one line inside the pull request diff:
+
+| axe rule | Suggestion |
+| --- | --- |
+| `label` | Connect the control to its existing visible `<label>` with `for`/`id` (`htmlFor` in JSX), or wrap the control in that label. No suggestion when there is no visible label text. |
+| `button-name`, `link-name` | Add `aria-label` from the control's `title` or the name of an icon inside it (image file name, icon name, icon component). Otherwise `aria-label="TODO(a11ygate): add accessible name"`. |
+| `image-alt` | Add `alt=""` and a `TODO(a11ygate)` comment asking a person to write a description or confirm the image is decorative. |
+| any rule on a `div`/`span` with `onclick` | Change the tag to `<button type="button">`, keeping every attribute and the handler. |
+| `html-has-lang` | Add `lang` from `suggest-lang` and a `TODO(a11ygate)` comment to confirm it. |
+
+- A11yGate never commits. A person reviews the suggestion and clicks **Apply suggestion**.
+- Text containing `TODO(a11ygate)` is a placeholder, not final text. It may make the automated check pass while the page is still inaccessible. Replace it before merging.
+- A11yGate never writes label, alt or aria text of its own.
+- The action reads changed files from the checkout (`GITHUB_WORKSPACE`), so run `actions/checkout` first. It matches the HTML that axe reports to source tags in changed `.html`, `.htm`, `.js`, `.mjs`, `.jsx` and `.tsx` files. An element that also matches somewhere else is skipped as ambiguous.
+- Findings outside the diff, or with no safe fix, appear only in the summary comment.
+- Each review comment contains `<!-- a11ygate-suggestion:<fingerprint> -->`. Later runs update or skip it instead of posting a duplicate.
+- Suggested changes need `pull-requests: write`. If posting one fails, the step logs a warning and keeps the gate's exit code.
+- This is an automated check of a few rules. It is not a full accessibility review and not a compliance certification.
 
 ## Copy-paste workflow
 
@@ -45,6 +68,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write # only for suggested changes
 
 jobs:
   a11y:
