@@ -79,5 +79,6 @@ Exit 2 means A11yGate could not produce a verdict. It is never a PASS.
 - GitLab: [local validation](../integrations/gitlab/README.md#local-validation).
 - Azure DevOps: [agent notes](integrations/azure-devops.md#agent-notes).
 - CircleCI: [validation status](integrations/circleci.md#validation-status).
+- Bitbucket Pipelines: [validation status](integrations/bitbucket.md#validation-status).
 
 See also [what A11yGate does not do](what-a11ygate-does-not-do.md).

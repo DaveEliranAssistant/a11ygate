@@ -1,0 +1,37 @@
+# A11yGate example Bitbucket Pipelines config. Copy a reviewed version to bitbucket-pipelines.yml
+# at the root of a repository you own, together with integrations/bitbucket/a11ygate-scan.sh.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+#
+# Scan only a local or explicitly authorized application. The step starts the app on loopback.
+# References:
+#   https://support.atlassian.com/bitbucket-cloud/docs/bitbucket-pipelines-configuration-reference/
+#   https://support.atlassian.com/bitbucket-cloud/docs/test-reporting-in-pipelines/
+#   https://support.atlassian.com/bitbucket-cloud/docs/use-artifacts-in-steps/
+
+# Node + Chromium. Keep the installed playwright package version aligned with this tag.
+image: mcr.microsoft.com/playwright:v1.64.1-noble
+
+pipelines:
+  # Pull request pipelines only: no default, branches, tags or custom pipelines.
+  pull-requests:
+    '**':
+      - step:
+          name: 'A11yGate: accessibility scan'
+          max-time: 30
+          script:
+            - npm ci
+            # Adapt the build/start commands to your application. Loopback only.
+            - npm run build
+            - npm run start -- --hostname 127.0.0.1 --port 3000 &
+            # Waits for the app on A11YGATE_URL (default http://127.0.0.1:3000), scans, writes JUnit,
+            # SARIF and reports, and packs evidence. Fail-on policy: minor, moderate, serious, critical or none.
+            # Exit 1 = findings at or above the policy; exit 2 = setup/scan error. Either fails the step.
+            - A11YGATE_FAIL_ON="${A11YGATE_FAIL_ON:-serious}" sh integrations/bitbucket/a11ygate-scan.sh
+          artifacts:
+            upload:
+              # JUnit is read from ./**/test-results/**/*.xml automatically; this keeps the files too.
+              - name: a11ygate-reports
+                type: shared
+                capture-on: always
+                paths:
+                  - test-results/a11ygate/**

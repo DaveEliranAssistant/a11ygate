@@ -131,7 +131,7 @@ describe('CI matrix', () => {
 
   it('has one row per supported CI, each linking a guide, the CI file and a test or recorded run', async () => {
     const table = await rows();
-    expect(table.map((row) => row.split('|')[1]?.trim())).toEqual(['GitHub Actions', 'Jenkins', 'GitLab', 'Azure DevOps', 'CircleCI']);
+    expect(table.map((row) => row.split('|')[1]?.trim())).toEqual(['GitHub Actions', 'Jenkins', 'GitLab', 'Azure DevOps', 'CircleCI', 'Bitbucket Pipelines']);
     for (const row of table) {
       const cells = row.split('|').map((cell) => cell.trim());
       expect(cells[2], row).toMatch(/\[Guide]\(/);
@@ -141,7 +141,7 @@ describe('CI matrix', () => {
   });
 
   it('states only what the tests and recorded runs show', async () => {
-    const [gh, jenkins, gitlab, azure, circle] = await rows();
+    const [gh, jenkins, gitlab, azure, circle, bitbucket] = await rows();
     const jenkinsGuide = await read('docs/integrations/jenkins.md');
     const run = /https:\/\/github\.com\/DaveEliranAssistant\/a11ygate\/actions\/runs\/\d+/.exec(jenkins as string)?.[0];
     expect(run).toBeTruthy();
@@ -155,13 +155,16 @@ describe('CI matrix', () => {
     expect(azure).toMatch(/No Azure DevOps organization/);
     expect(circle).toMatch(/`circleci config validate` has not been run/);
     expect(circle).toMatch(/CircleCI CLI and Docker were not available/);
+    expect(bitbucket).toMatch(/No Bitbucket pipeline has run it/);
+    expect(bitbucket).toMatch(/Docker was unavailable/);
     // The same gaps are recorded in each guide.
     expect(await read('docs/integrations/circleci.md')).toContain('`circleci config validate` has not been run on this config.');
+    expect(await read('docs/integrations/bitbucket.md')).toContain('No Bitbucket pipeline has run this config.');
     expect(await read('docs/integrations/azure-devops.md')).toContain('No Azure DevOps organization is needed or contacted');
     expect(await read('integrations/gitlab/README.md')).toContain('Docker is unavailable');
     expect(await read('tests/github-action-docs.test.ts')).toContain('runs the workflow gate command against the fixtures');
     // Only a recorded run may be called one.
-    for (const row of [gh, gitlab, azure, circle]) expect(row).not.toMatch(/recorded run|actions\/runs\//i);
+    for (const row of [gh, gitlab, azure, circle, bitbucket]) expect(row).not.toMatch(/recorded run|actions\/runs\//i);
   });
 });
 
