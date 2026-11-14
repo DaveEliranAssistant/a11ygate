@@ -536,10 +536,12 @@ var CRITERIA = SEEDS.map((seed) => ({
   number: seed.number,
   name: seed.name,
   level: seed.level,
-  en301549: `9.${seed.number}`,
+  // V3.2.1 clause 9 covers WCAG 2.1 only; WCAG 2.2 additions get no clause.
+  en301549: seed.wcag === "2.1" ? `9.${seed.number}` : null,
   wcag: seed.wcag
 }));
 var BY_TAG = new Map(CRITERIA.map((criterion) => [criterion.tag, criterion]));
+var BY_NUMBER = new Map(CRITERIA.map((criterion) => [criterion.number, criterion]));
 
 // lib/types.ts
 var IMPACTS = ["minor", "moderate", "serious", "critical"];

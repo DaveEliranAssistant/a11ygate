@@ -4,6 +4,7 @@ import { attribution } from '@/lib/scan/engines/dedupe';
 import { SITE_URL } from '@/lib/copy';
 import { FORMAT_DISCLAIMER, isDecidedFinding, type FormatFinding, type FormatReport, type FormatWcag } from '@/lib/report-formats';
 import { impactRank } from '@/lib/gate';
+import { EN301549_COLUMN, EN301549_LABEL, EN301549_SOURCE, en301549Ref } from '@/lib/mapping';
 import { componentGroupKey, groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import type { Impact as ImpactName } from '@/lib/types';
 
@@ -104,7 +105,20 @@ export type SarifLog = {
 
 export type ToSarifOptions = {
   limits?: Partial<GitHubSarifLimits>;
+  /** Opt-in: add the EN 301 549 reference (reference mapping only) to rule properties. Default off. */
+  en301549Ref?: boolean;
 };
+
+/** Rule property for the opt-in EN 301 549 reference column. The label travels with the values. */
+export function en301549RuleProperty(wcag: readonly FormatWcag[]) {
+  return {
+    column: EN301549_COLUMN,
+    label: EN301549_LABEL,
+    source: EN301549_SOURCE.title,
+    sourceUri: EN301549_SOURCE.url,
+    refs: wcag.map((item) => ({ wcag: item.number, en301549: en301549Ref(item.number) })),
+  };
+}
 
 export function sarifLevel(impact: ImpactName | null): SarifLevel {
   if (impact === 'critical' || impact === 'serious') return 'error';
@@ -353,6 +367,7 @@ function buildRun(
   engine: string,
   findings: FormatFinding[],
   limits: GitHubSarifLimits,
+  en301549 = false,
 ): SarifRun {
   const kept = findings.slice().sort(compareBySeverityThenStable);
   const droppedForCap = Math.max(0, kept.length - limits.retainedResultsPerRun);
@@ -380,7 +395,11 @@ function buildRun(
       helpUri: rule.helpUrl,
       help: { text: rule.help },
       defaultConfiguration: { level: sarifLevel(rule.impact) },
-      properties: { tags: wcagTags(rule.wcag, rule.tags, limits.maxTagsPerRule), impact: rule.impact ?? 'unspecified' },
+      properties: {
+        tags: wcagTags(rule.wcag, rule.tags, limits.maxTagsPerRule),
+        impact: rule.impact ?? 'unspecified',
+        ...(en301549 && rule.wcag.length > 0 ? { en301549Ref: en301549RuleProperty(rule.wcag) } : {}),
+      },
       ...(relationships.length > 0 ? { relationships } : {}),
     };
   });
@@ -593,10 +612,10 @@ export function toSarif(report: FormatReport, options: ToSarifOptions = {}): str
   for (const engine of engineOrder) {
     const findings = grouped.get(engine);
     if (!findings) continue;
-    runs.push(buildRun(report, engine, findings, limits));
+    runs.push(buildRun(report, engine, findings, limits, options.en301549Ref === true));
     if (runs.length >= limits.maxRunsPerFile) break;
   }
-  if (runs.length === 0) runs.push(buildRun(report, fallback, [], limits));
+  if (runs.length === 0) runs.push(buildRun(report, fallback, [], limits, options.en301549Ref === true));
 
   const log: SarifLog = {
     $schema: SARIF_SCHEMA_URL,

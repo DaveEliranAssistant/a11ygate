@@ -1,0 +1,62 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`EN 301 549 ref. column with the label everywhere it appears > CSV ticket export (snapshot) 1`] = `
+"﻿"status","rule","impact","page","selector","html","help","helpUrl","standards","fingerprint","EN 301 549 ref. (Reference mapping only; does not indicate conformance.)"
+"new","color-contrast","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","WCAG 2.1 1.4.3 Contrast (Minimum) (AA); EN 301 549 9.1.4.3","contrast|p|/","1.4.3: 9.1.4.3"
+"new","region","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","best practice","region|div|/",""
+"new","target-size","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","WCAG 2.2 2.5.8 Target Size (Minimum) (AA); not in EN 301 549 V3.2.1","target|b|/","2.5.8: not in EN 301 549 V3.2.1"
+"
+`;
+
+exports[`EN 301 549 ref. column with the label everywhere it appears > SARIF rule properties (snapshot) 1`] = `
+{
+  "color-contrast": {
+    "column": "EN 301 549 ref.",
+    "label": "Reference mapping only; does not indicate conformance.",
+    "refs": [
+      {
+        "en301549": "9.1.4.3",
+        "wcag": "1.4.3",
+      },
+    ],
+    "source": "ETSI EN 301 549 V3.2.1 (2021-03)",
+    "sourceUri": "https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf",
+  },
+  "label": {
+    "column": "EN 301 549 ref.",
+    "label": "Reference mapping only; does not indicate conformance.",
+    "refs": [
+      {
+        "en301549": "9.4.1.2",
+        "wcag": "4.1.2",
+      },
+      {
+        "en301549": "9.1.3.1",
+        "wcag": "1.3.1",
+      },
+    ],
+    "source": "ETSI EN 301 549 V3.2.1 (2021-03)",
+    "sourceUri": "https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf",
+  },
+  "region": undefined,
+  "target-size": {
+    "column": "EN 301 549 ref.",
+    "label": "Reference mapping only; does not indicate conformance.",
+    "refs": [
+      {
+        "en301549": "not in EN 301 549 V3.2.1",
+        "wcag": "2.5.8",
+      },
+    ],
+    "source": "ETSI EN 301 549 V3.2.1 (2021-03)",
+    "sourceUri": "https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf",
+  },
+}
+`;
+
+exports[`EN 301 549 ref. column with the label everywhere it appears > report v2 table (snapshot) 1`] = `
+"<table id="en301549-ref"><caption>EN 301 549 ref. — Reference mapping only; does not indicate conformance. Source: <a href="https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf">ETSI EN 301 549 V3.2.1 (2021-03)</a>, clause 9.</caption>
+<thead><tr><th scope="col">WCAG success criterion</th><th scope="col">WCAG version</th><th scope="col">EN 301 549 ref.</th></tr></thead>
+<tbody><tr><th scope="row">1.3.1 Info and Relationships (A)</th><td>2.1</td><td>9.1.3.1</td></tr><tr><th scope="row">1.4.3 Contrast (Minimum) (AA)</th><td>2.1</td><td>9.1.4.3</td></tr><tr><th scope="row">2.5.8 Target Size (Minimum) (AA)</th><td>2.2</td><td>not in EN 301 549 V3.2.1</td></tr><tr><th scope="row">4.1.2 Name, Role, Value (A)</th><td>2.1</td><td>9.4.1.2</td></tr></tbody></table>
+<p class="muted">Reference mapping only; does not indicate conformance.</p>"
+`;

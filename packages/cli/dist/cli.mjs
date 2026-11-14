@@ -202,6 +202,13 @@ var AUTOMATED_LIMITS = [
 ];
 
 // lib/mapping.ts
+var EN301549_SOURCE = {
+  title: "ETSI EN 301 549 V3.2.1 (2021-03)",
+  url: "https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf"
+};
+var EN301549_COLUMN = "EN 301 549 ref.";
+var EN301549_LABEL = "Reference mapping only; does not indicate conformance.";
+var EN301549_NOT_IN_EDITION = "not in EN 301 549 V3.2.1";
 var SEEDS = [
   { number: "1.1.1", name: "Non-text Content", level: "A", wcag: "2.1" },
   { number: "1.2.1", name: "Audio-only and Video-only (Prerecorded)", level: "A", wcag: "2.1" },
@@ -274,12 +281,21 @@ var CRITERIA = SEEDS.map((seed) => ({
   number: seed.number,
   name: seed.name,
   level: seed.level,
-  en301549: `9.${seed.number}`,
+  // V3.2.1 clause 9 covers WCAG 2.1 only; WCAG 2.2 additions get no clause.
+  en301549: seed.wcag === "2.1" ? `9.${seed.number}` : null,
   wcag: seed.wcag
 }));
 var BY_TAG = new Map(CRITERIA.map((criterion) => [criterion.tag, criterion]));
 function getCriterion(tag) {
   return BY_TAG.get(tag.toLowerCase()) ?? null;
+}
+var BY_NUMBER = new Map(CRITERIA.map((criterion) => [criterion.number, criterion]));
+function en301549Ref(number) {
+  return BY_NUMBER.get(number)?.en301549 ?? EN301549_NOT_IN_EDITION;
+}
+function en301549Inline(number) {
+  const clause = BY_NUMBER.get(number)?.en301549;
+  return clause ? `EN 301 549 ${clause}` : EN301549_NOT_IN_EDITION;
 }
 function lookupStandards(tags) {
   const hits = [];
@@ -297,7 +313,7 @@ function formatStandards(tags) {
   const hits = lookupStandards(tags);
   if (hits.length === 1 && hits[0]?.kind === "best-practice") return "best practice";
   return hits.filter((hit) => hit.kind === "criterion").map(
-    (hit) => `WCAG ${hit.wcag} ${hit.number} ${hit.name} (${hit.level}); EN 301 549 ${hit.en301549}`
+    (hit) => `WCAG ${hit.wcag} ${hit.number} ${hit.name} (${hit.level}); ${en301549Inline(hit.number)}`
   ).join(" | ");
 }
 var W3C_UNDERSTANDING_BASE = "https://www.w3.org/WAI/WCAG22/Understanding/";
@@ -1152,7 +1168,7 @@ function buildScanReport(input) {
 function groupByCriterion(findings) {
   const groups = /* @__PURE__ */ new Map();
   for (const finding2 of findings) {
-    const keys = finding2.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding2.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
+    const keys = finding2.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding2.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); ${en301549Inline(c.number)}` }));
     for (const { key, label } of keys) {
       const group2 = groups.get(key) ?? { key, label, findings: [] };
       group2.findings.push(finding2);
@@ -2573,8 +2589,8 @@ var DEFAULT_REPORT_VERSION = 2;
 function isReportVersion(value) {
   return REPORT_VERSIONS.includes(value);
 }
-function renderScanHtml(report, version = DEFAULT_REPORT_VERSION) {
-  return version === 1 ? scanHtml(report) : scanHtmlV2(report);
+function renderScanHtml(report, version = DEFAULT_REPORT_VERSION, options = {}) {
+  return version === 1 ? scanHtml(report) : scanHtmlV2(report, options);
 }
 var TOP_FIXES_LIMIT = 10;
 var IMPACT_ORDER = ["critical", "serious", "moderate", "minor", "unknown"];
@@ -2722,7 +2738,16 @@ function reviewSection(report) {
 ${body.replace("<h2>", '<h2 id="review-decisions-h">')}</section>
 `;
 }
-function byWcagSection(report, rules2) {
+function en301549RefTable(report) {
+  const criteria = /* @__PURE__ */ new Map();
+  for (const f of report.findings) for (const c of f.wcag) criteria.set(c.number, c);
+  const rows = [...criteria.values()].sort((a, b) => a.number.localeCompare(b.number, "en", { numeric: true })).map((c) => `<tr><th scope="row">${esc2(wcagLabel(c))}</th><td>${esc2(c.wcag)}</td><td>${esc2(en301549Ref(c.number))}</td></tr>`).join("");
+  return `<table id="en301549-ref"><caption>${esc2(EN301549_COLUMN)} \u2014 ${esc2(EN301549_LABEL)} Source: <a href="${esc2(EN301549_SOURCE.url)}">${esc2(EN301549_SOURCE.title)}</a>, clause 9.</caption>
+<thead><tr><th scope="col">WCAG success criterion</th><th scope="col">WCAG version</th><th scope="col">${esc2(EN301549_COLUMN)}</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="3">No WCAG success criterion mapped in this scan.</td></tr>`}</tbody></table>
+<p class="muted">${esc2(EN301549_LABEL)}</p>`;
+}
+function byWcagSection(report, rules2, options = {}) {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules2.map((r, i) => [r.ruleId, ruleAnchor(i)]));
   const body = groups.length === 0 ? "<p>None detected.</p>" : groups.map((g) => {
@@ -2734,7 +2759,7 @@ function byWcagSection(report, rules2) {
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
 <h2 id="by-wcag-h">Findings by WCAG success criterion</h2>
 <p class="muted">A finding mapped to two criteria is listed under both. The criterion mapping is a static crosswalk and needs expert review before it is used as evidence.</p>
-${body}
+${options.en301549Ref ? en301549RefTable(report) + "\n" : ""}${body}
 </section>`;
 }
 function pageFinding(f) {
@@ -2809,7 +2834,7 @@ a{color:#000;text-decoration:underline}
 h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
 #top-fixes,#how-to-fix,#limits{break-before:page}
 }`;
-function scanHtmlV2(report) {
+function scanHtmlV2(report, options = {}) {
   const rules2 = summarizeRules(report.findings);
   return `<!doctype html>
 <html lang="en">
@@ -2842,7 +2867,7 @@ ${report.findings.some((f) => f.reviewDecision) ? '<li><a href="#review-decision
 ${summarySection(report)}
 ${topFixesSection(rules2)}
 ${sharedComponentsSection(report)}
-${reviewSection(report)}${byWcagSection(report, rules2)}
+${reviewSection(report)}${byWcagSection(report, rules2, options)}
 ${byPageSection(report)}
 ${howToFixSection(rules2)}
 ${limitsSection(report)}
@@ -3112,6 +3137,15 @@ var GITHUB_SARIF_LIMITS = {
   }
 };
 var DEFAULT_ENGINE = "axe";
+function en301549RuleProperty(wcag) {
+  return {
+    column: EN301549_COLUMN,
+    label: EN301549_LABEL,
+    source: EN301549_SOURCE.title,
+    sourceUri: EN301549_SOURCE.url,
+    refs: wcag.map((item) => ({ wcag: item.number, en301549: en301549Ref(item.number) }))
+  };
+}
 function sarifLevel(impact) {
   if (impact === "critical" || impact === "serious") return "error";
   if (impact === "moderate") return "warning";
@@ -3304,7 +3338,7 @@ function toSarifResult(finding2, ruleIndex) {
     }
   };
 }
-function buildRun(report, engine, findings, limits) {
+function buildRun(report, engine, findings, limits, en301549 = false) {
   const kept = findings.slice().sort(compareBySeverityThenStable);
   const droppedForCap = Math.max(0, kept.length - limits.retainedResultsPerRun);
   if (kept.length > limits.retainedResultsPerRun) kept.length = limits.retainedResultsPerRun;
@@ -3326,7 +3360,11 @@ function buildRun(report, engine, findings, limits) {
       helpUri: rule.helpUrl,
       help: { text: rule.help },
       defaultConfiguration: { level: sarifLevel(rule.impact) },
-      properties: { tags: wcagTags(rule.wcag, rule.tags, limits.maxTagsPerRule), impact: rule.impact ?? "unspecified" },
+      properties: {
+        tags: wcagTags(rule.wcag, rule.tags, limits.maxTagsPerRule),
+        impact: rule.impact ?? "unspecified",
+        ...en301549 && rule.wcag.length > 0 ? { en301549Ref: en301549RuleProperty(rule.wcag) } : {}
+      },
       ...relationships.length > 0 ? { relationships } : {}
     };
   });
@@ -3507,10 +3545,10 @@ function toSarif(report, options = {}) {
   for (const engine of engineOrder) {
     const findings = grouped.get(engine);
     if (!findings) continue;
-    runs.push(buildRun(report, engine, findings, limits));
+    runs.push(buildRun(report, engine, findings, limits, options.en301549Ref === true));
     if (runs.length >= limits.maxRunsPerFile) break;
   }
-  if (runs.length === 0) runs.push(buildRun(report, fallback, [], limits));
+  if (runs.length === 0) runs.push(buildRun(report, fallback, [], limits, options.en301549Ref === true));
   const log = {
     $schema: SARIF_SCHEMA_URL,
     version: SARIF_VERSION,
@@ -4457,6 +4495,11 @@ function parseScanArgs(argv) {
       options.autoInteractions = true;
       continue;
     }
+    if (name === "--en301549-ref") {
+      if (inline !== void 0) return { ok: false, error: "--en301549-ref takes no value." };
+      options.en301549Ref = true;
+      continue;
+    }
     if (name === "--ignore-robots") {
       if (inline !== void 0) return { ok: false, error: "--ignore-robots takes no value." };
       options.ignoreRobots = true;
@@ -4635,6 +4678,9 @@ Options:
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
                        grouping, how-to-fix links. 1: the previous HTML, byte-for-byte.
+  --en301549-ref       Opt in: add an "EN 301 549 ref." column (ETSI EN 301 549 V3.2.1
+                       clause 9) to HTML v2 and SARIF rule properties. Reference mapping
+                       only; does not indicate conformance. Default off.
   --delay-ms <ms>      Pause between page loads. Default: ${DEFAULT_DELAY_MS}.
 
 Requires the optional peer dependencies:
@@ -5065,17 +5111,17 @@ async function writeScanReport(report, options, io, engine) {
     if (decided) extra.push([path5.join(options.outDir, "codequality-decided.json"), decided]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path5.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
+    extra.push([path5.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
   }
   const targets = options.outDir ? [
     [path5.join(options.outDir, "a11ygate-scan.json"), json],
     [path5.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path5.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion)],
+    [path5.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
     [options.markdown, markdown],
-    [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ""]
+    [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true }) : ""]
   ];
   try {
     if (typeof options.interactions === "string" || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {

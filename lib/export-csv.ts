@@ -1,4 +1,4 @@
-import { formatStandards } from '@/lib/mapping';
+import { EN301549_COLUMN, EN301549_LABEL, en301549Ref, formatStandards, lookupStandards } from '@/lib/mapping';
 import type { DiffedFinding } from '@/lib/types';
 
 const COLUMNS = [
@@ -19,8 +19,23 @@ function csvField(value: string): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-export function findingsToCsv(findings: readonly DiffedFinding[]): string {
-  const header = COLUMNS.map((column) => csvField(column)).join(',');
+/** Header of the opt-in EN 301 549 column; the label is part of the header so it travels with the column. */
+export const CSV_EN301549_HEADER = `${EN301549_COLUMN} (${EN301549_LABEL})`;
+
+export type CsvOptions = {
+  /** Opt-in: append an "EN 301 549 ref." column (reference mapping only). Default off. */
+  en301549Ref?: boolean;
+};
+
+function en301549Cell(tags: readonly string[]): string {
+  return lookupStandards(tags)
+    .flatMap((hit) => (hit.kind === 'criterion' ? [`${hit.number}: ${en301549Ref(hit.number)}`] : []))
+    .join(' | ');
+}
+
+export function findingsToCsv(findings: readonly DiffedFinding[], options: CsvOptions = {}): string {
+  const columns: string[] = options.en301549Ref ? [...COLUMNS, CSV_EN301549_HEADER] : [...COLUMNS];
+  const header = columns.map((column) => csvField(column)).join(',');
   const rows = findings.map((finding) =>
     [
       finding.status,
@@ -33,6 +48,7 @@ export function findingsToCsv(findings: readonly DiffedFinding[]): string {
       finding.helpUrl,
       formatStandards(finding.tags),
       finding.fingerprint,
+      ...(options.en301549Ref ? [en301549Cell(finding.tags)] : []),
     ]
       .map((value) => csvField(value))
       .join(','),

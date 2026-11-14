@@ -34,6 +34,8 @@ import { loadEffectiveConfig } from './effective-config';
 
 export type ScanOptions = AuthOptions & {
   keyboard?: boolean;
+  /** Opt-in EN 301 549 reference column in HTML v2 and SARIF rule properties. */
+  en301549Ref?: boolean;
   keyboardBudget?: number;
   interactions?: string | InteractionState[];
   autoInteractions?: boolean;
@@ -103,6 +105,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (name === '--auto-interactions') {
       if (inline !== undefined) return { ok: false, error: '--auto-interactions takes no value.' };
       options.autoInteractions = true; continue;
+    }
+    if (name === '--en301549-ref') {
+      if (inline !== undefined) return { ok: false, error: '--en301549-ref takes no value.' };
+      options.en301549Ref = true; continue;
     }
     if (name === '--ignore-robots') {
       if (inline !== undefined) return { ok: false, error: '--ignore-robots takes no value.' };
@@ -281,6 +287,9 @@ Options:
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
                        grouping, how-to-fix links. 1: the previous HTML, byte-for-byte.
+  --en301549-ref       Opt in: add an "EN 301 549 ref." column (ETSI EN 301 549 V3.2.1
+                       clause 9) to HTML v2 and SARIF rule properties. Reference mapping
+                       only; does not indicate conformance. Default off.
   --delay-ms <ms>      Pause between page loads. Default: ${DEFAULT_DELAY_MS}.
 
 Requires the optional peer dependencies:
@@ -719,19 +728,19 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
     if (decided) extra.push([path.join(options.outDir, 'codequality-decided.json'), decided]);
   }
   if (options.outDir && options.formats.includes('sarif')) {
-    extra.push([path.join(options.outDir, formatFileName('scan', 'sarif')), toSarif(formatReport)]);
+    extra.push([path.join(options.outDir, formatFileName('scan', 'sarif')), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
   }
   const targets: [string | undefined, string][] = options.outDir
     ? [
         [path.join(options.outDir, 'a11ygate-scan.json'), json],
         [path.join(options.outDir, 'a11ygate-scan.md'), markdown],
-        [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion)],
+        [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
         ...extra,
       ]
     : [
         [options.json === '-' ? undefined : options.json, json],
         [options.markdown, markdown],
-        [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ''],
+        [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true }) : ''],
       ];
   try {
     if (typeof options.interactions === 'string' || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {

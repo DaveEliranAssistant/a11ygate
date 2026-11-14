@@ -19,7 +19,7 @@ import { AUTOMATED_LIMITS, AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCL
 import { impactRank } from '@/lib/gate';
 import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { findingGuidance } from '@/lib/guidance';
-import { understandingUrl } from '@/lib/mapping';
+import { EN301549_COLUMN, EN301549_LABEL, EN301549_SOURCE, en301549Ref, understandingUrl } from '@/lib/mapping';
 import { groupByCriterion, reviewDecisionsHtml, scanHtml, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 import type { Finding, Impact } from '@/lib/types';
 
@@ -31,9 +31,14 @@ export function isReportVersion(value: unknown): value is ReportVersion {
   return (REPORT_VERSIONS as readonly unknown[]).includes(value);
 }
 
+export type ScanHtmlOptions = {
+  /** Opt-in: add the "EN 301 549 ref." column (reference mapping only) to report v2. Default off. */
+  en301549Ref?: boolean;
+};
+
 /** Render the HTML report. Version 1 is the legacy, byte-stable layout. */
-export function renderScanHtml(report: ScanReport, version: ReportVersion = DEFAULT_REPORT_VERSION): string {
-  return version === 1 ? scanHtml(report) : scanHtmlV2(report);
+export function renderScanHtml(report: ScanReport, version: ReportVersion = DEFAULT_REPORT_VERSION, options: ScanHtmlOptions = {}): string {
+  return version === 1 ? scanHtml(report) : scanHtmlV2(report, options);
 }
 
 export const TOP_FIXES_LIMIT = 10;
@@ -207,7 +212,25 @@ ${body.replace('<h2>', '<h2 id="review-decisions-h">')}</section>
 `;
 }
 
-function byWcagSection(report: ScanReport, rules: RuleSummary[]): string {
+/**
+ * Opt-in table: WCAG success criterion -> EN 301 549 V3.2.1 clause. The source
+ * URL comes from lib/mapping.ts (no URL literal here). The label is always
+ * rendered with the column.
+ */
+export function en301549RefTable(report: ScanReport): string {
+  const criteria = new Map<string, ScanCriterion>();
+  for (const f of report.findings) for (const c of f.wcag) criteria.set(c.number, c);
+  const rows = [...criteria.values()]
+    .sort((a, b) => a.number.localeCompare(b.number, 'en', { numeric: true }))
+    .map((c) => `<tr><th scope="row">${esc(wcagLabel(c))}</th><td>${esc(c.wcag)}</td><td>${esc(en301549Ref(c.number))}</td></tr>`)
+    .join('');
+  return `<table id="en301549-ref"><caption>${esc(EN301549_COLUMN)} — ${esc(EN301549_LABEL)} Source: <a href="${esc(EN301549_SOURCE.url)}">${esc(EN301549_SOURCE.title)}</a>, clause 9.</caption>
+<thead><tr><th scope="col">WCAG success criterion</th><th scope="col">WCAG version</th><th scope="col">${esc(EN301549_COLUMN)}</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="3">No WCAG success criterion mapped in this scan.</td></tr>`}</tbody></table>
+<p class="muted">${esc(EN301549_LABEL)}</p>`;
+}
+
+function byWcagSection(report: ScanReport, rules: RuleSummary[], options: ScanHtmlOptions = {}): string {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules.map((r, i) => [r.ruleId, ruleAnchor(i)]));
   const body = groups.length === 0
@@ -224,7 +247,7 @@ function byWcagSection(report: ScanReport, rules: RuleSummary[]): string {
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
 <h2 id="by-wcag-h">Findings by WCAG success criterion</h2>
 <p class="muted">A finding mapped to two criteria is listed under both. The criterion mapping is a static crosswalk and needs expert review before it is used as evidence.</p>
-${body}
+${options.en301549Ref ? en301549RefTable(report) + '\n' : ''}${body}
 </section>`;
 }
 
@@ -310,7 +333,7 @@ h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
 }`;
 
 /** Self-contained HTML (inline CSS, no scripts, no remote assets). */
-export function scanHtmlV2(report: ScanReport): string {
+export function scanHtmlV2(report: ScanReport, options: ScanHtmlOptions = {}): string {
   const rules = summarizeRules(report.findings);
   return `<!doctype html>
 <html lang="en">
@@ -343,7 +366,7 @@ ${report.findings.some((f) => f.reviewDecision) ? '<li><a href="#review-decision
 ${summarySection(report)}
 ${topFixesSection(rules)}
 ${sharedComponentsSection(report)}
-${reviewSection(report)}${byWcagSection(report, rules)}
+${reviewSection(report)}${byWcagSection(report, rules, options)}
 ${byPageSection(report)}
 ${howToFixSection(rules)}
 ${limitsSection(report)}
