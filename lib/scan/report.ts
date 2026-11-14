@@ -7,6 +7,7 @@ import { impactRank, meetsThreshold } from '@/lib/gate';
 import { SHARED_COMPONENT_DISCLAIMER, groupSharedComponents, type SharedComponentGroup, groupFindings } from '@/lib/group';
 import { CRITERIA, lookupStandards, type Criterion } from '@/lib/mapping';
 import { normalizeAxeResults, toLegacyFinding } from '@/lib/scan/engines/normalized';
+import { decisionLabel, decisionSummary, REVIEW_DECISION_NOTICE, reviewedGroups, type AppliedReviewDecision } from '@/lib/scan/review';
 import type { CrawlResult, SkippedLink } from '@/lib/scan/crawl';
 import { IMPACTS, type AxeResults, type Finding, type Impact } from '@/lib/types';
 
@@ -33,6 +34,8 @@ export type ScanFinding = Partial<Agreement> & {
   states?: string[];
   baselineStatus?: 'new' | 'existing';
   baselineFingerprint?: string;
+  /** Present only when a baseline carries a reviewer decision for this finding's component group (R39). */
+  reviewDecision?: import('./review').AppliedReviewDecision;
   pageUrl: string;
   ruleId: string;
   impact: Impact | null;
@@ -128,7 +131,7 @@ export function toScanFinding(finding: Finding, result: AxeResults): ScanFinding
 
 export function gatingScanFindings(findings: readonly ScanFinding[], failOn: FailOn): ScanFinding[] {
   if (failOn === 'none') return [];
-  return findings.filter((f) => f.baselineStatus !== 'existing' && meetsThreshold(f.impact, failOn));
+  return findings.filter((f) => f.baselineStatus !== 'existing' && !f.reviewDecision?.suppressesGate && meetsThreshold(f.impact, failOn));
 }
 
 /** 0 = nothing at or above --fail-on, 1 = at least one finding meets it. Errors (2) are decided by the caller. */
@@ -335,7 +338,7 @@ function heading(value: string): string {
 }
 
 function mdFinding(f: ScanFinding): string {
-  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — states: ' + f.states.map(code).join(', ') : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''}${f.reviewDecision ? ' [review: ' + decisionLabel(f.reviewDecision) + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — states: ' + f.states.map(code).join(', ') : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 
 export function scanMarkdown(report: ScanReport): string {
@@ -373,6 +376,7 @@ export function scanMarkdown(report: ScanReport): string {
   for (const group of bySeverity) {
     lines.push(`### ${heading(group.label)} (${group.findings.length})`, '', ...group.findings.map(mdFinding), '');
   }
+  lines.push(...reviewMarkdown(report));
   const robotsSkipped = report.skipped.filter((s) => s.reason === 'robots' || s.reason === 'cap');
   if (robotsSkipped.length > 0) {
     lines.push('## Not scanned', '', ...robotsSkipped.map((s) => `- ${cell(s.url)} — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}`), '');
@@ -387,6 +391,37 @@ export function scanMarkdown(report: ScanReport): string {
   return lines.join('\n');
 }
 
+export function gateEffect(d: AppliedReviewDecision): string {
+  if (d.suppressesGate) return 'excluded from the gate by this decision; still listed for review';
+  if (d.expired) return 'decision expired; findings gate again';
+  return 'still gated';
+}
+
+/** R39: decided findings keep their own section, so no decision hides a finding. Empty without decisions. */
+function reviewMarkdown(report: ScanReport): string[] {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return [];
+  return ['## Review decisions (likely shared components)', '', cell(REVIEW_DECISION_NOTICE), '',
+    ...groups.flatMap(({ decision: d, findings }) => [
+      `### ${code(d.group)} — ${heading(d.ruleId)} — ${findings.length} finding${findings.length === 1 ? '' : 's'} on ${new Set(findings.map((f) => f.pageUrl)).size} page(s)`, '',
+      `Normalized selector: ${code(d.normalizedSelector)}`, '',
+      `Decision: ${cell(decisionSummary(d))}. Gate: ${gateEffect(d)}.`, '',
+      ...sortFindings(findings).map(mdFinding), '']),
+    AUTOMATED_TESTING_DISCLAIMER, ''];
+}
+
+function reviewHtml(report: ScanReport): string {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return '';
+  return `<h2>Review decisions (likely shared components)</h2><p>${esc(REVIEW_DECISION_NOTICE)}</p>` +
+    groups.map(({ decision: d, findings }) => `<section><h3><code>${esc(d.group)}</code> — ${esc(d.ruleId)} (${findings.length})</h3><p>Normalized selector: <code>${esc(d.normalizedSelector)}</code></p><p>Decision: ${esc(decisionSummary(d))}. Gate: ${esc(gateEffect(d))}.</p><ul>${sortFindings(findings).map(htmlFinding).join('')}</ul></section>`).join('') +
+    `<p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>
+`;
+}
+
+/** Shared with the v2 renderer; empty string without decisions so existing output is unchanged. */
+export function reviewDecisionsHtml(report: ScanReport): string { return reviewHtml(report); }
+
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -396,7 +431,7 @@ function safeHref(url: string): string {
 }
 
 function htmlFinding(f: ScanFinding): string {
-  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''}${f.states?.length ? '<br>States: ' + f.states.map(esc).join(', ') : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}${f.reviewDecision ? 'review: ' + esc(decisionLabel(f.reviewDecision)) + ': ' : ''}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''}${f.states?.length ? '<br>States: ' + f.states.map(esc).join(', ') : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 
 function htmlGroups(title: string, groups: ScanGroup[]): string {
@@ -438,7 +473,7 @@ ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups('Findings by WCAG criterion', groupByCriterion(report.findings))}
 ${htmlGroups('Findings by severity', groupBySeverity(report.findings))}
-${report.skipped.some((s) => s.reason !== 'robots' && s.reason !== 'cap') ? '<h2>Skipped pages</h2><ul>' + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> — ${esc(s.reason)}</li>`).join('') + '</ul>\n' : ''}${report.engines ? '<h2>Engines used / engines errored</h2><p>Engines used: ' + esc(report.engines.used.join(', ') || 'none') + '.</p><p>Engines errored: ' + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : 'none') + '.</p><p>' + esc(AUTOMATED_TESTING_DISCLAIMER) + '</p>\n' : ''}<h2>Scope and boundaries</h2>
+${reviewHtml(report)}${report.skipped.some((s) => s.reason !== 'robots' && s.reason !== 'cap') ? '<h2>Skipped pages</h2><ul>' + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> — ${esc(s.reason)}</li>`).join('') + '</ul>\n' : ''}${report.engines ? '<h2>Engines used / engines errored</h2><p>Engines used: ' + esc(report.engines.used.join(', ') || 'none') + '.</p><p>Engines errored: ' + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : 'none') + '.</p><p>' + esc(AUTOMATED_TESTING_DISCLAIMER) + '</p>\n' : ''}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>

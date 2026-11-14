@@ -2,6 +2,7 @@ import { normalizeLocator } from './engines/dedupe';
 import { normalizeUrl } from './url';
 import { gatingScanFindings, type ScanFinding, type ScanReport } from './report';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { applyGroupDecisions, validateGroupDecision, type GroupDecision } from './review';
 
 export type BaselineEntry = { fingerprint: string; pageUrl: string; ruleId: string; selector: string };
 export type FingerprintBaseline = {
@@ -10,6 +11,8 @@ export type FingerprintBaseline = {
   disclaimer: string;
   engines?: string[];
   findings: BaselineEntry[];
+  /** Optional reviewer decisions keyed by component group (R39). Absent unless a11ygate review wrote one. */
+  groupDecisions?: GroupDecision[];
 };
 export type BaselineSummary = { new: number; existing: number; fixed: number; unassessed: number };
 
@@ -48,6 +51,11 @@ export function parseFingerprintBaseline(value: unknown): FingerprintBaseline {
   }
   if (b.engines !== undefined && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== 'string'))) throw new Error('Invalid baseline engine coverage.');
   if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error('Duplicate baseline fingerprints.');
+  if (b.groupDecisions !== undefined) {
+    if (!Array.isArray(b.groupDecisions)) throw new Error('Invalid baseline group decisions.');
+    b.groupDecisions.forEach(validateGroupDecision);
+    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error('Duplicate group decisions.');
+  }
   return b as FingerprintBaseline;
 }
 
@@ -65,13 +73,17 @@ export function parseScanReport(value: unknown): ScanReport {
   return report;
 }
 
-export function applyFingerprintBaseline(report: ScanReport, baseline: FingerprintBaseline): ScanReport {
+export function applyFingerprintBaseline(report: ScanReport, baseline: FingerprintBaseline, now: Date = new Date()): ScanReport {
   const known = new Set(baseline.findings.map((f) => f.fingerprint));
   const current = new Set(report.findings.map(baselineFingerprint));
-  const findings = report.findings.map((f, index) => {
-    const fingerprint = baselineFingerprint(f, index);
+  const baselined = report.findings.map((finding, index) => {
+    const fingerprint = baselineFingerprint(finding, index);
+    // Decisions are recomputed against this baseline (and today's date), never carried over from a saved report.
+    const { reviewDecision: _stale, ...f } = finding;
+    void _stale;
     return { ...f, baselineFingerprint: fingerprint, baselineStatus: known.has(fingerprint) ? 'existing' as const : 'new' as const };
   });
+  const findings = baseline.groupDecisions?.length ? applyGroupDecisions(baselined, baseline.groupDecisions, now) : baselined;
   const complete = new Set(report.pages.filter((p) => p.scanStatus === 'complete').flatMap((p) => [p.url, p.finalUrl]).map((url) => normalizeUrl(url) ?? url));
   const missing = baseline.findings.filter((f) => !current.has(f.fingerprint));
   // Engine errors make missing findings unassessed; absence is not evidence of a fix.
@@ -81,8 +93,9 @@ export function applyFingerprintBaseline(report: ScanReport, baseline: Fingerpri
   const summary = { new: findings.filter((f) => f.baselineStatus === 'new').length,
     existing: findings.filter((f) => f.baselineStatus === 'existing').length, fixed, unassessed: missing.length - fixed };
   const gating = gatingScanFindings(findings, report.failOn);
+  const reviewed = report.failOn === 'none' ? 0 : gatingScanFindings((findings as ScanFinding[]).map((f) => ({ ...f, reviewDecision: undefined })), report.failOn).length - gating.length;
   return { ...report, findings, baseline: summary,
     verdict: report.verdict === 'ERROR' ? 'ERROR' : gating.length ? 'FAIL' : 'PASS',
-    reason: report.verdict === 'ERROR' ? report.reason : report.failOn === 'none' ? 'Reporting only (--fail-on none).' : `${gating.length} new finding${gating.length === 1 ? '' : 's'} at or above ${report.failOn}.`,
+    reason: report.verdict === 'ERROR' ? report.reason : report.failOn === 'none' ? 'Reporting only (--fail-on none).' : `${gating.length} new finding${gating.length === 1 ? '' : 's'} at or above ${report.failOn}.${reviewed ? ` ${reviewed} new finding${reviewed === 1 ? '' : 's'} excluded from the gate by review decisions (still listed below).` : ''}`,
     disclaimer: AUTOMATED_TESTING_DISCLAIMER };
 }

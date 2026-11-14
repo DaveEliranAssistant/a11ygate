@@ -6,6 +6,7 @@ import { parseArgs } from './args';
 import { helpText } from './help';
 import { runReport, runScan } from './scan';
 import { runBaseline } from './baseline';
+import { runReview } from './review';
 import { runEvidence } from './evidence';
 import { runDoctor } from './doctor';
 import { runInit } from './init';
@@ -162,6 +163,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   if (argv[0] === 'doctor') return runDoctor(argv.slice(1), io);
   if (argv[0] === 'config') return runConfig(argv.slice(1), io);
   if (argv[0] === 'baseline') return runBaseline(argv.slice(1), io);
+  if (argv[0] === 'review') return runReview(argv.slice(1), io);
   if (argv[0] === 'report') return runReport(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === 'evidence') return runEvidence(argv.slice(1), { ...io, version: await readVersion() });

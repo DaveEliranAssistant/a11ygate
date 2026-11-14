@@ -49,15 +49,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path11 = parsed.pathname || "/";
-    if (path11.length > 1 && path11.endsWith("/")) path11 = path11.slice(0, -1);
-    return path11 || "/";
+    let path12 = parsed.pathname || "/";
+    if (path12.length > 1 && path12.endsWith("/")) path12 = path12.slice(0, -1);
+    return path12 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path11 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path11.length > 1 && path11.endsWith("/")) path11 = path11.slice(0, -1);
-    return path11;
+    let path12 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path12.length > 1 && path12.endsWith("/")) path12 = path12.slice(0, -1);
+    return path12;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -146,9 +146,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path11 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path12 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path11, html, !html || path11.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path12, html, !html || path12.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -179,8 +179,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir4, readFile as readFile7, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
-import path10 from "node:path";
+import { mkdir as mkdir4, readFile as readFile8, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile6 } from "node:fs/promises";
+import path11 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -508,21 +508,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path11) {
+function readImpact(value, path12) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path11} must be minor, moderate, serious, critical, or null`
+    error: `${path12} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path11) {
+function readTarget(value, path12) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path11}.target must be an array of strings`;
+    return `${path12}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path11}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path12}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -530,52 +530,52 @@ function readTarget(value, path11) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path11}.target must be an array of strings`;
+    return `${path12}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path11) {
-  if (!isRecord(value)) return `${path11} must be an object`;
-  const target = readTarget(value.target, path11);
+function validateNode(value, path12) {
+  if (!isRecord(value)) return `${path12} must be an object`;
+  const target = readTarget(value.target, path12);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path11}.html must be a string`;
+  if (typeof value.html !== "string") return `${path12}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path11}.impact`);
+    const impact = readImpact(value.impact, `${path12}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path11) {
-  if (!isRecord(value)) return `${path11} must be an object`;
+function validateViolation(value, path12) {
+  if (!isRecord(value)) return `${path12} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path11}.id must be a non-empty string`;
+    return `${path12}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path11}.impact is missing`;
+    return `${path12}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path11}.impact`);
+  const impact = readImpact(value.impact, `${path12}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path11}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path12}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path11}.tags must be an array of strings`;
+    return `${path12}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path11}.help must be a non-empty string`;
+    return `${path12}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path11}.helpUrl must be a non-empty string`;
+    return `${path12}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path11}.nodes must contain at least one node`;
+    return `${path12}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path11}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path12}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -591,37 +591,37 @@ function validateViolation(value, path11) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path11) {
-  if (!isRecord(value)) return `${path11} must be an axe result object`;
+function validateResult(value, path12) {
+  if (!isRecord(value)) return `${path12} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path11}.url must be a non-empty string`;
+    return `${path12}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path11}.timestamp must be an ISO date string`;
+    return `${path12}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path11}.testEngine.version must be a non-empty string`;
+    return `${path12}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path11}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path12}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path11}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path12}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path11}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path11}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path11}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path11}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path12}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path12}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path12}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path12}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path11}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path12}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path11}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path12}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path11}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path12}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -722,7 +722,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path11 = pagePath(result.url);
+    const path12 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -737,7 +737,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path11,
+          path: path12,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -790,6 +790,91 @@ function toLegacyFinding(normalized) {
   };
 }
 
+// lib/scan/review.ts
+var REVIEW_DECISIONS = ["to-fix", "accepted-risk", "false-positive"];
+var REVIEW_DECISION_NOTICE = "Groups are heuristic likely shared components (matching rule, normalized selector path and similar HTML); review examples before deciding. A decision records a reviewer judgement; it does not establish a root cause, a fix or conformance. Decided findings remain listed. Accepted-risk and false-positive decisions exclude matching findings from the gate; to-fix and expired accepted-risk decisions gate as usual.";
+var DATE = /^\d{4}-\d{2}-\d{2}$/;
+function isIsoDate(value) {
+  if (!DATE.test(value)) return false;
+  const d = /* @__PURE__ */ new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+function groupId(groupKey) {
+  const fnv = (seed) => {
+    let h = seed >>> 0;
+    for (let i = 0; i < groupKey.length; i++) {
+      h ^= groupKey.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  };
+  return `g-${fnv(2166136261)}${fnv(84696351)}`;
+}
+function today(now) {
+  return now.toISOString().slice(0, 10);
+}
+function isExpired(decision, now) {
+  return decision.decision === "accepted-risk" && !!decision.expires && today(now) > decision.expires;
+}
+function validateGroupDecision(value) {
+  const d = value;
+  const str = (v) => typeof v === "string" && v.trim().length > 0;
+  if (!d || typeof d !== "object" || !str(d.group) || !str(d.groupKey) || typeof d.ruleId !== "string" || typeof d.normalizedSelector !== "string" || !REVIEW_DECISIONS.includes(d.decision) || !str(d.by) || typeof d.at !== "string" || !isIsoDate(d.at)) {
+    throw new Error("Invalid group decision.");
+  }
+  if (d.reason !== void 0 && typeof d.reason !== "string") throw new Error("Invalid group decision reason.");
+  if (d.decision !== "to-fix" && !str(d.reason)) throw new Error(`A ${d.decision} decision needs a reason.`);
+  if (d.expires !== void 0 && (typeof d.expires !== "string" || !isIsoDate(d.expires))) throw new Error("Group decision expiry must be YYYY-MM-DD.");
+  if (d.expires !== void 0 && d.decision !== "accepted-risk") throw new Error("Only accepted-risk decisions can expire.");
+  if (groupId(d.groupKey) !== d.group) throw new Error("Group decision id does not match its group key.");
+  return d;
+}
+function createGroupDecision(group2, input) {
+  const reason = input.reason?.trim();
+  return validateGroupDecision({
+    group: groupId(group2.key),
+    groupKey: group2.key,
+    ruleId: group2.ruleId,
+    normalizedSelector: group2.normalizedSelector,
+    decision: input.decision,
+    ...reason ? { reason } : {},
+    ...input.expires ? { expires: input.expires } : {},
+    by: input.by.trim(),
+    at: today(input.now)
+  });
+}
+function upsertGroupDecision(decisions, decision) {
+  return [...decisions.filter((d) => d.groupKey !== decision.groupKey), decision].sort((a, b) => a.group.localeCompare(b.group));
+}
+function applyGroupDecisions(findings, decisions, now) {
+  const byKey = new Map(decisions.map((d) => [d.groupKey, d]));
+  return findings.map((f) => {
+    const d = byKey.get(componentGroupKey(f));
+    if (!d) return f;
+    const expired = isExpired(d, now);
+    return { ...f, reviewDecision: { ...d, expired, suppressesGate: !expired && d.decision !== "to-fix" } };
+  });
+}
+function reviewedGroups(findings) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const f of findings) {
+    if (!f.reviewDecision) continue;
+    const g = groups.get(f.reviewDecision.group) ?? { decision: f.reviewDecision, findings: [] };
+    g.findings.push(f);
+    groups.set(f.reviewDecision.group, g);
+  }
+  return [...groups.values()].sort((a, b) => a.decision.group.localeCompare(b.decision.group));
+}
+function decisionLabel(d) {
+  return d.decision === "accepted-risk" && d.expired ? "accepted-risk (expired)" : d.decision;
+}
+function decisionSummary(d) {
+  return `${decisionLabel(d)} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}`;
+}
+function reviewableGroups(findings) {
+  return groupSharedComponents(findings);
+}
+
 // lib/scan/report.ts
 var FAIL_ON_VALUES = [...IMPACTS, "none"];
 function isFailOn(value) {
@@ -831,7 +916,7 @@ function toScanFinding(finding2, result) {
 }
 function gatingScanFindings(findings, failOn) {
   if (failOn === "none") return [];
-  return findings.filter((f) => f.baselineStatus !== "existing" && meetsThreshold(f.impact, failOn));
+  return findings.filter((f) => f.baselineStatus !== "existing" && !f.reviewDecision?.suppressesGate && meetsThreshold(f.impact, failOn));
 }
 function scanExitCode(findings, failOn) {
   return gatingScanFindings(findings, failOn).length > 0 ? 1 : 0;
@@ -1009,7 +1094,7 @@ function heading(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
 }
 function mdFinding(f) {
-  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 states: " + f.states.map(code).join(", ") : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [review: " + decisionLabel(f.reviewDecision) + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 states: " + f.states.map(code).join(", ") : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 function scanMarkdown(report) {
   const lines = [
@@ -1046,6 +1131,7 @@ function scanMarkdown(report) {
   for (const group2 of bySeverity) {
     lines.push(`### ${heading(group2.label)} (${group2.findings.length})`, "", ...group2.findings.map(mdFinding), "");
   }
+  lines.push(...reviewMarkdown(report));
   const robotsSkipped = report.skipped.filter((s) => s.reason === "robots" || s.reason === "cap");
   if (robotsSkipped.length > 0) {
     lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
@@ -1064,6 +1150,42 @@ function scanMarkdown(report) {
   lines.push("## Scope and boundaries", "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
   return lines.join("\n");
 }
+function gateEffect(d) {
+  if (d.suppressesGate) return "excluded from the gate by this decision; still listed for review";
+  if (d.expired) return "decision expired; findings gate again";
+  return "still gated";
+}
+function reviewMarkdown(report) {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return [];
+  return [
+    "## Review decisions (likely shared components)",
+    "",
+    cell(REVIEW_DECISION_NOTICE),
+    "",
+    ...groups.flatMap(({ decision: d, findings }) => [
+      `### ${code(d.group)} \u2014 ${heading(d.ruleId)} \u2014 ${findings.length} finding${findings.length === 1 ? "" : "s"} on ${new Set(findings.map((f) => f.pageUrl)).size} page(s)`,
+      "",
+      `Normalized selector: ${code(d.normalizedSelector)}`,
+      "",
+      `Decision: ${cell(decisionSummary(d))}. Gate: ${gateEffect(d)}.`,
+      "",
+      ...sortFindings(findings).map(mdFinding),
+      ""
+    ]),
+    AUTOMATED_TESTING_DISCLAIMER,
+    ""
+  ];
+}
+function reviewHtml(report) {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return "";
+  return `<h2>Review decisions (likely shared components)</h2><p>${esc(REVIEW_DECISION_NOTICE)}</p>` + groups.map(({ decision: d, findings }) => `<section><h3><code>${esc(d.group)}</code> \u2014 ${esc(d.ruleId)} (${findings.length})</h3><p>Normalized selector: <code>${esc(d.normalizedSelector)}</code></p><p>Decision: ${esc(decisionSummary(d))}. Gate: ${esc(gateEffect(d))}.</p><ul>${sortFindings(findings).map(htmlFinding).join("")}</ul></section>`).join("") + `<p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>
+`;
+}
+function reviewDecisionsHtml(report) {
+  return reviewHtml(report);
+}
 function esc(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -1071,7 +1193,7 @@ function safeHref(url) {
   return /^https?:\/\//i.test(url) ? esc(url) : "#";
 }
 function htmlFinding(f) {
-  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""}${f.states?.length ? "<br>States: " + f.states.map(esc).join(", ") : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}${f.reviewDecision ? "review: " + esc(decisionLabel(f.reviewDecision)) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""}${f.states?.length ? "<br>States: " + f.states.map(esc).join(", ") : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 function htmlGroups(title, groups) {
   if (groups.length === 0) return `<h2>${esc(title)}</h2><p>None detected.</p>`;
@@ -1108,7 +1230,7 @@ ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
-${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? "<h2>Skipped pages</h2><ul>" + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> \u2014 ${esc(s.reason)}</li>`).join("") + "</ul>\n" : ""}${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + esc(report.engines.used.join(", ") || "none") + ".</p><p>Engines errored: " + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none") + ".</p><p>" + esc(AUTOMATED_TESTING_DISCLAIMER) + "</p>\n" : ""}<h2>Scope and boundaries</h2>
+${reviewHtml(report)}${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? "<h2>Skipped pages</h2><ul>" + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> \u2014 ${esc(s.reason)}</li>`).join("") + "</ul>\n" : ""}${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + esc(report.engines.used.join(", ") || "none") + ".</p><p>Engines errored: " + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none") + ".</p><p>" + esc(AUTOMATED_TESTING_DISCLAIMER) + "</p>\n" : ""}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>
@@ -1150,6 +1272,11 @@ function parseFingerprintBaseline(value) {
   }
   if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage.");
   if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints.");
+  if (b.groupDecisions !== void 0) {
+    if (!Array.isArray(b.groupDecisions)) throw new Error("Invalid baseline group decisions.");
+    b.groupDecisions.forEach(validateGroupDecision);
+    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error("Duplicate group decisions.");
+  }
   return b;
 }
 function parseScanReport(value) {
@@ -1163,13 +1290,16 @@ function parseScanReport(value) {
   }
   return report;
 }
-function applyFingerprintBaseline(report, baseline) {
+function applyFingerprintBaseline(report, baseline, now = /* @__PURE__ */ new Date()) {
   const known = new Set(baseline.findings.map((f) => f.fingerprint));
   const current = new Set(report.findings.map(baselineFingerprint));
-  const findings = report.findings.map((f, index) => {
-    const fingerprint2 = baselineFingerprint(f, index);
+  const baselined = report.findings.map((finding2, index) => {
+    const fingerprint2 = baselineFingerprint(finding2, index);
+    const { reviewDecision: _stale, ...f } = finding2;
+    void _stale;
     return { ...f, baselineFingerprint: fingerprint2, baselineStatus: known.has(fingerprint2) ? "existing" : "new" };
   });
+  const findings = baseline.groupDecisions?.length ? applyGroupDecisions(baselined, baseline.groupDecisions, now) : baselined;
   const complete = new Set(report.pages.filter((p) => p.scanStatus === "complete").flatMap((p) => [p.url, p.finalUrl]).map((url) => normalizeUrl(url) ?? url));
   const missing = baseline.findings.filter((f) => !current.has(f.fingerprint));
   const currentEngines = report.engines?.used ?? ["axe"];
@@ -1182,12 +1312,13 @@ function applyFingerprintBaseline(report, baseline) {
     unassessed: missing.length - fixed
   };
   const gating = gatingScanFindings(findings, report.failOn);
+  const reviewed = report.failOn === "none" ? 0 : gatingScanFindings(findings.map((f) => ({ ...f, reviewDecision: void 0 })), report.failOn).length - gating.length;
   return {
     ...report,
     findings,
     baseline: summary,
     verdict: report.verdict === "ERROR" ? "ERROR" : gating.length ? "FAIL" : "PASS",
-    reason: report.verdict === "ERROR" ? report.reason : report.failOn === "none" ? "Reporting only (--fail-on none)." : `${gating.length} new finding${gating.length === 1 ? "" : "s"} at or above ${report.failOn}.`,
+    reason: report.verdict === "ERROR" ? report.reason : report.failOn === "none" ? "Reporting only (--fail-on none)." : `${gating.length} new finding${gating.length === 1 ? "" : "s"} at or above ${report.failOn}.${reviewed ? ` ${reviewed} new finding${reviewed === 1 ? "" : "s"} excluded from the gate by review decisions (still listed below).` : ""}`,
     disclaimer: AUTOMATED_TESTING_DISCLAIMER
   };
 }
@@ -1417,6 +1548,8 @@ Usage:
   a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
   a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
   a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
+  a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [--list | --group <id> --decision <kind>]
+                       (see a11ygate review --help)
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
@@ -2440,6 +2573,13 @@ function sharedComponentsSection(report) {
 ${groups.length ? groups.map((g) => `<section><h3>${esc2(g.ruleId)} \u2014 likely shared component on ${plural(g.pageCount, "page")}</h3><p>${plural(g.findingCount, "finding")}; normalized selector: <code>${esc2(g.normalizedSelector)}</code></p><ul>${g.examples.map((f) => `<li>Example page: <code>${esc2(f.pageUrl)}</code><br>Selector: <code>${esc2(f.selector)}</code><br>HTML: <code>${esc2(f.html)}</code></li>`).join("")}</ul></section>`).join("") : "<p>No likely shared components detected across pages.</p>"}
 </section>`;
 }
+function reviewSection(report) {
+  const body = reviewDecisionsHtml(report);
+  if (!body) return "";
+  return `<section id="review-decisions" aria-labelledby="review-decisions-h">
+${body.replace("<h2>", '<h2 id="review-decisions-h">')}</section>
+`;
+}
 function byWcagSection(report, rules2) {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules2.map((r, i) => [r.ruleId, ruleAnchor(i)]));
@@ -2550,7 +2690,7 @@ ${STYLE}
 <li><a href="#summary">Executive summary</a></li>
 <li><a href="#top-fixes">Top ${TOP_FIXES_LIMIT} fixes</a></li>
 <li><a href="#shared-components">Likely shared components</a></li>
-<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
+${report.findings.some((f) => f.reviewDecision) ? '<li><a href="#review-decisions">Review decisions</a></li>\n' : ""}<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
 <li><a href="#by-page">Findings by page</a></li>
 <li><a href="#how-to-fix">How to fix, by rule</a></li>
 <li><a href="#limits">What automated testing does not cover</a></li>
@@ -2560,7 +2700,7 @@ ${STYLE}
 ${summarySection(report)}
 ${topFixesSection(rules2)}
 ${sharedComponentsSection(report)}
-${byWcagSection(report, rules2)}
+${reviewSection(report)}${byWcagSection(report, rules2)}
 ${byPageSection(report)}
 ${howToFixSection(rules2)}
 ${limitsSection(report)}
@@ -4670,10 +4810,201 @@ async function runReportInternal(argv, io) {
   }
 }
 
-// packages/cli/src/evidence.ts
+// packages/cli/src/review.ts
 import { execFile } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
+import { readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
 import path6 from "node:path";
+import { createInterface } from "node:readline/promises";
+var REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
+Record a reviewer decision once for a likely shared component group instead of per finding.
+Decisions are stored in the fingerprint baseline (groupDecisions) and shown in reports.
+
+  --baseline <file>        Fingerprint baseline from baseline create. Updated in place.
+  --list                   List likely shared component groups and current decisions (default without a TTY).
+  --group <id>             Group id from --list (g-...). Requires --decision.
+  --decision <kind>        to-fix, accepted-risk or false-positive.
+  --reason <text>          Required for accepted-risk and false-positive.
+  --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
+Without --list or --group in a terminal, review groups interactively.
+The reviewer is git config user.name; A11yGate never invents a name.
+Accepted-risk and false-positive decisions exclude matching findings from the gate, but every
+finding stays listed in the report. Groupings are heuristic: review examples before deciding.
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+function gitUserName(cwd) {
+  return new Promise((resolve) => {
+    execFile("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+  });
+}
+function parseReviewArgs(argv) {
+  const args = { list: false };
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (name === "--list") {
+      args.list = true;
+      continue;
+    }
+    if (["--baseline", "--group", "--decision", "--reason", "--expires"].includes(name)) {
+      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      if (name === "--baseline") args.baseline = value;
+      else if (name === "--group") args.group = value;
+      else if (name === "--reason") args.reason = value;
+      else if (name === "--expires") args.expires = value;
+      else {
+        if (!REVIEW_DECISIONS.includes(value)) throw new Error(`Unknown decision "${value}". Use ${REVIEW_DECISIONS.join(", ")}.`);
+        args.decision = value;
+      }
+      continue;
+    }
+    if (!token.startsWith("-") && !args.input) {
+      args.input = token;
+      continue;
+    }
+    throw new Error(`Unexpected review argument ${token}.`);
+  }
+  if (!args.input) throw new Error("Pass a saved scan report (a11ygate-scan.json or its out-dir).");
+  if (!args.baseline) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
+  if (args.group && !args.decision) throw new Error("--group needs --decision.");
+  if (args.decision && !args.group) throw new Error("--decision needs --group.");
+  if (args.list && args.group) throw new Error("Use either --list or --group.");
+  if ((args.reason !== void 0 || args.expires !== void 0) && !args.group) throw new Error("--reason and --expires need --group.");
+  return args;
+}
+function checkDecision(decision, reason, expires, now) {
+  if (decision !== "to-fix" && !reason?.trim()) throw new Error(`${decision} needs --reason.`);
+  if (expires !== void 0) {
+    if (decision !== "accepted-risk") throw new Error("--expires applies only to accepted-risk.");
+    if (!isIsoDate(expires)) throw new Error("--expires must be a date in YYYY-MM-DD form.");
+    if (expires < today(now)) throw new Error("--expires is already in the past.");
+  }
+}
+function describeGroup(g, decisions) {
+  const d = decisions.find((x) => x.groupKey === g.key);
+  return `${groupId(g.key)}  ${g.ruleId} \u2014 likely shared component on ${g.pageCount} page(s), ${g.findingCount} finding(s)
+  normalized selector: ${g.normalizedSelector}
+` + g.examples.map((e) => `  example: ${e.pageUrl} \u2014 ${e.selector}
+`).join("") + `  decision: ${d ? `${d.decision} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}` : "none"}
+`;
+}
+async function runReview(argv, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout(REVIEW_HELP);
+    return 0;
+  }
+  const cwd = io.cwd ?? process.cwd();
+  const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
+  try {
+    const args = parseReviewArgs(argv);
+    if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
+    const report = await readScanInput(args.input, cwd);
+    const baselinePath = path6.resolve(cwd, args.baseline);
+    const baseline = parseFingerprintBaseline(JSON.parse(await readFile5(baselinePath, "utf8")));
+    let decisions = baseline.groupDecisions ?? [];
+    const groups = reviewableGroups(report.findings);
+    const shared = groups.filter((g) => g.likelySharedComponent);
+    const save = async (next) => {
+      await writeFile3(baselinePath, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + "\n", "utf8");
+    };
+    const reviewer = async () => {
+      const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
+      if (!name) throw new Error("git config user.name is not set. A11yGate records the reviewer from git config and never invents a name.");
+      return name;
+    };
+    if (args.group) {
+      const group2 = groups.find((g) => groupId(g.key) === args.group);
+      if (!group2) throw new Error(`No component group ${args.group} in this scan. Run a11ygate review ${args.input} --baseline ${args.baseline} --list.`);
+      const decision = createGroupDecision(group2, { decision: args.decision, reason: args.reason, expires: args.expires, by: await reviewer(), now });
+      decisions = upsertGroupDecision(decisions, decision);
+      await save(decisions);
+      stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
+Matching findings on new pages inherit this decision. Findings stay listed in reports.
+`);
+      return 0;
+    }
+    const interactive = !args.list && (io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY));
+    if (!interactive) {
+      stdout(`${REVIEW_DECISION_NOTICE}
+
+`);
+      stdout(shared.length ? shared.map((g) => describeGroup(g, decisions)).join("\n") : "No likely shared components detected across pages.\n");
+      const applied = applyFingerprintBaseline(report, baseline, now).findings.filter((f) => f.reviewDecision?.expired);
+      if (applied.length) stdout(`
+${applied.length} finding(s) match an expired accepted-risk decision and gate again.
+`);
+      stdout(`
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+      return 0;
+    }
+    let close = () => {
+    };
+    let ask = io.prompt;
+    if (!ask) {
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      ask = (q) => rl.question(q);
+      close = () => rl.close();
+    }
+    try {
+      stdout(`${REVIEW_DECISION_NOTICE}
+`);
+      if (!shared.length) {
+        stdout("No likely shared components detected across pages.\n");
+        return 0;
+      }
+      const by = await reviewer();
+      let changed = 0;
+      for (const g of shared) {
+        stdout("\n" + describeGroup(g, decisions));
+        const choice = (await ask("[f] to-fix  [a] accepted-risk  [p] false-positive  [s] skip  [q] quit: ")).trim().toLowerCase();
+        if (choice === "q") break;
+        const kind = { f: "to-fix", a: "accepted-risk", p: "false-positive" }[choice];
+        if (!kind) continue;
+        let reason;
+        let expires;
+        if (kind !== "to-fix") {
+          while (!reason) reason = (await ask("Reason (required): ")).trim() || void 0;
+        } else reason = (await ask("Reason (optional): ")).trim() || void 0;
+        if (kind === "accepted-risk") {
+          for (; ; ) {
+            const value = (await ask("Expires YYYY-MM-DD (optional, blank for none): ")).trim();
+            if (!value) break;
+            try {
+              checkDecision(kind, reason, value, now);
+              expires = value;
+              break;
+            } catch (error) {
+              stderr(`${error.message}
+`);
+            }
+          }
+        }
+        decisions = upsertGroupDecision(decisions, createGroupDecision(g, { decision: kind, reason, expires, by, now }));
+        changed++;
+      }
+      if (changed) await save(decisions);
+      stdout(`
+Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
+`);
+      return 0;
+    } finally {
+      close();
+    }
+  } catch (error) {
+    stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+
+// packages/cli/src/evidence.ts
+import { execFile as execFile2 } from "node:child_process";
+import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile6, writeFile as writeFile4 } from "node:fs/promises";
+import path7 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -4697,8 +5028,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path11) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path11);
+function shouldStore(path12) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path12);
 }
 function createZip(entries) {
   const local = [];
@@ -4821,8 +5152,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path11) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path11);
+function isTextPath(path12) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path12);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -4971,8 +5302,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path11, make] of generated) {
-    if (!files.has(path11)) files.set(path11, { path: path11, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path12, make] of generated) {
+    if (!files.has(path12)) files.set(path12, { path: path12, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -5067,7 +5398,7 @@ function parseEvidenceArgs(argv) {
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
-    execFile("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile2("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       const sha = String(stdout ?? "").trim();
       resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
     });
@@ -5084,8 +5415,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path6.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
+    const file = path7.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile6(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -5098,15 +5429,15 @@ async function collectInputs(dir, warn) {
     }],
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
-    const names = await readdir(path6.join(dir, sub)).catch(() => []);
+    const names = await readdir(path7.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path6.join(dir, sub, name);
+      const file = path7.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile5(file);
+      const data = await readFile6(file);
       if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -5140,14 +5471,14 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path6.resolve(cwd, options.from);
-  const scanJsonPath = path6.join(dir, "a11ygate-scan.json");
+  const dir = path7.resolve(cwd, options.from);
+  const scanJsonPath = path7.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile5(scanJsonPath, "utf8");
+  const scanJson = await readFile6(scanJsonPath, "utf8");
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `));
   let commit;
@@ -5169,10 +5500,10 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path6.resolve(cwd, options.out ?? path6.join(options.from, "a11ygate-evidence.zip"));
+  const out = path7.resolve(cwd, options.out ?? path7.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir2(path6.dirname(out), { recursive: true });
-    await writeFile3(out, result.zip);
+    await mkdir2(path7.dirname(out), { recursive: true });
+    await writeFile4(out, result.zip);
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the evidence pack${code3 ? ` (${code3})` : ""}.
@@ -5180,7 +5511,7 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path6.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path7.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
@@ -5189,7 +5520,7 @@ Run a11ygate evidence --help for usage.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path7 from "node:path";
+import path8 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -5345,8 +5676,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path11) {
-  const match = /\.([a-z0-9]+)$/i.exec(path11);
+function fileKind(path12) {
+  const match = /\.([a-z0-9]+)$/i.exec(path12);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -5657,8 +5988,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path11, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path11) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path12, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path12) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -5715,7 +6046,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path7.join(cwd, "package.json"));
+  const require3 = createRequire3(path8.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -5727,7 +6058,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path7.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path8.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -5889,13 +6220,13 @@ async function runDoctor(argv, io = {}) {
 }
 
 // packages/cli/src/init.ts
-import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile4 } from "node:fs/promises";
-import path9 from "node:path";
-import { createInterface } from "node:readline/promises";
+import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile5 } from "node:fs/promises";
+import path10 from "node:path";
+import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
-import { readFile as readFile6 } from "node:fs/promises";
-import path8 from "node:path";
+import { readFile as readFile7 } from "node:fs/promises";
+import path9 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -5946,7 +6277,7 @@ async function runConfig(argv, io = {}) {
   const file = argv[1] ?? CONFIG_FILE;
   let text;
   try {
-    text = await readFile6(path8.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile7(path9.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -6061,14 +6392,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path9.join(parent, part);
+    parent = path10.join(parent, part);
     await mkdir3(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat3(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path9.join(parent, parts.at(-1));
+  const destination = path10.join(parent, parts.at(-1));
   const info = await lstat3(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -6080,7 +6411,7 @@ async function writeStarter(cwd, file, content, force, stdout) {
   }
   if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   try {
-    await writeFile4(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
+    await writeFile5(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
   } catch (error) {
     if (!force && error.code === "EEXIST") {
       stdout(`Skipped existing ${file}.
@@ -6123,7 +6454,7 @@ async function runInit(argv, io = {}) {
     }
     if (!options.yes) {
       if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("Interactive init requires a TTY. Use --yes with flags for scripted setup.");
-      const prompt = createInterface({ input: process.stdin, output: process.stdout });
+      const prompt = createInterface2({ input: process.stdin, output: process.stdout });
       try {
         if (!supplied.has("--target")) options.target = (await prompt.question("CI target (github/jenkins) [github]: ")).trim() || options.target;
         if (!supplied.has("--url")) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
@@ -6144,7 +6475,7 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat3(path9.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat3(path10.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -6337,7 +6668,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path10.resolve(cwd, file);
+  return path11.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -6350,7 +6681,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile7(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile8(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -6366,14 +6697,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path10.dirname(fileURLToPath(import.meta.url));
+  const here = path11.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path10.join(here, "..", "package.json"),
-    path10.join(here, "..", "..", "packages", "cli", "package.json")
+    path11.join(here, "..", "package.json"),
+    path11.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile7(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile8(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -6442,6 +6773,7 @@ async function run(argv, io = {}) {
   if (argv[0] === "doctor") return runDoctor(argv.slice(1), io);
   if (argv[0] === "config") return runConfig(argv.slice(1), io);
   if (argv[0] === "baseline") return runBaseline(argv.slice(1), io);
+  if (argv[0] === "review") return runReview(argv.slice(1), io);
   if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === "evidence") return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
@@ -6483,7 +6815,7 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat4(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path10.join(await realpath3(path10.dirname(absolute)).catch(() => path10.dirname(absolute)), path10.basename(absolute));
+        return path11.join(await realpath3(path11.dirname(absolute)).catch(() => path11.dirname(absolute)), path11.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -6491,9 +6823,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path10.join(options.outDir, formatFileName("ci", "json")),
-      path10.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path10.join(options.outDir, formatFileName("ci", format)))
+      path11.join(options.outDir, formatFileName("ci", "json")),
+      path11.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path11.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -6581,8 +6913,8 @@ async function run(argv, io = {}) {
       return 2;
     }
     try {
-      await writeFile5(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile5(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile6(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile6(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -6593,7 +6925,7 @@ async function run(argv, io = {}) {
   }
   if (options.markdown) {
     try {
-      await writeFile5(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile6(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -6602,7 +6934,7 @@ async function run(argv, io = {}) {
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile5(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile6(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -6630,7 +6962,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir4(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile5(path10.join(dir, name), content, "utf8");
+        await writeFile6(path11.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
