@@ -201,3 +201,5 @@ verification requirements still apply; see the action README's model-assisted
 fix documentation. Doctor never invents alt or label text.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+For generated starter files, see [a11ygate init](init.md).
