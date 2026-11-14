@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
+  "title": "A11yGate repository config (.a11ygate.yml)",
+  "description": "Setup choices for A11yGate. `a11ygate doctor` reads `engines` and the model-fix opt-in reads `modelFixes`; the other keys record the choices that the explicit flags in your CI file apply (shown as x-cli). Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "url": {
+      "description": "Start URL of a site you own or are authorized to test. HTTP(S) only, no credentials in the URL.",
+      "type": "string",
+      "pattern": "^https?://[^\\s@/]+(/\\S*)?$",
+      "x-cli": ["--url"]
+    },
+    "crawl": {
+      "description": "0 = start URL only; 1-20 = same-origin crawl page limit.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20,
+      "x-cli": ["--crawl"]
+    },
+    "failOn": {
+      "description": "Lowest impact that fails the scan; none never fails on findings.",
+      "type": "string",
+      "enum": ["minor", "moderate", "serious", "critical", "none"],
+      "x-cli": ["--fail-on"]
+    },
+    "engines": {
+      "description": "Scan engines. axe is bundled with the scan peers; htmlcs, ibm and lighthouse need their optional peer packages.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["axe", "htmlcs", "ibm", "lighthouse"] },
+      "x-cli": ["--engines"]
+    },
+    "modelFixes": {
+      "description": "Repository opt-in for experimental model-assisted fixes. Off unless exactly true; a flag cannot override false.",
+      "type": "boolean",
+      "x-cli": ["--model-fixes"]
+    },
+    "baseline": {
+      "description": "Fingerprint baseline file, usually .a11ygate-baseline.json.",
+      "type": "string",
+      "minLength": 1,
+      "x-cli": ["--baseline", "-b"]
+    },
+    "formats": {
+      "description": "Extra report formats written to outDir.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["junit", "sarif", "json", "md", "gitlab-codequality"] },
+      "x-cli": ["--format"]
+    },
+    "outDir": {
+      "description": "Directory for scan reports.",
+      "type": "string",
+      "minLength": 1,
+      "x-cli": ["--out-dir"]
+    },
+    "delayMs": {
+      "description": "Polite delay between crawled pages, in milliseconds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60000,
+      "x-cli": ["--delay-ms"]
+    },
+    "reportVersion": {
+      "description": "HTML report layout version.",
+      "type": "integer",
+      "enum": [1, 2],
+      "x-cli": ["--report-version"]
+    },
+    "auth": {
+      "description": "Authenticated scans. Never put credentials here: name environment variables instead.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "storageState": {
+          "description": "Playwright storage-state JSON file (keep it out of version control).",
+          "type": "string",
+          "minLength": 1,
+          "x-cli": ["--storage-state"]
+        },
+        "loginScript": {
+          "description": "Login script run in an isolated worker before scanning.",
+          "type": "string",
+          "minLength": 1,
+          "x-cli": ["--login-script"]
+        },
+        "loginTimeoutMs": {
+          "description": "Login script timeout in milliseconds.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000,
+          "x-cli": ["--login-timeout-ms"]
+        },
+        "cookieEnv": {
+          "description": "Cookies as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--cookie-env"]
+        },
+        "headerEnv": {
+          "description": "Headers as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--header-env"]
+        }
+      }
+    }
+  }
+}

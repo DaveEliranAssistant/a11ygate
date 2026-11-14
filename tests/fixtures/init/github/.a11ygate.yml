@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json
 # Automated testing only. Not a WCAG audit, certification or legal advice.
 # Setup choices; scan uses the explicit flags in the generated CI file.
 engines: [axe]

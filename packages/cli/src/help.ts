@@ -5,6 +5,7 @@ Usage:
   a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
                        (see a11ygate init --help)
   a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
+  a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
   a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]

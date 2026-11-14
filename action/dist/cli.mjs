@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir4, readFile as readFile6, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
-import path8 from "node:path";
+import { mkdir as mkdir4, readFile as readFile7, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
+import path9 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/types.ts
@@ -418,15 +418,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path9 = parsed.pathname || "/";
-    if (path9.length > 1 && path9.endsWith("/")) path9 = path9.slice(0, -1);
-    return path9 || "/";
+    let path10 = parsed.pathname || "/";
+    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
+    return path10 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path9 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path9.length > 1 && path9.endsWith("/")) path9 = path9.slice(0, -1);
-    return path9;
+    let path10 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
+    return path10;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -456,21 +456,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path9) {
+function readImpact(value, path10) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path9} must be minor, moderate, serious, critical, or null`
+    error: `${path10} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path9) {
+function readTarget(value, path10) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path9}.target must be an array of strings`;
+    return `${path10}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path9}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path10}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -478,52 +478,52 @@ function readTarget(value, path9) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path9}.target must be an array of strings`;
+    return `${path10}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path9) {
-  if (!isRecord(value)) return `${path9} must be an object`;
-  const target = readTarget(value.target, path9);
+function validateNode(value, path10) {
+  if (!isRecord(value)) return `${path10} must be an object`;
+  const target = readTarget(value.target, path10);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path9}.html must be a string`;
+  if (typeof value.html !== "string") return `${path10}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path9}.impact`);
+    const impact = readImpact(value.impact, `${path10}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path9) {
-  if (!isRecord(value)) return `${path9} must be an object`;
+function validateViolation(value, path10) {
+  if (!isRecord(value)) return `${path10} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path9}.id must be a non-empty string`;
+    return `${path10}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path9}.impact is missing`;
+    return `${path10}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path9}.impact`);
+  const impact = readImpact(value.impact, `${path10}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path9}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path10}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path9}.tags must be an array of strings`;
+    return `${path10}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path9}.help must be a non-empty string`;
+    return `${path10}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path9}.helpUrl must be a non-empty string`;
+    return `${path10}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path9}.nodes must contain at least one node`;
+    return `${path10}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path9}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path10}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -539,37 +539,37 @@ function validateViolation(value, path9) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path9) {
-  if (!isRecord(value)) return `${path9} must be an axe result object`;
+function validateResult(value, path10) {
+  if (!isRecord(value)) return `${path10} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path9}.url must be a non-empty string`;
+    return `${path10}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path9}.timestamp must be an ISO date string`;
+    return `${path10}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path9}.testEngine.version must be a non-empty string`;
+    return `${path10}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path9}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path10}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path9}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path10}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path9}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path9}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path9}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path9}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path10}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path10}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path10}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path10}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path9}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path10}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path9}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path10}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path9}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path10}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -670,7 +670,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path9 = pagePath(result.url);
+    const path10 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -685,7 +685,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path9,
+          path: path10,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1335,6 +1335,7 @@ Usage:
   a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
                        (see a11ygate init --help)
   a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
+  a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
   a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
@@ -3293,8 +3294,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path9) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path9);
+function shouldStore(path10) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path10);
 }
 function createZip(entries) {
   const local = [];
@@ -3417,8 +3418,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path9) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path9);
+function isTextPath(path10) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path10);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -3567,8 +3568,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path9, make] of generated) {
-    if (!files.has(path9)) files.set(path9, { path: path9, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path10, make] of generated) {
+    if (!files.has(path10)) files.set(path10, { path: path10, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -3683,7 +3684,7 @@ async function collectInputs(dir, warn) {
     const file = path5.join(dir, name);
     if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
-  for (const [sub, pattern, check] of [
+  for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
       try {
         JSON.parse(Buffer.from(data).toString("utf8"));
@@ -3703,7 +3704,7 @@ async function collectInputs(dir, warn) {
         continue;
       }
       const data = await readFile5(file);
-      if (!check(data)) {
+      if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
       }
@@ -3785,7 +3786,7 @@ Run a11ygate evidence --help for usage.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path6 from "node:path";
+import path7 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -3941,8 +3942,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path9) {
-  const match = /\.([a-z0-9]+)$/i.exec(path9);
+function fileKind(path10) {
+  const match = /\.([a-z0-9]+)$/i.exec(path10);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -4253,8 +4254,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path9, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path9) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path10, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path10) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -4369,9 +4370,358 @@ function resolveModelFixConfig(input) {
 }
 var MODEL_FIXES_OFF = resolveModelFixConfig({});
 
+// packages/cli/src/config.ts
+import { readFile as readFile6 } from "node:fs/promises";
+import path6 from "node:path";
+
+// schema/a11ygate.schema.json
+var a11ygate_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
+  title: "A11yGate repository config (.a11ygate.yml)",
+  description: "Setup choices for A11yGate. `a11ygate doctor` reads `engines` and the model-fix opt-in reads `modelFixes`; the other keys record the choices that the explicit flags in your CI file apply (shown as x-cli). Automated testing only. Not a WCAG audit, certification or legal advice.",
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    url: {
+      description: "Start URL of a site you own or are authorized to test. HTTP(S) only, no credentials in the URL.",
+      type: "string",
+      pattern: "^https?://[^\\s@/]+(/\\S*)?$",
+      "x-cli": ["--url"]
+    },
+    crawl: {
+      description: "0 = start URL only; 1-20 = same-origin crawl page limit.",
+      type: "integer",
+      minimum: 0,
+      maximum: 20,
+      "x-cli": ["--crawl"]
+    },
+    failOn: {
+      description: "Lowest impact that fails the scan; none never fails on findings.",
+      type: "string",
+      enum: ["minor", "moderate", "serious", "critical", "none"],
+      "x-cli": ["--fail-on"]
+    },
+    engines: {
+      description: "Scan engines. axe is bundled with the scan peers; htmlcs, ibm and lighthouse need their optional peer packages.",
+      type: "array",
+      minItems: 1,
+      uniqueItems: true,
+      items: { type: "string", enum: ["axe", "htmlcs", "ibm", "lighthouse"] },
+      "x-cli": ["--engines"]
+    },
+    modelFixes: {
+      description: "Repository opt-in for experimental model-assisted fixes. Off unless exactly true; a flag cannot override false.",
+      type: "boolean",
+      "x-cli": ["--model-fixes"]
+    },
+    baseline: {
+      description: "Fingerprint baseline file, usually .a11ygate-baseline.json.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--baseline", "-b"]
+    },
+    formats: {
+      description: "Extra report formats written to outDir.",
+      type: "array",
+      uniqueItems: true,
+      items: { type: "string", enum: ["junit", "sarif", "json", "md", "gitlab-codequality"] },
+      "x-cli": ["--format"]
+    },
+    outDir: {
+      description: "Directory for scan reports.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--out-dir"]
+    },
+    delayMs: {
+      description: "Polite delay between crawled pages, in milliseconds.",
+      type: "integer",
+      minimum: 0,
+      maximum: 6e4,
+      "x-cli": ["--delay-ms"]
+    },
+    reportVersion: {
+      description: "HTML report layout version.",
+      type: "integer",
+      enum: [1, 2],
+      "x-cli": ["--report-version"]
+    },
+    auth: {
+      description: "Authenticated scans. Never put credentials here: name environment variables instead.",
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        storageState: {
+          description: "Playwright storage-state JSON file (keep it out of version control).",
+          type: "string",
+          minLength: 1,
+          "x-cli": ["--storage-state"]
+        },
+        loginScript: {
+          description: "Login script run in an isolated worker before scanning.",
+          type: "string",
+          minLength: 1,
+          "x-cli": ["--login-script"]
+        },
+        loginTimeoutMs: {
+          description: "Login script timeout in milliseconds.",
+          type: "integer",
+          minimum: 1,
+          maximum: 3e5,
+          "x-cli": ["--login-timeout-ms"]
+        },
+        cookieEnv: {
+          description: "Cookies as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          type: "array",
+          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--cookie-env"]
+        },
+        headerEnv: {
+          description: "Headers as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          type: "array",
+          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--header-env"]
+        }
+      }
+    }
+  }
+};
+
+// packages/cli/src/config.ts
+var CONFIG_FILE = ".a11ygate.yml";
+var SCHEMA_PATH = "schema/a11ygate.schema.json";
+var SCHEMA_URL = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json";
+var SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
+var CONFIG_SCHEMA = a11ygate_schema_default;
+var YamlError = class extends Error {
+};
+function stripComment(text) {
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === quote && !(quote === '"' && text[i - 1] === "\\")) quote = null;
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "#" && (i === 0 || /\s/.test(text[i - 1]))) return text.slice(0, i).trimEnd();
+  }
+  return text.trimEnd();
+}
+function scalar(raw, line) {
+  const text = raw.trim();
+  if (/^[&*!|>{]/.test(text)) throw new YamlError(`line ${line}: anchors, aliases, tags, block scalars and {\u2026} mappings are not supported in .a11ygate.yml.`);
+  if (text.startsWith('"')) {
+    try {
+      const value = JSON.parse(text);
+      if (typeof value === "string") return value;
+    } catch {
+    }
+    throw new YamlError(`line ${line}: unterminated or invalid double-quoted string.`);
+  }
+  if (text.startsWith("'")) {
+    if (text.length < 2 || !text.endsWith("'")) throw new YamlError(`line ${line}: unterminated single-quoted string.`);
+    return text.slice(1, -1).replace(/''/g, "'");
+  }
+  if (text.startsWith("[")) {
+    if (!text.endsWith("]")) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
+    const inner = text.slice(1, -1).trim();
+    return inner ? inner.split(",").map((item) => scalar(item, line)) : [];
+  }
+  if (text === "" || text === "~" || text === "null") return null;
+  if (text === "true" || text === "false") return text === "true";
+  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}
+function parseBlock(lines, start, indent) {
+  const first = lines[start];
+  if (first.text.startsWith("- ") || first.text === "-") {
+    const list = [];
+    let i2 = start;
+    while (i2 < lines.length && lines[i2].indent === indent && (lines[i2].text.startsWith("- ") || lines[i2].text === "-")) {
+      const item = lines[i2].text.slice(1).trim();
+      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i2].number}: lists of mappings are not supported in .a11ygate.yml.`);
+      list.push(scalar(item, lines[i2].number));
+      i2++;
+    }
+    return [list, i2];
+  }
+  const map = {};
+  let i = start;
+  while (i < lines.length && lines[i].indent === indent) {
+    const { text, number } = lines[i];
+    const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
+    if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
+    const key = match[1].replace(/^(['"])(.*)\1$/, "$2");
+    if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
+    const rest = (match[2] ?? "").trim();
+    i++;
+    if (rest) {
+      map[key] = scalar(rest, number);
+      continue;
+    }
+    if (i < lines.length && lines[i].indent > indent) {
+      const [value, next] = parseBlock(lines, i, lines[i].indent);
+      map[key] = value;
+      i = next;
+    } else if (i < lines.length && lines[i].indent === indent && lines[i].text.startsWith("- ")) {
+      const [value, next] = parseBlock(lines, i, indent);
+      map[key] = value;
+      i = next;
+    } else map[key] = null;
+  }
+  return [map, i];
+}
+function parseConfigYaml(text) {
+  const lines = [];
+  const raw = text.replace(/^﻿/, "").split(/\r?\n/);
+  for (let index = 0; index < raw.length; index++) {
+    const source = raw[index];
+    if (/^\t/.test(source)) return { ok: false, errors: [`line ${index + 1}: use spaces, not tabs, for indentation.`] };
+    const content = stripComment(source);
+    if (!content.trim() || lines.length === 0 && content.trim() === "---") continue;
+    if (content.trim() === "---" || content.trim() === "...") return { ok: false, errors: [`line ${index + 1}: use a single YAML document.`] };
+    lines.push({ indent: content.length - content.trimStart().length, text: content.trim(), number: index + 1 });
+  }
+  if (lines.length === 0) return { ok: true, value: {} };
+  try {
+    const [value, next] = parseBlock(lines, 0, lines[0].indent);
+    if (next < lines.length) throw new YamlError(`line ${lines[next].number}: unexpected indentation.`);
+    return { ok: true, value };
+  } catch (error) {
+    if (error instanceof YamlError) return { ok: false, errors: [error.message] };
+    throw error;
+  }
+}
+function distance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+function suggestKey(key, known) {
+  const fold = (s) => s.toLowerCase().replace(/[-_\s]/g, "");
+  const exact = known.find((candidate) => fold(candidate) === fold(key));
+  if (exact) return exact;
+  let best;
+  let bestScore = Infinity;
+  for (const candidate of known) {
+    const score = distance(fold(key), fold(candidate));
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best && bestScore <= Math.max(2, Math.floor(fold(key).length / 3)) ? best : void 0;
+}
+var show = (value) => typeof value === "string" ? `'${value}'` : JSON.stringify(value);
+var typeName = (value) => value === null ? "nothing" : Array.isArray(value) ? "a list" : typeof value === "object" ? "a mapping" : typeof value === "number" ? Number.isInteger(value) ? "a whole number" : "a number" : typeof value === "boolean" ? "true/false" : "text";
+var expected = { string: "text", integer: "a whole number", number: "a number", boolean: "true or false", array: "a list, e.g. [a, b]", object: "a mapping of keys" };
+function matchesType(type, value) {
+  if (type === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (type === "array") return Array.isArray(value);
+  if (type === "object") return !!value && typeof value === "object" && !Array.isArray(value);
+  return typeof value === type;
+}
+function check(schema, value, where, errors) {
+  const label = where || "the config";
+  if (schema.type && !matchesType(schema.type, value)) {
+    const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
+    errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
+    return;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`'${label}' has invalid value ${show(value)} \u2014 use one of: ${schema.enum.join(", ")}.`);
+    return;
+  }
+  if (typeof value === "number") {
+    if (schema.minimum !== void 0 && value < schema.minimum) errors.push(`'${label}' must be at least ${schema.minimum}, but got ${value}.`);
+    if (schema.maximum !== void 0 && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
+  }
+  if (typeof value === "string") {
+    if (schema.minLength !== void 0 && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
+    else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ""}`.trimEnd());
+  }
+  if (Array.isArray(value)) {
+    if (schema.minItems !== void 0 && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? "" : "s"}.`);
+    if (schema.uniqueItems) {
+      const duplicate = value.find((item, index) => value.indexOf(item) !== index);
+      if (duplicate !== void 0) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
+    }
+    if (schema.items) value.forEach((item, index) => check(schema.items, item, `${label}[${index}]`, errors));
+  }
+  if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+    const properties = schema.properties ?? {};
+    const known = Object.keys(properties);
+    for (const [key, child] of Object.entries(value)) {
+      const childWhere = where ? `${where}.${key}` : key;
+      if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
+      else if (schema.additionalProperties === false) {
+        const suggestion = suggestKey(key, known);
+        errors.push(`unknown key '${childWhere}'${suggestion ? ` \u2014 did you mean '${where ? `${where}.` : ""}${suggestion}'?` : ` \u2014 known keys${where ? ` under '${where}'` : ""}: ${known.join(", ")}.`}`);
+      }
+    }
+  }
+}
+function validateConfig(value, schema = CONFIG_SCHEMA) {
+  if (value === null || value === void 0) return [];
+  const errors = [];
+  check(schema, value, "", errors);
+  return errors;
+}
+function configProblems(text) {
+  const parsed = parseConfigYaml(text);
+  return parsed.ok ? validateConfig(parsed.value) : parsed.errors;
+}
+var CONFIG_HELP = `a11ygate config validate [file]
+  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
+  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
+  Editor autocomplete: add this first line to the file:
+  ${SCHEMA_COMMENT}
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+async function runConfig(argv, io = {}) {
+  const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
+  const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout(CONFIG_HELP);
+    return 0;
+  }
+  if (argv[0] !== "validate" || argv.length > 2 || argv[1]?.startsWith("-")) {
+    stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
+    return 2;
+  }
+  const file = argv[1] ?? CONFIG_FILE;
+  let text;
+  try {
+    text = await readFile6(path6.resolve(io.cwd ?? process.cwd(), file), "utf8");
+  } catch (error) {
+    stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
+`);
+    return 2;
+  }
+  const problems = configProblems(text);
+  if (problems.length) {
+    stderr(`${file} has ${problems.length} problem${problems.length === 1 ? "" : "s"}:
+${problems.map((p) => `  - ${p}`).join("\n")}
+Schema: ${SCHEMA_PATH}
+`);
+    return 2;
+  }
+  stdout(`${file} is valid against ${SCHEMA_PATH}.
+`);
+  return 0;
+}
+
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
-var sections = { checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
+var sections = { config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
 var PEERS = { axe: ["@axe-core/playwright"], htmlcs: ["html_codesniffer"], ibm: ["accessibility-checker-engine"], lighthouse: ["lighthouse", "puppeteer-core"] };
 var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 function configuredEngines(text) {
@@ -4384,7 +4734,7 @@ function configuredEngines(text) {
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path6.join(cwd, "package.json"));
+  const require3 = createRequire3(path7.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -4396,7 +4746,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync(path6.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync(path7.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -4404,7 +4754,9 @@ async function doctorChecks(options = {}, io = {}) {
   const engines = options.engines ?? configuredEngines(config2 ?? "") ?? ["axe"];
   const model = resolveModelFixConfig({ repoConfig: config2, flag: options.modelFixes ?? env.A11Y_MODEL_FIXES, env });
   const findings = [];
-  const add = (check, status, message) => findings.push({ check, status, message, link: GUIDE + sections[check] });
+  const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
+  const problems = config2 === null ? [] : configProblems(config2);
+  add("config", config2 === null ? "skipped" : problems.length ? "fail" : "pass", config2 === null ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
   let head = null;
   try {
     head = io.head ? io.head() : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -4545,7 +4897,7 @@ async function runDoctor(argv, io = {}) {
 
 // packages/cli/src/init.ts
 import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile4 } from "node:fs/promises";
-import path7 from "node:path";
+import path8 from "node:path";
 import { createInterface } from "node:readline/promises";
 
 // packages/cli/src/init-templates.ts
@@ -4644,14 +4996,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path7.join(parent, part);
+    parent = path8.join(parent, part);
     await mkdir3(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat3(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path7.join(parent, parts.at(-1));
+  const destination = path8.join(parent, parts.at(-1));
   const info = await lstat3(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -4727,14 +5079,15 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat3(path7.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat3(path8.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
       if (existing) stdout("Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n");
       else if (await runBaseline(["create", options.baseline, "--output", ".a11ygate-baseline.json"], io) !== 0) return 2;
     }
-    const config2 = `# ${AUTOMATED_TESTING_DISCLAIMER}
+    const config2 = `${SCHEMA_COMMENT}
+# ${AUTOMATED_TESTING_DISCLAIMER}
 # Setup choices; scan uses the explicit flags in the generated CI file.
 engines: [axe]
 modelFixes: false
@@ -4919,7 +5272,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path8.resolve(cwd, file);
+  return path9.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -4932,7 +5285,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile6(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile7(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -4948,14 +5301,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path8.dirname(fileURLToPath(import.meta.url));
+  const here = path9.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path8.join(here, "..", "package.json"),
-    path8.join(here, "..", "..", "packages", "cli", "package.json")
+    path9.join(here, "..", "package.json"),
+    path9.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile6(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile7(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -5020,6 +5373,7 @@ async function run(argv, io = {}) {
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
   if (argv[0] === "init") return runInit(argv.slice(1), io);
   if (argv[0] === "doctor") return runDoctor(argv.slice(1), io);
+  if (argv[0] === "config") return runConfig(argv.slice(1), io);
   if (argv[0] === "baseline") return runBaseline(argv.slice(1), io);
   if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
@@ -5055,7 +5409,7 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat4(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path8.join(await realpath3(path8.dirname(absolute)).catch(() => path8.dirname(absolute)), path8.basename(absolute));
+        return path9.join(await realpath3(path9.dirname(absolute)).catch(() => path9.dirname(absolute)), path9.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -5063,9 +5417,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path8.join(options.outDir, formatFileName("ci", "json")),
-      path8.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path8.join(options.outDir, formatFileName("ci", format)))
+      path9.join(options.outDir, formatFileName("ci", "json")),
+      path9.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path9.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -5202,7 +5556,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir4(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile5(path8.join(dir, name), content, "utf8");
+        await writeFile5(path9.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

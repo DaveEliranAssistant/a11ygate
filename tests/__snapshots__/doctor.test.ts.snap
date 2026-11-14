@@ -2,6 +2,8 @@
 
 exports[`doctor preflight (no browser or network) > prints the all checks passed snapshot in a clean environment 1`] = `
 "A11yGate doctor
+[SKIPPED] config: No .a11ygate.yml; defaults apply.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-config
 [SKIPPED] checkout: No pull request head SHA is available.
   https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-checkout
 [PASS] node: Node meets the CLI requirement (20+; the Action uses 22).

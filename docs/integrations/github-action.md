@@ -174,6 +174,18 @@ launching it. Install with `npm install --save-dev playwright` followed by
 `npx playwright install chromium`. Existence does not prove the browser can
 launch: system libraries and sandbox support still depend on the runner.
 
+<a id="doctor-config"></a>
+
+### Repository config
+
+Doctor validates `.a11ygate.yml` against
+[`schema/a11ygate.schema.json`](../../schema/a11ygate.schema.json) and lists
+plain-English problems, for example `unknown key 'engine' — did you mean
+'engines'?`, `'crawl' must be a whole number`, or `'failOn' has invalid value`.
+A missing file is skipped (defaults apply). Run `a11ygate config validate` to
+check the file on its own; it exits 2 when the file has problems. The file
+holds names of environment variables, never credentials.
+
 <a id="doctor-engines"></a>
 
 ### Requested engine peers
