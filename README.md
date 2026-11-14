@@ -154,6 +154,8 @@ The action in this repository's `action/` directory (not yet the published `v1`)
 
 A11yGate never commits. A person reviews each suggestion and clicks **Apply suggestion**. Text containing `TODO(a11ygate)` is a placeholder, not final text: it can make the automated check pass while the page is still not accessible, so replace it before merging. A11yGate never writes label, alt or aria text of its own. Findings outside the diff stay in the summary comment only. Line suggestions need `pull-requests: write` in addition to `issues: write`. A failed suggestion only logs a warning. These are automated checks of a few rules, not a full accessibility review or a compliance claim.
 
+Experimental model-assisted fixes are **off by default** and need a repository opt-in (`modelFixes: true` in `.a11ygate.yml`) plus the action's `model-fixes: on` input; a flag cannot override a repository denial. In this version it only records routing metadata, makes no model calls, and always falls back to the rule-based suggestions above. It is not a compliance tool. See [action/README.md](action/README.md#model-assisted-fixes-experimental-default-off). Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## Development
 
 ```bash
