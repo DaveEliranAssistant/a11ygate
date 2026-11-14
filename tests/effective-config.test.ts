@@ -186,6 +186,13 @@ auth:
     expect(await readFile(path.join(cwd, 'reports/a11ygate-scan.sarif'), 'utf8')).toContain('2.1.0');
     for (const secret of ['cookie-value', 'header-value']) expect(output + await readFile(path.join(cwd, 'reports/a11ygate-scan.json'), 'utf8')).not.toContain(secret);
   });
+  it('keeps supported-engine guidance without echoing invalid input', async () => {
+    const cwd = await workspace();
+    let errors = '';
+    expect(await runScan(['https://site.test/', '--engines', 'private-invalid-input'], { cwd, env: { NODE_ENV: 'test' }, stderr: s => { errors += s; } })).toBe(2);
+    expect(errors).toContain('axe,htmlcs,ibm,lighthouse');
+    expect(errors).not.toContain('private-invalid-input');
+  });
   it('preserves repeatable flag behavior and replaces lower-precedence lists', () => {
     const config = loadEffectiveConfig('scan', ['https://site.test', '--engines', 'axe', '--engines', 'ibm', '--format', 'junit,junit', '--format', 'sarif', '--out-dir', 'reports', '--include', '/a,b', '--include', '/c'], { repoConfig: 'engines: [lighthouse]\nformats: [json]\ninclude: [/yaml]\n', env: {} });
     expect(config.values.engines).toEqual(['ibm']);

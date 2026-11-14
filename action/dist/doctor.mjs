@@ -1067,7 +1067,10 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (key === "ignoreRobots" && token.includes("=")) throw new Error("--ignore-robots takes no value.");
     let value = schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
     if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
-    if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+    if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) {
+      if (key === "engines") throw new Error("Invalid --engines. Use a comma-separated list of axe,htmlcs,ibm,lighthouse.");
+      throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+    }
     if (schema.type === "array" && key !== "engines" && supplied.has(key)) {
       const items = [...values[key], ...value];
       values[key] = key === "formats" ? [...new Set(items)] : items;
