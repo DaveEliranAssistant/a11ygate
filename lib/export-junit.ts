@@ -1,5 +1,5 @@
 import { attribution } from '@/lib/scan/engines/dedupe';
-import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport } from '@/lib/report-formats';
+import { FORMAT_DISCLAIMER, isDecidedFinding, type FormatFinding, type FormatReport } from '@/lib/report-formats';
 
 /** XML 1.0 forbids most C0 controls; strip them so the document stays well-formed. */
 function xmlSafe(value: string): string {
@@ -24,13 +24,14 @@ export type JunitCase = {
 export function groupFindingsByRuleAndPage(findings: readonly FormatFinding[]): JunitCase[] {
   const groups = new Map<string, JunitCase>();
   for (const finding of findings) {
-    const key = `${finding.pageUrl}\0${finding.ruleId}`;
+    const decision = isDecidedFinding(finding) ? finding.reviewDecision : undefined;
+    const key = `${finding.pageUrl}\0${finding.ruleId}\0${decision ? JSON.stringify([decision.group, decision.decision, decision.reason]) : ''}`;
     const existing = groups.get(key);
     if (existing) {
       existing.findings.push(finding);
       continue;
     }
-    groups.set(key, { classname: finding.pageUrl, name: finding.ruleId, findings: [finding] });
+    groups.set(key, { classname: finding.pageUrl, name: decision ? `${finding.ruleId} [${decision.decision}: ${decision.group}]` : finding.ruleId, findings: [finding] });
   }
   return [...groups.values()].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name),
@@ -70,7 +71,8 @@ function property(name: string, value: string): string {
 
 /**
  * JUnit XML (Jenkins JUnit plugin / dtkit junit-4 schema).
- * One testcase per axe rule × page. A testcase fails when that pair has violations.
+ * One testcase per axe rule × page, split by active review decision.
+ * Active exclusions skip; undecided new findings fail.
  * Pages that were scanned with no violations get a passing testcase named "no-violations".
  */
 export function toJunit(report: FormatReport): string {
@@ -82,7 +84,8 @@ export function toJunit(report: FormatReport): string {
   const cases = [...failed, ...passing].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name),
   );
-  const failures = failed.filter((g) => g.findings.some((f) => f.baselineStatus !== 'existing')).length;
+  const failures = failed.filter((g) => g.findings.some((f) => !isDecidedFinding(f) && f.baselineStatus !== 'existing')).length;
+  const skipped = cases.filter((g) => g.findings.length > 0 && g.findings.every(isDecidedFinding)).length;
   const tests = cases.length;
   const timestamp = escapeXml(report.generatedAt);
   const properties = [
@@ -100,6 +103,10 @@ export function toJunit(report: FormatReport): string {
 
   const testcases = cases.map((item) => {
     const attrs = `classname="${escapeXml(item.classname)}" name="${escapeXml(item.name)}" time="0"`;
+    if (item.findings.length > 0 && item.findings.every(isDecidedFinding)) {
+      const d = item.findings[0]!.reviewDecision!;
+      return `    <testcase ${attrs}>\n      <skipped message="${escapeXml(`${d.decision}: ${d.reason}`)}"/>\n    </testcase>`;
+    }
     if (item.findings.length === 0 || item.findings.every((f) => f.baselineStatus === 'existing')) return `    <testcase ${attrs}/>`;
     const failingItem = { ...item, findings: item.findings.filter((f) => f.baselineStatus !== 'existing') };
     const type = escapeXml(item.name);
@@ -110,7 +117,7 @@ export function toJunit(report: FormatReport): string {
 
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<testsuite name="A11yGate" tests="${tests}" failures="${failures}" errors="0" skipped="0" time="0" timestamp="${timestamp}" hostname="a11ygate">\n` +
+    `<testsuite name="A11yGate" tests="${tests}" failures="${failures}" errors="0" skipped="${skipped}" time="0" timestamp="${timestamp}" hostname="a11ygate">\n` +
     `  <properties>\n${properties.join('\n')}\n  </properties>\n` +
     `${testcases.join('\n')}\n` +
     `</testsuite>\n`

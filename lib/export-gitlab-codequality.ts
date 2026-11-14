@@ -1,4 +1,4 @@
-import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport } from '@/lib/report-formats';
+import { FORMAT_DISCLAIMER, isDecidedFinding, type FormatFinding, type FormatReport } from '@/lib/report-formats';
 import { baselineFingerprint } from '@/lib/scan/baseline';
 import { pageUrlToRepoRelativePath } from '@/lib/export-sarif';
 
@@ -37,6 +37,14 @@ export function toGitlabCodeQuality(report: FormatReport): string {
       location: { path: mapped ? file : pageUrlToRepoRelativePath(finding.pageUrl), lines: { begin, ...(end !== undefined ? { end } : {}) } },
     };
   });
-  issues.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
-  return `${JSON.stringify(issues, null, 2)}\n`;
+  const active = issues.filter((_, index) => !isDecidedFinding(report.findings[index]!));
+  active.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  return `${JSON.stringify(active, null, 2)}\n`;
+}
+
+/** Audit sidecar; intentionally separate from GitLab's issue-only report format. */
+export function toGitlabDecided(report: FormatReport): string | undefined {
+  const findings = report.findings.filter(isDecidedFinding);
+  if (!findings.length) return undefined;
+  return `${JSON.stringify({ disclaimer: FORMAT_DISCLAIMER, findings }, null, 2)}\n`;
 }
