@@ -148,6 +148,8 @@ describe('(c) schema covers every CLI option', () => {
     '--short': 'not a CLI option: argument to git symbolic-ref in evidence.ts', '-q': 'not a CLI option: argument to git symbolic-ref in evidence.ts',
     '--order': 'trend: per-run report ordering',
     '--debug': 'all commands: per-run diagnostics switch that prints stack traces',
+    '--projects': 'multi-project ci: per-run projects file, validated by the separate projects schema',
+    '--parallel': 'multi-project ci: per-run scheduling limit',
   };
 
   function schemaFlags(node: JsonSchema, out = new Set<string>()): Set<string> {

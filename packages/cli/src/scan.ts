@@ -333,6 +333,9 @@ export type ScanEngineFactory = (options: { userAgent: string; origin: string; e
 export class ScanSetupError extends Error {}
 
 export type ScanIo = {
+  /** Explicit project configuration; absent preserves repository discovery. */
+  repoConfig?: string | null;
+  onReport?: (report: import('@/lib/scan/report').ScanReport) => void;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   redactor?: AuthRedactor;
@@ -772,6 +775,7 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
     return 2;
   }
 
+  io.onReport?.(report);
   stdout(options.json === '-' ? json : markdown);
   if (report.verdict === 'ERROR' || report.engineResults?.some((e) => e.status === 'errored')) return 2;
   return report.verdict === 'FAIL' ? 1 : scanExitCode(report.findings, report.failOn);

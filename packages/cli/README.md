@@ -49,6 +49,49 @@ Accepted JSON shapes: one axe result object, an array of result objects, or `{ "
 | 1 | At least one new finding is at or above the threshold. |
 | 2 | The arguments or the JSON could not be read. |
 
+## Multi-project CI runs
+
+`a11ygate ci --projects a11ygate.projects.yml --out-dir a11y-projects`
+runs each project's live scan sequentially. Add `--parallel N` (1–8) to run
+up to N projects at once; page concurrency remains each scan's own setting.
+Only these three flags are accepted in multi-project mode.
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.projects.schema.json
+projects:
+  - name: storefront
+    config: sites/storefront.yml
+  - name: dashboard
+    config: sites/dashboard.yml
+```
+
+Each config is an ordinary `.a11ygate.yml` scan configuration with its own `url`,
+`auth`, fingerprint `baseline`, engines and threshold. Config paths resolve from
+the projects file; baseline and auth file paths resolve from each config's directory.
+Normal environment overrides still apply to each project. The coordinator overrides
+`outDir` and always requests per-project JUnit. Model features remain off by default.
+Names must be unique (case-insensitive), 1–64 ASCII letters/digits/underscores/hyphens,
+starting with a letter or digit. Validate without scanning with
+`a11ygate config validate --projects a11ygate.projects.yml`.
+
+The default output directory is `a11ygate-projects` relative to the command's working
+directory. Each `<out-dir>/<name>/` contains normal scan reports and a
+`project-result.json` recording the current invocation's result, including startup
+errors. `<out-dir>/a11ygate-projects.{json,md,html,junit.xml}` summarizes all projects
+in file order. JUnit has one testsuite and project gate testcase per project;
+individual findings remain in each project's JUnit report. Combined counts sum
+observed pages and findings; errored projects can have incomplete coverage.
+
+Exit code is the maximum project code: 0 passed, 1 violations at the configured
+threshold, 2 errored. Invalid project configuration, unreachable pages or browser
+startup failures do not stop other projects. Malformed projects files or unsafe
+output paths stop before scanning. Existing saved reports are never read to build
+the combined summary; consult `project-result.json` first when reusing output dirs,
+as prior scan files may remain after startup errors. Single-project commands and
+report formats are unchanged. Only scan authorized sites using test accounts.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## Live-site scan (`a11ygate scan`)
 
 For tested localhost apps, see the [Next.js, Vite + React, Angular and Storybook recipes](../../docs/recipes/README.md). The source CLI supports `scan <loopback-url> --start "npm start" --wait-on <loopback-url>`: start a trusted command, wait for HTTP 2xx, then stop its process group after scanning (POSIX). `--timeout-ms` bounds readiness and each page. Use `--storybook <loopback-index.json-url>` to scan every story iframe; it cannot be combined with crawl budgets, sitemaps or filters.

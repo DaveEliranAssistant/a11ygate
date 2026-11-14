@@ -10,6 +10,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ### Added
 
+- `a11ygate ci --projects <file>` runs isolated live-scan configs sequentially or with `--parallel 1–8`, writes per-project outputs and combined JSON/Markdown/HTML/JUnit summaries, and returns the worst project exit code. Startup errors do not stop other projects. Projects schema and `config validate --projects` diagnostics are included; single-project output stays unchanged (A11Y-R56).
+
 - Explicit `auth.check` probe URL, required/forbidden selectors and forbidden redirect destination replace heuristic login detection when configured. Failed checks skip engines, mark pages not authenticated and count them separately; `doctor` warns when auth has no check. Default heuristic scans and report goldens are unchanged (A11Y-R52).
 
 - `a11ygate scan --en301549-ref` adds an opt-in "EN 301 549 ref." column, labelled "Reference mapping only; does not indicate conformance.", to HTML report v2 and SARIF rule properties; the web app adds a CSV export with the same column. The mapping table cites ETSI EN 301 549 V3.2.1 clause 9. Default off; output without the flag is unchanged (A11Y-R59).
