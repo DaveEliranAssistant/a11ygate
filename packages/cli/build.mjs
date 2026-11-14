@@ -92,6 +92,14 @@ for (const input of Object.keys(verifyBuild.metafile.inputs)) {
   if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency in modelfix-verify: ${input}`);
 }
 
+// Shared read-only preflight; browser peers are resolved only at runtime.
+await build({
+  entryPoints: [path.join(packageRoot, 'src', 'doctor.ts')],
+  bundle: true, platform: 'node', format: 'esm', target: 'node20',
+  outfile: path.join(repoRoot, 'action', 'dist', 'doctor.mjs'),
+  legalComments: 'none', logLevel: 'warning', plugins: [atAlias],
+});
+
 await chmod(outfile, 0o755);
 await copyFile(outfile, actionOut);
 await chmod(actionOut, 0o755);

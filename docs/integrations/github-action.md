@@ -12,12 +12,16 @@ The workflow below is [`examples/github-action/a11ygate.yml`](../../examples/git
 
 Check these four items before you turn on comments, SARIF or model-fix drafts. The copy-paste workflow below shows all of them.
 
+<a id="doctor-pr-creation"></a>
+
 ### 1. "Allow GitHub Actions to create and approve pull requests" (model-fix draft PRs only)
 
 Model-fix **draft** pull requests need the repository setting **Settings → Actions → General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests"** ([GitHub Docs: Preventing GitHub Actions from creating or approving pull requests](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)). The **Workflow permissions** section is documented under [Setting the permissions of the GITHUB_TOKEN for your repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#setting-the-permissions-of-the-github_token-for-your-repository). New personal repositories have it off; organization repositories inherit the organization setting.
 
 - When it is off, GitHub refuses the pull request (403). A11yGate stops publishing and falls back to **report-only**: the gate result, job summary, comment and rule-based suggestions are unchanged, and no draft PR is opened. The exit code does not change.
 - **OWNER ACTION.** Turning this setting on is a decision for the repository or organization owner. A11yGate and its maintainers never change it for you. It is not needed for the gate, the comment, suggested changes or SARIF.
+
+<a id="doctor-permissions"></a>
 
 ### 2. `permissions:` per mode
 
@@ -32,6 +36,8 @@ Set the job token's scopes in the workflow `permissions:` block ([GitHub Docs: w
 | SARIF upload to code scanning | `read` | — | — | `write` |
 
 SARIF upload with `github/codeql-action/upload-sarif` needs `security-events: write` ([GitHub Docs: Uploading a SARIF file to GitHub](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file#uploading-a-code-scanning-analysis-with-github-actions)). Without the write scopes, A11yGate warns and reports only.
+
+<a id="doctor-checkout"></a>
 
 ### 3. Check out the pull request head commit
 
@@ -102,3 +108,96 @@ jobs:
           # A comment that cannot be posted fails the step, so only comment on same-repository pull requests.
           comment: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
 ```
+
+
+## Doctor
+
+Run `a11ygate doctor` before a scan. It prints a plain-language result and a link
+for every check, without visiting a scan target. By default it exits **0** even
+when checks fail. `a11ygate doctor --strict` exits **1** when any check fails;
+unknown and skipped checks are reported separately and do not fail strict mode.
+Invalid command arguments exit **2**. “All checks passed” means all applicable
+checks passed; unknown checks prevent that message.
+
+The Action runs the same preflight automatically before its gate, emits warnings
+for failed or unknown checks, and continues. There is no strict Action input;
+preflight never changes the gate exit code. Browser and engine checks are skipped
+when the Action only reads axe JSON and model verification is off.
+
+### Read-only GitHub probes
+
+Doctor uses only `GET https://api.github.com/repos/$GITHUB_REPOSITORY` and, when
+model-fix draft publishing is enabled,
+`GET /repos/$GITHUB_REPOSITORY/actions/permissions/workflow`. It uses
+`A11Y_TOKEN` or `GITHUB_TOKEN`, refuses redirects, times out each request after
+five seconds, and never prints tokens, response bodies or raw exceptions. It
+never creates a pull request or changes a setting. Custom API origins (including
+GitHub Enterprise) are not probed; those checks remain unknown.
+
+The [read-only workflow-permissions endpoint](https://docs.github.com/en/rest/actions/permissions#get-default-workflow-permissions-for-a-repository)
+exposes `can_approve_pull_request_reviews`, the signal for the repository's
+Actions PR setting. A false value reports disabled PR creation. A 403 on this
+endpoint means the setting is **unknown**, because reading it requires additional
+access; do not grant administration access just for doctor. An owner can check
+the setting described in [setup item 1](#doctor-pr-creation).
+
+For job scopes, a 401/403 on the repository read probe reports an access failure.
+A successful read does **not** establish write scopes. If a trusted workflow or
+runner exposes the effective permissions context, pass it as JSON in
+`A11YGATE_GITHUB_PERMISSIONS` (or `GITHUB_TOKEN_PERMISSIONS`), for example
+`{"contents":"read","issues":"write","pull-requests":"write"}`. This is an
+explicit caller-supplied signal, not a GitHub-provided automatic environment
+variable. Missing keys in a supplied context mean no permission. Requirements
+follow [setup item 2](#doctor-permissions), based on the enabled Action modes.
+Set `A11YGATE_SARIF_UPLOAD=true` to include the security-events write check for a
+separate SARIF upload step. Fork event payloads also reveal unavailable write
+scopes. `ACTIONS_RUNTIME_TOKEN` alone is not a repository permission signal and
+is never decoded or sent. Without a permissions context, write scopes remain
+unknown. Checkout checks compare actual `git rev-parse HEAD` with
+`A11Y_HEAD_SHA` or the PR head in `GITHUB_EVENT_PATH`, as in
+[setup item 3](#doctor-checkout); `GITHUB_SHA` is not used as the checkout SHA.
+
+<a id="doctor-node"></a>
+
+### Supported Node
+
+The CLI supports Node **20+**. The Action example uses **22**. Doctor checks the
+running Node major; it does not install or change Node.
+
+<a id="doctor-browser"></a>
+
+### Playwright and Chromium
+
+Scanning and model verification need Playwright and its installed Chromium
+executable. Doctor resolves Playwright and checks that executable exists without
+launching it. Install with `npm install --save-dev playwright` followed by
+`npx playwright install chromium`. Existence does not prove the browser can
+launch: system libraries and sandbox support still depend on the runner.
+
+<a id="doctor-engines"></a>
+
+### Requested engine peers
+
+`a11ygate doctor --engines axe,htmlcs,ibm,lighthouse` checks only the requested
+engine packages. With no flag it reads a top-level `engines: [axe, ibm]` or a
+YAML dash list in `.a11ygate.yml`; the default is `axe`. This config list is
+for doctor; continue passing `--engines` to `scan` itself. Required packages are
+`@axe-core/playwright` for axe, `html_codesniffer` for HTMLCS,
+`accessibility-checker-engine` for IBM, and both `lighthouse` and `puppeteer-core`
+for Lighthouse. Doctor checks resolution without importing those engines or
+calling their services. It reports unknown engine names as a failed check.
+
+<a id="doctor-provider"></a>
+
+### Model provider configuration
+
+`a11ygate doctor --model-fixes on` uses the same repository consent and provider
+configuration as the Action. Model fixes need `modelFixes: true` in
+`.a11ygate.yml`, an explicit `A11YGATE_MODEL_PROVIDERS` allowlist, and a configured
+provider with credentials and a model ID. Doctor calls only the adapters'
+local configuration checks; it never contacts a model service. The offline
+`stub` counts only when explicitly allowlisted (demo/dev only). Budget and
+verification requirements still apply; see the action README's model-assisted
+fix documentation. Doctor never invents alt or label text.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

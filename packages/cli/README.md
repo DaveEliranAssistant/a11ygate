@@ -138,3 +138,15 @@ then `a11ygate scan <url> --baseline .a11ygate-baseline.json` to gate new findin
 Saved scans can be compared with `a11ygate report <scan.json|out-dir> --baseline <file>`.
 See [baseline mode](../../docs/baseline-mode.md) for examples and exporter behavior.
 The separate `a11ygate [ci] --baseline <axe.json>` format remains unchanged.
+
+
+### Preflight
+
+Run `a11ygate doctor` before scanning (Node 20+; the Action uses 22). It reports
+configuration problems without visiting scan targets and exits 0 by default.
+Use `--strict` to exit 1 on failed checks, `--engines axe,ibm` to check requested
+peers, and `--model-fixes on` to check an opted-in model provider. See the
+[GitHub Action doctor guide](../../docs/integrations/github-action.md#doctor)
+for read-only probes, unknown results, supported config and setup instructions.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

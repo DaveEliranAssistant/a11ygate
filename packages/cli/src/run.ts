@@ -6,6 +6,7 @@ import { helpText } from './help';
 import { runReport, runScan } from './scan';
 import { runBaseline } from './baseline';
 import { runEvidence } from './evidence';
+import { runDoctor } from './doctor';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
@@ -148,6 +149,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => new Date());
 
+  if (argv[0] === 'doctor') return runDoctor(argv.slice(1), io);
   if (argv[0] === 'baseline') return runBaseline(argv.slice(1), io);
   if (argv[0] === 'report') return runReport(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });

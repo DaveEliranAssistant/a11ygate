@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCommentBody, findA11yComment } from './comment.mjs';
 import { adaptersForEnv, REPO_CONFIG_FILE, resolveModelFixConfig } from './dist/modelfix.mjs';
+import { doctorChecks, formatDoctor } from './dist/doctor.mjs';
 import { postSuggestions, readWorkspaceFile } from './suggestions.mjs';
 
 const actionDir = path.dirname(fileURLToPath(import.meta.url));
@@ -269,6 +270,21 @@ function writeResultOutputs(jsonPath, exitCode) {
     const message = error instanceof Error ? error.message : 'could not read the JSON result';
     process.stderr.write(`A11yGate could not read the JSON result: ${message}\n`);
   }
+}
+
+// Advisory only: preflight must never replace the gate's exit code.
+try {
+  const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+  let repoConfig = null;
+  try { repoConfig = readWorkspaceFile(workspace, REPO_CONFIG_FILE); } catch { /* no consent */ }
+  const model = resolveModelFixConfig({ repoConfig, flag: process.env.A11Y_MODEL_FIXES, env: process.env });
+  const findings = await doctorChecks({ browser: model.enabled }, { cwd: workspace, repoConfig });
+  process.stdout.write(formatDoctor(findings));
+  for (const finding of findings) {
+    if (finding.status === 'fail' || finding.status === 'unknown') warning(`A11yGate doctor: ${finding.message} ${finding.link}`);
+  }
+} catch {
+  warning('A11yGate doctor could not complete. Continuing with the gate. https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor');
 }
 
 const paths = outputPaths();

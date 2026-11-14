@@ -1,0 +1,22 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doctor preflight (no browser or network) > prints the all checks passed snapshot in a clean environment 1`] = `
+"A11yGate doctor
+[SKIPPED] checkout: No pull request head SHA is available.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-checkout
+[PASS] node: Node meets the CLI requirement (20+; the Action uses 22).
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-node
+[PASS] browser: Playwright Chromium is installed.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-browser
+[PASS] engines: All requested engine peers are installed.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-engines
+[SKIPPED] provider: Model fixes are off or repository consent is absent.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-provider
+[SKIPPED] permissions: No GitHub repository context; workflow permissions do not apply.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-permissions
+[SKIPPED] pr-creation: Model-fix draft PR publishing is off.
+  https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#doctor-pr-creation
+All checks passed (applicable checks only).
+Automated testing only. Not a WCAG audit, certification or legal advice.
+"
+`;
