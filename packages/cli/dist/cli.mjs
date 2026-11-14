@@ -1931,6 +1931,17 @@ function secretEnvValues(env = process.env, minimumLength = 8) {
 
 // lib/scan/interactions.ts
 var AUTO_SELECTOR = '[aria-expanded="false"], button[aria-haspopup]:not([aria-haspopup="false"]), [role="button"][aria-haspopup]:not([aria-haspopup="false"])';
+function parseInteractionConfig(value) {
+  if (Array.isArray(value)) return parseInteractionStates(value);
+  if (!value || typeof value !== "object" || Object.keys(value).some((k) => !["states", "auto"].includes(k))) throw new Error("Interactions need a state list or a states/auto mapping.");
+  const config2 = value;
+  parseInteractionStates(config2.states ?? []);
+  if (config2.auto !== void 0) {
+    const auto = config2.auto;
+    if (!auto || typeof auto !== "object" || Array.isArray(auto) || Object.keys(auto).some((k) => !["depth", "maxStates"].includes(k)) || auto.depth !== void 0 && (!Number.isInteger(auto.depth) || auto.depth < 1 || auto.depth > 3) || auto.maxStates !== void 0 && (!Number.isInteger(auto.maxStates) || auto.maxStates < 1 || auto.maxStates > 100)) throw new Error("Auto depth must be 1\u20133 and maxStates 1\u2013100.");
+  }
+  return config2;
+}
 function parseInteractionStates(value) {
   if (!Array.isArray(value) || value.length > 100) throw new Error("interactions (top level): must be a list of at most 100 states.");
   const names = /* @__PURE__ */ new Set();
@@ -1963,6 +1974,8 @@ async function activationReason(locator) {
     if (el.closest('input, textarea, select, [contenteditable="true"]')) return "Form inputs are not interaction targets.";
     const button = el.closest("button");
     if (button && (button.type === "submit" || button.type === "reset") && (button.form || button.type === "reset")) return "Submit/reset buttons are not interaction targets.";
+    const textButton = el.closest('button, [role="button"]');
+    if (textButton && /\b(delete|remove|pay|buy|submit)\b/i.test(textButton.textContent ?? "")) return "Destructive-looking controls are not interaction targets.";
     return null;
   });
 }
@@ -1993,8 +2006,13 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const route = new URL(url).pathname + new URL(url).search;
   const states = options.states.filter((s) => s.route === route);
   const autoCount = options.auto ? Math.min(await page.locator(AUTO_SELECTOR).count(), options.budget) : 0;
+  const depth = typeof options.auto === "object" ? options.auto.depth ?? 1 : 1;
+  const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
+  let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index) => {
+  const run2 = async (name, steps, index, path15) => {
+    let children = [];
+    let visibleBefore = [];
     const label = new URL(url);
     label.hash = name;
     const record = { url: label.href, finalUrl: label.href, status: 200, scanStatus: "skipped" };
@@ -2022,21 +2040,60 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else await perform(page.locator(AUTO_SELECTOR).nth(index), "click");
+      else if (path15) {
+        for (const control of path15) {
+          visibleBefore = await revealedControls(page);
+          await perform(page.locator(control.selector), "click");
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        }
+      } else await perform(page.locator(AUTO_SELECTOR).nth(index), "click");
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
+      if (path15 && path15.length < depth) children = (await revealedControls(page, path15.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
       active(true);
     }
     records.push(record);
+    return children;
   };
   for (const state of states) await run2(state.name, state.steps);
-  for (let i = 0; i < autoCount && used < options.budget; i++) await run2(`auto-${i + 1}`, void 0, i);
+  if (depth === 1) {
+    for (let i = 0; i < autoCount && used < options.budget && autoUsed < maxStates; i++, autoUsed++) await run2(`auto-${i + 1}`, void 0, i);
+  } else {
+    active(false);
+    await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+    active(true);
+    const roots = options.auto ? await revealedControls(page) : [];
+    const explore = async (path15) => {
+      if (autoUsed >= maxStates || used + path15.length > options.budget) return;
+      autoUsed++;
+      const children = await run2(path15.map((c) => c.name).join(">"), void 0, void 0, path15);
+      for (const child of children) await explore([...path15, child]);
+    };
+    for (const root of roots) await explore([root]);
+  }
   return records;
+}
+async function revealedControls(page, parent) {
+  return page.evaluate(({ selector, parent: parent2 }) => {
+    const owner = parent2 ? document.querySelector(parent2.selector) : null;
+    const panels = owner ? (owner.getAttribute("aria-controls") ?? owner.getAttribute("aria-owns") ?? "").split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean) : [];
+    return [...document.querySelectorAll(selector)].flatMap((el, index) => {
+      if (!(el instanceof HTMLElement) || !el.getClientRects().length || getComputedStyle(el).visibility === "hidden" || el.getAttribute("aria-expanded") === "true") return [];
+      if (owner && (el === owner || !(owner.contains(el) || panels.some((panel) => panel.contains(el))))) return [];
+      const parts = [];
+      for (let node = el; node; node = node.parentElement) {
+        const siblings = node.parentElement ? [...node.parentElement.children].filter((s) => s.tagName === node.tagName) : [node];
+        parts.unshift(node.tagName.toLowerCase() + ":nth-of-type(" + (siblings.indexOf(node) + 1) + ")");
+      }
+      const name = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(el.id) ? el.id : `auto-${index + 1}`;
+      return [{ selector: parts.join(" > "), name }];
+    });
+  }, { selector: AUTO_SELECTOR, parent });
 }
 
 // lib/modelfix/config.ts
@@ -2292,90 +2349,203 @@ var a11ygate_schema_default = {
     keyboard: { type: "boolean", description: "Opt-in keyboard focus heuristics; needs human review.", "x-cli": ["--keyboard"] },
     keyboardBudget: { type: "integer", minimum: 1, maximum: 1e3, description: "Maximum Tab presses per page (default 100).", "x-cli": ["--keyboard-budget"] },
     interactions: {
-      description: "Opt-in route states. --interactions reads this list from a local JSON file.",
-      type: "array",
-      maxItems: 100,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "route",
-          "name",
-          "steps"
-        ],
-        properties: {
-          route: {
-            type: "string",
-            pattern: "^/(?!/)[^#\\s]*$"
-          },
-          name: {
-            type: "string",
-            pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
-          },
-          steps: {
-            type: "array",
-            minItems: 1,
-            maxItems: 100,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "action",
-                "selector"
-              ],
-              properties: {
-                action: {
-                  type: "string",
-                  enum: [
-                    "click",
-                    "press",
-                    "wait"
-                  ]
-                },
-                selector: {
-                  type: "string",
-                  minLength: 1,
-                  maxLength: 512
-                },
-                key: {
-                  type: "string",
-                  minLength: 1,
-                  maxLength: 80
-                }
+      description: "Opt-in state list or states/auto mapping. Automated testing only. Not a WCAG audit, certification or legal advice.",
+      anyOf: [
+        {
+          type: "array",
+          maxItems: 100,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "route",
+              "name",
+              "steps"
+            ],
+            properties: {
+              route: {
+                type: "string",
+                pattern: "^/(?!/)[^#\\s]*$"
               },
-              allOf: [
-                {
-                  if: {
-                    properties: {
-                      action: {
-                        const: "press"
+              name: {
+                type: "string",
+                pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+              },
+              steps: {
+                type: "array",
+                minItems: 1,
+                maxItems: 100,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: [
+                    "action",
+                    "selector"
+                  ],
+                  properties: {
+                    action: {
+                      type: "string",
+                      enum: [
+                        "click",
+                        "press",
+                        "wait"
+                      ]
+                    },
+                    selector: {
+                      type: "string",
+                      minLength: 1,
+                      maxLength: 512
+                    },
+                    key: {
+                      type: "string",
+                      minLength: 1,
+                      maxLength: 80
+                    }
+                  },
+                  allOf: [
+                    {
+                      if: {
+                        properties: {
+                          action: {
+                            const: "press"
+                          }
+                        }
+                      },
+                      then: {
+                        required: [
+                          "key"
+                        ],
+                        properties: {
+                          key: {}
+                        }
+                      },
+                      else: {
+                        not: {
+                          required: [
+                            "key"
+                          ],
+                          properties: {
+                            key: {}
+                          }
+                        }
                       }
                     }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            states: {
+              type: "array",
+              maxItems: 100,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                  "route",
+                  "name",
+                  "steps"
+                ],
+                properties: {
+                  route: {
+                    type: "string",
+                    pattern: "^/(?!/)[^#\\s]*$"
                   },
-                  then: {
-                    required: [
-                      "key"
-                    ],
-                    properties: {
-                      key: {}
-                    }
+                  name: {
+                    type: "string",
+                    pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
                   },
-                  else: {
-                    not: {
+                  steps: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 100,
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
                       required: [
-                        "key"
+                        "action",
+                        "selector"
                       ],
                       properties: {
-                        key: {}
-                      }
+                        action: {
+                          type: "string",
+                          enum: [
+                            "click",
+                            "press",
+                            "wait"
+                          ]
+                        },
+                        selector: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 512
+                        },
+                        key: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 80
+                        }
+                      },
+                      allOf: [
+                        {
+                          if: {
+                            properties: {
+                              action: {
+                                const: "press"
+                              }
+                            }
+                          },
+                          then: {
+                            required: [
+                              "key"
+                            ],
+                            properties: {
+                              key: {}
+                            }
+                          },
+                          else: {
+                            not: {
+                              required: [
+                                "key"
+                              ],
+                              properties: {
+                                key: {}
+                              }
+                            }
+                          }
+                        }
+                      ]
                     }
                   }
                 }
-              ]
+              }
+            },
+            auto: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                depth: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 3,
+                  default: 1
+                },
+                maxStates: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 100,
+                  default: 20
+                }
+              }
             }
           }
         }
-      },
+      ],
       "x-cli": [
         "--interactions"
       ]
@@ -2581,6 +2751,12 @@ function matchesType(type, value) {
 }
 function check(schema, value, where, errors) {
   const label = where || "the config";
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find((s) => !s.type || matchesType(s.type, value));
+    if (branch) check(branch, value, where, errors);
+    else errors.push(`'${label}' must be a state list or a states/auto mapping.`);
+    return;
+  }
   if (schema.type && !matchesType(schema.type, value)) {
     const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
@@ -2688,6 +2864,13 @@ function get(object, key) {
   return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
 }
 function decode(text, schema) {
+  if (schema.anyOf) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
   if (schema.type === "array") {
     if (text.trim().startsWith("[")) {
       try {
@@ -2746,7 +2929,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     }
   }
   try {
-    parseInteractionStates(values.interactions);
+    parseInteractionConfig(values.interactions);
   } catch (error) {
     throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${error.message}`, { cause: error });
   }
@@ -2781,7 +2964,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     if (text === void 0) throw new Error(`${name} needs a value.`);
     if (["screenshots", "noScreenshots", "ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
-      const inline = text.trim().startsWith("[");
+      const inline = /^[\[{]/.test(text.trim());
       const source = inline ? "--interactions" : text;
       let raw;
       if (inline) raw = text;
@@ -2799,7 +2982,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
         throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`);
       }
       try {
-        return parseInteractionStates(json);
+        return parseInteractionConfig(json);
       } catch (error) {
         throw new Error(`Invalid --interactions (${source}: ${error.message.replace(/\.$/, "")}).`, { cause: error });
       }
@@ -4861,7 +5044,7 @@ function parseScanArgs(argv2) {
       options.keyboardBudget = Number(value);
     } else if (name === "--interactions") {
       try {
-        options.interactions = value.trim().startsWith("[") ? parseInteractionStates(JSON.parse(value)) : value;
+        options.interactions = /^[\[{]/.test(value.trim()) ? parseInteractionConfig(JSON.parse(value)) : value;
       } catch (error) {
         return { ok: false, error: `Invalid interaction states (--interactions: ${error instanceof SyntaxError ? "not valid JSON" : error.message.replace(/\.$/, "")}).` };
       }
@@ -5310,8 +5493,8 @@ Run a11ygate scan --help for usage.
   let interactions;
   try {
     if (options.interactions || options.autoInteractions) {
-      const states = typeof options.interactions === "string" ? await readJsonInput(cwd, options.interactions, parseInteractionStates) : parseInteractionStates(options.interactions ?? []);
-      interactions = { states, auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+      const config2 = typeof options.interactions === "string" ? await readJsonInput(cwd, options.interactions, parseInteractionConfig) : parseInteractionConfig(options.interactions ?? []);
+      interactions = { states: Array.isArray(config2) ? config2 : config2.states ?? [], auto: !Array.isArray(config2) && config2.auto || !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
     }
   } catch (error) {
     stderr(`Could not read valid interaction states from the local JSON file: ${error.message}

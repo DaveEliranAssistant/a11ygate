@@ -521,6 +521,17 @@ function adaptersForEnv(env = {}) {
 }
 
 // lib/scan/interactions.ts
+function parseInteractionConfig(value) {
+  if (Array.isArray(value)) return parseInteractionStates(value);
+  if (!value || typeof value !== "object" || Object.keys(value).some((k) => !["states", "auto"].includes(k))) throw new Error("Interactions need a state list or a states/auto mapping.");
+  const config = value;
+  parseInteractionStates(config.states ?? []);
+  if (config.auto !== void 0) {
+    const auto = config.auto;
+    if (!auto || typeof auto !== "object" || Array.isArray(auto) || Object.keys(auto).some((k) => !["depth", "maxStates"].includes(k)) || auto.depth !== void 0 && (!Number.isInteger(auto.depth) || auto.depth < 1 || auto.depth > 3) || auto.maxStates !== void 0 && (!Number.isInteger(auto.maxStates) || auto.maxStates < 1 || auto.maxStates > 100)) throw new Error("Auto depth must be 1\u20133 and maxStates 1\u2013100.");
+  }
+  return config;
+}
 function parseInteractionStates(value) {
   if (!Array.isArray(value) || value.length > 100) throw new Error("interactions (top level): must be a list of at most 100 states.");
   const names = /* @__PURE__ */ new Set();
@@ -801,90 +812,203 @@ var a11ygate_schema_default = {
     keyboard: { type: "boolean", description: "Opt-in keyboard focus heuristics; needs human review.", "x-cli": ["--keyboard"] },
     keyboardBudget: { type: "integer", minimum: 1, maximum: 1e3, description: "Maximum Tab presses per page (default 100).", "x-cli": ["--keyboard-budget"] },
     interactions: {
-      description: "Opt-in route states. --interactions reads this list from a local JSON file.",
-      type: "array",
-      maxItems: 100,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "route",
-          "name",
-          "steps"
-        ],
-        properties: {
-          route: {
-            type: "string",
-            pattern: "^/(?!/)[^#\\s]*$"
-          },
-          name: {
-            type: "string",
-            pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
-          },
-          steps: {
-            type: "array",
-            minItems: 1,
-            maxItems: 100,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "action",
-                "selector"
-              ],
-              properties: {
-                action: {
-                  type: "string",
-                  enum: [
-                    "click",
-                    "press",
-                    "wait"
-                  ]
-                },
-                selector: {
-                  type: "string",
-                  minLength: 1,
-                  maxLength: 512
-                },
-                key: {
-                  type: "string",
-                  minLength: 1,
-                  maxLength: 80
-                }
+      description: "Opt-in state list or states/auto mapping. Automated testing only. Not a WCAG audit, certification or legal advice.",
+      anyOf: [
+        {
+          type: "array",
+          maxItems: 100,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "route",
+              "name",
+              "steps"
+            ],
+            properties: {
+              route: {
+                type: "string",
+                pattern: "^/(?!/)[^#\\s]*$"
               },
-              allOf: [
-                {
-                  if: {
-                    properties: {
-                      action: {
-                        const: "press"
+              name: {
+                type: "string",
+                pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+              },
+              steps: {
+                type: "array",
+                minItems: 1,
+                maxItems: 100,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: [
+                    "action",
+                    "selector"
+                  ],
+                  properties: {
+                    action: {
+                      type: "string",
+                      enum: [
+                        "click",
+                        "press",
+                        "wait"
+                      ]
+                    },
+                    selector: {
+                      type: "string",
+                      minLength: 1,
+                      maxLength: 512
+                    },
+                    key: {
+                      type: "string",
+                      minLength: 1,
+                      maxLength: 80
+                    }
+                  },
+                  allOf: [
+                    {
+                      if: {
+                        properties: {
+                          action: {
+                            const: "press"
+                          }
+                        }
+                      },
+                      then: {
+                        required: [
+                          "key"
+                        ],
+                        properties: {
+                          key: {}
+                        }
+                      },
+                      else: {
+                        not: {
+                          required: [
+                            "key"
+                          ],
+                          properties: {
+                            key: {}
+                          }
+                        }
                       }
                     }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            states: {
+              type: "array",
+              maxItems: 100,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                  "route",
+                  "name",
+                  "steps"
+                ],
+                properties: {
+                  route: {
+                    type: "string",
+                    pattern: "^/(?!/)[^#\\s]*$"
                   },
-                  then: {
-                    required: [
-                      "key"
-                    ],
-                    properties: {
-                      key: {}
-                    }
+                  name: {
+                    type: "string",
+                    pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
                   },
-                  else: {
-                    not: {
+                  steps: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 100,
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
                       required: [
-                        "key"
+                        "action",
+                        "selector"
                       ],
                       properties: {
-                        key: {}
-                      }
+                        action: {
+                          type: "string",
+                          enum: [
+                            "click",
+                            "press",
+                            "wait"
+                          ]
+                        },
+                        selector: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 512
+                        },
+                        key: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 80
+                        }
+                      },
+                      allOf: [
+                        {
+                          if: {
+                            properties: {
+                              action: {
+                                const: "press"
+                              }
+                            }
+                          },
+                          then: {
+                            required: [
+                              "key"
+                            ],
+                            properties: {
+                              key: {}
+                            }
+                          },
+                          else: {
+                            not: {
+                              required: [
+                                "key"
+                              ],
+                              properties: {
+                                key: {}
+                              }
+                            }
+                          }
+                        }
+                      ]
                     }
                   }
                 }
-              ]
+              }
+            },
+            auto: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                depth: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 3,
+                  default: 1
+                },
+                maxStates: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 100,
+                  default: 20
+                }
+              }
             }
           }
         }
-      },
+      ],
       "x-cli": [
         "--interactions"
       ]
@@ -1090,6 +1214,12 @@ function matchesType(type, value) {
 }
 function check(schema, value, where, errors) {
   const label = where || "the config";
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find((s) => !s.type || matchesType(s.type, value));
+    if (branch) check(branch, value, where, errors);
+    else errors.push(`'${label}' must be a state list or a states/auto mapping.`);
+    return;
+  }
   if (schema.type && !matchesType(schema.type, value)) {
     const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
@@ -1197,6 +1327,13 @@ function get(object, key) {
   return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
 }
 function decode(text, schema) {
+  if (schema.anyOf) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
   if (schema.type === "array") {
     if (text.trim().startsWith("[")) {
       try {
@@ -1255,7 +1392,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     }
   }
   try {
-    parseInteractionStates(values.interactions);
+    parseInteractionConfig(values.interactions);
   } catch (error) {
     throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${error.message}`, { cause: error });
   }
@@ -1290,7 +1427,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (text === void 0) throw new Error(`${name} needs a value.`);
     if (["screenshots", "noScreenshots", "ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
-      const inline = text.trim().startsWith("[");
+      const inline = /^[\[{]/.test(text.trim());
       const source = inline ? "--interactions" : text;
       let raw;
       if (inline) raw = text;
@@ -1308,7 +1445,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
         throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`);
       }
       try {
-        return parseInteractionStates(json);
+        return parseInteractionConfig(json);
       } catch (error) {
         throw new Error(`Invalid --interactions (${source}: ${error.message.replace(/\.$/, "")}).`, { cause: error });
       }

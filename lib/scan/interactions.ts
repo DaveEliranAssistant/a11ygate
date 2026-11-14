@@ -3,8 +3,23 @@ import type { PageRecord } from './crawl';
 
 export type InteractionStep = { action: 'click' | 'press' | 'wait'; selector: string; key?: string };
 export type InteractionState = { route: string; name: string; steps: InteractionStep[] };
-export type InteractionOptions = { states: InteractionState[]; auto: boolean; budget: number };
+export type InteractionOptions = { states: InteractionState[]; auto: boolean | { depth?: number; maxStates?: number }; budget: number };
 export const AUTO_SELECTOR = '[aria-expanded="false"], button[aria-haspopup]:not([aria-haspopup="false"]), [role="button"][aria-haspopup]:not([aria-haspopup="false"])';
+
+export type InteractionConfig = InteractionState[] | { states?: InteractionState[]; auto?: { depth?: number; maxStates?: number } };
+export function parseInteractionConfig(value: unknown): InteractionConfig {
+  if (Array.isArray(value)) return parseInteractionStates(value);
+  if (!value || typeof value !== 'object' || Object.keys(value).some(k => !['states', 'auto'].includes(k))) throw new Error('Interactions need a state list or a states/auto mapping.');
+  const config = value as Exclude<InteractionConfig, InteractionState[]>;
+  parseInteractionStates(config.states ?? []);
+  if (config.auto !== undefined) {
+    const auto = config.auto;
+    if (!auto || typeof auto !== 'object' || Array.isArray(auto) || Object.keys(auto).some(k => !['depth', 'maxStates'].includes(k)) ||
+      (auto.depth !== undefined && (!Number.isInteger(auto.depth) || auto.depth < 1 || auto.depth > 3)) ||
+      (auto.maxStates !== undefined && (!Number.isInteger(auto.maxStates) || auto.maxStates < 1 || auto.maxStates > 100))) throw new Error('Auto depth must be 1–3 and maxStates 1–100.');
+  }
+  return config;
+}
 
 /** Validate before starting a browser. State names are report labels, not URL navigation. */
 export function parseInteractionStates(value: unknown): InteractionState[] {
@@ -41,6 +56,8 @@ export async function activationReason(locator: Locator): Promise<string | null>
     if (el.closest('input, textarea, select, [contenteditable="true"]')) return 'Form inputs are not interaction targets.';
     const button = el.closest('button');
     if (button && (button.type === 'submit' || button.type === 'reset') && (button.form || button.type === 'reset')) return 'Submit/reset buttons are not interaction targets.';
+    const textButton = el.closest('button, [role="button"]');
+    if (textButton && /\b(delete|remove|pay|buy|submit)\b/i.test(textButton.textContent ?? '')) return 'Destructive-looking controls are not interaction targets.';
     return null;
   });
 }
@@ -65,8 +82,13 @@ export async function scanInteractionStates(page: Page, url: string, options: In
   const route = new URL(url).pathname + new URL(url).search;
   const states = options.states.filter(s => s.route === route);
   const autoCount = options.auto ? Math.min(await page.locator(AUTO_SELECTOR).count(), options.budget) : 0;
+  const depth = typeof options.auto === 'object' ? options.auto.depth ?? 1 : 1;
+  const maxStates = typeof options.auto === 'object' ? options.auto.maxStates ?? 20 : 20;
+  let autoUsed = 0;
   let used = 0;
-  const run = async (name: string, steps?: InteractionStep[], index?: number) => {
+  const run = async (name: string, steps?: InteractionStep[], index?: number, path?: AutoControl[]) => {
+    let children: AutoControl[] = [];
+    let visibleBefore: AutoControl[] = [];
     const label = new URL(url); label.hash = name;
     const record: PageRecord = { url: label.href, finalUrl: label.href, status: 200, scanStatus: 'skipped' };
     let stepNumber = 0;
@@ -92,18 +114,61 @@ export async function scanInteractionStates(page: Page, url: string, options: In
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else await perform(page.locator(AUTO_SELECTOR).nth(index!), 'click');
+      else if (path) {
+        for (const control of path) {
+          visibleBefore = await revealedControls(page);
+          await perform(page.locator(control.selector), 'click');
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        }
+      } else await perform(page.locator(AUTO_SELECTOR).nth(index!), 'click');
       // Allow synchronous handlers and queued rendering to settle; use explicit wait steps for async UI.
       await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       record.result = await scan(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = 'complete';
+      if (path && path.length < depth) children = (await revealedControls(page, path.at(-1)!)).filter(c => !visibleBefore.some(before => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split('\n')[0] : 'Interaction failed.'}`;
     } finally { active(true); }
     records.push(record);
+    return children;
   };
   for (const state of states) await run(state.name, state.steps);
-  for (let i = 0; i < autoCount && used < options.budget; i++) await run(`auto-${i + 1}`, undefined, i);
+  if (depth === 1) {
+    for (let i = 0; i < autoCount && used < options.budget && autoUsed < maxStates; i++, autoUsed++) await run(`auto-${i + 1}`, undefined, i);
+  } else {
+    // Snapshot stable DOM paths before opening anything; each branch reloads and replays its ancestors.
+    active(false);
+    await page.goto(url, { waitUntil: 'load', timeout: timeoutMs });
+    active(true);
+    const roots = options.auto ? await revealedControls(page) : [];
+    const explore = async (path: AutoControl[]): Promise<void> => {
+      if (autoUsed >= maxStates || used + path.length > options.budget) return;
+      autoUsed++;
+      const children = await run(path.map(c => c.name).join('>'), undefined, undefined, path);
+      for (const child of children) await explore([...path, child]);
+    };
+    for (const root of roots) await explore([root]);
+  }
   return records;
+}
+
+type AutoControl = { selector: string; name: string };
+/** Follow aria-controls/owns (including portalled panels), or descendants of the opened control. */
+async function revealedControls(page: Page, parent?: AutoControl): Promise<AutoControl[]> {
+  return page.evaluate(({ selector, parent }) => {
+    const owner = parent ? document.querySelector(parent.selector) : null;
+    const panels = owner ? (owner.getAttribute('aria-controls') ?? owner.getAttribute('aria-owns') ?? '').split(/\s+/).map(id => document.getElementById(id)).filter(Boolean) : [];
+    return [...document.querySelectorAll(selector)].flatMap((el, index) => {
+      if (!(el instanceof HTMLElement) || !el.getClientRects().length || getComputedStyle(el).visibility === 'hidden' || el.getAttribute('aria-expanded') === 'true') return [];
+      if (owner && (el === owner || !(owner.contains(el) || panels.some(panel => panel!.contains(el))))) return [];
+      const parts: string[] = [];
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        const siblings: Element[] = node.parentElement ? [...node.parentElement.children].filter(s => s.tagName === node!.tagName) : [node];
+        parts.unshift(node.tagName.toLowerCase() + ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')');
+      }
+      const name = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(el.id) ? el.id : `auto-${index + 1}`;
+      return [{ selector: parts.join(' > '), name }];
+    });
+  }, { selector: AUTO_SELECTOR, parent });
 }

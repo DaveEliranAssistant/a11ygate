@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseInteractionStates, scanInteractionStates, type InteractionState } from '@/lib/scan/interactions';
+import { parseInteractionConfig, parseInteractionStates, scanInteractionStates, type InteractionState } from '@/lib/scan/interactions';
 import { buildScanReport, groupByCriterion, groupBySeverity } from '@/lib/scan/report';
 import { normalizeAxeResults } from '@/lib/scan/engines/normalized';
 import { runScan } from '@/packages/cli/src/scan';
@@ -77,12 +77,26 @@ it('loads nested YAML state lists and resolves CLI file > env > YAML without sta
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
+it('validates bounded nested auto settings and resolves YAML, env and local JSON', async () => {
+  const value = { auto: { depth: 2, maxStates: 3 } };
+  expect(parseInteractionConfig(value)).toEqual(value);
+  for (const auto of [{ depth: 0 }, { depth: 4 }, { depth: 1.5 }, { maxStates: 0 }, { maxStates: 101 }, { maxStates: '2' }, { unknown: 1 }]) {
+    expect(() => parseInteractionConfig({ auto })).toThrow();
+    expect(configProblems('interactions:\n  auto:\n' + Object.entries(auto).map(([k, v]) => `    ${k}: ${JSON.stringify(v)}\n`).join(''))).not.toEqual([]);
+  }
+  const yaml = 'interactions:\n  auto:\n    depth: 2\n    maxStates: 3\n';
+  expect(configProblems(yaml)).toEqual([]);
+  expect(loadEffectiveConfig('scan', [], { repoConfig: yaml, env: {} }).values.interactions).toEqual(value);
+  expect(loadEffectiveConfig('scan', [], { repoConfig: null, env: { A11YGATE_INTERACTIONS: JSON.stringify(value) } }).values.interactions).toEqual(value);
+  expect(loadEffectiveConfig('scan', ['--interactions', JSON.stringify(value)], { repoConfig: null, env: {} }).values.interactions).toEqual(value);
+});
+
 // Normal npm test never launches Chromium. Run explicitly with A11YGATE_BROWSER_TESTS=1.
 describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('local SPA browser acceptance', () => {
   let server: Server | undefined;
   afterEach(async () => { await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve()); server = undefined; });
-  async function fixture() {
-    const html = await readFile('tests/fixtures/spa-interactions/index.html', 'utf8');
+  async function fixture(file = 'tests/fixtures/spa-interactions/index.html') {
+    const html = await readFile(file, 'utf8');
     const requests: string[] = [];
     server = createServer((req, res) => { requests.push(req.url!); res.writeHead(200, { 'content-type': 'text/html' }); res.end(html); });
     await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
@@ -95,6 +109,48 @@ describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('local SPA browser a
     }
     return { url, requests, scan };
   }
+  it('finds only nested issues at depth 2, records paths, resets branches, and enforces maxStates', async () => {
+    const { url, requests, scan } = await fixture('tests/fixtures/spa-interactions/nested.html');
+    const run = (depth: number, maxStates = 20) => scan(['--interactions', JSON.stringify({ auto: { depth, maxStates } }), '--interaction-budget', '100']);
+    const shallow = await run(1);
+    expect(shallow.report.findings.some(f => f.selector === '#nested-issue')).toBe(false);
+    const deep = await run(2);
+    expect(deep.report.findings.find(f => f.selector === '#nested-issue')?.states?.map(decodeURI)).toEqual([url + '#menu>submenu-2']);
+    expect(deep.report.pages.some(p => decodeURI(p.url).endsWith('#menu>submenu-2>third'))).toBe(false);
+    expect((await run(3)).report.pages.some(p => decodeURI(p.url).endsWith('#menu>submenu-2>third'))).toBe(true);
+    const limited = await run(2, 2);
+    expect(limited.report.pages.filter(p => p.url.includes('#'))).toHaveLength(2);
+    expect(deep.report.findings.some(f => f.selector === '#contaminated')).toBe(false);
+    expect(deep.report.pages.filter(p => p.error?.includes('Destructive-looking'))).toHaveLength(5);
+    const explicit = await scan(['--interactions', JSON.stringify([{ route: '/pricing', name: 'unsafe-child', steps: [{ action: 'click', selector: '#danger-child' }] }])]);
+    expect(explicit.report.pages.at(-1)?.error).toContain('Destructive-looking');
+    expect(requests.some(p => /danger|external|submitted/.test(p))).toBe(false);
+  }, 120_000);
+  it('preserves R37 explicit container steps with destructive words in descendants and matches only whole button words', async () => {
+    const { scan, requests } = await fixture('tests/fixtures/spa-interactions/nested.html');
+    const states: InteractionState[] = [
+      { route: '/pricing', name: 'escape', steps: [{ action: 'press', selector: 'body', key: 'Escape' }] },
+      { route: '/pricing', name: 'container', steps: [{ action: 'click', selector: 'main' }] },
+      { route: '/pricing', name: 'payment', steps: [{ action: 'click', selector: '#payment' }] },
+      { route: '/pricing', name: 'unsafe-role-child', steps: [{ action: 'click', selector: '#role-child' }] },
+    ];
+    const result = await scan(['--interactions', JSON.stringify(states)]);
+    expect(result.report.pages.slice(1, 4).map(p => ({ url: new URL(p.url).hash, status: p.scanStatus, error: p.error }))).toEqual([
+      { url: '#escape', status: 'complete', error: undefined },
+      { url: '#container', status: 'complete', error: undefined },
+      { url: '#payment', status: 'complete', error: undefined },
+    ]);
+    expect(result.report.pages.at(-1)?.error).toContain('Destructive-looking');
+    expect(requests.some(p => /danger|external|submitted/.test(p))).toBe(false);
+  }, 60_000);
+  it('preserves the complete R37 depth 1 output with explicit defaults', async () => {
+    const { scan } = await fixture();
+    const legacy = await scan(['--auto-interactions']);
+    const configured = await scan(['--interactions', JSON.stringify({ auto: { depth: 1, maxStates: 20 } })]);
+    // Runtime timestamps and durations are nondeterministic; all report evidence and labels must match.
+    const stable = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => /timestamp|scannedAt|durationMs/.test(key) ? undefined : v));
+    expect(stable(configured)).toEqual(stable(legacy));
+  }, 120_000);
   it('only detects the planted dialog issue after interaction, labels it, and dedupes repeated states', async () => {
     const { url, scan } = await fixture();
     const base = await scan([]);
