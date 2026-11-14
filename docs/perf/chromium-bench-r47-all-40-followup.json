@@ -1,0 +1,57 @@
+{
+  "name": "chromium-bench-r47-all-40-followup",
+  "recordedAt": "2026-11-14T16:08:43.311Z",
+  "argv": [
+    "--pages",
+    "40",
+    "--engines",
+    "all",
+    "--concurrency",
+    "4",
+    "--name",
+    "chromium-bench-r47-all-40-followup"
+  ],
+  "machine": {
+    "model": "MacBookPro16,1",
+    "cpu": "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    "logicalCpus": 16,
+    "ramBytes": 34359738368,
+    "os": "macOS 15.7.4 (24G517)",
+    "node": "v20.19.6",
+    "chromium": "156.0.8078.4 (Playwright headless shell)",
+    "playwright": "1.64.1",
+    "axeCore": "4.14.0"
+  },
+  "fixture": {
+    "pages": 40,
+    "loopback": true
+  },
+  "runs": [
+    {
+      "engines": "all",
+      "engineIds": "axe,htmlcs,ibm,lighthouse",
+      "concurrency": 4,
+      "recycleEvery": null,
+      "pagesRequested": 40,
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 153971,
+      "pagesRecorded": 40,
+      "pagesComplete": 40,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 15.6,
+      "peakRssBytes": {
+        "node": 583245824,
+        "browser": 883564544,
+        "total": 1348579328
+      },
+      "peakProcesses": 11,
+      "browserRssEarlyMeanBytes": 430138225,
+      "browserRssLateMeanBytes": 460541663,
+      "browserRssGrowthBytes": 30403437,
+      "samples": 589,
+      "errorKinds": {}
+    }
+  ]
+}

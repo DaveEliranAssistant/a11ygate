@@ -42,7 +42,7 @@ Every number on this page was copied from a recorded `npm run bench` run on the 
 | axe,htmlcs,ibm,lighthouse | 40 | 2 | — | 40 | 0 / 19 | 94.9 | 25.3 | 534 | 484 | 1006 | -44 |
 | axe,htmlcs,ibm,lighthouse | 40 | 4 | — | 40 | 0 / 29 | 60.7 | 39.6 | 729 | 846 | 1435 | 43 |
 
-The engine errors at concurrency 2 and 4 are all Lighthouse: `The "start lh:runner:gather" performance mark has not been set` (19 of 40 pages at concurrency 2, 29 of 40 at concurrency 4). Lighthouse attaches to the shared browser over the debugging port, and parallel Lighthouse runs in one Node process fail on this machine. axe, HTML_CodeSniffer and IBM produced no errors. Errored Lighthouse results are reported as errored, and the scan exits 2. They are never counted as passes.
+In the original R38 run, the engine errors at concurrency 2 and 4 were all Lighthouse: `The "start lh:runner:gather" performance mark has not been set` (19 of 40 pages at concurrency 2, 29 of 40 at concurrency 4). Lighthouse attaches to the shared browser over the debugging port. Its logger clears process-wide timing marks, so parallel snapshots in one Node process can remove marks still needed by another snapshot. A11Y-R47 serializes Lighthouse snapshots only; other engines and page loading retain crawl concurrency. axe, HTML_CodeSniffer and IBM produced no errors. Errored Lighthouse results are reported as errored, and the scan exits 2. They are never counted as passes.
 
 ## Sizing table
 
@@ -54,13 +54,13 @@ Suggested free memory is the recorded peak total RSS plus at least 512 MB of hea
 | axe, concurrency 2 | 941 MB | 1.5 GB | 112.2 pages/min |
 | axe, concurrency 4 | 1305 MB | 2 GB | 196.4 pages/min |
 | all engines, concurrency 1 | 792 MB (40-page run) | 1.5 GB | 14.8 pages/min |
-| all engines, concurrency > 1 | 1006–1435 MB (40-page runs) | not recommended: Lighthouse errors | — |
+| all engines, concurrency > 1 (original R38) | 1006–1435 MB (40-page runs) | Lighthouse errors before R47; see follow-up below | — |
 
 Throughput assumes `--delay-ms 0` against a local server. The default `--delay-ms 1000` spaces page starts by one second, so it caps a scan at about 60 page starts per minute whatever the concurrency.
 
 ## Defaults and context recycling
 
-- **No default changed.** Concurrency stays 1, delay stays 1000 ms, and the scan keeps one browser context unless asked. Higher concurrency was faster and had no failures for axe-only, but the default stays polite for sites that are not local fixtures. With all engines, concurrency above 1 produced Lighthouse errors, so raising the default would break `--engines …,lighthouse` scans.
+- **No default changed.** Concurrency stays 1, delay stays 1000 ms, and the scan keeps one browser context unless asked. Higher concurrency was faster and had no failures for axe-only, but the default stays polite for sites that are not local fixtures. The original R38 all-engine runs produced Lighthouse errors above concurrency 1; R47 now serializes Lighthouse snapshots to avoid the timing-mark collision. Concurrency still defaults to 1.
 - **No memory growth was recorded.** Over 500 pages, Chromium RSS in the last fifth of the scan was 1–12 MB *lower* than in the first fifth at concurrency 1, 2 and 4. Context recycling therefore stays opt-in: `--recycle-every <n>` (config `recycleEvery`). With `--recycle-every 100` at concurrency 4, peak Chromium RSS was 846 MB against 848 MB without it, and throughput was 191 against 196.4 pages/min. On this fixture it neither helped nor hurt much. It is there for real sites whose pages leak memory (for example, long-lived service workers or caches inside one context). Retired contexts close only after their in-flight pages finish, and `tests/context-recycling.test.ts` asserts this.
 - Node RSS reached 450–551 MB in axe-only runs and up to 729 MB with all engines. That is the CLI process holding report data and the engine bundles, not Chromium.
 
@@ -73,3 +73,31 @@ npm run bench -- --pages 40 --engines all --concurrency 1 --out /tmp/perf
 ```
 
 `npm run bench` is not part of `npm test` or CI. It launches Chromium and scans only its own loopback fixture.
+
+## A11Y-R47 re-measurement
+
+The original R38 rows above are preserved. The first R47 re-measurement ran
+while other batch workers, Vitest and Playwright were active on the same machine,
+so its throughput and RSS are not an idle-machine comparison. It recorded no
+performance-mark collisions, but did record page timeouts and errors after timed-out
+pages closed. Serialization does not remove existing page/engine time limits.
+
+Command: `npm run bench -- --pages 40 --engines all --concurrency 4 --name chromium-bench-r47-all-40`.
+Raw [JSON](chromium-bench-r47-all-40.json) and [table](chromium-bench-r47-all-40.md).
+
+| Engines | Pages | Concurrency | Complete | Page failures / engine errors | Wall time (s) | Pages/min | Peak RSS Node (MB) | Peak RSS Chromium (MB) | Peak RSS total (MB) | Chromium RSS growth (MB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| axe,htmlcs,ibm,lighthouse | 40 | 4 | 36 | 4 / 3 | 235.9 | 9.2 | 473 | 802 | 1116 | -20 |
+
+A follow-up ran after this worker's Vitest and Playwright jobs finished (other
+batch workers could still be active). All 40 pages and every engine completed
+without errors. This is one recorded run, not a throughput estimate.
+
+Command: `npm run bench -- --pages 40 --engines all --concurrency 4 --name chromium-bench-r47-all-40-followup`.
+Raw [JSON](chromium-bench-r47-all-40-followup.json) and [table](chromium-bench-r47-all-40-followup.md).
+
+| Engines | Pages | Concurrency | Complete | Page failures / engine errors | Wall time (s) | Pages/min | Peak RSS Node (MB) | Peak RSS Chromium (MB) | Peak RSS total (MB) | Chromium RSS growth (MB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| axe,htmlcs,ibm,lighthouse | 40 | 4 | 40 | 0 / 0 | 154.0 | 15.6 | 556 | 843 | 1286 | 29 |
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

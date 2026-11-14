@@ -2308,6 +2308,24 @@ import { createServer } from "node:net";
 // lib/scan/engines/optional.ts
 import { createRequire as createRequire2 } from "node:module";
 import { readFile as readFile2 } from "node:fs/promises";
+
+// lib/scan/engines/lighthouse-lock.ts
+var tail = Promise.resolve();
+async function serializeLighthouse(snapshot) {
+  const previous = tail;
+  let release;
+  tail = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await snapshot();
+  } finally {
+    release();
+  }
+}
+
+// lib/scan/engines/optional.ts
 var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
 var require2 = createRequire2(import.meta.url);
 var normalize = (results) => results.findings;
@@ -2399,48 +2417,50 @@ function createLighthouseEngine() {
     id: "lighthouse",
     displayName: "Lighthouse accessibility",
     async run({ page, browserURL }, url) {
-      let lighthouse;
-      let puppeteer;
-      try {
-        [lighthouse, puppeteer] = await Promise.all([import("lighthouse"), import("puppeteer-core")]);
-      } catch {
-        throw new Error("Missing Lighthouse engine packages. Install with: npm install --save-dev lighthouse puppeteer-core");
-      }
-      if (!browserURL) throw new Error("Lighthouse requires the shared Chromium debugging endpoint.");
-      const browser = await puppeteer.connect({ browserURL, defaultViewport: null });
-      try {
-        const cdp = await page.context().newCDPSession(page);
-        const { targetInfo } = await cdp.send("Target.getTargetInfo");
-        await cdp.detach();
-        const target = browser.targets().find((t) => t._targetId === targetInfo.targetId);
-        const current = await target?.page();
-        if (!current) throw new Error("Could not attach Lighthouse to the existing page.");
-        const result = await lighthouse.snapshot(current, { flags: {
-          onlyCategories: ["accessibility"],
-          logLevel: "silent",
-          disableStorageReset: true,
-          formFactor: "desktop",
-          screenEmulation: { disabled: true }
-        } });
-        if (!result) throw new Error("Lighthouse returned no report.");
-        if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
-        const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
-        if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
-        return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
-          const details = a.details;
-          const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
-          return (nodes.length ? nodes : [{}]).map((n) => finding(
-            "lighthouse",
-            url,
-            a.id,
-            n.selector ?? "",
-            n.snippet ?? "",
-            a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
-          ));
-        }) };
-      } finally {
-        await browser.disconnect();
-      }
+      return serializeLighthouse(async () => {
+        let lighthouse;
+        let puppeteer;
+        try {
+          [lighthouse, puppeteer] = await Promise.all([import("lighthouse"), import("puppeteer-core")]);
+        } catch {
+          throw new Error("Missing Lighthouse engine packages. Install with: npm install --save-dev lighthouse puppeteer-core");
+        }
+        if (!browserURL) throw new Error("Lighthouse requires the shared Chromium debugging endpoint.");
+        const browser = await puppeteer.connect({ browserURL, defaultViewport: null });
+        try {
+          const cdp = await page.context().newCDPSession(page);
+          const { targetInfo } = await cdp.send("Target.getTargetInfo");
+          await cdp.detach();
+          const target = browser.targets().find((t) => t._targetId === targetInfo.targetId);
+          const current = await target?.page();
+          if (!current) throw new Error("Could not attach Lighthouse to the existing page.");
+          const result = await lighthouse.snapshot(current, { flags: {
+            onlyCategories: ["accessibility"],
+            logLevel: "silent",
+            disableStorageReset: true,
+            formFactor: "desktop",
+            screenEmulation: { disabled: true }
+          } });
+          if (!result) throw new Error("Lighthouse returned no report.");
+          if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
+          const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
+          if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
+          return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
+            const details = a.details;
+            const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
+            return (nodes.length ? nodes : [{}]).map((n) => finding(
+              "lighthouse",
+              url,
+              a.id,
+              n.selector ?? "",
+              n.snippet ?? "",
+              a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
+            ));
+          }) };
+        } finally {
+          await browser.disconnect();
+        }
+      });
     },
     normalize
   };
@@ -5212,6 +5232,7 @@ ${debugDetail(error)}`);
 `}${debugDetail(error)}`);
     return 2;
   }
+  if (options.engines.includes("lighthouse")) stderr("lighthouse serialized\n");
   let result;
   try {
     result = await crawl({
