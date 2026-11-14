@@ -8,6 +8,7 @@ Usage:
   a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
   a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [--list | --group <id> --decision <kind>]
+  a11ygate review list|remove|prune --baseline <fingerprints.json> ...  Manage recorded decisions
                        (see a11ygate review --help)
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]

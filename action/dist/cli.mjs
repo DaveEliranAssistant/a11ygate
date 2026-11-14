@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path15 = parsed.pathname || "/";
-    if (path15.length > 1 && path15.endsWith("/")) path15 = path15.slice(0, -1);
-    return path15 || "/";
+    let path17 = parsed.pathname || "/";
+    if (path17.length > 1 && path17.endsWith("/")) path17 = path17.slice(0, -1);
+    return path17 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path15 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path15.length > 1 && path15.endsWith("/")) path15 = path15.slice(0, -1);
-    return path15;
+    let path17 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path17.length > 1 && path17.endsWith("/")) path17 = path17.slice(0, -1);
+    return path17;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path15 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path17 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path15, html, !html || path15.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path17, html, !html || path17.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir6, readFile as readFile7, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile8 } from "node:fs/promises";
-import path14 from "node:path";
+import { mkdir as mkdir6, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile8 } from "node:fs/promises";
+import path16 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -645,21 +645,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path15) {
+function readImpact(value, path17) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path15} must be minor, moderate, serious, critical, or null`
+    error: `${path17} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path15) {
+function readTarget(value, path17) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path15}.target must be an array of strings`;
+    return `${path17}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path15}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path17}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -667,52 +667,52 @@ function readTarget(value, path15) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path15}.target must be an array of strings`;
+    return `${path17}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path15) {
-  if (!isRecord(value)) return `${path15} must be an object`;
-  const target = readTarget(value.target, path15);
+function validateNode(value, path17) {
+  if (!isRecord(value)) return `${path17} must be an object`;
+  const target = readTarget(value.target, path17);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path15}.html must be a string`;
+  if (typeof value.html !== "string") return `${path17}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path15}.impact`);
+    const impact = readImpact(value.impact, `${path17}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path15) {
-  if (!isRecord(value)) return `${path15} must be an object`;
+function validateViolation(value, path17) {
+  if (!isRecord(value)) return `${path17} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path15}.id must be a non-empty string`;
+    return `${path17}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path15}.impact is missing`;
+    return `${path17}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path15}.impact`);
+  const impact = readImpact(value.impact, `${path17}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path15}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path17}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path15}.tags must be an array of strings`;
+    return `${path17}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path15}.help must be a non-empty string`;
+    return `${path17}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path15}.helpUrl must be a non-empty string`;
+    return `${path17}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path15}.nodes must contain at least one node`;
+    return `${path17}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path15}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path17}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -728,37 +728,37 @@ function validateViolation(value, path15) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path15) {
-  if (!isRecord(value)) return `${path15} must be an axe result object`;
+function validateResult(value, path17) {
+  if (!isRecord(value)) return `${path17} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path15}.url must be a non-empty string`;
+    return `${path17}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path15}.timestamp must be an ISO date string`;
+    return `${path17}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path15}.testEngine.version must be a non-empty string`;
+    return `${path17}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path15}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path17}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path15}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path17}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path15}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path15}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path15}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path15}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path17}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path17}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path17}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path17}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path15}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path17}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path15}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path17}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path15}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path17}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -859,7 +859,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path15 = pagePath(result.url);
+    const path17 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -874,7 +874,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path15,
+          path: path17,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -979,6 +979,18 @@ function createGroupDecision(group2, input) {
     by: input.by.trim(),
     at: today(input.now)
   });
+}
+var DECISION_HISTORY_ACTIONS = ["record", "remove", "prune"];
+function validateHistoryEntry(value) {
+  const h = value;
+  if (!h || typeof h !== "object" || !DECISION_HISTORY_ACTIONS.includes(h.action) || typeof h.by !== "string" || !h.by.trim() || typeof h.at !== "string" || Number.isNaN(Date.parse(h.at)) || typeof h.group !== "string" || !h.group) {
+    throw new Error("Invalid group decision history entry.");
+  }
+  if (h.decision !== void 0) validateGroupDecision(h.decision);
+  if (h.previous !== void 0) validateGroupDecision(h.previous);
+  if (h.action === "record" && !h.decision) throw new Error("A record history entry needs its decision.");
+  if (h.action !== "record" && !h.previous) throw new Error(`A ${h.action} history entry needs the removed decision.`);
+  return h;
 }
 function upsertGroupDecision(decisions, decision) {
   return [...decisions.filter((d) => d.groupKey !== decision.groupKey), decision].sort((a, b) => a.group.localeCompare(b.group));
@@ -1444,6 +1456,10 @@ function parseFingerprintBaseline(value) {
     });
     if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error("Duplicate group decisions (field groupDecisions[].groupKey).");
   }
+  if (b.history !== void 0) {
+    if (!Array.isArray(b.history)) throw new Error("Invalid baseline decision history.");
+    b.history.forEach(validateHistoryEntry);
+  }
   return b;
 }
 function validEngineFingerprint(value) {
@@ -1736,6 +1752,7 @@ Usage:
   a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
   a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [--list | --group <id> --decision <kind>]
+  a11ygate review list|remove|prune --baseline <fingerprints.json> ...  Manage recorded decisions
                        (see a11ygate review --help)
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
@@ -3233,9 +3250,9 @@ async function withLocalServer(options, cwd, env, work) {
   }
 }
 function storyUrls(index, base) {
-  const entries = index?.entries;
-  if (!entries || typeof entries !== "object") throw new Error("Storybook index.json needs entries.");
-  const ids = Object.values(entries).filter((entry) => entry.type === "story").map((entry) => entry.id);
+  const entries2 = index?.entries;
+  if (!entries2 || typeof entries2 !== "object") throw new Error("Storybook index.json needs entries.");
+  const ids = Object.values(entries2).filter((entry) => entry.type === "story").map((entry) => entry.id);
   if (!ids.length || ids.length > 1e3 || ids.some((id) => typeof id !== "string" || !id)) throw new Error("Storybook index must contain 1\u20131000 valid stories.");
   return [...new Set(ids)].map((id) => new URL(`iframe.html?id=${encodeURIComponent(id)}&viewMode=story`, base).href);
 }
@@ -3397,14 +3414,14 @@ async function prepareAuth(options, cwd, origin, env = process.env, redactor = n
   return auth;
 }
 function restoreSessionStorage(state) {
-  const entries = state.origins.find((item) => item.origin === window.location.origin)?.sessionStorage;
-  if (entries) for (const { name, value } of entries) window.sessionStorage.setItem(name, value);
+  const entries2 = state.origins.find((item) => item.origin === window.location.origin)?.sessionStorage;
+  if (entries2) for (const { name, value } of entries2) window.sessionStorage.setItem(name, value);
 }
-async function installAuth(context, origin, auth) {
-  if (auth.sessionStorage) await context.addInitScript(restoreSessionStorage, auth.sessionStorage);
-  await context.addCookies(auth.cookies);
+async function installAuth(context2, origin, auth) {
+  if (auth.sessionStorage) await context2.addInitScript(restoreSessionStorage, auth.sessionStorage);
+  await context2.addCookies(auth.cookies);
   if (Object.keys(auth.headers).length === 0) return;
-  await context.route("**/*", async (route) => {
+  await context2.route("**/*", async (route) => {
     if (new URL(route.request().url()).origin === origin) await route.fulfill({ response: await route.fetch({ maxRedirects: 0, headers: { ...route.request().headers(), ...auth.headers } }) });
     else await route.continue();
   });
@@ -4322,16 +4339,16 @@ function createAxeEngine(analyze, userAgent) {
   return {
     id: "axe",
     displayName: "axe-core",
-    run: async (context, url) => toAxeResults(url, await analyze(context), userAgent),
+    run: async (context2, url) => toAxeResults(url, await analyze(context2), userAgent),
     normalize: normalizeAxeResults
   };
 }
 
 // lib/scan/engines/types.ts
-async function runEngine(engine, context, url, timeoutMs = 3e4) {
+async function runEngine(engine, context2, url, timeoutMs = 3e4) {
   let timer;
   try {
-    const native = await Promise.race([engine.run(context, url), new Promise((_, reject) => {
+    const native = await Promise.race([engine.run(context2, url), new Promise((_, reject) => {
       timer = setTimeout(() => reject(new Error(`Engine ${engine.id} timed out after ${timeoutMs}ms.`)), timeoutMs);
     })]);
     return { engine: engine.id, status: "complete", native, findings: engine.normalize(native) };
@@ -5285,9 +5302,9 @@ Install it with: npx playwright install chromium
   try {
     const storageState = auth?.script ? await runLoginScript(browserServer.wsEndpoint(), origin, auth, contextOptions) : auth?.state;
     pool = new ContextPool(async () => {
-      const context = await browser.newContext({ ...contextOptions, storageState });
-      if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
-      return context;
+      const context2 = await browser.newContext({ ...contextOptions, storageState });
+      if (auth) await installAuth(context2, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+      return context2;
     }, recycleEvery);
     await pool.init();
   } catch (error) {
@@ -5297,10 +5314,10 @@ Install it with: npx playwright install chromium
   }
   let initialAuthPassed = true;
   if (auth?.check?.url) {
-    const context = await pool.init();
-    const page = await context.newPage();
+    const context2 = await pool.init();
+    const page = await context2.newPage();
     try {
-      const session = await context.newCDPSession(page);
+      const session = await context2.newCDPSession(page);
       session.on("Fetch.requestPaused", (event) => {
         const external = new URL(event.request.url).origin !== origin;
         void session.send(external ? "Fetch.failRequest" : "Fetch.continueRequest", {
@@ -5311,7 +5328,7 @@ Install it with: npx playwright install chromium
       await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
       const response = await page.goto(auth.check.url, { waitUntil: "load", timeout: timeoutMs });
-      auth.redactor.storage(await context.storageState());
+      auth.redactor.storage(await context2.storageState());
       initialAuthPassed = await passesAuthCheck(page, auth.check, response?.status() ?? null);
     } catch {
       initialAuthPassed = false;
@@ -5329,10 +5346,10 @@ Install it with: npx playwright install chromium
     contexts: () => ({ created: pool.created, recycled: pool.recycled }),
     visit: async (url, collectLinks, signal) => {
       const lease = await pool.acquire();
-      const context = lease.context;
+      const context2 = lease.context;
       let page;
       try {
-        page = await context.newPage();
+        page = await context2.newPage();
       } catch (error) {
         lease.release();
         throw error;
@@ -5352,7 +5369,7 @@ Install it with: npx playwright install chromium
       let navigating = true;
       let blockedNavigation;
       try {
-        const session = await context.newCDPSession(page);
+        const session = await context2.newCDPSession(page);
         session.on("Fetch.requestPaused", (event) => {
           const external = new URL(event.request.url).origin !== origin || interacting;
           if (external) blockedNavigation = event.request.url;
@@ -5379,7 +5396,7 @@ Install it with: npx playwright install chromium
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()["content-type"] ?? null;
-        if (auth) auth.redactor.storage(await context.storageState());
+        if (auth) auth.redactor.storage(await context2.storageState());
         const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
         const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
         if (auth?.check ? !initialAuthPassed || !await passesAuthCheck(page, auth.check, status) : status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
@@ -5865,10 +5882,219 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 }
 
 // packages/cli/src/review.ts
+import path10 from "node:path";
+import { createInterface as createInterface2 } from "node:readline/promises";
+
+// packages/cli/src/review-manage.ts
 import { execFile } from "node:child_process";
-import { rename, rm, writeFile as writeFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import { readFile as readFile4 } from "node:fs/promises";
+import path9 from "node:path";
 import { createInterface } from "node:readline/promises";
+
+// packages/cli/src/atomic-write.ts
+import { randomBytes } from "node:crypto";
+import { rename as fsRename, unlink, writeFile as writeFile4 } from "node:fs/promises";
+import path8 from "node:path";
+async function writeFileAtomic(file, data, deps = {}) {
+  const tmp = path8.join(path8.dirname(file), `.${path8.basename(file)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    await writeFile4(tmp, data, { encoding: "utf8", flag: "wx" });
+    await (deps.rename ?? fsRename)(tmp, file);
+  } catch (error) {
+    await unlink(tmp).catch(() => {
+    });
+    throw error;
+  }
+}
+
+// packages/cli/src/review-manage.ts
+var REVIEW_MANAGE_HELP = `
+Manage recorded decisions (R44):
+  a11ygate review list --baseline <file> [--status <kind>] [--expired] [--json]
+      List decisions. --status keeps one kind (to-fix, accepted-risk, false-positive);
+      --expired keeps accepted-risk decisions past their expiry date.
+  a11ygate review remove <group-id|--all-expired> --baseline <file> [--yes]
+      Remove one decision, or every expired accepted-risk decision. Needs --yes,
+      or answer the confirmation prompt in a terminal.
+  a11ygate review prune <scan.json|out-dir> --baseline <file> [--dry-run]
+      Remove decisions whose component group has no finding in that (latest) scan.
+      --dry-run lists what would be removed and writes nothing.
+Every change is written atomically (temp file + rename). Earlier decisions are kept in the
+baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
+function gitUserName(cwd) {
+  return new Promise((resolve) => {
+    execFile("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+  });
+}
+async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {
+  const next = { ...baseline, groupDecisions: decisions, history: [...baseline.history ?? [], ...entries2] };
+  await writeFileAtomic(file, JSON.stringify(next, null, 2) + "\n", { rename: io.rename });
+}
+function parseFlags(argv2, valued, switches) {
+  const out = { positional: [], values: /* @__PURE__ */ new Map(), switches: /* @__PURE__ */ new Set() };
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (switches.includes(name) && eq < 0) {
+      out.switches.add(name);
+      continue;
+    }
+    if (valued.includes(name)) {
+      const value = eq > 0 ? token.slice(eq + 1) : argv2[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      out.values.set(name, value);
+      continue;
+    }
+    if (!token.startsWith("-")) {
+      out.positional.push(token);
+      continue;
+    }
+    throw new Error(`Unexpected review argument ${token}.`);
+  }
+  return out;
+}
+function context(io) {
+  return {
+    stdout: io.stdout ?? ((s) => process.stdout.write(s)),
+    stderr: io.stderr ?? ((s) => process.stderr.write(s)),
+    cwd: io.cwd ?? process.cwd(),
+    now: (io.now ?? (() => /* @__PURE__ */ new Date()))()
+  };
+}
+async function loadBaseline(flags, cwd) {
+  const value = flags.values.get("--baseline");
+  if (!value) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
+  const file = path9.resolve(cwd, value);
+  return { file, baseline: parseFingerprintBaseline(JSON.parse(await readFile4(file, "utf8"))) };
+}
+function describe(d, now) {
+  const expired = isExpired(d, now);
+  return `${d.group}  ${d.ruleId}  ${d.decision}${expired ? " (expired)" : ""} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}
+  normalized selector: ${d.normalizedSelector}
+`;
+}
+async function who(io, cwd) {
+  const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
+  return name || "unknown";
+}
+function entries(action, removed, by, now) {
+  return removed.map((previous) => ({ action, by, at: now.toISOString(), group: previous.group, previous }));
+}
+async function runReviewList(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline", "--status"], ["--expired", "--json"]);
+    if (flags.positional.length) throw new Error(`Unexpected review list argument ${flags.positional[0]}.`);
+    const status = flags.values.get("--status");
+    if (status !== void 0 && !REVIEW_DECISIONS.includes(status)) throw new Error(`Unknown status "${status}". Use ${REVIEW_DECISIONS.join(", ")}.`);
+    const { baseline } = await loadBaseline(flags, cwd);
+    const decisions = (baseline.groupDecisions ?? []).filter((d) => !status || d.decision === status).filter((d) => !flags.switches.has("--expired") || isExpired(d, now));
+    if (flags.switches.has("--json")) {
+      stdout(JSON.stringify({
+        kind: "a11ygate-review-decisions",
+        disclaimer: AUTOMATED_TESTING_DISCLAIMER,
+        filters: { ...status ? { status } : {}, ...flags.switches.has("--expired") ? { expired: true } : {} },
+        decisions: decisions.map((d) => ({ ...d, expired: isExpired(d, now) }))
+      }, null, 2) + "\n");
+      return 0;
+    }
+    stdout(decisions.length ? decisions.map((d) => describe(d, now)).join("\n") : "No matching review decisions.\n");
+    stdout(`
+${decisions.length} decision(s).
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+async function confirm(io, question) {
+  const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
+  if (!interactive) return false;
+  if (io.prompt) return /^y(es)?$/i.test((await io.prompt(question)).trim());
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
+async function runReviewRemove(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline"], ["--all-expired", "--yes", "-y"]);
+    const allExpired = flags.switches.has("--all-expired");
+    if (allExpired && flags.positional.length) throw new Error("Pass either a group id or --all-expired, not both.");
+    if (!allExpired && flags.positional.length !== 1) throw new Error("Pass one group id (g-... from review list) or --all-expired.");
+    const { file, baseline } = await loadBaseline(flags, cwd);
+    const decisions = baseline.groupDecisions ?? [];
+    const target = flags.positional[0];
+    const removed = allExpired ? decisions.filter((d) => isExpired(d, now)) : decisions.filter((d) => d.group === target || d.groupKey === target);
+    if (!removed.length) {
+      if (allExpired) {
+        stdout(`No expired decisions in ${flags.values.get("--baseline")}. Nothing written.
+`);
+        return 0;
+      }
+      throw new Error(`No decision for group ${target} in the baseline. Run a11ygate review list --baseline <file>.`);
+    }
+    stdout(removed.map((d) => describe(d, now)).join(""));
+    if (!flags.switches.has("--yes") && !flags.switches.has("-y") && !await confirm(io, `Remove ${removed.length} decision(s)? [y/N] `)) {
+      const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
+      if (!interactive) throw new Error("Removing decisions needs --yes outside a terminal.");
+      stdout("Nothing removed.\n");
+      return 0;
+    }
+    const keep = decisions.filter((d) => !removed.includes(d));
+    await saveReviewBaseline(file, baseline, keep, entries("remove", removed, await who(io, cwd), now), io);
+    stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+async function runReviewPrune(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline"], ["--dry-run"]);
+    if (flags.positional.length !== 1) throw new Error("Pass the latest saved scan report (a11ygate-scan.json or its out-dir).");
+    const report = await readScanInput(flags.positional[0], cwd);
+    const { file, baseline } = await loadBaseline(flags, cwd);
+    const decisions = baseline.groupDecisions ?? [];
+    const present2 = new Set(report.findings.map((f) => componentGroupKey(f)));
+    const stale = decisions.filter((d) => !present2.has(d.groupKey));
+    const dry = flags.switches.has("--dry-run");
+    const incomplete = report.pages.filter((p) => p.scanStatus !== "complete").length;
+    if (incomplete) stdout(`Warning: ${incomplete} page(s) in this scan did not complete; decisions for components only on those pages may be pruned. Use --dry-run to check.
+`);
+    if (!stale.length) {
+      stdout("Every decision still matches a finding in this scan. Nothing to prune.\n");
+      return 0;
+    }
+    stdout(`${stale.length} decision(s) match no finding in this scan${dry ? " and would be removed" : ""}:
+` + stale.map((d) => describe(d, now)).join(""));
+    if (dry) {
+      stdout("Dry run: nothing written.\n");
+      return 0;
+    }
+    await saveReviewBaseline(file, baseline, decisions.filter((d) => present2.has(d.groupKey)), entries("prune", stale, await who(io, cwd), now), io);
+    stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+
+// packages/cli/src/review.ts
 var REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
 Record a reviewer decision once for a likely shared component group instead of per finding.
 Decisions are stored in the fingerprint baseline (groupDecisions) and shown in reports.
@@ -5880,16 +6106,13 @@ Decisions are stored in the fingerprint baseline (groupDecisions) and shown in r
   --reason <text>          Required for accepted-risk and false-positive.
   --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
 Without --list or --group in a terminal, review groups interactively.
-The reviewer is git config user.name; A11yGate never invents a name.
+${REVIEW_MANAGE_HELP}
+The reviewer is git config user.name; A11yGate never invents a name. Remove and prune
+history entries record "unknown" when user.name is not set.
 Accepted-risk and false-positive decisions exclude matching findings from the gate, but every
 finding stays listed in the report. Groupings are heuristic: review examples before deciding.
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
-function gitUserName(cwd) {
-  return new Promise((resolve) => {
-    execFile("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
-  });
-}
 function parseReviewArgs(argv2) {
   const args = { list: false };
   for (let i = 0; i < argv2.length; i++) {
@@ -5950,27 +6173,27 @@ async function runReview(argv2, io = {}) {
     stdout(REVIEW_HELP);
     return 0;
   }
+  if (argv2[0] === "list") return runReviewList(argv2.slice(1), io);
+  if (argv2[0] === "remove") return runReviewRemove(argv2.slice(1), io);
+  if (argv2[0] === "prune") return runReviewPrune(argv2.slice(1), io);
   const cwd = io.cwd ?? process.cwd();
   const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
   try {
     const args = parseReviewArgs(argv2);
     if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
     const report = await readScanInput(args.input, cwd);
-    const baselinePath = path8.resolve(cwd, args.baseline);
+    const baselinePath = path10.resolve(cwd, args.baseline);
     const baseline = await readJsonInput(cwd, args.baseline, parseFingerprintBaseline);
     let decisions = baseline.groupDecisions ?? [];
     const groups = reviewableGroups(report.findings);
     const shared = groups.filter((g) => g.likelySharedComponent);
-    const save = async (next) => {
-      const temp = `${baselinePath}.${process.pid}.tmp`;
-      try {
-        await writeFile4(temp, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
-        await rename(temp, baselinePath);
-      } catch (error) {
-        await rm(temp, { force: true });
-        throw error;
-      }
+    const history2 = [];
+    const record = (decision) => {
+      const previous = decisions.find((d) => d.groupKey === decision.groupKey);
+      history2.push({ action: "record", by: decision.by, at: now.toISOString(), group: decision.group, decision, ...previous ? { previous } : {} });
+      decisions = upsertGroupDecision(decisions, decision);
     };
+    const save = async () => saveReviewBaseline(baselinePath, baseline, decisions, history2, io);
     const reviewer = async () => {
       const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
       if (!name) throw new Error("git config user.name is not set. A11yGate records the reviewer from git config and never invents a name.");
@@ -5980,8 +6203,8 @@ async function runReview(argv2, io = {}) {
       const group2 = groups.find((g) => groupId(g.key) === args.group);
       if (!group2) throw new Error(`No component group ${args.group} in this scan. Run a11ygate review ${args.input} --baseline ${args.baseline} --list.`);
       const decision = createGroupDecision(group2, { decision: args.decision, reason: args.reason, expires: args.expires, by: await reviewer(), now });
-      decisions = upsertGroupDecision(decisions, decision);
-      await save(decisions);
+      record(decision);
+      await save();
       stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
 Matching findings on new pages inherit this decision. Findings stay listed in reports.
 `);
@@ -6006,7 +6229,7 @@ ${AUTOMATED_TESTING_DISCLAIMER}
     };
     let ask = io.prompt;
     if (!ask) {
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const rl = createInterface2({ input: process.stdin, output: process.stdout });
       ask = (q) => rl.question(q);
       close = () => rl.close();
     }
@@ -6044,10 +6267,10 @@ ${AUTOMATED_TESTING_DISCLAIMER}
             }
           }
         }
-        decisions = upsertGroupDecision(decisions, createGroupDecision(g, { decision: kind, reason, expires, by, now }));
+        record(createGroupDecision(g, { decision: kind, reason, expires, by, now }));
         changed++;
       }
-      if (changed) await save(decisions);
+      if (changed) await save();
       stdout(`
 Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
 `);
@@ -6064,8 +6287,8 @@ ${debugDetail(error)}`);
 
 // packages/cli/src/evidence.ts
 import { execFile as execFile2 } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile4, writeFile as writeFile5 } from "node:fs/promises";
-import path9 from "node:path";
+import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile5, writeFile as writeFile5 } from "node:fs/promises";
+import path11 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash3 } from "node:crypto";
@@ -6089,15 +6312,15 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path15) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path15);
+function shouldStore(path17) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path17);
 }
-function createZip(entries) {
+function createZip(entries2) {
   const local = [];
   const central = [];
   let offset = 0;
   const seen = /* @__PURE__ */ new Set();
-  for (const entry of entries) {
+  for (const entry of entries2) {
     if (seen.has(entry.path)) throw new Error(`Duplicate zip entry ${entry.path}.`);
     if (!/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(entry.path) || entry.path.split("/").some((p) => p === ".." || p === ".")) {
       throw new Error(`Unsafe zip entry name ${entry.path}.`);
@@ -6143,8 +6366,8 @@ function createZip(entries) {
   const centralBuffer = Buffer.concat(central);
   const end = Buffer.alloc(22);
   end.writeUInt32LE(101010256, 0);
-  end.writeUInt16LE(entries.length, 8);
-  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt16LE(entries2.length, 8);
+  end.writeUInt16LE(entries2.length, 10);
   end.writeUInt32LE(centralBuffer.length, 12);
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, centralBuffer, end]);
@@ -6174,7 +6397,7 @@ function readZip(zip, limits = {}) {
   if (count === 65535 || at === 4294967295 || centralSize === 4294967295) throw new ZipError("ZIP64 archives are not supported.");
   if (count > maxEntries) throw new ZipError(`Zip has ${count} entries; at most ${maxEntries} are allowed.`);
   need(at, centralSize, "central directory");
-  const entries = [];
+  const entries2 = [];
   const seen = /* @__PURE__ */ new Set();
   let total = 0;
   for (let i = 0; i < count; i += 1) {
@@ -6224,9 +6447,9 @@ function readZip(zip, limits = {}) {
       if (data.length !== declared) throw new ZipError(`Size mismatch for ${label}.`);
     }
     if (crc32(data) !== crc) throw new ZipError(`CRC mismatch for ${label}.`);
-    entries.push({ path: name, data });
+    entries2.push({ path: name, data });
   }
-  return entries;
+  return entries2;
 }
 
 // lib/evidence/pack.ts
@@ -6292,8 +6515,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path15) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path15);
+function isTextPath(path17) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path17);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -6442,8 +6665,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path15, make] of generated) {
-    if (!files.has(path15)) files.set(path15, { path: path15, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path17, make] of generated) {
+    if (!files.has(path17)) files.set(path17, { path: path17, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -6485,8 +6708,8 @@ function buildEvidencePack(input) {
   };
   const manifestData = Buffer.from(`${JSON.stringify(manifest, null, 2)}
 `, "utf8");
-  const entries = [{ path: "manifest.json", data: manifestData }, ...ordered.map((f) => ({ path: f.path, data: f.data }))];
-  return { ok: true, zip: createZip(entries), manifest, entries };
+  const entries2 = [{ path: "manifest.json", data: manifestData }, ...ordered.map((f) => ({ path: f.path, data: f.data }))];
+  return { ok: true, zip: createZip(entries2), manifest, entries: entries2 };
 }
 
 // packages/cli/src/evidence.ts
@@ -6576,8 +6799,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn, omitImages = false) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path9.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile4(file), source: "copied" });
+    const file = path11.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -6591,15 +6814,15 @@ async function collectInputs(dir, warn, omitImages = false) {
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
     if (sub === "screenshots" && omitImages) continue;
-    const names = await readdir(path9.join(dir, sub)).catch(() => []);
+    const names = await readdir(path11.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path9.join(dir, sub, name);
+      const file = path11.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile4(file);
+      const data = await readFile5(file);
       if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -6633,15 +6856,15 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path9.resolve(cwd, options.from);
-  const scanJsonPath = path9.join(dir, "a11ygate-scan.json");
+  const dir = path11.resolve(cwd, options.from);
+  const scanJsonPath = path11.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile4(scanJsonPath, "utf8");
-  const omitImages = await lstat2(path9.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
+  const scanJson = await readFile5(scanJsonPath, "utf8");
+  const omitImages = await lstat2(path11.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `), omitImages);
   let commit;
@@ -6668,9 +6891,9 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path9.resolve(cwd, options.out ?? path9.join(options.from, "a11ygate-evidence.zip"));
+  const out = path11.resolve(cwd, options.out ?? path11.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir3(path9.dirname(out), { recursive: true });
+    await mkdir3(path11.dirname(out), { recursive: true });
     await writeFile5(out, result.zip);
   } catch (error) {
     const code3 = error.code;
@@ -6679,14 +6902,14 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path9.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path11.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
 
 // packages/cli/src/trend.ts
-import { lstat as lstat3, mkdir as mkdir4, readdir as readdir2, readFile as readFile5, writeFile as writeFile6 } from "node:fs/promises";
-import path10 from "node:path";
+import { lstat as lstat3, mkdir as mkdir4, readdir as readdir2, readFile as readFile6, writeFile as writeFile6 } from "node:fs/promises";
+import path12 from "node:path";
 
 // lib/trend.ts
 var TREND_ORDERED_BY = {
@@ -7017,7 +7240,7 @@ function scanReportFieldHint(text) {
 async function loadPacks(dir, warn) {
   const inputs = [];
   for (const name of (await readdir2(dir)).sort()) {
-    const full = path10.join(dir, name);
+    const full = path12.join(dir, name);
     const info = await lstat3(full);
     let files = null;
     if (info.isFile() && name.toLowerCase().endsWith(".zip")) {
@@ -7026,17 +7249,17 @@ async function loadPacks(dir, warn) {
         continue;
       }
       try {
-        files = new Map(readZip(await readFile5(full)).map((e) => [e.path, e.data]));
+        files = new Map(readZip(await readFile6(full)).map((e) => [e.path, e.data]));
       } catch (error) {
         warn(`Skipped ${name}: ${error.message}`);
         continue;
       }
     } else if (info.isDirectory()) {
-      const manifest = path10.join(full, "manifest.json");
-      const scan2 = path10.join(full, ...SCAN_PATH.split("/"));
+      const manifest = path12.join(full, "manifest.json");
+      const scan2 = path12.join(full, ...SCAN_PATH.split("/"));
       const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
       if (!await isFile(manifest) || !await isFile(scan2)) continue;
-      files = /* @__PURE__ */ new Map([["manifest.json", await readFile5(manifest)], [SCAN_PATH, await readFile5(scan2)]]);
+      files = /* @__PURE__ */ new Map([["manifest.json", await readFile6(manifest)], [SCAN_PATH, await readFile6(scan2)]]);
     } else continue;
     const pack = readPack(name, files);
     if (typeof pack === "string") warn(`Skipped ${pack}`);
@@ -7059,7 +7282,7 @@ Run a11ygate trend --help for usage.
     stdout(trendHelpText());
     return 0;
   }
-  const dir = path10.resolve(cwd, parsed.options.dir);
+  const dir = path12.resolve(cwd, parsed.options.dir);
   const info = await lstat3(dir).catch(() => null);
   if (!info?.isDirectory()) {
     stderr(`${parsed.options.dir}: not a directory.
@@ -7076,20 +7299,20 @@ Run a11ygate trend --help for usage.
   const trend = buildTrend(inputs, parsed.options.order ?? "auto");
   if (parsed.options.order === "commit" && trend.ordering.note) stderr(`Note: ${trend.ordering.note}
 `);
-  const outDir = path10.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
+  const outDir = path12.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
   try {
     await mkdir4(outDir, { recursive: true });
-    await writeFile6(path10.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
+    await writeFile6(path12.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
 `, "utf8");
-    await writeFile6(path10.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
+    await writeFile6(path12.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the trend report${code3 ? ` (${code3})` : ""}.
 `);
     return 2;
   }
-  const rel = path10.relative(cwd, outDir) || ".";
-  stdout(`Wrote ${path10.join(rel, TREND_JSON)} and ${path10.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
+  const rel = path12.relative(cwd, outDir) || ".";
+  stdout(`Wrote ${path12.join(rel, TREND_JSON)} and ${path12.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
 `);
   return 0;
 }
@@ -7098,7 +7321,7 @@ Run a11ygate trend --help for usage.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path11 from "node:path";
+import path13 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -7254,8 +7477,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path15) {
-  const match = /\.([a-z0-9]+)$/i.exec(path15);
+function fileKind(path17) {
+  const match = /\.([a-z0-9]+)$/i.exec(path17);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -7566,8 +7789,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path15, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path15) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path17, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path17) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -7624,7 +7847,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path11.join(cwd, "package.json"));
+  const require3 = createRequire3(path13.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -7636,7 +7859,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path11.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path13.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -7806,12 +8029,12 @@ async function runDoctor(argv2, io = {}) {
 
 // packages/cli/src/init.ts
 import { lstat as lstat4, mkdir as mkdir5, realpath as realpath2, writeFile as writeFile7 } from "node:fs/promises";
-import path13 from "node:path";
-import { createInterface as createInterface2 } from "node:readline/promises";
+import path15 from "node:path";
+import { createInterface as createInterface3 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
-import { readFile as readFile6 } from "node:fs/promises";
-import path12 from "node:path";
+import { readFile as readFile7 } from "node:fs/promises";
+import path14 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -7866,7 +8089,7 @@ ${debugDetail(error)}`);
   const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
   let text;
   try {
-    text = await readFile6(path12.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile7(path14.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -7981,14 +8204,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path13.join(parent, part);
+    parent = path15.join(parent, part);
     await mkdir5(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path13.join(parent, parts.at(-1));
+  const destination = path15.join(parent, parts.at(-1));
   const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -8043,7 +8266,7 @@ async function runInit(argv2, io = {}) {
     }
     if (!options.yes) {
       if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("Interactive init requires a TTY. Use --yes with flags for scripted setup.");
-      const prompt = createInterface2({ input: process.stdin, output: process.stdout });
+      const prompt = createInterface3({ input: process.stdin, output: process.stdout });
       try {
         if (!supplied.has("--target")) options.target = (await prompt.question("CI target (github/jenkins) [github]: ")).trim() || options.target;
         if (!supplied.has("--url")) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
@@ -8064,7 +8287,7 @@ async function runInit(argv2, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat4(path13.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path15.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -8257,7 +8480,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path14.resolve(cwd, file);
+  return path16.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -8270,7 +8493,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile7(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile8(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -8286,14 +8509,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path14.dirname(fileURLToPath(import.meta.url));
+  const here = path16.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path14.join(here, "..", "package.json"),
-    path14.join(here, "..", "..", "packages", "cli", "package.json")
+    path16.join(here, "..", "package.json"),
+    path16.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile7(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile8(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -8408,7 +8631,7 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path14.join(await realpath3(path14.dirname(absolute)).catch(() => path14.dirname(absolute)), path14.basename(absolute));
+        return path16.join(await realpath3(path16.dirname(absolute)).catch(() => path16.dirname(absolute)), path16.basename(absolute));
       });
       const info = await stat5(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -8416,9 +8639,9 @@ ${debugDetail(error)}`);
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path14.join(options.outDir, formatFileName("ci", "json")),
-      path14.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path14.join(options.outDir, formatFileName("ci", format)))
+      path16.join(options.outDir, formatFileName("ci", "json")),
+      path16.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path16.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -8555,7 +8778,7 @@ ${debugDetail(error)}`);
       const dir = resolveInput(cwd, options.outDir);
       await mkdir6(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile8(path14.join(dir, name), content, "utf8");
+        await writeFile8(path16.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
