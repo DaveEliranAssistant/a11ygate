@@ -3,7 +3,7 @@ import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
 import { groupFindings } from '@/lib/group';
 import { lookupStandards, type Criterion } from '@/lib/mapping';
-import { findingsFromResults } from '@/lib/parse';
+import { normalizeAxeResults, toLegacyFinding } from '@/lib/scan/engines/normalized';
 import type { CrawlResult, SkippedLink } from '@/lib/scan/crawl';
 import { IMPACTS, type AxeResults, type Finding, type Impact } from '@/lib/types';
 
@@ -134,7 +134,7 @@ export function buildScanReport(input: {
     let pageFindings: ScanFinding[] = [];
     if (page.result) {
       results.push(page.result);
-      pageFindings = findingsFromResults([page.result]).map((f) => toScanFinding(f, page.result as AxeResults));
+      pageFindings = normalizeAxeResults(page.result).map((f) => toScanFinding(toLegacyFinding(f), page.result as AxeResults));
       for (const f of pageFindings) {
         byImpact[f.impact ?? 'unknown'] += 1;
         totals[f.impact ?? 'unknown'] += 1;

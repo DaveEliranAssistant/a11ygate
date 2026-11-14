@@ -190,3 +190,6 @@ The production response sets a Content-Security-Policy suitable for this client-
 ## Coverage and manual-evidence limits
 
 Published CLI 0.1.0 does not include coverage-aware comparison, actionable finding guidance, explicit baseline-acceptance review, or structured manual CLI evidence. See [the evidence policy](docs/CI_EVIDENCE_POLICY.md) for coverage and evidence limits.
+
+Scanning accepts `--engines axe` and defaults to axe only. Other engines are not enabled yet.
+Automated testing only. Not a WCAG audit, certification or legal advice.

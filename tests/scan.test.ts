@@ -224,6 +224,13 @@ function report(failOn: 'serious' | 'critical' | 'minor' | 'none' = 'serious') {
 }
 
 describe('scan report', () => {
+  it('preserves the pre-plugin axe-only report bytes for a local result fixture', () => {
+    const r = report();
+    expect(JSON.stringify(r, null, 2) + '\n').toMatchSnapshot('axe-only JSON');
+    expect(scanMarkdown(r)).toMatchSnapshot('axe-only Markdown');
+    expect(scanHtml(r)).toMatchSnapshot('axe-only HTML');
+  });
+
   it('builds the machine-readable JSON with mapped WCAG criteria', () => {
     const r = report();
     expect(r).toMatchObject({ tool: 'a11ygate', kind: 'site-scan', version: '0.1.0', axeVersion: '4.14.0', startUrl: `${ORIGIN}/`, verdict: 'FAIL' });
