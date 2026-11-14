@@ -1,0 +1,46 @@
+# A11yGate GitHub Action example. This is the file docs/integrations/github-action.md and
+# action/README.md include, and tests/github-action-docs.test.ts runs its gate command.
+# Copy it to .github/workflows/a11ygate.yml. It reads committed local axe JSON for
+# http://127.0.0.1:4173/ only; replace the fixture paths with your own scan output.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+name: A11yGate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read # checkout; use write only for model-fix draft PRs
+  issues: write # the summary comment on the pull request
+  pull-requests: write # suggested changes; model-fix draft PRs
+  security-events: write # SARIF upload to code scanning
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the pull request head commit, not the default merge commit.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run cli:build
+      - name: Write SARIF from the local fixtures
+        run: node packages/cli/dist/cli.mjs --current examples/github-action/fixtures/current.json --baseline examples/github-action/fixtures/baseline.json --threshold serious --format sarif --out-dir a11y-results
+      # Fork pull requests get a read-only token, so only upload from same-repository pull requests.
+      - name: Upload SARIF
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: a11y-results/a11ygate.sarif
+          category: a11ygate
+      # Outside this repository use DaveEliranAssistant/a11ygate/action@<ref>.
+      - uses: ./action
+        with:
+          current: examples/github-action/fixtures/current.json
+          baseline: examples/github-action/fixtures/baseline.json
+          threshold: serious
+          # A comment that cannot be posted fails the step, so only comment on same-repository pull requests.
+          comment: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
