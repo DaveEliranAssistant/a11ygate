@@ -152,9 +152,30 @@ block form submission, new windows, document navigation during steps and non-rea
 HTTP methods during steps. Sites may perform side effects in custom handlers,
 including GET requests; use authorized local/test environments and test accounts.
 Reloading resets DOM state, but cookies and storage persist in the browser context.
-Auto mode does not explore nested controls revealed only after opening a parent,
-shadow-root candidates, or combinations of states. Provide explicit steps for
-those states. No labels or alternative text are generated or changed.
+For nested exploration, use an `interactions` mapping instead of the legacy list:
+
+```yaml
+interactions:
+  states: []
+  auto:
+    depth: 2
+    maxStates: 20
+```
+
+The mapping also works in a local JSON file passed to `--interactions`, or JSON
+in `A11YGATE_INTERACTIONS`. Presence of `auto` opts in. Depth defaults to 1 and
+accepts 1–3; maxStates defaults to 20 and accepts 1–100. The state cap counts
+auto attempts (including rejected targets), per route, excluding the base page
+and explicit states. The shared step budget still applies; replaying ancestors
+consumes steps. Depth 1 retains R37 `auto-N` labels and ordering.
+At depth 2–3, visible root controls are explored in DOM order, depth first.
+Newly visible expandable descendants inside the opened control or its
+`aria-controls`/`aria-owns` panel are explored after a fresh load and ancestor
+replay. Labels use existing safe element IDs (otherwise `auto-N`), for example
+`/app#menu>submenu-2` (URL fields encode `>` as `%3E`). Unrelated controls, shadow roots and arbitrary state
+combinations are not explored. Use explicit steps for unsupported relationships
+or asynchronous reveals. Buttons whose text matches delete/remove/pay/buy/submit
+(case insensitive) are rejected at every depth, including explicit steps. No labels or alternative text are generated or changed.
 
 Without interaction settings the existing scan output is unchanged.
 Automated testing only. Not a WCAG audit, certification or legal advice.

@@ -1,4 +1,4 @@
-import { parseInteractionStates } from '@/lib/scan/interactions';
+import { parseInteractionConfig } from '@/lib/scan/interactions';
 import { resolveModelFixConfig } from '@/lib/modelfix/config';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -61,6 +61,7 @@ function get(object: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>((node, part) => node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined, object);
 }
 function decode(text: string, schema: JsonSchema): unknown {
+  if (schema.anyOf) { try { return JSON.parse(text); } catch { return text; } }
   if (schema.type === 'array') {
     if (text.trim().startsWith('[')) { try { return JSON.parse(text); } catch { return text; } }
     return text.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
@@ -116,7 +117,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
       values[key] = value; sources[key] = `env:${name}`;
     }
   }
-  try { parseInteractionStates(values.interactions); }
+  try { parseInteractionConfig(values.interactions); }
   catch (error) { throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${(error as Error).message}`, { cause: error }); }
   // Parse only registered options here; command-specific parsing and validation stays in the command parser.
   const remaining: string[] = [];
@@ -147,7 +148,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     if (text === undefined) throw new Error(`${name} needs a value.`);
     if (['screenshots', 'noScreenshots', 'ignoreRobots', 'autoInteractions', 'keyboard'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
     let value = key === 'interactions' ? (() => {
-      const inline = text.trim().startsWith('[');
+      const inline = /^[\[{]/.test(text.trim());
       const source = inline ? '--interactions' : text;
       let raw: string;
       if (inline) raw = text;
@@ -158,7 +159,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
       let json: unknown;
       // No cause: JSON syntax messages can quote file content.
       try { json = JSON.parse(raw.replace(/^\uFEFF/, '')); } catch { throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`); }
-      try { return parseInteractionStates(json); }
+      try { return parseInteractionConfig(json); }
       catch (error) { throw new Error(`Invalid --interactions (${source}: ${(error as Error).message.replace(/\.$/, '')}).`, { cause: error }); }
     })() : schema.type === 'array' && !['engines', 'formats'].includes(key) ? [text] : decode(text, schema);
     if (key === 'formats' && Array.isArray(value)) value = [...new Set(value)];

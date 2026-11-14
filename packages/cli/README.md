@@ -341,7 +341,11 @@ states exit 2.
 
 `--auto-interactions --interaction-budget 3` opens collapsed controls and popup
 buttons individually, up to the per-route step budget. Default off; default budget
-10. Forms, links and document navigation during steps are blocked. Use test
+10. Use `interactions.auto.depth` (1–3, default 1) and
+`interactions.auto.maxStates` (1–100, default 20) in a YAML states/auto mapping
+to explore newly revealed nested controls with path labels. Each branch reloads
+and replays its parents; these replay steps consume the shared step budget.
+Forms, links, destructive-looking buttons and document navigation during steps are blocked. Use test
 accounts in authorized test environments: custom application handlers may have
 side effects. See [configuration and limits](../../docs/configuration.md#opt-in-spa-interaction-states).
 

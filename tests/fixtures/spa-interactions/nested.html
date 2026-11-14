@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><title>Nested fixture</title><main><h1>Nested controls</h1>
+<button id="menu" aria-expanded="false" aria-controls="menu-panel" onclick="this.ariaExpanded='true';document.querySelector('#menu-panel').hidden=false">Menu</button>
+<div id="menu-panel" hidden>
+<button id="submenu-2" aria-expanded="false" aria-controls="nested-panel" onclick="this.ariaExpanded='true';document.querySelector('#nested-panel').hidden=false">Submenu</button>
+<div id="nested-panel" hidden><img id="nested-issue" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<button id="third" aria-expanded="false" onclick="this.ariaExpanded='true'">Third level</button></div>
+</div>
+<button id="sibling" aria-expanded="false" onclick="if(!document.querySelector('#menu-panel').hidden) document.querySelector('#contaminated').hidden=false;this.ariaExpanded='true'">Sibling</button>
+<img id="contaminated" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<button aria-expanded="false" onclick="location.href='/danger'">DELETE <span id="danger-child">entry</span></button>
+<button aria-expanded="false" onclick="location.href='/danger'">Remove entry</button>
+<button aria-expanded="false" onclick="location.href='/danger'">Pay now</button>
+<button aria-expanded="false" onclick="location.href='/danger'">Buy now</button>
+<button type="button" aria-expanded="false" onclick="location.href='/danger'">Submit now</button>
+<p>Automated testing only. Not a WCAG audit, certification or legal advice.</p></main></html>

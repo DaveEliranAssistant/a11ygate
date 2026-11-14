@@ -1,7 +1,7 @@
 import { redactedScreenshot } from '@/lib/scan/screenshot';
 import { createHash } from 'node:crypto';
 import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/scan/keyboard';
-import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
+import { parseInteractionConfig, installInteractionGuards, scanInteractionStates, type InteractionConfig, type InteractionOptions } from '@/lib/scan/interactions';
 import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
 import { readJsonInput } from './input-file';
@@ -44,7 +44,7 @@ export type ScanOptions = AuthOptions & {
   /** Opt-in EN 301 549 reference column in HTML v2 and SARIF rule properties. */
   en301549Ref?: boolean;
   keyboardBudget?: number;
-  interactions?: string | InteractionState[];
+  interactions?: string | InteractionConfig;
   autoInteractions?: boolean;
   interactionBudget?: number;
   start?: string;
@@ -156,7 +156,7 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1000) return { ok: false, error: '--keyboard-budget must be from 1 to 1000.' };
       options.keyboardBudget = Number(value);
     } else if (name === '--interactions') {
-      try { options.interactions = value.trim().startsWith('[') ? parseInteractionStates(JSON.parse(value)) : value; }
+      try { options.interactions = /^[\[{]/.test(value.trim()) ? parseInteractionConfig(JSON.parse(value)) : value; }
       catch (error) { return { ok: false, error: `Invalid interaction states (--interactions: ${error instanceof SyntaxError ? 'not valid JSON' : (error as Error).message.replace(/\.$/, '')}).` }; }
     } else if (name === '--interaction-budget') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return { ok: false, error: '--interaction-budget must be from 1 to 100.' };
@@ -627,8 +627,8 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   let interactions: InteractionOptions | undefined;
   try {
     if (options.interactions || options.autoInteractions) {
-      const states = typeof options.interactions === 'string' ? await readJsonInput(cwd, options.interactions, parseInteractionStates) : parseInteractionStates(options.interactions ?? []);
-      interactions = { states, auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+      const config = typeof options.interactions === 'string' ? await readJsonInput(cwd, options.interactions, parseInteractionConfig) : parseInteractionConfig(options.interactions ?? []);
+      interactions = { states: Array.isArray(config) ? config : config.states ?? [], auto: (!Array.isArray(config) && config.auto) || !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
     }
   } catch (error) { stderr(`Could not read valid interaction states from the local JSON file: ${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   let auth: PreparedAuth;

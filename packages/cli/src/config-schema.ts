@@ -15,6 +15,7 @@ export const SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
 
 export type JsonSchema = {
   type?: string;
+  anyOf?: JsonSchema[];
   enum?: readonly unknown[];
   properties?: Record<string, JsonSchema>;
   additionalProperties?: boolean;
@@ -185,6 +186,12 @@ function matchesType(type: string, value: unknown): boolean {
 
 function check(schema: JsonSchema, value: unknown, where: string, errors: string[]): void {
   const label = where || 'the config';
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find(s => !s.type || matchesType(s.type, value));
+    if (branch) check(branch, value, where, errors);
+    else errors.push(`'${label}' must be a state list or a states/auto mapping.`);
+    return;
+  }
   if (schema.type && !matchesType(schema.type, value)) {
     const hint = schema.type === 'boolean' && (value === 'true' || value === 'false') ? ` (remove the quotes: ${value})` : '';
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== 'object' ? ` ${show(value)}` : ''}${hint}.`);
