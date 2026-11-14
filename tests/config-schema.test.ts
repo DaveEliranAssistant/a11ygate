@@ -128,6 +128,7 @@ describe('(c) schema covers every CLI option', () => {
   const EXCLUDED: Record<string, string> = {
     '--help': 'help', '-h': 'help', '--version': 'help',
     '--yes': 'init: interactive switch', '--force': 'init: per-run overwrite', '--target': 'init: chooses which CI file to generate',
+    '--session-storage': 'scan: per-run sessionStorage credential file',
     '--start': 'scan: trusted per-run local server command',
     '--wait-on': 'scan: per-run local server readiness URL',
     '--storybook': 'scan: per-run local story index input',

@@ -61,7 +61,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
+const VALUE_FLAGS = new Set(['--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -123,6 +123,7 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       else if (name === '--timeout-ms') options.timeoutMs = Number(value);
       else options.concurrency = Number(value);
     } else if (name === '--storage-state') options.storageState = value;
+    else if (name === '--session-storage') options.sessionStorage = value;
     else if (name === '--login-script') options.loginScript = value;
     else if (name === '--login-timeout-ms') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 300_000) return { ok: false, error: '--login-timeout-ms must be from 1 to 300000.' };
@@ -199,6 +200,7 @@ Options:
   --start <cmd>         Run a trusted local shell command; requires --wait-on. Stops its process group after scanning.
   --wait-on <url>       Wait for loopback HTTP 2xx (same origin); --timeout-ms sets readiness deadline (default 30000).
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
+  --session-storage <file> Read origin-scoped sessionStorage JSON (never written back).
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
   --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
   --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
@@ -568,7 +570,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
       ignoreRobots: options.ignoreRobots,
     },
     engineResults: engine.engineResults,
-    authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
+    authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
@@ -608,8 +610,8 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
         [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ''],
       ];
   try {
-    if (options.baseline || io.reportInput || options.storageState || options.loginScript) {
-      await assertSafeOutputs(cwd, [options.baseline, io.reportInput, options.storageState, options.loginScript].filter((f): f is string => !!f),
+    if (options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
+      await assertSafeOutputs(cwd, [options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f): f is string => !!f),
         [...targets.map(([file]) => file).filter((f): f is string => !!f),
           ...(options.outDir ? options.engines.map((id) => path.join(options.outDir!, 'engines', `${id}.json`)) : [])]);
     }

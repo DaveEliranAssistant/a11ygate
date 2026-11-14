@@ -12,9 +12,9 @@ export class AuthRedactor {
     this.values.add(value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
   }
 
-  storage(state: { cookies?: { value: string }[]; origins?: { localStorage?: { value: string }[] }[] }): void {
+  storage(state: { cookies?: { value: string }[]; origins?: { localStorage?: { value: string }[]; sessionStorage?: { value: string }[] }[] }): void {
     for (const cookie of state.cookies ?? []) this.add(cookie.value);
-    for (const origin of state.origins ?? []) for (const entry of origin.localStorage ?? []) this.add(entry.value);
+    for (const origin of state.origins ?? []) for (const entry of [...(origin.localStorage ?? []), ...(origin.sessionStorage ?? [])]) this.add(entry.value);
   }
 
   text(input: string): string {

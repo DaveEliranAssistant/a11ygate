@@ -12,13 +12,29 @@ const noRobots = async () => ({ ok: false, status: 404, text: async () => '' });
 
 describe('authentication configuration (no browser or network)', () => {
   it('accepts repeatable environment names and rejects literal credentials', () => {
-    expect(parseScanArgs(['https://site.test', '--storage-state', 'state.json', '--login-script=login.mjs', '--login-timeout-ms', '1200', '--cookie-env', 'session=TEST_SESSION', '--cookie-env', 'csrf=TEST_CSRF', '--header-env', 'Authorization=TEST_AUTH'])).toMatchObject({
-      ok: true, options: { storageState: 'state.json', loginScript: 'login.mjs', loginTimeoutMs: 1200, cookieEnv: ['session=TEST_SESSION', 'csrf=TEST_CSRF'], headerEnv: ['Authorization=TEST_AUTH'] },
+    expect(parseScanArgs(['https://site.test', '--storage-state', 'state.json', '--session-storage=session.json', '--login-script=login.mjs', '--login-timeout-ms', '1200', '--cookie-env', 'session=TEST_SESSION', '--cookie-env', 'csrf=TEST_CSRF', '--header-env', 'Authorization=TEST_AUTH'])).toMatchObject({
+      ok: true, options: { storageState: 'state.json', sessionStorage: 'session.json', loginScript: 'login.mjs', loginTimeoutMs: 1200, cookieEnv: ['session=TEST_SESSION', 'csrf=TEST_CSRF'], headerEnv: ['Authorization=TEST_AUTH'] },
     });
     for (const args of [['--cookie-env', 'session=literal value'], ['--header-env', 'Authorization=Bearer value'], ['--login-timeout-ms', '0'], ['--login-timeout-ms', '300001']]) {
       expect(parseScanArgs(['https://site.test', ...args]).ok).toBe(false);
     }
     expect(envMapping('session=SECRET_NAME')).toEqual({ name: 'session', env: 'SECRET_NAME' });
+  });
+
+  it('validates and redacts sessionStorage files without echoing invalid input', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-session-unit-'));
+    const secret = randomBytes(24).toString('hex');
+    try {
+      const entry = { origin: 'https://site.test', sessionStorage: [{ name: 'session', value: secret }] };
+      await writeFile(path.join(dir, 'session.json'), JSON.stringify({ origins: [entry] }));
+      const auth = await prepareAuth({ sessionStorage: 'session.json' }, dir, 'https://site.test', { NODE_ENV: 'test' });
+      expect(auth.sessionStorage?.origins.length).toBe(1);
+      expect(auth.redactor.text(secret).includes(secret)).toBe(false);
+      for (const state of [null, {}, { origins: [entry, entry] }, { origins: [{ ...entry, origin: 'https://site.test/path' }] }, { origins: [{ ...entry, sessionStorage: [{ name: 'session', value: 1 }] }] }]) {
+        await writeFile(path.join(dir, 'session.json'), JSON.stringify(state));
+        await expect(prepareAuth({ sessionStorage: 'session.json' }, dir, 'https://site.test', { NODE_ENV: 'test' })).rejects.toThrow('Could not read --session-storage: expected JSON');
+      }
+    } finally { await rm(dir, { recursive: true, force: true }); }
   });
 
   it('fails closed on unset environment names without echoing their values', async () => {
@@ -84,12 +100,12 @@ describe('authentication configuration (no browser or network)', () => {
     } finally { network.restore(); await rm(dir, { recursive: true, force: true }); }
   });
 
-  it('never overwrites a storage state input through an output alias', async () => {
+  it.each(['storage-state', 'session-storage'])('never overwrites a %s input through an output alias', async flag => {
     const dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-auth-alias-'));
     try {
       const state = JSON.stringify({ cookies: [], origins: [] });
       await writeFile(path.join(dir, 'state.json'), state);
-      const code = await runScan(['https://site.test', '--storage-state', 'state.json', '--json', 'state.json'], {
+      const code = await runScan(['https://site.test', '--' + flag, 'state.json', '--json', 'state.json'], {
         cwd: dir, stdout: () => {}, stderr: () => {}, fetch: noRobots,
         engine: async () => ({ visit: async url => ({ status: 401, finalUrl: url, links: [], error: 'Not authenticated: access denied.' }), close: async () => {} }),
       });
