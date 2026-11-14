@@ -17,7 +17,7 @@ export const SITE_URL = 'https://a11ygate.vercel.app';
 export const SITE_DESCRIPTION =
   'Turn axe-core JSON from Playwright into an accessibility regression gate and an EU Accessibility Act evidence report. Runs in your browser.';
 
-export const CLI_PACKAGE = '@qe-atlas/a11ygate@0.1.0';
+export const CLI_PACKAGE = '@qe-atlas/a11ygate@0.2.0';
 
 export const CI_INSTALL_COMMAND = 'npm install --save-dev @playwright/test @axe-core/playwright';
 

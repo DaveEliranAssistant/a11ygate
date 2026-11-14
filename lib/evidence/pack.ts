@@ -45,7 +45,7 @@ export type EvidenceManifest = {
   tool: 'a11ygate';
   kind: 'evidence-pack';
   schemaVersion: 1;
-  releaseStatus: 'unreleased-source-build';
+  releaseStatus: 'released';
   toolVersion: string;
   scanToolVersion: string;
   commit: CommitInfo;
@@ -352,7 +352,7 @@ export function buildEvidencePack(input: PackInput): PackResult {
     tool: 'a11ygate',
     kind: 'evidence-pack',
     schemaVersion: 1,
-    releaseStatus: 'unreleased-source-build',
+    releaseStatus: 'released',
     toolVersion: input.toolVersion,
     scanToolVersion: report.version,
     commit: input.commit,

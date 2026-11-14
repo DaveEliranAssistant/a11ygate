@@ -14,7 +14,7 @@ Sibling guide: [GitHub Action integration](github-action.md).
 2. The step is [`integrations/jenkins/vars/a11yGate.groovy`](../../integrations/jenkins/vars/a11yGate.groovy). A short library README is at [`integrations/jenkins/README.md`](../../integrations/jenkins/README.md).
 3. Load it in a Pipeline with `@Library('a11ygate') _` as in the examples below.
 
-Until a release includes `scan` and `--format`, pass `cli: 'node packages/cli/dist/cli.mjs'` (or another path to a source build). Published `@qe-atlas/a11ygate@0.1.0` does not include those flags.
+Published `@qe-atlas/a11ygate@0.1.0` (`latest`) does not include `scan` or `--format`. Use `@qe-atlas/a11ygate@next` (0.2.0) or a source build (`cli: 'node packages/cli/dist/cli.mjs'`).
 
 ### Plain `sh` step (no library)
 
@@ -178,7 +178,7 @@ recordIssues(tools: [sarif(pattern: 'a11y-results/*.sarif')])
 | Exit 2 / "failed to run" | Node, the `cli` path, Playwright Chromium, and that the start URL is reachable and not disallowed by robots.txt. |
 | Exit 1 / UNSTABLE | Findings at or above `failOn`. Open the archived Markdown/HTML or JUnit report. This is not a certification result. |
 | Empty JUnit | Confirm `${outDir}/a11ygate-scan.junit.xml` (scan) or `a11ygate.junit.xml` (ci) was written; `allowEmptyResults` keeps the publisher from failing on a clean suite. |
-| `scan` / `--format` unknown | You are on published `@qe-atlas/a11ygate@0.1.0`. Use a source build via `cli: 'node packages/cli/dist/cli.mjs'`. |
+| `scan` / `--format` unknown | You are on `@qe-atlas/a11ygate@0.1.0` (`latest`). Use `@next` (0.2.0) or a source build via `cli: 'node packages/cli/dist/cli.mjs'`. |
 | SARIF not in Warnings NG | Install the Warnings NG plugin and call the [`record-issues.groovy`](../../examples/jenkins/record-issues.groovy) fragment. |
 | Docker image cannot see the workspace | Pass `dockerArgs` such as a workspace mount if your agent needs it; or run on a Node agent without `image`. |
 

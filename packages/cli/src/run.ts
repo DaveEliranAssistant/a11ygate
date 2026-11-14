@@ -115,7 +115,7 @@ function reportJson(input: {
     {
       tool: 'a11ygate',
       schemaVersion: 2,
-      releaseStatus: 'unreleased-source-build',
+      releaseStatus: 'released',
       synthetic: input.synthetic,
       version: input.version,
       projectName: input.projectName,
