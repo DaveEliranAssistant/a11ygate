@@ -1,0 +1,173 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`HTML report v2 sections (snapshots) > executive summary with a baseline shows new vs existing and the engine line > summary with baseline 1`] = `
+"<section id="summary" aria-labelledby="summary-h">
+<h2 id="summary-h">Executive summary</h2>
+<p class="verdict">Gate verdict: FAIL <span class="muted">(fail on: serious)</span></p>
+<p>7 new findings at or above serious.</p>
+<ul class="facts">
+<li>Pages scanned: <strong>3</strong>; pages that failed to load: 1; links not scanned: 1.</li>
+<li>Total findings: <strong>11</strong> across 4 rules.</li>
+<li>Compared with baseline: <strong>9 new</strong>; 2 existing; 0 fixed; 0 unassessed.</li>
+<li>Engines used: axe-core 4.14.0.</li><li>Engines errored: none.</li>
+<li>Scanned 2026-11-14T10:00:00.000Z with A11yGate 0.2.0.</li>
+</ul>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody><tr><th scope="row">critical</th><td>2</td></tr><tr><th scope="row">serious</th><td>6</td></tr><tr><th scope="row">moderate</th><td>3</td></tr><tr><th scope="row">minor</th><td>0</td></tr><tr><th scope="row">unspecified</th><td>0</td></tr></tbody></table>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > header and footer carry the disclaimer > footer 1`] = `
+"</main>
+<footer>
+<p>Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+<p>Automated checks cover only part of WCAG; this is evidence, not certification.</p>
+<p>Informational only. Not legal advice. Not a certification of EAA compliance.</p>
+</footer>
+</body>
+</html>
+"
+`;
+
+exports[`HTML report v2 sections (snapshots) > header and footer carry the disclaimer > header 1`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate accessibility scan report — https://site.test/</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+@media (prefers-color-scheme:dark){:root{--bg:#121212;--surface:#1f1f1f;--text:#ececec;--muted:#bdbdbd;--link:#8ab4f8;--border:#8c8c8c;--critical:#ff8a80;--serious:#ffb870;--moderate:#e8cc6a;--minor:#a8cdf5;--unknown:#bdbdbd}}
+body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
+a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+code{background:var(--surface);color:var(--text);padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
+caption{text-align:left;font-weight:600}
+li{margin:.4rem 0}.muted{color:var(--muted)}.verdict{font-size:1.25rem;font-weight:700}
+.impact{font-weight:600;text-transform:capitalize}.critical{color:var(--critical)}.serious{color:var(--serious)}.moderate{color:var(--moderate)}.minor{color:var(--minor)}.unknown{color:var(--unknown)}
+.tag{border:1px solid var(--border);border-radius:.25rem;padding:0 .3em;font-size:.875rem}
+.disclaimer{border:2px solid var(--border);background:var(--surface);padding:.5rem .75rem;font-weight:600}
+section>section{border-top:1px solid var(--border);margin-top:1rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media print{
+:root{--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+body{max-width:none;padding:0;font-size:11pt;color:#000;background:#fff}
+nav{display:none}
+a{color:#000;text-decoration:underline}
+#how-to-fix a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;word-break:break-all}
+h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
+#top-fixes,#how-to-fix,#limits{break-before:page}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>A11yGate accessibility scan report</h1>
+<p>Start URL: <code>https://site.test/</code></p>
+<p class="disclaimer" id="disclaimer">Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+<nav aria-label="Report sections"><ul>
+<li><a href="#summary">Executive summary</a></li>
+<li><a href="#top-fixes">Top 10 fixes</a></li>
+<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
+<li><a href="#by-page">Findings by page</a></li>
+<li><a href="#how-to-fix">How to fix, by rule</a></li>
+<li><a href="#limits">What automated testing does not cover</a></li>
+</ul></nav>
+</header>
+"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #by-page 1`] = `
+"<section id="by-page" aria-labelledby="by-page-h">
+<h2 id="by-page-h">Findings by page</h2>
+<section><h3><code>https://site.test/</code> (4)</h3><p class="muted">HTTP 200; complete</p><ul><li><strong>image-alt</strong> <span class="impact critical">critical</span> — Images must have alternative text<br>Selector: <code>img</code></li><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>a.nav</code></li><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>p.faint</code></li><li><strong>region</strong> <span class="impact moderate">moderate</span> — All page content should be contained by landmarks<br>Selector: <code>div</code></li></ul></section>
+<section><h3><code>https://site.test/about</code> (4)</h3><p class="muted">HTTP 200; complete</p><ul><li><strong>label</strong> <span class="impact critical">critical</span> — Form elements must have labels<br>Selector: <code>input</code></li><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>a.nav</code></li><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>p.faint</code></li><li><strong>region</strong> <span class="impact moderate">moderate</span> — All page content should be contained by landmarks<br>Selector: <code>div</code></li></ul></section>
+<section><h3><code>https://site.test/contact</code> (3)</h3><p class="muted">HTTP 200; complete</p><ul><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>a.nav</code></li><li><strong>color-contrast</strong> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br>Selector: <code>p.faint</code></li><li><strong>region</strong> <span class="impact moderate">moderate</span> — All page content should be contained by landmarks<br>Selector: <code>div</code></li></ul></section>
+<section><h3><code>https://site.test/gone</code> (0)</h3><p class="muted">HTTP 404; failed — HTTP 404</p><p>No automated findings on this page.</p></section>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #by-wcag 1`] = `
+"<section id="by-wcag" aria-labelledby="by-wcag-h">
+<h2 id="by-wcag-h">Findings by WCAG success criterion</h2>
+<p class="muted">A finding mapped to two criteria is listed under both. The criterion mapping is a static crosswalk and needs expert review before it is used as evidence.</p>
+<section><h3>WCAG 1.1.1 Non-text Content (A); EN 301 549 9.1.1.1 (1)</h3><ul><li><a href="#fix-3">image-alt</a> — 1 occurrence on 1 page</li></ul></section>
+<section><h3>WCAG 1.3.1 Info and Relationships (A); EN 301 549 9.1.3.1 (1)</h3><ul><li><a href="#fix-4">label</a> — 1 occurrence on 1 page</li></ul></section>
+<section><h3>WCAG 1.4.3 Contrast (Minimum) (AA); EN 301 549 9.1.4.3 (6)</h3><ul><li><a href="#fix-1">color-contrast</a> — 6 occurrences on 3 pages</li></ul></section>
+<section><h3>WCAG 4.1.2 Name, Role, Value (A); EN 301 549 9.4.1.2 (1)</h3><ul><li><a href="#fix-4">label</a> — 1 occurrence on 1 page</li></ul></section>
+<section><h3>Best practice (no WCAG success criterion mapped) (3)</h3><ul><li><a href="#fix-2">region</a> — 3 occurrences on 3 pages</li></ul></section>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #how-to-fix 1`] = `
+"<section id="how-to-fix" aria-labelledby="how-to-fix-h">
+<h2 id="how-to-fix-h">How to fix, by rule</h2>
+<p class="muted">A11yGate does not write alternative text, labels or accessible names. Any such text is a TODO for a person who knows the content, followed by human review.</p>
+<section id="fix-1"><h3>color-contrast <span class="impact serious">serious</span></h3>
+<p>Elements must meet minimum color contrast ratio thresholds</p>
+<p><strong>Who is affected:</strong> People with low vision or color-vision differences may not be able to read the affected content.</p>
+<p><strong>How to fix:</strong> Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.</p>
+<p><strong>How to verify:</strong></p><ul><li>Re-run axe on the same page/state and affected selector.</li><li>Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually.</li></ul>
+<p><strong>References:</strong></p><ul><li><a href="https://dequeuniversity.com/rules/axe/4.14/color-contrast">Engine rule help<span class="sr"> for color-contrast</span></a></li><li><a href="https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html">W3C Understanding 1.4.3 Contrast (Minimum) (AA)</a></li></ul>
+<p class="muted">Rule-based guidance; contextual human review required, not legal advice or certification.</p></section>
+<section id="fix-2"><h3>region <span class="impact moderate">moderate</span></h3>
+<p>All page content should be contained by landmarks</p>
+<p><strong>Who is affected:</strong> The affected element may prevent people using assistive technology from perceiving or operating the content (region); assess the actual user journey.</p>
+<p><strong>How to fix:</strong> All page content should be contained by landmarks Consult the rule guidance and review the actual component; automated advice is not a verified fix.</p>
+<p><strong>How to verify:</strong></p><ul><li>Inspect the affected element and applicable rule guidance.</li><li>Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey.</li></ul>
+<p><strong>References:</strong></p><ul><li><a href="https://dequeuniversity.com/rules/axe/4.14/region">Engine rule help<span class="sr"> for region</span></a></li></ul>
+<p class="muted">Rule-based guidance; contextual human review required, not legal advice or certification.</p></section>
+<section id="fix-3"><h3>image-alt <span class="impact critical">critical</span></h3>
+<p>Images must have alternative text</p>
+<p><strong>Who is affected:</strong> People using screen readers may miss the purpose or information conveyed by the image.</p>
+<p><strong>How to fix:</strong> Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.</p>
+<p><strong>How to verify:</strong></p><ul><li>Re-run axe on the same page/state and selector.</li><li>Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail.</li></ul>
+<p><strong>References:</strong></p><ul><li><a href="https://dequeuniversity.com/rules/axe/4.14/image-alt">Engine rule help<span class="sr"> for image-alt</span></a></li><li><a href="https://www.w3.org/WAI/WCAG22/Understanding/non-text-content.html">W3C Understanding 1.1.1 Non-text Content (A)</a></li></ul>
+<p class="muted">Rule-based guidance; contextual human review required, not legal advice or certification.</p></section>
+<section id="fix-4"><h3>label <span class="impact critical">critical</span></h3>
+<p>Form elements must have labels</p>
+<p><strong>Who is affected:</strong> People using assistive technology may not know what input is expected.</p>
+<p><strong>How to fix:</strong> Associate a visible label with the control and expose instructions/errors programmatically.</p>
+<p><strong>How to verify:</strong></p><ul><li>Inspect the accessible name and label association; re-run axe.</li><li>Navigate and complete the field using keyboard and a screen reader, including validation errors.</li></ul>
+<p><strong>References:</strong></p><ul><li><a href="https://dequeuniversity.com/rules/axe/4.14/label">Engine rule help<span class="sr"> for label</span></a></li><li><a href="https://www.w3.org/WAI/WCAG22/Understanding/info-and-relationships.html">W3C Understanding 1.3.1 Info and Relationships (A)</a></li><li><a href="https://www.w3.org/WAI/WCAG22/Understanding/name-role-value.html">W3C Understanding 4.1.2 Name, Role, Value (A)</a></li></ul>
+<p class="muted">Rule-based guidance; contextual human review required, not legal advice or certification.</p></section>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #limits 1`] = `
+"<section id="limits" aria-labelledby="limits-h">
+<h2 id="limits-h">What automated testing does not cover</h2>
+<p>This report records what automated rules detected on the pages listed above. It does not assess:</p>
+<ul><li>Most WCAG success criteria need human judgement. Automated rules detect only a subset of accessibility barriers, so an empty findings list is not evidence of conformance.</li><li>Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.</li><li>Keyboard operability across complete user journeys, logical focus order, visible focus in context and keyboard traps that appear after interaction.</li><li>The experience with screen readers, magnifiers, voice control and other assistive technology.</li><li>Login journeys, forms, multi-step flows, error states, menus, dialogs and other interactions beyond the pages explicitly scanned.</li><li>Pages that were not reached: not linked through same-origin a[href] links, beyond the crawl cap, disallowed by robots.txt, or failed to load.</li><li>Captions, transcripts and audio description for time-based media, and whether they are correct.</li><li>Cognitive and learning accessibility: plain language, consistent navigation, timing, and error prevention and recovery.</li><li>Reflow, zoom, orientation and user style or contrast settings beyond what individual rules check.</li><li>Documents (PDF, office files), native apps, emails and third-party services that were not rendered in the scanned pages.</li></ul>
+<p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
+<h3>Scope and boundaries of this scan</h3>
+<ul><li>Only scan sites you own or are explicitly authorized to test.</li><li>Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.</li><li>Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.</li><li>Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured.</li></ul>
+<h3>Not scanned</h3><ul><li><code>https://site.test/private/</code> — disallowed by robots.txt</li></ul>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #summary 1`] = `
+"<section id="summary" aria-labelledby="summary-h">
+<h2 id="summary-h">Executive summary</h2>
+<p class="verdict">Gate verdict: FAIL <span class="muted">(fail on: serious)</span></p>
+<p>8 findings at or above serious: color-contrast, image-alt, label.</p>
+<ul class="facts">
+<li>Pages scanned: <strong>3</strong>; pages that failed to load: 1; links not scanned: 1.</li>
+<li>Total findings: <strong>11</strong> across 4 rules.</li>
+<li>Compared with baseline: no baseline was supplied, so every finding is reported without new/existing status.</li>
+<li>Engines used: axe-core 4.14.0.</li><li>Engines errored: none.</li>
+<li>Scanned 2026-11-14T10:00:00.000Z with A11yGate 0.2.0.</li>
+</ul>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody><tr><th scope="row">critical</th><td>2</td></tr><tr><th scope="row">serious</th><td>6</td></tr><tr><th scope="row">moderate</th><td>3</td></tr><tr><th scope="row">minor</th><td>0</td></tr><tr><th scope="row">unspecified</th><td>0</td></tr></tbody></table>
+</section>"
+`;
+
+exports[`HTML report v2 sections (snapshots) > section #top-fixes 1`] = `
+"<section id="top-fixes" aria-labelledby="top-fixes-h">
+<h2 id="top-fixes-h">Top 10 fixes</h2>
+<p class="muted">Ordered by impact weight × pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Fixing a shared component usually clears every page it appears on.</p>
+<ol class="top"><li><a href="#fix-1"><strong>color-contrast</strong></a> <span class="impact serious">serious</span> — Elements must meet minimum color contrast ratio thresholds<br><span class="muted">3 pages affected; 6 occurrences; priority score 9. WCAG 1.4.3.</span></li><li><a href="#fix-2"><strong>region</strong></a> <span class="impact moderate">moderate</span> — All page content should be contained by landmarks<br><span class="muted">3 pages affected; 3 occurrences; priority score 6. Best practice.</span></li><li><a href="#fix-3"><strong>image-alt</strong></a> <span class="impact critical">critical</span> — Images must have alternative text<br><span class="muted">1 page affected; 1 occurrence; priority score 4. WCAG 1.1.1.</span></li><li><a href="#fix-4"><strong>label</strong></a> <span class="impact critical">critical</span> — Form elements must have labels<br><span class="muted">1 page affected; 1 occurrence; priority score 4. WCAG 1.3.1, 4.1.2.</span></li></ol>
+</section>"
+`;

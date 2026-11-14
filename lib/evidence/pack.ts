@@ -1,27 +1,16 @@
 import { createHash } from 'node:crypto';
-import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { AUTOMATED_LIMITS, AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { toJunit } from '@/lib/export-junit';
 import { toSarif } from '@/lib/export-sarif';
 import { formatReportFromScan } from '@/lib/report-formats';
-import { scanHtml, scanMarkdown, type ScanReport } from '@/lib/scan/report';
+import { scanMarkdown, type ScanReport } from '@/lib/scan/report';
+import { renderScanHtml } from '@/lib/scan/report-html-v2';
 import { createZip, type ZipEntry } from './zip';
 
 export const EVIDENCE_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
 
-/** Shown on every evidence-pack front page. Wording avoids any conformance or compliance claim. */
-export const AUTOMATED_LIMITS = [
-  'Most WCAG success criteria need human judgement. Automated rules detect only a subset of accessibility barriers, so an empty findings list is not evidence of conformance.',
-  'Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.',
-  'Keyboard operability across complete user journeys, logical focus order, visible focus in context and keyboard traps that appear after interaction.',
-  'The experience with screen readers, magnifiers, voice control and other assistive technology.',
-  'Login journeys, forms, multi-step flows, error states, menus, dialogs and other interactions beyond the pages explicitly scanned.',
-  'Pages that were not reached: not linked through same-origin a[href] links, beyond the crawl cap, disallowed by robots.txt, or failed to load.',
-  'Captions, transcripts and audio description for time-based media, and whether they are correct.',
-  'Cognitive and learning accessibility: plain language, consistent navigation, timing, and error prevention and recovery.',
-  'Reflow, zoom, orientation and user style or contrast settings beyond what individual rules check.',
-  'Documents (PDF, office files), native apps, emails and third-party services that were not rendered in the scanned pages.',
-] as const;
+export { AUTOMATED_LIMITS };
 
 export type PackFileSource = 'copied' | 'generated';
 
@@ -314,7 +303,7 @@ export function buildEvidencePack(input: PackInput): PackResult {
   const formatReport = formatReportFromScan(report);
   const generated: [string, () => string][] = [
     ['scan/a11ygate-scan.md', () => scanMarkdown(report)],
-    ['scan/a11ygate-scan.html', () => scanHtml(report)],
+    ['scan/a11ygate-scan.html', () => renderScanHtml(report)],
     ['scan/a11ygate-scan.sarif', () => toSarif(formatReport)],
     ['scan/a11ygate-scan.junit.xml', () => toJunit(formatReport)],
   ];

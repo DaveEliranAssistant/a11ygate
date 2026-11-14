@@ -8,7 +8,8 @@ import { createServer } from 'node:net';
 import { ENGINE_IDS, createHtmlcsEngine, createIbmEngine, createLighthouseEngine, type EngineId } from '@/lib/scan/engines/optional';
 import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
-import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanHtml, scanMarkdown, type FailOn } from '@/lib/scan/report';
+import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanMarkdown, type FailOn } from '@/lib/scan/report';
+import { DEFAULT_REPORT_VERSION, isReportVersion, renderScanHtml, type ReportVersion } from '@/lib/scan/report-html-v2';
 import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
 import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
 import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
@@ -34,6 +35,7 @@ export type ScanOptions = AuthOptions & {
   json?: string;
   markdown?: string;
   html?: string;
+  reportVersion: ReportVersion;
   formats: ReportFormat[];
   warnings: string[];
   engines: EngineId[];
@@ -44,10 +46,10 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env']);
+const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
-  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ['axe'] };
+  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? '';
@@ -107,6 +109,9 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     } else if (name === '--delay-ms') {
       if (!/^\d+$/.test(value) || Number(value) > 60_000) return { ok: false, error: '--delay-ms needs a whole number of milliseconds from 0 to 60000.' };
       options.delayMs = Number(value);
+    } else if (name === '--report-version') {
+      if (!/^\d+$/.test(value) || !isReportVersion(Number(value))) return { ok: false, error: `Unknown --report-version "${value}". Use 1 or 2.` };
+      options.reportVersion = Number(value) as ReportVersion;
     } else if (name === '--baseline') options.baseline = value;
     else if (name === '--out-dir') options.outDir = value;
     else if (name === '--json') options.json = value;
@@ -139,7 +144,7 @@ export function scanHelpText(): string {
 Usage:
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
                       [--format junit|sarif|json|md|gitlab-codequality] [--json <file>] [--markdown <file>]
-                      [--html <file>] [--delay-ms <ms>]
+                      [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
@@ -159,6 +164,8 @@ Options:
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
   --html <file>        Write a self-contained HTML summary.
+  --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
+                       grouping, how-to-fix links. 1: the previous HTML, byte-for-byte.
   --delay-ms <ms>      Pause between page loads. Default: ${DEFAULT_DELAY_MS}.
 
 Requires the optional peer dependencies:
@@ -458,13 +465,13 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
     ? [
         [path.join(options.outDir, 'a11ygate-scan.json'), json],
         [path.join(options.outDir, 'a11ygate-scan.md'), markdown],
-        [path.join(options.outDir, 'a11ygate-scan.html'), scanHtml(report)],
+        [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion)],
         ...extra,
       ]
     : [
         [options.json === '-' ? undefined : options.json, json],
         [options.markdown, markdown],
-        [options.html, options.html ? scanHtml(report) : ''],
+        [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ''],
       ];
   try {
     if (options.baseline || io.reportInput || options.storageState || options.loginScript) {

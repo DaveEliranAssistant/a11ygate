@@ -8,7 +8,9 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
-Nothing beyond 0.2.0 at gate time (2026-11-14 12:00 Asia/Jerusalem, `a215b6f`).
+### Changed
+
+- `a11ygate scan` HTML report v2 is the default: executive summary (pages, totals, new vs baseline, engines used/errored), top 10 fixes ordered by impact × pages affected, findings grouped by WCAG success criterion and by page, per-rule how-to-fix with links taken only from the finding's engine help URL and the W3C Understanding table in `lib/mapping.ts`, a "what automated testing does not cover" section, print CSS and a contrast-tested dark scheme. `--report-version 1` emits the previous HTML byte-for-byte (A11Y-R28).
 
 ## [0.2.0] — 2026-11-14 (npm `next` only; `latest` unchanged)
 

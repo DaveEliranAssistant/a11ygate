@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate site scan — https://site.test/</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fff}
+code{background:#f2f2f2;padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid #767676;padding:.25rem .5rem;text-align:left}
+li{margin:.5rem 0}.impact{font-weight:600}.critical,.serious{color:#a00000}.moderate{color:#6b4e00}
+.verdict{font-size:1.25rem;font-weight:700}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+a{color:#0b57d0}
+</style>
+</head>
+<body>
+<main>
+<h1>A11yGate site scan</h1>
+<p>Start URL: <code>https://site.test/</code></p>
+<p class="verdict">Verdict: FAIL (fail on: serious)</p>
+<p>3 findings at or above serious: image-alt, color-contrast, label.</p>
+<p>Scanned 2026-11-12T10:00:00.000Z. Pages analysed: 2; failed: 1. axe-core 4.14.0; A11yGate 0.1.0.</p>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody><tr><th scope="row">critical</th><td>2</td></tr><tr><th scope="row">serious</th><td>1</td></tr><tr><th scope="row">moderate</th><td>1</td></tr><tr><th scope="row">minor</th><td>0</td></tr><tr><th scope="row">unknown</th><td>0</td></tr></tbody></table>
+<h2>Pages</h2>
+<table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody><tr><td><code>https://site.test/</code></td><td>200</td><td>complete</td><td>2</td></tr><tr><td><code>https://site.test/about</code></td><td>200</td><td>complete</td><td>2</td></tr><tr><td><code>https://site.test/gone</code></td><td>404</td><td>failed — HTTP 404</td><td>0</td></tr></tbody></table>
+<h2>Findings by WCAG criterion</h2><section><h3>WCAG 1.1.1 Non-text Content (A); EN 301 549 9.1.1.1 (1)</h3><ul><li><strong>image-alt</strong> <span class="impact critical">critical</span><br>Page: <code>https://site.test/</code><br>Selector: <code>img</code><br>Images must have alternative text — <a href="https://dequeuniversity.com/rules/axe/4.14/image-alt">Rule guidance<span class="sr"> for image-alt</span></a></li></ul></section><section><h3>WCAG 1.3.1 Info and Relationships (A); EN 301 549 9.1.3.1 (1)</h3><ul><li><strong>label</strong> <span class="impact critical">critical</span><br>Page: <code>https://site.test/about</code><br>Selector: <code>input</code><br>Form elements must have labels — <a href="https://dequeuniversity.com/rules/axe/4.14/label">Rule guidance<span class="sr"> for label</span></a></li></ul></section><section><h3>WCAG 1.4.3 Contrast (Minimum) (AA); EN 301 549 9.1.4.3 (1)</h3><ul><li><strong>color-contrast</strong> <span class="impact serious">serious</span><br>Page: <code>https://site.test/about</code><br>Selector: <code>p.faint</code><br>Contrast — <a href="https://dequeuniversity.com/rules/axe/4.14/color-contrast">Rule guidance<span class="sr"> for color-contrast</span></a></li></ul></section><section><h3>WCAG 4.1.2 Name, Role, Value (A); EN 301 549 9.4.1.2 (1)</h3><ul><li><strong>label</strong> <span class="impact critical">critical</span><br>Page: <code>https://site.test/about</code><br>Selector: <code>input</code><br>Form elements must have labels — <a href="https://dequeuniversity.com/rules/axe/4.14/label">Rule guidance<span class="sr"> for label</span></a></li></ul></section><section><h3>Best practice (no WCAG success criterion mapped) (1)</h3><ul><li><strong>region</strong> <span class="impact moderate">moderate</span><br>Page: <code>https://site.test/</code><br>Selector: <code>div</code><br>Content in landmarks — <a href="https://dequeuniversity.com/rules/axe/4.14/region">Rule guidance<span class="sr"> for region</span></a></li></ul></section>
+<h2>Findings by severity</h2><section><h3>critical (2)</h3><ul><li><strong>image-alt</strong> <span class="impact critical">critical</span><br>Page: <code>https://site.test/</code><br>Selector: <code>img</code><br>Images must have alternative text — <a href="https://dequeuniversity.com/rules/axe/4.14/image-alt">Rule guidance<span class="sr"> for image-alt</span></a></li><li><strong>label</strong> <span class="impact critical">critical</span><br>Page: <code>https://site.test/about</code><br>Selector: <code>input</code><br>Form elements must have labels — <a href="https://dequeuniversity.com/rules/axe/4.14/label">Rule guidance<span class="sr"> for label</span></a></li></ul></section><section><h3>serious (1)</h3><ul><li><strong>color-contrast</strong> <span class="impact serious">serious</span><br>Page: <code>https://site.test/about</code><br>Selector: <code>p.faint</code><br>Contrast — <a href="https://dequeuniversity.com/rules/axe/4.14/color-contrast">Rule guidance<span class="sr"> for color-contrast</span></a></li></ul></section><section><h3>moderate (1)</h3><ul><li><strong>region</strong> <span class="impact moderate">moderate</span><br>Page: <code>https://site.test/</code><br>Selector: <code>div</code><br>Content in landmarks — <a href="https://dequeuniversity.com/rules/axe/4.14/region">Rule guidance<span class="sr"> for region</span></a></li></ul></section>
+<h2>Scope and boundaries</h2>
+<ul><li>Only scan sites you own or are explicitly authorized to test.</li><li>Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.</li><li>Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.</li><li>Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured.</li></ul>
+<p>Automated checks cover only part of WCAG; this is evidence, not certification.</p>
+<p>Informational only. Not legal advice. Not a certification of EAA compliance.</p>
+</main>
+</body>
+</html>
