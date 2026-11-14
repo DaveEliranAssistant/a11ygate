@@ -113,6 +113,8 @@ export function createLighthouseEngine(): Engine<OptionalEngineContext, Optional
           // API bypasses CLI update checks, analytics and stored CLI configuration.
           const result = await lighthouse.snapshot(current, { flags: {
             onlyCategories: ['accessibility'], logLevel: 'silent', disableStorageReset: true,
+            // Screenshot capture belongs to the scanner's masked capture path.
+            disableFullPageScreenshot: true,
             formFactor: 'desktop', screenEmulation: { disabled: true },
           } });
           if (!result) throw new Error('Lighthouse returned no report.');

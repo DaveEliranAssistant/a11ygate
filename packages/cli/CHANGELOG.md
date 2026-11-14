@@ -11,6 +11,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 ### Added
 
 - `a11ygate ci --projects <file>` runs isolated live-scan configs sequentially or with `--parallel 1–8`, writes per-project outputs and combined JSON/Markdown/HTML/JUnit summaries, and returns the worst project exit code. Startup errors do not stop other projects. Projects schema and `config validate --projects` diagnostics are included; single-project output stays unchanged (A11Y-R56).
+- Opt-in masked viewport screenshots (`--screenshots`), default and custom `redact.selectors` overlays, and `--no-screenshots` capture/evidence exclusion. Doctor recommends disabling screenshots for auth scans (A11Y-R50).
 
 - Explicit `auth.check` probe URL, required/forbidden selectors and forbidden redirect destination replace heuristic login detection when configured. Failed checks skip engines, mark pages not authenticated and count them separately; `doctor` warns when auth has no check. Default heuristic scans and report goldens are unchanged (A11Y-R52).
 

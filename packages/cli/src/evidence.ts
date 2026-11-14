@@ -122,7 +122,7 @@ function looksLikeImage(data: Uint8Array): boolean {
 }
 
 /** Reads only allowlisted scan outputs. Never walks arbitrary files. */
-async function collectInputs(dir: string, warn: (message: string) => void): Promise<PackInputFile[]> {
+async function collectInputs(dir: string, warn: (message: string) => void, omitImages = false): Promise<PackInputFile[]> {
   const files: PackInputFile[] = [];
   for (const name of REPORT_FILES) {
     const file = path.join(dir, name);
@@ -132,6 +132,7 @@ async function collectInputs(dir: string, warn: (message: string) => void): Prom
     ['engines', ENGINE_FILE, (data: Uint8Array) => { try { JSON.parse(Buffer.from(data).toString('utf8')); return true; } catch { return false; } }],
     ['screenshots', SCREENSHOT_FILE, looksLikeImage],
   ] as const) {
+    if (sub === 'screenshots' && omitImages) continue;
     const names = await readdir(path.join(dir, sub)).catch(() => [] as string[]);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
@@ -177,7 +178,8 @@ async function runEvidenceInternal(argv: readonly string[], io: EvidenceIo): Pro
     return 2;
   }
   const scanJson = await readFile(scanJsonPath, 'utf8');
-  const files = await collectInputs(dir, (message) => stderr(`${message}\n`));
+  const omitImages = await lstat(path.join(dir, '.a11ygate-no-screenshots')).then(() => true, () => false);
+  const files = await collectInputs(dir, (message) => stderr(`${message}\n`), omitImages);
 
   let commit: CommitInfo;
   if (options.commit) commit = { sha: options.commit.toLowerCase(), source: 'flag' };

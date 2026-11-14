@@ -2395,6 +2395,29 @@ var a11ygate_schema_default = {
       "x-cli": [
         "--interaction-budget"
       ]
+    },
+    screenshots: {
+      description: "Opt in to masked viewport PNGs. Requires outDir. Default off.",
+      type: "boolean",
+      "x-cli": ["--screenshots"]
+    },
+    noScreenshots: {
+      description: "Disable capture and persistently exclude images from evidence packs for this output directory.",
+      type: "boolean",
+      "x-cli": ["--no-screenshots"]
+    },
+    redact: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        selectors: {
+          description: "Additional CSS selectors for solid black screenshot masks. Built-in selectors always apply.",
+          type: "array",
+          maxItems: 32,
+          items: { type: "string", minLength: 1, maxLength: 512 },
+          "x-cli": ["--redact-selector"]
+        }
+      }
     }
   }
 };
@@ -2618,6 +2641,9 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  screenshots: { flag: "--screenshots", commands: scan, default: false },
+  noScreenshots: { flag: "--no-screenshots", commands: scan, default: false },
+  "redact.selectors": { flag: "--redact-selector", commands: scan, default: [] },
   keyboard: { flag: "--keyboard", commands: scan, default: false },
   keyboardBudget: { flag: "--keyboard-budget", commands: scan, default: 100 },
   interactions: { flag: "--interactions", commands: scan, default: [] },
@@ -2753,7 +2779,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv2[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    if (["screenshots", "noScreenshots", "ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
       const inline = text.trim().startsWith("[");
       const source = inline ? "--interactions" : text;
@@ -2920,6 +2946,52 @@ function parseProjects(text) {
   }
   return { projects, errors };
 }
+
+// lib/scan/screenshot.ts
+var DEFAULT_REDACT_SELECTORS = ['input[type="password"]', '[autocomplete*="cc-"]', "[data-a11ygate-redact]"];
+async function redactedScreenshot(page, selectors = []) {
+  const host = await page.evaluateHandle((selectors2) => {
+    const targets = /* @__PURE__ */ new Set();
+    const collect = (root2) => {
+      for (const selector of selectors2) for (const element of root2.querySelectorAll(selector)) targets.add(element);
+      for (const frame of root2.querySelectorAll("iframe, frame")) targets.add(frame);
+      for (const element of root2.querySelectorAll("*")) if (element.shadowRoot) collect(element.shadowRoot);
+    };
+    collect(document);
+    const rectangles = [...targets].flatMap((element) => [...element.getClientRects()].map((rect) => ({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })));
+    const host2 = document.createElement("div");
+    host2.setAttribute("popover", "manual");
+    host2.setAttribute("aria-hidden", "true");
+    host2.setAttribute("data-a11ygate-screenshot-mask", "");
+    host2.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;margin:0!important;padding:0!important;border:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;background:transparent!important;pointer-events:none!important;opacity:1!important;";
+    const root = host2.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent = ":host::backdrop{background:transparent!important}";
+    root.append(style);
+    for (const rect of rectangles) {
+      const mask = document.createElement("div");
+      const left = Math.floor(rect.x), top = Math.floor(rect.y);
+      mask.style.cssText = `position:fixed;left:${left}px;top:${top}px;width:${Math.ceil(rect.x + rect.width) - left}px;height:${Math.ceil(rect.y + rect.height) - top}px;background:#000;opacity:1;`;
+      root.append(mask);
+    }
+    document.documentElement.append(host2);
+    try {
+      host2.showPopover();
+    } catch (error) {
+      host2.remove();
+      throw error;
+    }
+    return host2;
+  }, [...DEFAULT_REDACT_SELECTORS, ...selectors]);
+  try {
+    return await page.screenshot({ type: "png", caret: "hide" });
+  } finally {
+    await host.evaluate((element) => element.remove()).finally(() => host.dispose());
+  }
+}
+
+// packages/cli/src/scan.ts
+import { createHash as createHash2 } from "node:crypto";
 
 // packages/cli/src/local-server.ts
 import { spawn } from "node:child_process";
@@ -3421,6 +3493,8 @@ function createLighthouseEngine() {
             onlyCategories: ["accessibility"],
             logLevel: "silent",
             disableStorageReset: true,
+            // Screenshot capture belongs to the scanner's masked capture path.
+            disableFullPageScreenshot: true,
             formFactor: "desktop",
             screenEmulation: { disabled: true }
           } });
@@ -4715,7 +4789,7 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-have-selector": "mustNotHaveSelector",
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
 function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -4732,6 +4806,12 @@ function parseScanArgs(argv2) {
     const eq = token.indexOf("=");
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? void 0 : token.slice(eq + 1);
+    if (name === "--screenshots" || name === "--no-screenshots") {
+      if (inline !== void 0) return { ok: false, error: `${name} takes no value.` };
+      if (name === "--no-screenshots") options.noScreenshots = true;
+      else options.screenshots = true;
+      continue;
+    }
     if (name === "--keyboard") {
       if (inline !== void 0) return { ok: false, error: "--keyboard takes no value." };
       options.keyboard = true;
@@ -4774,7 +4854,9 @@ function parseScanArgs(argv2) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--keyboard-budget") {
+    if (name === "--redact-selector") {
+      (options.redactSelectors ??= []).push(value);
+    } else if (name === "--keyboard-budget") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1e3) return { ok: false, error: "--keyboard-budget must be from 1 to 1000." };
       options.keyboardBudget = Number(value);
     } else if (name === "--interactions") {
@@ -4856,6 +4938,7 @@ function parseScanArgs(argv2) {
     options.sitemap = sitemap;
     if (options.pageLimit === void 0 && !argv2.some((arg) => arg === "--crawl" || arg.startsWith("--crawl="))) options.maxPages = MAX_CRAWL_PAGES;
   }
+  if (options.screenshots && !options.noScreenshots && !options.outDir) return { ok: false, error: "--screenshots requires --out-dir." };
   if (options.start && !options.waitOn) return { ok: false, error: "--start requires --wait-on." };
   for (const value of [options.waitOn, options.storybook]) {
     if (value) {
@@ -4881,6 +4964,9 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --screenshots         Opt in to masked viewport PNGs in --out-dir/screenshots (default off).
+  --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
+  --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
   --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
   --keyboard-budget <n> Maximum Tab presses per page (1\u20131000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
@@ -4957,7 +5043,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -5141,6 +5227,11 @@ Install it with: npx playwright install chromium
               engineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
             }
           }
+          if (screenshotDir) {
+            const image = await redactedScreenshot(page, redactSelectors);
+            await mkdir(screenshotDir, { recursive: true });
+            await writeFile2(path6.join(screenshotDir, `${createHash2("sha256").update(scanUrl).digest("hex").slice(0, 24)}.png`), image);
+          }
           return result2;
         };
         const result = await scanPage(url);
@@ -5273,7 +5364,7 @@ ${debugDetail(error)}`);
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path6.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {} });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, "\n") : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `}${debugDetail(error)}`);
@@ -5366,6 +5457,7 @@ async function writeScanReport(report, options, io, engine) {
     [path6.join(options.outDir, "a11ygate-scan.json"), json],
     [path6.join(options.outDir, "a11ygate-scan.md"), markdown],
     [path6.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
+    ...options.noScreenshots ? [[path6.join(options.outDir, ".a11ygate-no-screenshots"), "Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n"]] : [],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -5793,7 +5885,7 @@ import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile4, write
 import path9 from "node:path";
 
 // lib/evidence/pack.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 
 // lib/evidence/zip.ts
 import { deflateRawSync, inflateRawSync } from "node:zlib";
@@ -5960,7 +6052,7 @@ var COMMIT_UNAVAILABLE_NOTE = "Commit SHA unavailable: it was not passed with --
 var MAX_PACK_FILE_BYTES = 64 * 1024 * 1024;
 var MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
 function sha256(data) {
-  return createHash2("sha256").update(data).digest("hex");
+  return createHash3("sha256").update(data).digest("hex");
 }
 function toUtcIso(value) {
   if (!value) return null;
@@ -6298,7 +6390,7 @@ function looksLikeImage(data) {
   const b = Buffer.from(data.subarray(0, 12));
   return b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || b[0] === 255 && b[1] === 216 && b[2] === 255 || b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP";
 }
-async function collectInputs(dir, warn) {
+async function collectInputs(dir, warn, omitImages = false) {
   const files = [];
   for (const name of REPORT_FILES) {
     const file = path9.join(dir, name);
@@ -6315,6 +6407,7 @@ async function collectInputs(dir, warn) {
     }],
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
+    if (sub === "screenshots" && omitImages) continue;
     const names = await readdir(path9.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
@@ -6365,8 +6458,9 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   const scanJson = await readFile4(scanJsonPath, "utf8");
+  const omitImages = await lstat2(path9.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
   const files = await collectInputs(dir, (message) => stderr(`${message}
-`));
+`), omitImages);
   let commit;
   if (options.commit) commit = { sha: options.commit.toLowerCase(), source: "flag" };
   else {
@@ -7386,6 +7480,7 @@ async function doctorChecks(options = {}, io = {}) {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
   });
+  if (hasAuth) add("auth-screenshots", "unknown", "Authentication is configured. Use --no-screenshots to keep screenshot pixels out of evidence packs; selector masks cannot identify every secret or personal detail.");
   const hasCheck = Object.keys(effective.values).some((key) => key.startsWith("auth.check.") && effective.values[key] !== null);
   if (hasAuth) add("auth", hasCheck ? "pass" : "unknown", hasCheck ? "Explicit auth.check is configured." : "Authentication is configured without auth.check; login detection is heuristic. Configure auth.check to verify protected content.");
   let head = null;

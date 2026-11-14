@@ -88,6 +88,10 @@ describe.skipIf(!hasChromium)('optional engines against an offline local BAD fix
       const result = await runEngine(create(), { page, browserURL }, url);
       expect(result.status, result.status === 'errored' ? result.error : '').toBe('complete');
       if (result.status !== 'complete') throw new Error(result.error);
+      if (id === 'lighthouse') {
+        expect((result.native.raw as { fullPageScreenshot?: unknown }).fullPageScreenshot).toBeUndefined();
+        expect(result.native.raw).toHaveProperty('configSettings.disableFullPageScreenshot', true);
+      }
       expect(result.findings.some((f) => f.ruleId.includes(knownRule))).toBe(true);
       expect(result.findings.every((f) => f.engine === id && f.url === url)).toBe(true);
       expect(result.findings.some((f) => f.selector && f.snippet)).toBe(true);

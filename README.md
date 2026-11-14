@@ -308,3 +308,5 @@ R37 interaction states remain separate and are not keyboard-probed.
 Run the headless DOM fixtures explicitly with
 `A11YGATE_BROWSER_TESTS=1 npx vitest run tests/keyboard.test.ts`.
 Normal `npm test` skips browser fixtures.
+
+Screenshot capture remains off by default. Opt in with `scan --screenshots --out-dir out` for masked viewport PNGs; use `--no-screenshots` for authenticated scans and image-free evidence packs. Configure additional masks with `redact.selectors`. See [screenshot privacy](docs/authenticated-pages.md). Automated testing only. Not a WCAG audit, certification or legal advice.

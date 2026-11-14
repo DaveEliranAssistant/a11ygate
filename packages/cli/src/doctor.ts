@@ -78,6 +78,7 @@ export async function doctorChecks(options: {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
   });
+  if (hasAuth) add('auth-screenshots', 'unknown', 'Authentication is configured. Use --no-screenshots to keep screenshot pixels out of evidence packs; selector masks cannot identify every secret or personal detail.');
   const hasCheck = Object.keys(effective.values).some(key => key.startsWith('auth.check.') && effective.values[key] !== null);
   if (hasAuth) add('auth', hasCheck ? 'pass' : 'unknown', hasCheck ? 'Explicit auth.check is configured.' : 'Authentication is configured without auth.check; login detection is heuristic. Configure auth.check to verify protected content.');
   let head: string | null = null;

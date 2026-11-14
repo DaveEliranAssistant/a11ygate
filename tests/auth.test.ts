@@ -46,6 +46,7 @@ describe('authentication configuration (no browser or network)', () => {
     try {
       for (const hasCheck of [false, true]) {
         const findings = await doctorChecks({}, { env: {}, repoConfig: 'auth:\n  cookieEnv: [session=SESSION]\n' + (hasCheck ? '  check:\n    mustHaveSelector: "#member"\n' : ''), head: () => null, chromium: () => true, hasPackage: () => true });
+        expect(findings.find(f => f.check === 'auth-screenshots')?.message).toContain('--no-screenshots');
         expect(findings.find(f => f.check === 'auth')).toMatchObject({ status: hasCheck ? 'pass' : 'unknown', message: expect.stringContaining(hasCheck ? 'Explicit auth.check' : 'without auth.check') });
       }
       expect(network.attempts).toEqual([]);

@@ -1,3 +1,5 @@
+import { redactedScreenshot } from '@/lib/scan/screenshot';
+import { createHash } from 'node:crypto';
 import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/scan/keyboard';
 import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
 import type { PageRecord } from '@/lib/scan/crawl';
@@ -35,6 +37,9 @@ import { loadEffectiveConfig } from './effective-config';
 import { debugDetail } from './fatal';
 
 export type ScanOptions = AuthOptions & {
+  screenshots?: boolean;
+  noScreenshots?: boolean;
+  redactSelectors?: string[];
   keyboard?: boolean;
   /** Opt-in EN 301 549 reference column in HTML v2 and SARIF rule properties. */
   en301549Ref?: boolean;
@@ -81,7 +86,7 @@ const AUTH_CHECK_FLAGS = {
   '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
   '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
 } as const;
-const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -100,6 +105,12 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? undefined : token.slice(eq + 1);
 
+    if (name === '--screenshots' || name === '--no-screenshots') {
+      if (inline !== undefined) return { ok: false, error: `${name} takes no value.` };
+      if (name === '--no-screenshots') options.noScreenshots = true;
+      else options.screenshots = true;
+      continue;
+    }
     if (name === '--keyboard') {
       if (inline !== undefined) return { ok: false, error: '--keyboard takes no value.' };
       options.keyboard = true; continue;
@@ -139,7 +150,9 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--keyboard-budget') {
+    if (name === '--redact-selector') {
+      (options.redactSelectors ??= []).push(value);
+    } else if (name === '--keyboard-budget') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1000) return { ok: false, error: '--keyboard-budget must be from 1 to 1000.' };
       options.keyboardBudget = Number(value);
     } else if (name === '--interactions') {
@@ -219,6 +232,7 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     options.sitemap = sitemap;
     if (options.pageLimit === undefined && !argv.some((arg) => arg === '--crawl' || arg.startsWith('--crawl='))) options.maxPages = MAX_CRAWL_PAGES;
   }
+  if (options.screenshots && !options.noScreenshots && !options.outDir) return { ok: false, error: '--screenshots requires --out-dir.' };
   if (options.start && !options.waitOn) return { ok: false, error: '--start requires --wait-on.' };
   for (const value of [options.waitOn, options.storybook]) {
     if (value) {
@@ -245,6 +259,9 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --screenshots         Opt in to masked viewport PNGs in --out-dir/screenshots (default off).
+  --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
+  --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
   --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
   --keyboard-budget <n> Maximum Tab presses per page (1–1000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
@@ -328,7 +345,7 @@ export type ScanEngine = {
   contexts?: () => { created: number; recycled: number };
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions; screenshotDir?: string; redactSelectors?: string[] }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -360,7 +377,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -538,6 +555,11 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
                 : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
             }
           }
+          if (screenshotDir) {
+            const image = await redactedScreenshot(page, redactSelectors);
+            await mkdir(screenshotDir, { recursive: true });
+            await writeFile(path.join(screenshotDir, `${createHash('sha256').update(scanUrl).digest('hex').slice(0, 24)}.png`), image);
+          }
           return result;
         };
         const result = await scanPage(url);
@@ -646,7 +668,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, '\n') : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`}${debugDetail(error)}`);
     return 2;
@@ -743,6 +765,7 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
         [path.join(options.outDir, 'a11ygate-scan.json'), json],
         [path.join(options.outDir, 'a11ygate-scan.md'), markdown],
         [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
+        ...(options.noScreenshots ? [[path.join(options.outDir, '.a11ygate-no-screenshots'), 'Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n'] as [string, string]] : []),
         ...extra,
       ]
     : [
