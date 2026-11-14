@@ -1,0 +1,94 @@
+# A11yGate step template for Azure Pipelines.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+#
+# Reference a reviewed copy from a repository you own (see docs/integrations/azure-devops.md):
+#   steps:
+#     - template: integrations/azure-devops/a11ygate.yml@a11ygate
+#       parameters:
+#         url: 'http://127.0.0.1:3000'
+#
+# Scan only a local or explicitly authorized application. Start it in an earlier step.
+# Steps use `script:`, which runs bash on Linux/macOS and cmd.exe on Windows; every
+# command below is written to behave the same in both shells.
+parameters:
+  - name: url
+    type: string
+    default: 'http://127.0.0.1:3000'
+  - name: failOn
+    type: string
+    default: serious
+    values: [minor, moderate, serious, critical, none]
+  - name: crawl
+    type: number
+    default: 1
+  - name: outDir
+    type: string
+    default: a11y
+  - name: nodeVersion
+    type: string
+    default: '22.x'
+  - name: installCommand
+    type: string
+    default: 'npm ci'
+  - name: installBrowsers
+    type: boolean
+    default: true
+  - name: artifactName
+    type: string
+    default: a11ygate
+
+steps:
+  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0
+  - task: NodeTool@0
+    displayName: 'A11yGate: use Node.js'
+    inputs:
+      versionSource: spec
+      versionSpec: '${{ parameters.nodeVersion }}'
+
+  - script: ${{ parameters.installCommand }}
+    displayName: 'A11yGate: install dependencies'
+
+  - ${{ if eq(parameters.installBrowsers, true) }}:
+      - script: npx --no-install playwright install --with-deps chromium
+        displayName: 'A11yGate: install Chromium'
+
+  # Exit 1 = findings at or above failOn; exit 2 = setup/scan error. Either fails this step and the job.
+  - script: npx --no-install a11ygate scan "${{ parameters.url }}" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --format junit,sarif --out-dir ${{ parameters.outDir }}
+    name: a11ygateScan
+    displayName: 'A11yGate: scan (fail-on ${{ parameters.failOn }})'
+
+  - script: npx --no-install a11ygate evidence pack --from ${{ parameters.outDir }} --out ${{ parameters.outDir }}/a11ygate-evidence.zip --commit $(Build.SourceVersion)
+    name: a11ygateEvidence
+    displayName: 'A11yGate: evidence pack'
+    condition: succeededOrFailed()
+
+  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2
+  - task: PublishTestResults@2
+    displayName: 'A11yGate: publish JUnit results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: '${{ parameters.outDir }}/a11ygate-scan.junit.xml'
+      searchFolder: '$(System.DefaultWorkingDirectory)'
+      testRunTitle: A11yGate
+      failTaskOnFailedTests: false
+
+  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1
+  # HTML/Markdown/JSON reports, engine evidence, SARIF and the evidence pack zip.
+  - task: PublishBuildArtifacts@1
+    displayName: 'A11yGate: publish reports and evidence pack'
+    condition: succeededOrFailed()
+    inputs:
+      PathtoPublish: '${{ parameters.outDir }}'
+      ArtifactName: '${{ parameters.artifactName }}'
+      publishLocation: Container
+
+  # The SARIF SAST Scans Tab extension (sariftools.scans) reads *.sarif from an artifact named CodeAnalysisLogs.
+  # https://marketplace.visualstudio.com/items?itemName=sariftools.scans
+  - task: PublishBuildArtifacts@1
+    displayName: 'A11yGate: publish SARIF (CodeAnalysisLogs)'
+    condition: succeededOrFailed()
+    inputs:
+      PathtoPublish: '${{ parameters.outDir }}/a11ygate-scan.sarif'
+      ArtifactName: CodeAnalysisLogs
+      publishLocation: Container
