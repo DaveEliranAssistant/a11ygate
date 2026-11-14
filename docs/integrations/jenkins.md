@@ -181,7 +181,7 @@ recordIssues(tools: [sarif(pattern: 'a11y-results/*.sarif')])
 
 The [Dockerized Jenkins LTS + JCasC harness](../../integrations/jenkins/test/docker/run.sh) runs the example Jenkinsfile and shared library against loopback-only BAD and clean fixture sites. It checks build status and nonempty JUnit results through the Jenkins API. The [Jenkins E2E workflow](../../.github/workflows/jenkins-e2e.yml) runs on a GitHub-hosted Ubuntu runner, nightly and on integration changes. No credentials or external Jenkins are used. It exits 2 when Docker is unavailable; assertion failures exit nonzero.
 
-Live status: **not yet run** on Jenkins **2.580.2 LTS (Java 21)**. The controller image is pinned by digest; see [image provenance and harness details](../../integrations/jenkins/test/docker/README.md). A green hosted-run link will be recorded here after verification.
+Tested on Jenkins **2.580.2 LTS (Java 21)**: [green GitHub-hosted acceptance run](https://github.com/DaveEliranAssistant/a11ygate/actions/runs/43573138952) (2026-11-14, commit `bf78ede`). BAD finished **UNSTABLE** with four failing JUnit tests; clean finished **SUCCESS** with one passing test. Both reports were read back through the Jenkins API. The controller image is pinned by digest; see [image provenance and harness details](../../integrations/jenkins/test/docker/README.md).
 
 Mac fallback: start Docker Desktop (Linux containers), then from the repository root run:
 
