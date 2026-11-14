@@ -7,6 +7,8 @@ Usage:
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
+  a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
+                       (see a11ygate evidence --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.

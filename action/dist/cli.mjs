@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir2, readFile as readFile4, realpath as realpath2, stat as stat4, lstat as lstat2, writeFile as writeFile3 } from "node:fs/promises";
-import path4 from "node:path";
+import { mkdir as mkdir3, readFile as readFile5, realpath as realpath2, stat as stat4, lstat as lstat3, writeFile as writeFile4 } from "node:fs/promises";
+import path5 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/types.ts
@@ -166,15 +166,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path5 = parsed.pathname || "/";
-    if (path5.length > 1 && path5.endsWith("/")) path5 = path5.slice(0, -1);
-    return path5 || "/";
+    let path6 = parsed.pathname || "/";
+    if (path6.length > 1 && path6.endsWith("/")) path6 = path6.slice(0, -1);
+    return path6 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path5 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path5.length > 1 && path5.endsWith("/")) path5 = path5.slice(0, -1);
-    return path5;
+    let path6 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path6.length > 1 && path6.endsWith("/")) path6 = path6.slice(0, -1);
+    return path6;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -235,21 +235,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path5) {
+function readImpact(value, path6) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path5} must be minor, moderate, serious, critical, or null`
+    error: `${path6} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path5) {
+function readTarget(value, path6) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path5}.target must be an array of strings`;
+    return `${path6}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path5}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path6}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -257,52 +257,52 @@ function readTarget(value, path5) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path5}.target must be an array of strings`;
+    return `${path6}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path5) {
-  if (!isRecord(value)) return `${path5} must be an object`;
-  const target = readTarget(value.target, path5);
+function validateNode(value, path6) {
+  if (!isRecord(value)) return `${path6} must be an object`;
+  const target = readTarget(value.target, path6);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path5}.html must be a string`;
+  if (typeof value.html !== "string") return `${path6}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path5}.impact`);
+    const impact = readImpact(value.impact, `${path6}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path5) {
-  if (!isRecord(value)) return `${path5} must be an object`;
+function validateViolation(value, path6) {
+  if (!isRecord(value)) return `${path6} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path5}.id must be a non-empty string`;
+    return `${path6}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path5}.impact is missing`;
+    return `${path6}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path5}.impact`);
+  const impact = readImpact(value.impact, `${path6}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path5}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path6}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path5}.tags must be an array of strings`;
+    return `${path6}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path5}.help must be a non-empty string`;
+    return `${path6}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path5}.helpUrl must be a non-empty string`;
+    return `${path6}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path5}.nodes must contain at least one node`;
+    return `${path6}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path5}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path6}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -318,37 +318,37 @@ function validateViolation(value, path5) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path5) {
-  if (!isRecord(value)) return `${path5} must be an axe result object`;
+function validateResult(value, path6) {
+  if (!isRecord(value)) return `${path6} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path5}.url must be a non-empty string`;
+    return `${path6}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path5}.timestamp must be an ISO date string`;
+    return `${path6}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path5}.testEngine.version must be a non-empty string`;
+    return `${path6}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path5}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path6}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path5}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path6}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path5}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path5}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path5}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path5}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path6}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path6}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path6}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path6}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path5}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path6}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path5}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path6}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path5}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path6}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -449,7 +449,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path5 = pagePath(result.url);
+    const path6 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -464,7 +464,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path5,
+          path: path6,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -697,6 +697,8 @@ Usage:
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
+  a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
+                       (see a11ygate evidence --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
@@ -2406,8 +2408,8 @@ var ScanSetupError = class extends Error {
 };
 var INSTALL_HINT = "a11ygate scan needs the optional peer dependencies playwright and @axe-core/playwright.\nInstall them with: npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium\n";
 function isModuleNotFound(error) {
-  const code2 = error?.code;
-  return code2 === "ERR_MODULE_NOT_FOUND" || code2 === "MODULE_NOT_FOUND";
+  const code3 = error?.code;
+  return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
 var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
@@ -2638,8 +2640,8 @@ async function writeScanReport(report, options, io, engine) {
       if (file) await writeFile2(path3.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
-    const code2 = error.code;
-    stderr(`Could not write the scan report${code2 ? ` (${code2})` : ""}: ${error instanceof Error ? error.message : String(error)}
+    const code3 = error.code;
+    stderr(`Could not write the scan report${code3 ? ` (${code3})` : ""}: ${error instanceof Error ? error.message : String(error)}
 `);
     return 2;
   }
@@ -2684,6 +2686,529 @@ async function runReport(argv, io = {}) {
 `);
     return 2;
   }
+}
+
+// packages/cli/src/evidence.ts
+import { execFile } from "node:child_process";
+import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
+import path4 from "node:path";
+
+// lib/evidence/pack.ts
+import { createHash as createHash2 } from "node:crypto";
+
+// lib/evidence/zip.ts
+import { deflateRawSync, inflateRawSync } from "node:zlib";
+var CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32(data) {
+  let crc = 4294967295;
+  for (let i = 0; i < data.length; i += 1) crc = CRC_TABLE[(crc ^ data[i]) & 255] ^ crc >>> 8;
+  return (crc ^ 4294967295) >>> 0;
+}
+var DOS_TIME = 0;
+var DOS_DATE = 0 << 9 | 1 << 5 | 1;
+var MAX_ZIP_BYTES = 4294967295 - 1;
+function shouldStore(path6) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path6);
+}
+function createZip(entries) {
+  const local = [];
+  const central = [];
+  let offset = 0;
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries) {
+    if (seen.has(entry.path)) throw new Error(`Duplicate zip entry ${entry.path}.`);
+    if (!/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(entry.path) || entry.path.split("/").some((p) => p === ".." || p === ".")) {
+      throw new Error(`Unsafe zip entry name ${entry.path}.`);
+    }
+    seen.add(entry.path);
+    const name = Buffer.from(entry.path, "utf8");
+    const raw = Buffer.from(entry.data);
+    const store = shouldStore(entry.path);
+    const body = store ? raw : deflateRawSync(raw, { level: 9 });
+    const method = store ? 0 : 8;
+    const crc = crc32(raw);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(67324752, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(2048, 6);
+    header.writeUInt16LE(method, 8);
+    header.writeUInt16LE(DOS_TIME, 10);
+    header.writeUInt16LE(DOS_DATE, 12);
+    header.writeUInt32LE(crc, 14);
+    header.writeUInt32LE(body.length, 18);
+    header.writeUInt32LE(raw.length, 22);
+    header.writeUInt16LE(name.length, 26);
+    header.writeUInt16LE(0, 28);
+    local.push(header, name, body);
+    const record = Buffer.alloc(46);
+    record.writeUInt32LE(33639248, 0);
+    record.writeUInt16LE(20, 4);
+    record.writeUInt16LE(20, 6);
+    record.writeUInt16LE(2048, 8);
+    record.writeUInt16LE(method, 10);
+    record.writeUInt16LE(DOS_TIME, 12);
+    record.writeUInt16LE(DOS_DATE, 14);
+    record.writeUInt32LE(crc, 16);
+    record.writeUInt32LE(body.length, 20);
+    record.writeUInt32LE(raw.length, 24);
+    record.writeUInt16LE(name.length, 28);
+    record.writeUInt32LE(0, 38);
+    record.writeUInt32LE(offset, 42);
+    central.push(record, name);
+    offset += header.length + name.length + body.length;
+    if (offset > MAX_ZIP_BYTES) throw new Error("Evidence pack exceeds the 4 GB ZIP limit.");
+  }
+  const centralBuffer = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(101010256, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuffer.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, centralBuffer, end]);
+}
+
+// lib/evidence/pack.ts
+var EVIDENCE_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
+var AUTOMATED_LIMITS = [
+  "Most WCAG success criteria need human judgement. Automated rules detect only a subset of accessibility barriers, so an empty findings list is not evidence of conformance.",
+  "Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.",
+  "Keyboard operability across complete user journeys, logical focus order, visible focus in context and keyboard traps that appear after interaction.",
+  "The experience with screen readers, magnifiers, voice control and other assistive technology.",
+  "Content behind login, forms, multi-step flows, error states, menus, dialogs and other states that a read-only page load does not trigger.",
+  "Pages that were not reached: not linked through same-origin a[href] links, beyond the crawl cap, disallowed by robots.txt, or failed to load.",
+  "Captions, transcripts and audio description for time-based media, and whether they are correct.",
+  "Cognitive and learning accessibility: plain language, consistent navigation, timing, and error prevention and recovery.",
+  "Reflow, zoom, orientation and user style or contrast settings beyond what individual rules check.",
+  "Documents (PDF, office files), native apps, emails and third-party services that were not rendered in the scanned pages."
+];
+var COMMIT_UNAVAILABLE_NOTE = "Commit SHA unavailable: it was not passed with --commit and could not be read from a git work tree. No SHA was invented.";
+var MAX_PACK_FILE_BYTES = 64 * 1024 * 1024;
+var MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
+function sha256(data) {
+  return createHash2("sha256").update(data).digest("hex");
+}
+function toUtcIso(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+var RULE_SETS = {
+  axe: "axe-core rules filtered by tags",
+  htmlcs: "HTML_CodeSniffer WCAG2AA standard",
+  ibm: "IBM Equal Access IBM_Accessibility policy (engine-bundled rules)",
+  lighthouse: "Lighthouse accessibility category"
+};
+function recordedEngineVersion(report, id) {
+  for (const result of report.engineResults ?? []) {
+    if (result.engine !== id || result.status !== "complete") continue;
+    for (const finding2 of result.findings) {
+      const version = finding2.compatibility?.engineVersion;
+      if (typeof version === "string" && version) return version;
+    }
+  }
+  return null;
+}
+function engineManifest(report, engineFiles) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const id of report.engines?.used ?? []) ids.add(id);
+  for (const error of report.engines?.errored ?? []) ids.add(error.engine);
+  for (const file of engineFiles) ids.add(file);
+  if (ids.size === 0 && (report.axeVersion || report.results.length > 0)) ids.add("axe");
+  return [...ids].sort().map((id) => {
+    const errored = report.engines?.errored.some((e) => e.engine === id) ?? false;
+    const used = report.engines ? report.engines.used.includes(id) : id === "axe";
+    const version = id === "axe" ? report.axeVersion ?? recordedEngineVersion(report, id) : recordedEngineVersion(report, id);
+    return {
+      id,
+      status: used ? "complete" : errored ? "errored" : "unknown",
+      version,
+      ruleSet: {
+        name: RULE_SETS[id] ?? `${id} rules`,
+        version,
+        ...id === "axe" ? { tags: [...report.options.tags] } : {}
+      }
+    };
+  });
+}
+var SECRET_PATTERNS = [
+  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["GitHub token", /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}/],
+  ["AWS access key", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/],
+  ["Slack token", /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
+  ["API key", /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}/],
+  ["npm token", /\bnpm_[A-Za-z0-9]{36}\b/],
+  ["URL credentials", /\bhttps?:\/\/[^\s/:@"'<>]+:[^\s/@"'<>]+@/i],
+  ["credential query parameter", /[?&](?:access_token|id_token|token|api_key|apikey|password|passwd|secret|client_secret)=[^&\s"'<>]+/i],
+  ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
+];
+var SECRET_ENV_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|API_?KEY|ACCESS_?KEY|AUTH)/i;
+function secretEnvValues(env = process.env) {
+  return Object.entries(env).filter(([name, value]) => SECRET_ENV_NAME.test(name) && typeof value === "string" && value.length >= 8).map(([, value]) => value);
+}
+function isTextPath(path6) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path6);
+}
+function findSecret(files, envValues) {
+  for (const file of files) {
+    const text = Buffer.from(file.data).toString(isTextPath(file.path) ? "utf8" : "latin1");
+    if (isTextPath(file.path)) {
+      for (const [kind, pattern] of SECRET_PATTERNS) if (pattern.test(text)) return `${file.path}: ${kind}`;
+    }
+    if (envValues.some((value) => text.includes(value))) return `${file.path}: value of a secret environment variable`;
+  }
+  return null;
+}
+function esc2(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function code2(value) {
+  return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
+}
+function commitText(commit) {
+  return commit.sha ? `${commit.sha} (${commit.source === "flag" ? "passed with --commit" : "read from git"})` : "unavailable (not recorded; none was invented)";
+}
+function engineText(engine) {
+  return `${engine.id} ${engine.version ?? "(version not recorded)"} \u2014 ${engine.ruleSet.name}${engine.ruleSet.tags ? ` [${engine.ruleSet.tags.join(", ")}]` : ""}${engine.status === "errored" ? " \u2014 errored" : ""}`;
+}
+function frontPageMarkdown({ report, engines, commit, contents }) {
+  const severities = ["critical", "serious", "moderate", "minor", "unknown"];
+  return [
+    `# A11yGate evidence pack \u2014 ${cell(report.startUrl)}`,
+    "",
+    `> ${EVIDENCE_DISCLAIMER}`,
+    "",
+    "## Scope scanned",
+    "",
+    `- Start URL: ${code2(report.startUrl)}`,
+    `- Origin: ${code2(report.origin)}`,
+    `- Scanned at (UTC): ${toUtcIso(report.scannedAt) ?? "not recorded"}`,
+    `- Commit: ${commitText(commit)}`,
+    `- Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}; links not followed: ${report.counts.skippedLinks}; crawl cap: ${report.options.maxPages}`,
+    `- robots.txt: ${cell(report.options.robots)}`,
+    `- Engines and rule sets: ${engines.length ? engines.map(engineText).map(cell).join("; ") : "none recorded"}`,
+    "",
+    "| Page | HTTP | Status | Findings |",
+    "| --- | --- | --- | --- |",
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
+    "",
+    "## Automated result",
+    "",
+    `Verdict: **${report.verdict}** (fail on: ${report.failOn}). ${cell(report.reason)}`,
+    "",
+    "| Severity | Findings |",
+    "| --- | --- |",
+    ...severities.map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
+    "",
+    "Full findings: `scan/a11ygate-scan.md` and `scan/a11ygate-scan.html`.",
+    "",
+    "## What automated testing cannot cover",
+    "",
+    "This pack records what automated rules detected on the pages listed above. It does not assess:",
+    "",
+    ...AUTOMATED_LIMITS.map((item) => `- ${item}`),
+    "",
+    "Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.",
+    "",
+    "## Scope boundaries",
+    "",
+    ...report.boundaries.map((b) => `- ${cell(b)}`),
+    "",
+    "## Contents of this pack",
+    "",
+    ...contents.map((file) => `- ${code2(file)}`),
+    "- `manifest.json` \u2014 versions, commit, UTC timestamps and the SHA-256 of every other file",
+    "",
+    EVIDENCE_DISCLAIMER,
+    ""
+  ].join("\n");
+}
+function frontPageHtml({ report, engines, commit, contents }) {
+  const severities = ["critical", "serious", "moderate", "minor", "unknown"];
+  const pages = report.pages.map((p) => `<tr><td><code>${esc2(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc2(p.scanStatus)}${p.error ? " \u2014 " + esc2(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate evidence pack \u2014 ${esc2(report.startUrl)}</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fff}
+code{background:#f2f2f2;padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid #767676;padding:.25rem .5rem;text-align:left}
+.disclaimer{border:2px solid #1a1a1a;padding:.5rem 1rem;font-weight:600}
+a{color:#0b57d0}
+</style>
+</head>
+<body>
+<main>
+<h1>A11yGate evidence pack</h1>
+<p class="disclaimer">${esc2(EVIDENCE_DISCLAIMER)}</p>
+<h2>Scope scanned</h2>
+<ul>
+<li>Start URL: <code>${esc2(report.startUrl)}</code></li>
+<li>Origin: <code>${esc2(report.origin)}</code></li>
+<li>Scanned at (UTC): ${esc2(toUtcIso(report.scannedAt) ?? "not recorded")}</li>
+<li>Commit: ${esc2(commitText(commit))}</li>
+<li>Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}; links not followed: ${report.counts.skippedLinks}; crawl cap: ${report.options.maxPages}</li>
+<li>robots.txt: ${esc2(report.options.robots)}</li>
+<li>Engines and rule sets: ${engines.length ? engines.map((e) => esc2(engineText(e))).join("; ") : "none recorded"}</li>
+</ul>
+<table><caption>Pages</caption><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
+<h2>Automated result</h2>
+<p>Verdict: <strong>${esc2(report.verdict)}</strong> (fail on: ${esc2(report.failOn)}). ${esc2(report.reason)}</p>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${severities.map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("")}</tbody></table>
+<p>Full findings: <a href="scan/a11ygate-scan.html">detailed scan report (HTML)</a> and <code>scan/a11ygate-scan.md</code>.</p>
+<h2>What automated testing cannot cover</h2>
+<p>This pack records what automated rules detected on the pages listed above. It does not assess:</p>
+<ul>${AUTOMATED_LIMITS.map((item) => `<li>${esc2(item)}</li>`).join("")}</ul>
+<p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
+<h2>Scope boundaries</h2>
+<ul>${report.boundaries.map((b) => `<li>${esc2(b)}</li>`).join("")}</ul>
+<h2>Contents of this pack</h2>
+<ul>${contents.map((file) => `<li><code>${esc2(file)}</code></li>`).join("")}<li><code>manifest.json</code> \u2014 versions, commit, UTC timestamps and the SHA-256 of every other file</li></ul>
+<p>${esc2(EVIDENCE_DISCLAIMER)}</p>
+</main>
+</body>
+</html>
+`;
+}
+function parseScanReport2(text) {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.tool !== "a11ygate" || parsed.kind !== "site-scan" || !Array.isArray(parsed.pages) || !Array.isArray(parsed.findings) || !parsed.counts || !parsed.options) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function buildEvidencePack(input) {
+  const report = parseScanReport2(input.scanJson);
+  if (!report) return { ok: false, error: "a11ygate-scan.json is not an A11yGate site-scan report." };
+  const files = /* @__PURE__ */ new Map();
+  files.set("scan/a11ygate-scan.json", { path: "scan/a11ygate-scan.json", data: Buffer.from(input.scanJson, "utf8"), source: "copied" });
+  for (const file of input.files) files.set(file.path, file);
+  const formatReport = formatReportFromScan(report);
+  const generated = [
+    ["scan/a11ygate-scan.md", () => scanMarkdown(report)],
+    ["scan/a11ygate-scan.html", () => scanHtml(report)],
+    ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
+    ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
+  ];
+  for (const [path6, make] of generated) {
+    if (!files.has(path6)) files.set(path6, { path: path6, data: Buffer.from(make(), "utf8"), source: "generated" });
+  }
+  const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
+  const engines = engineManifest(report, engineFiles);
+  const contentPaths = ["report.md", "report.html", ...[...files.keys()].sort()];
+  const front = { report, engines, commit: input.commit, contents: contentPaths };
+  files.set("report.md", { path: "report.md", data: Buffer.from(frontPageMarkdown(front), "utf8"), source: "generated" });
+  files.set("report.html", { path: "report.html", data: Buffer.from(frontPageHtml(front), "utf8"), source: "generated" });
+  const ordered = contentPaths.map((p) => files.get(p));
+  let total = 0;
+  for (const file of ordered) {
+    if (file.data.length > MAX_PACK_FILE_BYTES) return { ok: false, error: `${file.path} is larger than ${MAX_PACK_FILE_BYTES / 1024 / 1024} MB.` };
+    total += file.data.length;
+  }
+  if (total > MAX_PACK_TOTAL_BYTES) return { ok: false, error: `Evidence pack inputs exceed ${MAX_PACK_TOTAL_BYTES / 1024 / 1024} MB.` };
+  const secret = findSecret(ordered, input.envValues ?? []);
+  if (secret) return { ok: false, error: `Refusing to pack: ${secret} looks like a credential or environment secret. Remove it and re-run.` };
+  const manifest = {
+    tool: "a11ygate",
+    kind: "evidence-pack",
+    schemaVersion: 1,
+    releaseStatus: "unreleased-source-build",
+    toolVersion: input.toolVersion,
+    scanToolVersion: report.version,
+    commit: input.commit,
+    timestamps: { timezone: "UTC", packedAt: input.packedAt.toISOString(), scannedAt: toUtcIso(report.scannedAt) },
+    scope: {
+      startUrl: report.startUrl,
+      origin: report.origin,
+      pagesScanned: report.counts.pagesScanned,
+      pagesFailed: report.counts.pagesFailed,
+      skippedLinks: report.counts.skippedLinks,
+      maxPages: report.options.maxPages,
+      pages: report.pages.map((p) => ({ url: p.url, status: p.status, scanStatus: p.scanStatus }))
+    },
+    engines,
+    disclaimer: EVIDENCE_DISCLAIMER,
+    hashAlgorithm: "sha256",
+    files: ordered.map((file) => ({ path: file.path, bytes: file.data.length, sha256: sha256(file.data), source: file.source }))
+  };
+  const manifestData = Buffer.from(`${JSON.stringify(manifest, null, 2)}
+`, "utf8");
+  const entries = [{ path: "manifest.json", data: manifestData }, ...ordered.map((f) => ({ path: f.path, data: f.data }))];
+  return { ok: true, zip: createZip(entries), manifest, entries };
+}
+
+// packages/cli/src/evidence.ts
+var ENGINE_FILE = /^(axe|htmlcs|ibm|lighthouse)\.json$/;
+var SCREENSHOT_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|jpe?g|webp)$/i;
+var REPORT_FILES = ["a11ygate-scan.md", "a11ygate-scan.html", "a11ygate-scan.sarif", "a11ygate-scan.junit.xml"];
+function evidenceHelpText() {
+  return `a11ygate evidence pack \u2014 bundle one scan's outputs into a single zip
+
+Usage:
+  a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
+
+Options:
+  --from <dir>     The --out-dir of an a11ygate scan (must contain a11ygate-scan.json).
+  --out <file>     Zip to write. Default: <dir>/a11ygate-evidence.zip.
+  --commit <sha>   Commit SHA to record. Default: git HEAD of the current directory;
+                   if neither is available the manifest records it as unavailable.
+
+The pack contains report.md and report.html (scope, what automated testing cannot cover,
+disclaimer), scan/ (JSON, Markdown, HTML, SARIF, JUnit), engines/<id>.json and screenshots/
+when present, and manifest.json (versions, commit, UTC timestamps, SHA-256 of every file).
+Only these known files are read; .env files, credentials and environment values are never
+included. Packing is refused if a file appears to contain a credential.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+`;
+}
+function parseEvidenceArgs(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) return { ok: true, options: { help: true } };
+  if (argv[0] !== "pack") return { ok: false, error: argv[0] ? `Unknown evidence command "${argv[0]}". Use: a11ygate evidence pack.` : "Missing evidence command. Use: a11ygate evidence pack." };
+  const options = { help: false };
+  for (let index = 1; index < argv.length; index += 1) {
+    const token = argv[index] ?? "";
+    const eq = token.indexOf("=");
+    const name = eq === -1 ? token : token.slice(0, eq);
+    if (name !== "--from" && name !== "--out" && name !== "--commit") {
+      return { ok: false, error: token.startsWith("-") ? `Unknown evidence option ${token}.` : `Unexpected argument ${token}.` };
+    }
+    const value = eq === -1 ? argv[index += 1] : token.slice(eq + 1);
+    if (!value || value.startsWith("-")) return { ok: false, error: `${name} needs a value.` };
+    if (name === "--from") options.from = value;
+    else if (name === "--out") options.out = value;
+    else options.commit = value;
+  }
+  if (!options.from) return { ok: false, error: "Pass the scan output directory with --from <dir>." };
+  if (options.out && !options.out.toLowerCase().endsWith(".zip")) return { ok: false, error: "--out must end in .zip." };
+  if (options.commit && !/^[0-9a-f]{7,64}$/i.test(options.commit)) return { ok: false, error: "--commit must be a hexadecimal commit SHA (7 to 64 characters)." };
+  return { ok: true, options };
+}
+function defaultGitHead(cwd) {
+  return new Promise((resolve) => {
+    execFile("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+      const sha = String(stdout ?? "").trim();
+      resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
+    });
+  });
+}
+async function regularFile(file) {
+  const info = await lstat2(file).catch(() => null);
+  return !!info && info.isFile();
+}
+function looksLikeImage(data) {
+  const b = Buffer.from(data.subarray(0, 12));
+  return b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || b[0] === 255 && b[1] === 216 && b[2] === 255 || b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP";
+}
+async function collectInputs(dir, warn) {
+  const files = [];
+  for (const name of REPORT_FILES) {
+    const file = path4.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile4(file), source: "copied" });
+  }
+  for (const [sub, pattern, check] of [
+    ["engines", ENGINE_FILE, (data) => {
+      try {
+        JSON.parse(Buffer.from(data).toString("utf8"));
+        return true;
+      } catch {
+        return false;
+      }
+    }],
+    ["screenshots", SCREENSHOT_FILE, looksLikeImage]
+  ]) {
+    const names = await readdir(path4.join(dir, sub)).catch(() => []);
+    for (const name of names.sort()) {
+      if (!pattern.test(name)) continue;
+      const file = path4.join(dir, sub, name);
+      if (!await regularFile(file)) {
+        warn(`Skipped ${sub}/${name}: not a regular file.`);
+        continue;
+      }
+      const data = await readFile4(file);
+      if (!check(data)) {
+        warn(`Skipped ${sub}/${name}: unexpected content.`);
+        continue;
+      }
+      files.push({ path: `${sub}/${name}`, data, source: "copied" });
+    }
+  }
+  return files;
+}
+async function runEvidence(argv, io = {}) {
+  const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
+  const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
+  const cwd = io.cwd ?? process.cwd();
+  const now = io.now ?? (() => /* @__PURE__ */ new Date());
+  const parsed = parseEvidenceArgs(argv);
+  if (!parsed.ok) {
+    stderr(`${parsed.error}
+Run a11ygate evidence --help for usage.
+`);
+    return 2;
+  }
+  const options = parsed.options;
+  if (options.help) {
+    stdout(evidenceHelpText());
+    return 0;
+  }
+  const dir = path4.resolve(cwd, options.from);
+  const scanJsonPath = path4.join(dir, "a11ygate-scan.json");
+  if (!await regularFile(scanJsonPath)) {
+    stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
+`);
+    return 2;
+  }
+  const scanJson = await readFile4(scanJsonPath, "utf8");
+  const files = await collectInputs(dir, (message) => stderr(`${message}
+`));
+  let commit;
+  if (options.commit) commit = { sha: options.commit.toLowerCase(), source: "flag" };
+  else {
+    const head = await (io.gitHead ?? defaultGitHead)(cwd);
+    commit = head ? { sha: head, source: "git" } : { sha: null, source: "unavailable", note: COMMIT_UNAVAILABLE_NOTE };
+  }
+  const result = buildEvidencePack({
+    scanJson,
+    files,
+    toolVersion: io.version ?? "0.0.0",
+    commit,
+    packedAt: now(),
+    envValues: secretEnvValues(io.env ?? process.env)
+  });
+  if (!result.ok) {
+    stderr(`${result.error}
+`);
+    return 2;
+  }
+  const out = path4.resolve(cwd, options.out ?? path4.join(options.from, "a11ygate-evidence.zip"));
+  try {
+    await mkdir2(path4.dirname(out), { recursive: true });
+    await writeFile3(out, result.zip);
+  } catch (error) {
+    const code3 = error.code;
+    stderr(`Could not write the evidence pack${code3 ? ` (${code3})` : ""}.
+`);
+    return 2;
+  }
+  if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
+  stdout(`Wrote ${path4.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+`);
+  return 0;
 }
 
 // lib/export-baseline.ts
@@ -2796,8 +3321,8 @@ function compareScans(current, baseline) {
     "Normalized selectors are heuristic identities, not proof that every affected element is unchanged."
   ], unassessedFindings: 0 };
   const blocked = /* @__PURE__ */ new Set();
-  const issue = (page, code2, detail, blocking = true) => {
-    coverage.issues.push({ page, code: code2, detail });
+  const issue = (page, code3, detail, blocking = true) => {
+    coverage.issues.push({ page, code: code3, detail });
     if (blocking) {
       blocked.add(page);
       coverage.status = "incomplete";
@@ -2849,7 +3374,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path4.resolve(cwd, file);
+  return path5.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -2862,30 +3387,30 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile4(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile5(absolute, "utf8") });
     } catch (error) {
-      const code2 = error.code;
-      if (code2 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
+      const code3 = error.code;
+      if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
       return { ok: false, error: `${file}: could not read the file.` };
     }
   }
   return { ok: true, documents };
 }
 function writeFailure(file, error) {
-  const code2 = error.code;
-  if (code2 === "ENOENT") return `${file}: the directory does not exist.`;
-  if (code2 === "EISDIR") return `${file}: is a directory, not a file.`;
+  const code3 = error.code;
+  if (code3 === "ENOENT") return `${file}: the directory does not exist.`;
+  if (code3 === "EISDIR") return `${file}: is a directory, not a file.`;
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path4.dirname(fileURLToPath(import.meta.url));
+  const here = path5.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path4.join(here, "..", "package.json"),
-    path4.join(here, "..", "..", "packages", "cli", "package.json")
+    path5.join(here, "..", "package.json"),
+    path5.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile4(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile5(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -2951,6 +3476,7 @@ async function run(argv, io = {}) {
   if (argv[0] === "baseline") return runBaseline(argv.slice(1), io);
   if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
+  if (argv[0] === "evidence") return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
   const gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
   const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
@@ -2981,8 +3507,8 @@ async function run(argv, io = {}) {
     const identify = async (file) => {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath2(absolute).catch(async () => {
-        if ((await lstat2(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path4.join(await realpath2(path4.dirname(absolute)).catch(() => path4.dirname(absolute)), path4.basename(absolute));
+        if ((await lstat3(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
+        return path5.join(await realpath2(path5.dirname(absolute)).catch(() => path5.dirname(absolute)), path5.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -2990,9 +3516,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path4.join(options.outDir, formatFileName("ci", "json")),
-      path4.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path4.join(options.outDir, formatFileName("ci", format)))
+      path5.join(options.outDir, formatFileName("ci", "json")),
+      path5.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path5.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -3080,8 +3606,8 @@ async function run(argv, io = {}) {
       return 2;
     }
     try {
-      await writeFile3(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile3(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile4(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile4(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -3092,7 +3618,7 @@ async function run(argv, io = {}) {
   }
   if (options.markdown) {
     try {
-      await writeFile3(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile4(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -3101,7 +3627,7 @@ async function run(argv, io = {}) {
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile3(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile4(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -3126,9 +3652,9 @@ async function run(argv, io = {}) {
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir2(dir, { recursive: true });
+      await mkdir3(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile3(path4.join(dir, name), content, "utf8");
+        await writeFile4(path5.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
@@ -3142,8 +3668,8 @@ async function run(argv, io = {}) {
 
 // packages/cli/src/bin.ts
 void run(process.argv.slice(2)).then(
-  (code2) => {
-    process.exitCode = code2;
+  (code3) => {
+    process.exitCode = code3;
   },
   (error) => {
     const message = error instanceof Error ? error.message : "A11yGate failed.";

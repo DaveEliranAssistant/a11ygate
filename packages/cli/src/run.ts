@@ -5,6 +5,7 @@ import { parseArgs } from './args';
 import { helpText } from './help';
 import { runReport, runScan } from './scan';
 import { runBaseline } from './baseline';
+import { runEvidence } from './evidence';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
@@ -150,6 +151,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   if (argv[0] === 'baseline') return runBaseline(argv.slice(1), io);
   if (argv[0] === 'report') return runReport(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
+  if (argv[0] === 'evidence') return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
 
   const gateArgv = argv[0] === 'ci' ? argv.slice(1) : argv;
   const parsed = parseArgs(gateArgv);
