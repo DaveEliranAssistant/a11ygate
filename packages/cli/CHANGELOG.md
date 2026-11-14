@@ -27,6 +27,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 - Review decisions now reach SARIF (accepted external suppressions), JUnit (skipped cases), and GitLab Code Quality (active exclusions recorded in `codequality-decided.json`). To-fix and expired decisions remain normal findings; exports without decisions retain their existing bytes (A11Y-R43).
 - WCAG 2.2-only success criteria (2.4.11, 2.5.7, 2.5.8, 3.2.6, 3.3.7, 3.3.8) no longer get a guessed EN 301 549 clause such as `9.2.5.8`. They now read "not in EN 301 549 V3.2.1" in standards labels and `en301549: null` in scan JSON (A11Y-R59).
+- Lighthouse snapshots now use a process-wide mutex to avoid shared timing-mark collisions at scan concurrency greater than 1. Other engines and page loading keep their existing concurrency; scans selecting Lighthouse log `lighthouse serialized` once (A11Y-R47).
 
 - `a11ygate scan` HTML report v2 is the default: executive summary (pages, totals, new vs baseline, engines used/errored), top 10 fixes ordered by impact × pages affected, findings grouped by WCAG success criterion and by page, per-rule how-to-fix with links taken only from the finding's engine help URL and the W3C Understanding table in `lib/mapping.ts`, a "what automated testing does not cover" section, print CSS and a contrast-tested dark scheme. `--report-version 1` emits the previous HTML byte-for-byte (A11Y-R28).
 

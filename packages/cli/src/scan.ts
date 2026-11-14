@@ -649,6 +649,8 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     return 2;
   }
 
+  if (options.engines.includes('lighthouse')) stderr('lighthouse serialized\n');
+
   let result: Awaited<ReturnType<typeof crawl>>;
   try {
     result = await crawl({

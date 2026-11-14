@@ -128,3 +128,18 @@ A license change requires an explicit compatibility review before changing the
 allowlist. We do not redistribute Pa11y (LGPL) or bundle LGPL engine dependencies.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Lighthouse concurrency
+
+Lighthouse snapshots run behind a process-wide mutex. Lighthouse 12.8.2 uses
+`lighthouse-logger` / `marky` timing marks shared by all runs in a Node process;
+`takeTimeEntries()` clears those marks while another snapshot may still need them.
+This caused the R38 `start lh:runner:gather` errors. Serializing only Lighthouse
+avoids changing upstream timing internals or duplicating browser sessions. Page
+loading, axe, HTML_CodeSniffer and IBM retain the configured crawl concurrency.
+The CLI logs `lighthouse serialized` once per scan selecting Lighthouse. The lock
+releases on success or failure, and remains held until a snapshot actually settles
+even if its caller times out. Existing engine timeouts still apply, including time
+spent waiting for the lock. See [recorded benchmarks](perf/README.md).
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
