@@ -1714,18 +1714,79 @@ ${testcases.join("\n")}
 }
 
 // lib/export-sarif.ts
+import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 var SARIF_SCHEMA_URL = "https://json.schemastore.org/sarif-2.1.0.json";
 var SARIF_VERSION = "2.1.0";
+var GITHUB_SARIF_LIMITS = {
+  /** Gzip-compressed upload cap. Uploads over this are rejected. */
+  maxGzipBytes: 10 * 1024 * 1024,
+  maxRunsPerFile: 20,
+  maxResultsPerRun: 25e3,
+  /** GitHub keeps only the top N results per run, prioritized by severity. */
+  retainedResultsPerRun: 5e3,
+  maxRulesPerRun: 25e3,
+  maxTagsPerRule: 20,
+  displayedTagsPerRule: 10,
+  maxLocationsPerResult: 1e3,
+  displayedLocationsPerResult: 100,
+  docs: {
+    sarifSupport: "https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support",
+    fileTooLarge: "https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/troubleshoot-sarif-uploads/file-too-large",
+    resultsExceedLimit: "https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/troubleshoot-sarif-uploads/results-exceed-limit",
+    uploadSarif: "https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file"
+  }
+};
+var DEFAULT_ENGINE = "axe";
 function sarifLevel(impact) {
   if (impact === "critical" || impact === "serious") return "error";
   if (impact === "moderate") return "warning";
   return "note";
 }
-function wcagTags(wcag, tags) {
-  const out = /* @__PURE__ */ new Set(["accessibility"]);
-  for (const tag of tags) out.add(tag);
-  for (const item of wcag) out.add(`WCAG ${item.number}`);
-  return [...out];
+function gzipByteLength(text) {
+  return gzipSync(Buffer.from(text, "utf8")).length;
+}
+function automationDetailsId(engine) {
+  const slug = engine.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || DEFAULT_ENGINE;
+  return `a11ygate/${slug}/`;
+}
+function primaryLocationLineHash(finding2) {
+  const uri = artifactUri(finding2);
+  const line = finding2.source?.startLine ?? 1;
+  const basis = finding2.fingerprint ?? [finding2.ruleId, uri, finding2.selector, String(line)].join("\0");
+  const hash = createHash("sha256").update(basis).digest("hex").slice(0, 16);
+  return `${hash}:${line}`;
+}
+function artifactUri(finding2) {
+  if (finding2.source?.file) return finding2.source.file.replace(/\\/g, "/");
+  return finding2.pageUrl;
+}
+function defaultEngine(report) {
+  const used = report.engines?.used ?? [];
+  if (used.length === 1 && used[0]) return used[0];
+  if (used.includes(DEFAULT_ENGINE)) return DEFAULT_ENGINE;
+  return used[0] ?? DEFAULT_ENGINE;
+}
+function enginesFor(finding2, fallback) {
+  if (finding2.engines && finding2.engines.length > 0) return [...new Set(finding2.engines)];
+  return [fallback];
+}
+function wcagTags(wcag, tags, maxTags) {
+  const preferred = ["accessibility"];
+  for (const item of wcag) preferred.push(`WCAG ${item.number}`);
+  const rest = [];
+  for (const tag of tags) {
+    if (tag !== "accessibility" && !preferred.includes(tag)) rest.push(tag);
+  }
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const tag of [...preferred, ...rest]) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+    if (out.length >= maxTags) break;
+  }
+  return out;
 }
 function uniqueRules(findings) {
   const byId = /* @__PURE__ */ new Map();
@@ -1738,11 +1799,7 @@ function uniqueRules(findings) {
   return [...byId.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 }
 function artifactLocation(finding2) {
-  if (finding2.source?.file) {
-    const uri = finding2.source.file.replace(/\\/g, "/");
-    return { uri };
-  }
-  return { uri: finding2.pageUrl };
+  return { uri: artifactUri(finding2) };
 }
 function region(finding2) {
   if (finding2.source) {
@@ -1773,10 +1830,63 @@ function taxaFor(findings) {
     shortDescription: { text: `WCAG ${item.wcag} ${item.number} ${item.name} (${item.level})` }
   }));
 }
-function toSarif(report) {
-  const rules2 = uniqueRules(report.findings);
+function compareFindings(a, b) {
+  return a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector);
+}
+function compareBySeverityThenStable(a, b) {
+  const rank = impactRank(b.impact) - impactRank(a.impact);
+  if (rank !== 0) return rank;
+  return compareFindings(a, b);
+}
+function toSarifResult(finding2, ruleIndex) {
+  const index = ruleIndex.get(finding2.ruleId);
+  const hash = primaryLocationLineHash(finding2);
+  return {
+    ruleId: finding2.ruleId,
+    ...index !== void 0 ? { ruleIndex: index } : {},
+    level: sarifLevel(finding2.impact),
+    message: {
+      text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}${finding2.engines ? "; " + attribution(finding2) : ""}`
+    },
+    locations: [
+      {
+        physicalLocation: {
+          artifactLocation: artifactLocation(finding2),
+          region: region(finding2)
+        },
+        logicalLocations: [
+          {
+            fullyQualifiedName: finding2.selector,
+            kind: "element",
+            name: finding2.selector
+          }
+        ]
+      }
+    ],
+    fingerprints: finding2.fingerprint ? { a11ygate: finding2.fingerprint } : { a11ygate: hash },
+    partialFingerprints: {
+      primaryLocationLineHash: hash,
+      ...finding2.fingerprint ? { a11ygate: finding2.fingerprint } : {}
+    },
+    properties: {
+      ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {},
+      selector: finding2.selector,
+      impact: finding2.impact ?? "unspecified",
+      tags: finding2.tags,
+      wcag: finding2.wcag.map((item) => item.number),
+      pageUrl: finding2.pageUrl,
+      ...finding2.status ? { status: finding2.status } : {}
+    }
+  };
+}
+function buildRun(report, engine, findings, limits) {
+  const kept = findings.slice().sort(compareBySeverityThenStable);
+  const droppedForCap = Math.max(0, kept.length - limits.retainedResultsPerRun);
+  if (kept.length > limits.retainedResultsPerRun) kept.length = limits.retainedResultsPerRun;
+  if (kept.length > limits.maxResultsPerRun) kept.length = limits.maxResultsPerRun;
+  const rules2 = uniqueRules(kept).slice(0, limits.maxRulesPerRun);
   const ruleIndex = new Map(rules2.map((rule, index) => [rule.ruleId, index]));
-  const taxa = taxaFor(report.findings);
+  const taxa = taxaFor(kept);
   const taxonIndex = new Map(taxa.map((taxon, index) => [taxon.id, index]));
   const driverRules = rules2.map((rule) => {
     const relationships = rule.wcag.map((item) => taxonIndex.get(item.number)).filter((index) => index !== void 0).map((index) => ({
@@ -1791,85 +1901,170 @@ function toSarif(report) {
       helpUri: rule.helpUrl,
       help: { text: rule.help },
       defaultConfiguration: { level: sarifLevel(rule.impact) },
-      properties: { tags: wcagTags(rule.wcag, rule.tags), impact: rule.impact ?? "unspecified" },
+      properties: { tags: wcagTags(rule.wcag, rule.tags, limits.maxTagsPerRule), impact: rule.impact ?? "unspecified" },
       ...relationships.length > 0 ? { relationships } : {}
     };
   });
-  const results = [...report.findings].sort(
-    (a, b) => a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
-  ).map((finding2) => {
-    const index = ruleIndex.get(finding2.ruleId);
-    return {
-      ruleId: finding2.ruleId,
-      ...index !== void 0 ? { ruleIndex: index } : {},
-      level: sarifLevel(finding2.impact),
-      message: {
-        text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}${finding2.engines ? "; " + attribution(finding2) : ""}`
-      },
-      locations: [
-        {
-          physicalLocation: {
-            artifactLocation: artifactLocation(finding2),
-            region: region(finding2)
-          },
-          logicalLocations: [
-            {
-              fullyQualifiedName: finding2.selector,
-              kind: "element",
-              name: finding2.selector
-            }
-          ]
-        }
-      ],
-      ...finding2.fingerprint ? { fingerprints: { a11ygate: finding2.fingerprint }, partialFingerprints: { a11ygate: finding2.fingerprint } } : {},
-      properties: {
-        ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {},
-        selector: finding2.selector,
-        impact: finding2.impact ?? "unspecified",
-        tags: finding2.tags,
-        wcag: finding2.wcag.map((item) => item.number),
-        pageUrl: finding2.pageUrl,
-        ...finding2.status ? { status: finding2.status } : {}
-      }
-    };
+  const results = kept.map((finding2) => {
+    const result = toSarifResult(finding2, ruleIndex);
+    if (result.locations.length > limits.maxLocationsPerResult) {
+      result.locations = result.locations.slice(0, limits.maxLocationsPerResult);
+    }
+    return result;
   });
+  return {
+    tool: {
+      driver: {
+        name: "A11yGate",
+        version: report.version,
+        informationUri: SITE_URL,
+        rules: driverRules
+      }
+    },
+    automationDetails: { id: automationDetailsId(engine) },
+    ...taxa.length > 0 ? {
+      taxonomies: [
+        {
+          name: "WCAG",
+          informationUri: "https://www.w3.org/WAI/standards-guidelines/wcag/",
+          taxa
+        }
+      ]
+    } : {},
+    results,
+    properties: {
+      disclaimer: FORMAT_DISCLAIMER,
+      ...report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {},
+      verdict: report.verdict,
+      reason: report.reason,
+      command: report.command,
+      engine,
+      ...report.startUrl ? { startUrl: report.startUrl } : {},
+      ...report.projectName ? { projectName: report.projectName } : {},
+      ...droppedForCap > 0 ? {
+        truncatedResults: droppedForCap,
+        retainedResults: results.length,
+        truncationNote: `Kept the top ${results.length} results by severity (GitHub retains at most ${limits.retainedResultsPerRun} per run).`
+      } : {}
+    }
+  };
+}
+function resolveLimits(overrides) {
+  return {
+    maxGzipBytes: overrides?.maxGzipBytes ?? GITHUB_SARIF_LIMITS.maxGzipBytes,
+    maxRunsPerFile: overrides?.maxRunsPerFile ?? GITHUB_SARIF_LIMITS.maxRunsPerFile,
+    maxResultsPerRun: overrides?.maxResultsPerRun ?? GITHUB_SARIF_LIMITS.maxResultsPerRun,
+    retainedResultsPerRun: overrides?.retainedResultsPerRun ?? GITHUB_SARIF_LIMITS.retainedResultsPerRun,
+    maxRulesPerRun: overrides?.maxRulesPerRun ?? GITHUB_SARIF_LIMITS.maxRulesPerRun,
+    maxTagsPerRule: overrides?.maxTagsPerRule ?? GITHUB_SARIF_LIMITS.maxTagsPerRule,
+    maxLocationsPerResult: overrides?.maxLocationsPerResult ?? GITHUB_SARIF_LIMITS.maxLocationsPerResult
+  };
+}
+function stringify(log) {
+  return `${JSON.stringify(log, null, 2)}
+`;
+}
+function shrinkSnippets(log, maxChars) {
+  const clip = (value) => value && value.length > maxChars ? `${value.slice(0, maxChars)}\u2026` : value;
+  for (const run2 of log.runs) {
+    for (const rule of run2.tool.driver.rules) {
+      const short = rule.shortDescription;
+      const full = rule.fullDescription;
+      const help = rule.help;
+      if (short?.text) short.text = clip(short.text);
+      if (full?.text) full.text = clip(full.text);
+      if (help?.text) help.text = clip(help.text);
+    }
+    for (const result of run2.results) {
+      if (result.message.text.length > maxChars) {
+        result.message.text = `${result.message.text.slice(0, maxChars)}\u2026`;
+      }
+      for (const location of result.locations) {
+        const snippet = location.physicalLocation.region.snippet;
+        if (snippet && snippet.text.length > maxChars) {
+          snippet.text = `${snippet.text.slice(0, maxChars)}\u2026`;
+        }
+      }
+    }
+  }
+}
+function dropOrphanRules(run2) {
+  const used = new Set(run2.results.map((result) => result.ruleId));
+  run2.tool.driver.rules = run2.tool.driver.rules.filter((rule) => used.has(String(rule.id)));
+  const ruleIndex = new Map(run2.tool.driver.rules.map((rule, index) => [String(rule.id), index]));
+  for (const result of run2.results) {
+    const index = ruleIndex.get(result.ruleId);
+    if (index === void 0) delete result.ruleIndex;
+    else result.ruleIndex = index;
+  }
+}
+var LEVEL_RANK = { note: 0, warning: 1, error: 2 };
+function dropLowestSeverityResult(log) {
+  let chosen;
+  let chosenRank = 99;
+  for (const run2 of log.runs) {
+    for (let index = run2.results.length - 1; index >= 0; index--) {
+      const value = LEVEL_RANK[run2.results[index].level];
+      if (value < chosenRank) {
+        chosenRank = value;
+        chosen = { run: run2, index };
+      }
+    }
+  }
+  if (!chosen) return false;
+  chosen.run.results.splice(chosen.index, 1);
+  dropOrphanRules(chosen.run);
+  chosen.run.properties.truncatedForUploadSize = (chosen.run.properties.truncatedForUploadSize ?? 0) + 1;
+  chosen.run.properties.retainedResults = chosen.run.results.length;
+  return true;
+}
+function applyGitHubSizeBudget(log, maxGzipBytes) {
+  if (gzipByteLength(stringify(log)) <= maxGzipBytes) return log;
+  shrinkSnippets(log, 256);
+  if (gzipByteLength(stringify(log)) <= maxGzipBytes) return log;
+  while (gzipByteLength(stringify(log)) > maxGzipBytes) {
+    if (!dropLowestSeverityResult(log)) break;
+  }
+  if (gzipByteLength(stringify(log)) > maxGzipBytes) {
+    shrinkSnippets(log, 0);
+    for (const run2 of log.runs) {
+      for (const result of run2.results) {
+        for (const location of result.locations) {
+          delete location.physicalLocation.region.snippet;
+        }
+      }
+    }
+  }
+  return log;
+}
+function toSarif(report, options = {}) {
+  const limits = resolveLimits(options.limits);
+  const fallback = defaultEngine(report);
+  const grouped = /* @__PURE__ */ new Map();
+  for (const finding2 of report.findings) {
+    for (const engine of enginesFor(finding2, fallback)) {
+      const list = grouped.get(engine) ?? [];
+      list.push(finding2);
+      grouped.set(engine, list);
+    }
+  }
+  if (grouped.size === 0) grouped.set(fallback, []);
+  const engineOrder = report.engines?.used?.length ? [...report.engines.used, ...[...grouped.keys()].filter((engine) => !report.engines?.used.includes(engine)).sort()] : [...grouped.keys()].sort((a, b) => a === DEFAULT_ENGINE ? -1 : b === DEFAULT_ENGINE ? 1 : a.localeCompare(b));
+  const runs = [];
+  for (const engine of engineOrder) {
+    const findings = grouped.get(engine);
+    if (!findings) continue;
+    runs.push(buildRun(report, engine, findings, limits));
+    if (runs.length >= limits.maxRunsPerFile) break;
+  }
+  if (runs.length === 0) runs.push(buildRun(report, fallback, [], limits));
   const log = {
     $schema: SARIF_SCHEMA_URL,
     version: SARIF_VERSION,
-    runs: [
-      {
-        tool: {
-          driver: {
-            name: "A11yGate",
-            version: report.version,
-            informationUri: SITE_URL,
-            rules: driverRules
-          }
-        },
-        ...taxa.length > 0 ? {
-          taxonomies: [
-            {
-              name: "WCAG",
-              informationUri: "https://www.w3.org/WAI/standards-guidelines/wcag/",
-              taxa
-            }
-          ]
-        } : {},
-        results,
-        properties: {
-          disclaimer: FORMAT_DISCLAIMER,
-          ...report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {},
-          verdict: report.verdict,
-          reason: report.reason,
-          command: report.command,
-          ...report.startUrl ? { startUrl: report.startUrl } : {},
-          ...report.projectName ? { projectName: report.projectName } : {}
-        }
-      }
-    ]
+    runs
   };
-  return `${JSON.stringify(log, null, 2)}
-`;
+  applyGitHubSizeBudget(log, limits.maxGzipBytes);
+  return stringify(log);
 }
 
 // packages/cli/src/scan.ts

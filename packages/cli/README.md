@@ -79,6 +79,10 @@ The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` 
 
 See [Jenkins integration](../../docs/integrations/jenkins.md) for the shared library step, example `Jenkinsfile`s, JUnit/SARIF publishing, and agent requirements.
 
+## GitHub code scanning
+
+See [GitHub code scanning](../../docs/integrations/github-code-scanning.md) for uploading `a11ygate.sarif` with `github/codeql-action/upload-sarif`. The exporter sets stable `partialFingerprints`, a per-engine `automationDetails.id`, and honours GitHub's documented size and result limits. Copy [`examples/github-code-scanning/sarif.yml`](../../examples/github-code-scanning/sarif.yml) into `.github/workflows/` of a repository you own. Public repositories can receive the upload without enabling CodeQL default setup; do not change visibility or turn on paid GitHub Code Security unless the owner asks.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

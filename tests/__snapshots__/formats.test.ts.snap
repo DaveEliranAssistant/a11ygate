@@ -64,9 +64,9 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
               "properties": {
                 "tags": [
                   "accessibility",
+                  "WCAG 1.4.3",
                   "wcag2aa",
-                  "wcag143",
-                  "WCAG 1.4.3"
+                  "wcag143"
                 ],
                 "impact": "serious"
               },
@@ -105,10 +105,10 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
               "properties": {
                 "tags": [
                   "accessibility",
+                  "WCAG 1.1.1",
                   "wcag2a",
                   "wcag111",
-                  "cat.text-alternatives",
-                  "WCAG 1.1.1"
+                  "cat.text-alternatives"
                 ],
                 "impact": "critical"
               },
@@ -130,6 +130,9 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             }
           ]
         }
+      },
+      "automationDetails": {
+        "id": "a11ygate/axe/"
       },
       "taxonomies": [
         {
@@ -189,6 +192,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             "a11ygate": "image-alt|img.footer|/"
           },
           "partialFingerprints": {
+            "primaryLocationLineHash": "2027f006de47a013:1",
             "a11ygate": "image-alt|img.footer|/"
           },
           "properties": {
@@ -240,6 +244,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             "a11ygate": "image-alt|img.hero|/"
           },
           "partialFingerprints": {
+            "primaryLocationLineHash": "7484181fa48dd983:1",
             "a11ygate": "image-alt|img.hero|/"
           },
           "properties": {
@@ -291,6 +296,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             "a11ygate": "color-contrast|.price-tag|/about"
           },
           "partialFingerprints": {
+            "primaryLocationLineHash": "6a27029e46c15f4a:1",
             "a11ygate": "color-contrast|.price-tag|/about"
           },
           "properties": {
@@ -312,6 +318,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
         "verdict": "FAIL",
         "reason": "2 findings at or above serious: image-alt, color-contrast.",
         "command": "scan",
+        "engine": "axe",
         "startUrl": "https://demo.shop/"
       }
     }
