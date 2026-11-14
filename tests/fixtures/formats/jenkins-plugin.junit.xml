@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="A11yGate" tests="2" failures="1" errors="0" skipped="0" time="0" timestamp="2026-10-31T12:00:00.000Z" hostname="a11ygate">
+  <properties>
+    <property name="disclaimer" value="Automated testing only. Not a WCAG audit, certification or legal advice."/>
+    <property name="tool" value="A11yGate"/>
+  </properties>
+  <testcase classname="https://demo.shop/" name="image-alt" time="0">
+    <failure message="image-alt: Images must have alternate text (critical)" type="image-alt">Automated testing only. Not a WCAG audit, certification or legal advice.
+- https://demo.shop/ — img.hero</failure>
+  </testcase>
+  <testcase classname="https://demo.shop/about" name="no-violations" time="0"/>
+</testsuite>

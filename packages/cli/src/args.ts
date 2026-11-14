@@ -1,4 +1,5 @@
 import { isImpact, type Impact } from '@/lib/types';
+import { mergeFormats, parseFormatList, type ReportFormat } from '@/lib/report-formats';
 
 export type CliOptions = {
   help: boolean;
@@ -10,11 +11,13 @@ export type CliOptions = {
   json?: string;
   updateBaseline?: string;
   manualEvidence?: string;
+  formats: ReportFormat[];
+  outDir?: string;
 };
 
 export type ParsedArgs = { ok: true; options: CliOptions } | { ok: false; error: string };
 
-const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdown' | 'json' | 'updateBaseline' | 'manualEvidence'> = {
+const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdown' | 'json' | 'updateBaseline' | 'manualEvidence' | 'format' | 'outDir'> = {
   '--current': 'current',
   '-c': 'current',
   '--baseline': 'baseline',
@@ -27,6 +30,8 @@ const VALUE_FLAGS: Record<string, 'current' | 'baseline' | 'threshold' | 'markdo
   '-j': 'json',
   '--update-baseline': 'updateBaseline',
   '--manual-evidence': 'manualEvidence',
+  '--format': 'format',
+  '--out-dir': 'outDir',
 };
 
 function flagName(token: string): { name: string; inline?: string } {
@@ -45,6 +50,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         current: [],
         baseline: [],
         threshold: 'serious',
+        formats: [],
       },
     };
   }
@@ -56,6 +62,8 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let json: string | undefined;
   let updateBaseline: string | undefined;
   let manualEvidence: string | undefined;
+  let formats: ReportFormat[] = [];
+  let outDir: string | undefined;
   let help = false;
   let version = false;
   let thresholdText: string | undefined;
@@ -97,7 +105,13 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     else if (field === 'markdown') markdown = value;
     else if (field === 'json') json = value;
     else if (field === 'updateBaseline') updateBaseline = value;
-    else manualEvidence = value;
+    else if (field === 'manualEvidence') manualEvidence = value;
+    else if (field === 'outDir') outDir = value;
+    else {
+      const parsed = parseFormatList(value);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      formats = mergeFormats(formats, parsed.formats);
+    }
   }
 
   if (!help && !version && thresholdText !== undefined) {
@@ -112,6 +126,6 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   return {
     ok: true,
-    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence },
+    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence, formats, outDir },
   };
 }

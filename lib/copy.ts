@@ -7,6 +7,9 @@ export const DISCLAIMER =
 export const LEGAL_DISCLAIMER =
   'Informational only. Not legal advice. Not a certification of EAA compliance.';
 
+export const AUTOMATED_TESTING_DISCLAIMER =
+  'Automated testing only. Not a WCAG audit, certification or legal advice.';
+
 export const PRIVACY_NOTE = 'Privacy: scans stay in your browser.';
 
 export const SITE_URL = 'https://a11ygate.vercel.app';
