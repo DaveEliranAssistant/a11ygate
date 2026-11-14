@@ -32,6 +32,17 @@ Apply each candidate independently in a disposable working tree pinned to the sc
 
 A separate publisher receives only verified diffs and sanitized evidence. It can open a draft PR, or post an explicitly labelled model review suggestion on an existing PR when draft-PR creation is unavailable or review-comment mode is selected. Both model output channels require verification. A failure/status comment may explain why drafting was skipped but must contain no rejected model patch or replacement text. Deduplicate by source commit and finding; discard stale candidates when the head changes.
 
+### Draft schema and validator (A11Y-R2)
+
+`lib/modelfix/validate.ts` implements the checks above. A draft (`ModelDraft`, `lib/modelfix/types.ts`) names exactly one file and one range, the ones in the request: `findingId` (fingerprint), `sourceBlobHash`, `path`, `startLine`/`endLine`, exact `original` lines, `replacement` lines, `rationale` and `humanReview` flags. Unknown fields are rejected; multi-file fields (`files`, `edits`, `diff`, …) are rejected as extra files.
+
+- **Source blob hash:** the Git blob SHA-1 of the whole file (`git hash-object`, GitHub contents API `sha`). The draft, the request and the file content must all agree.
+- **Size caps (`DRAFT_LIMITS`):** replacement ≤ 4096 UTF-8 bytes, ≤ 40 lines, ≤ 5 lines more than the original range, ≤ 1000 characters per line; rationale ≤ 1000 characters.
+- **Rejected:** schema errors, another finding, any path other than the request path, `..`/absolute/backslash/null-byte/encoded paths, symlinks resolving outside the repository root (when a root is given), scanner/CI/gate/tooling config (`.a11ygate.yml`, axe/Lighthouse/pa11y config, `.github/**`, `action.yml`, `package.json`, lockfiles, test-runner and lint config), test files, range/original/blob mismatches, oversize, empty or no-op replacements, added suppressions (ignore/disable comments, `data-axe-*`, `aria-hidden`, `role="presentation|none"`, `alt=""`, `hidden`, `display:none`, …) and added executable content (scripts, event handlers, `javascript:` URLs).
+- **Review flags:** the validator adds the flags it detects, whatever the adapter declared. New alt/accessible-name text or changed visible text that is not a `TODO(a11ygate)` placeholder gets `generated-accessible-name`; placeholders get `placeholder-accessible-name`. Both require tracked human acknowledgement (§7). Every validated draft still needs human review.
+
+The validator never runs a shell and only reads file metadata for the symlink check. A rejected draft is recorded by rejection code only; its content is not applied, published or logged. The orchestrator validates every draft, then discards valid drafts too, because there is no isolated apply or re-scan yet (R3). The `stubAdapter` returns placeholder-only drafts for tests and is never a built-in adapter.
+
 ## 3. Exact no-model fallback (hard requirement)
 
 With models disabled, no eligible provider configured, all providers failing, exhausted budgets, or no verified candidate:
