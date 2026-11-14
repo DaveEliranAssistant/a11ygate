@@ -12,6 +12,7 @@ import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
 import { runEngine } from '@/lib/scan/engines/types';
 export { toAxeResults } from '@/lib/scan/engines/axe';
 import { toJunit } from '@/lib/export-junit';
+import { toGitlabCodeQuality } from '@/lib/export-gitlab-codequality';
 import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromScan, mergeFormats, parseFormatList, type ReportFormat } from '@/lib/report-formats';
 import { assertSafeOutputs } from './output-paths';
@@ -125,7 +126,7 @@ export function scanHelpText(): string {
 
 Usage:
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
-                      [--format junit|sarif|json|md] [--json <file>] [--markdown <file>]
+                      [--format junit|sarif|json|md|gitlab-codequality] [--json <file>] [--markdown <file>]
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
@@ -135,7 +136,7 @@ Options:
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
-  --format <fmt>       Also write junit, sarif, json, or md into --out-dir. Repeat or comma-separate.
+  --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
                        Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
@@ -390,6 +391,9 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
   if (options.outDir && options.formats.includes('junit')) {
     extra.push([path.join(options.outDir, formatFileName('scan', 'junit')), toJunit(formatReport)]);
   }
+  if (options.outDir && options.formats.includes('gitlab-codequality')) {
+    extra.push([path.join(options.outDir, formatFileName('scan', 'gitlab-codequality')), toGitlabCodeQuality(formatReport)]);
+  }
   if (options.outDir && options.formats.includes('sarif')) {
     extra.push([path.join(options.outDir, formatFileName('scan', 'sarif')), toSarif(formatReport)]);
   }
@@ -440,7 +444,7 @@ export async function runReport(argv: readonly string[], io: ScanIo = {}): Promi
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (!argv[0] || argv[0].startsWith('-') || argv.includes('--help') || argv.includes('-h')) {
     ((argv.includes('--help') || argv.includes('-h')) ? io.stdout ?? ((s: string) => process.stdout.write(s)) : stderr)(
-      'Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif] [--fail-on <impact>]\n');
+      'Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif,gitlab-codequality] [--fail-on <impact>]\n');
     return (argv.includes('--help') || argv.includes('-h')) ? 0 : 2;
   }
   const parsed = parseScanArgs(['https://saved-report.invalid', ...argv.slice(1)]);

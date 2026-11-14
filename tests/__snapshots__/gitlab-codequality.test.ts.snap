@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GitLab Code Quality > validates against the documented subset and snapshots actionable issues 1`] = `
+"[
+  {
+    "description": "Images must have alternate text — URL: http://127.0.0.1:3000/ — selector: iframe main > img — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://127.0.0.1:3000/\\",[\\"iframe\\",\\"main>img\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/127.0.0.1-3000/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Images must have alternate text — URL: http://127.0.0.1:3000/ — selector: img.footer — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://127.0.0.1:3000/\\",[\\"img.footer\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/127.0.0.1-3000/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  }
+]
+"
+`;

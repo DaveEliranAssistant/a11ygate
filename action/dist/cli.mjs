@@ -117,6 +117,239 @@ function formatStandards(tags) {
   ).join(" | ");
 }
 
+// lib/gate.ts
+var RANK = {
+  minor: 1,
+  moderate: 2,
+  serious: 3,
+  critical: 4
+};
+function impactRank(impact) {
+  if (!impact) return 0;
+  return RANK[impact];
+}
+function meetsThreshold(impact, threshold) {
+  return impactRank(impact) >= impactRank(threshold);
+}
+function gatingFindings(findings, threshold) {
+  return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
+}
+function gateVerdict(newFindings, threshold, coverage) {
+  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
+  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
+}
+function verdictReason(newFindings, threshold) {
+  const gating = gatingFindings(newFindings, threshold);
+  if (gating.length === 0) {
+    return `No new finding is at or above ${threshold}.`;
+  }
+  const rules2 = [...new Set(gating.map((finding2) => finding2.ruleId))];
+  const noun = gating.length === 1 ? "finding" : "findings";
+  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
+}
+
+// lib/scan/url.ts
+var MAX_CRAWL_PAGES = 20;
+var NON_HTML_EXTENSION = /\.(?:pdf|zip|gz|tgz|rar|7z|tar|dmg|exe|msi|apk|iso|png|jpe?g|gif|webp|avif|svg|ico|bmp|tiff?|mp3|wav|ogg|m4a|mp4|m4v|mov|avi|webm|mkv|css|js|mjs|json|xml|rss|atom|txt|csv|xlsx?|docx?|pptx?|odt|ods|woff2?|ttf|otf|eot)$/i;
+var LOGOUT_LIKE = /(?:^|[\/_\-.?=&])(?:log-?out|log-?off|sign-?out|sign-?off|logoff|signout|end-?session|destroy-?session)(?:$|[\/_\-.?=&])/i;
+function normalizeUrl(input, base) {
+  let url;
+  try {
+    url = base === void 0 ? new URL(input) : new URL(input, base);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.username || url.password) return null;
+  url.hash = "";
+  return url.toString();
+}
+function classifyLink(href, pageUrl, origin) {
+  const url = normalizeUrl(href, pageUrl);
+  if (!url) return { ok: false, reason: "not-http", url: href };
+  if (new URL(url).origin !== origin) return { ok: false, reason: "external", url };
+  const parsed = new URL(url);
+  if (NON_HTML_EXTENSION.test(parsed.pathname)) return { ok: false, reason: "non-html", url };
+  if (LOGOUT_LIKE.test(parsed.pathname + parsed.search)) return { ok: false, reason: "logout", url };
+  return { ok: true, url };
+}
+function isHtmlContentType(value) {
+  if (!value) return true;
+  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
+  return type === "" || type === "text/html" || type === "application/xhtml+xml";
+}
+
+// lib/scan/engines/wcag-map.ts
+var WCAG_RULE_MAP = {
+  htmlcs: { "WCAG2AA.Principle1.Guideline1_1.1_1_1.H37": ["1.1.1"] },
+  ibm: { img_alt_valid: ["1.1.1"], html_lang_exists: ["3.1.1"], input_label_exists: ["1.3.1", "4.1.2"] },
+  lighthouse: { "image-alt": ["1.1.1"], "document-title": ["2.4.2"], "html-has-lang": ["3.1.1"], "color-contrast": ["1.4.3"], label: ["1.3.1", "4.1.2"], "button-name": ["4.1.2"], "link-name": ["2.4.4", "4.1.2"] },
+  axe: {
+    "image-alt": ["1.1.1"],
+    "color-contrast": ["1.4.3"],
+    label: ["4.1.2", "1.3.1"],
+    region: [],
+    "document-title": ["2.4.2"],
+    "html-has-lang": ["3.1.1"],
+    "html-lang-valid": ["3.1.1"],
+    "link-name": ["2.4.4", "4.1.2"],
+    "button-name": ["4.1.2"]
+  }
+};
+
+// lib/scan/engines/dedupe.ts
+function normalizeLocator(locator) {
+  const value = locator.trim().replace(/^xpath=/, "");
+  if (/^\/(?:[a-zA-Z][\w-]*(?:\[\d+\])?\/)*[a-zA-Z][\w-]*(?:\[\d+\])?$/.test(value) && value.slice(1).split("/").every((part) => /\[\d+\]$/.test(part) || /^(html|body)$/.test(part))) {
+    return value.slice(1).split("/").map((part) => {
+      const [, tag, index] = part.match(/^([\w-]+)(?:\[(\d+)\])?$/);
+      return `${tag.toLowerCase()}:nth-of-type(${index ?? "1"})`;
+    }).join(">");
+  }
+  return value.split(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g).map(
+    (part, i) => i % 2 ? part : part.replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ")
+  ).join("").replace(/\[id=("|')([\w-]+)\1\]/g, "#$2");
+}
+function dedupeFindings(results) {
+  const completed = results.filter((r) => r.status === "complete");
+  const enginesByPage = /* @__PURE__ */ new Map();
+  for (const r of completed) {
+    const page = normalizeUrl(r.url) ?? r.url;
+    const engines = enginesByPage.get(page) ?? /* @__PURE__ */ new Set();
+    engines.add(r.engine);
+    enginesByPage.set(page, engines);
+  }
+  const merged = /* @__PURE__ */ new Map();
+  for (const result of completed) {
+    if (result.status !== "complete") continue;
+    for (const f of result.findings) {
+      const page = normalizeUrl(result.url) ?? result.url;
+      const locator = f.elementKey ?? normalizeLocator(f.selector);
+      const scs = [...new Set(f.wcagSc.length ? f.wcagSc : WCAG_RULE_MAP[f.engine]?.[f.ruleId] ?? [])].sort();
+      for (const sc of scs.length ? scs : [null]) {
+        const key = JSON.stringify([page, locator || [f.engine, f.ruleId, merged.size], sc ?? `${f.engine}:${f.ruleId}`]);
+        const existing = merged.get(key);
+        const engines = [.../* @__PURE__ */ new Set([...existing?.engines ?? [], result.engine])].sort();
+        const enginesRan = enginesByPage.get(page).size;
+        const representative = existing && impactRank(existing.impact) >= impactRank(f.impact) ? existing : f;
+        merged.set(key, {
+          ...representative,
+          url: page,
+          wcagSc: sc ? [sc] : [],
+          engines,
+          confidence: { confirmedBy: engines.length, enginesRan, agreement: engines.length / enginesRan }
+        });
+      }
+    }
+  }
+  return [...merged.values()];
+}
+function engineSummary(results) {
+  return {
+    used: [...new Set(results.filter((r) => r.status === "complete").map((r) => r.engine))].sort(),
+    errored: results.flatMap((r) => r.status === "errored" ? [{ engine: r.engine, url: r.url, error: r.error }] : [])
+  };
+}
+function attribution(finding2) {
+  return finding2.engines ? `detected by: ${finding2.engines.join(", ")}; confirmed by ${finding2.confidence.confirmedBy} of ${finding2.confidence.enginesRan} engines` : "";
+}
+
+// lib/guidance.ts
+var rules = {
+  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
+  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
+  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
+  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
+};
+function findingGuidance(f) {
+  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
+}
+
+// lib/export-markdown.ts
+function cell(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
+}
+function findingLine(finding2) {
+  const selector = finding2.selector.replace(/`/g, "'");
+  const impact = finding2.impact ?? "unspecified";
+  const guidance = findingGuidance(finding2);
+  return `- **${cell(finding2.ruleId)}** (${impact}) on \`${cell(finding2.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding2.help)} \u2014 ${cell(formatStandards(finding2.tags))}
+  - Affected element: \`${cell(finding2.html)}\`; fingerprint: \`${cell(finding2.fingerprint)}\`.
+  - User impact: ${cell(guidance.userImpact)}
+  - Remediation: ${cell(guidance.remediation)}
+  - Verification: ${guidance.verification.map(cell).join(" ")}${finding2.assessmentReason ? "\n  - Assessment: " + cell(finding2.assessmentReason) : ""}`;
+}
+function section(title, findings) {
+  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
+  return [`## ${title}`, "", ...findings.map(findingLine), ""];
+}
+function prSummaryMarkdown(input) {
+  const lines = [
+    `# A11yGate \u2014 ${cell(input.projectName)}`,
+    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
+    "",
+    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
+    "",
+    input.reason,
+    "",
+    "| Status | Count |",
+    "| --- | --- |",
+    `| New | ${input.diff.newFindings.length} |`,
+    `| Fixed | ${input.diff.fixedFindings.length} |`,
+    `| Still open | ${input.diff.stillOpen.length} |`,
+    "",
+    `Generated: ${input.generatedAt}`,
+    "",
+    "## Scan coverage and existing debt",
+    "",
+    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
+    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
+    "",
+    "### Unassessed scope",
+    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
+    "",
+    ...section("New", input.diff.newFindings),
+    ...section("Fixed", input.diff.fixedFindings),
+    ...section("Still open", input.diff.stillOpen),
+    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
+    "## Manual evidence \u2014 separate from automated checks",
+    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
+    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
+    "",
+    DISCLAIMER,
+    LEGAL_DISCLAIMER,
+    ""
+  ];
+  return lines.join("\n");
+}
+
+// lib/group.ts
+function groupLabel(key, value) {
+  if (key === "impact" && value === "unknown") return "unknown impact";
+  return value;
+}
+function groupFindings(findings, by) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding2 of findings) {
+    const key = by === "rule" ? finding2.ruleId : by === "page" ? finding2.path : finding2.impact ?? "unknown";
+    const existing = groups.get(key);
+    if (existing) existing.push(finding2);
+    else groups.set(key, [finding2]);
+  }
+  const grouped = [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: groupLabel(by, key),
+    findings: items
+  }));
+  if (by === "impact") {
+    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
+    grouped.sort((a, b) => rank(b.key) - rank(a.key));
+  } else {
+    grouped.sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return grouped;
+}
+
 // lib/fingerprint.ts
 function unescapeCss(value) {
   return value.replace(/\\(.)/g, "$1");
@@ -179,37 +412,6 @@ function pagePath(url) {
 }
 function fingerprint(ruleId, selector, url) {
   return `${ruleId}|${normaliseSelector(selector)}|${pagePath(url)}`;
-}
-
-// lib/gate.ts
-var RANK = {
-  minor: 1,
-  moderate: 2,
-  serious: 3,
-  critical: 4
-};
-function impactRank(impact) {
-  if (!impact) return 0;
-  return RANK[impact];
-}
-function meetsThreshold(impact, threshold) {
-  return impactRank(impact) >= impactRank(threshold);
-}
-function gatingFindings(findings, threshold) {
-  return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
-}
-function gateVerdict(newFindings, threshold, coverage) {
-  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
-  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
-}
-function verdictReason(newFindings, threshold) {
-  const gating = gatingFindings(newFindings, threshold);
-  if (gating.length === 0) {
-    return `No new finding is at or above ${threshold}.`;
-  }
-  const rules2 = [...new Set(gating.map((finding2) => finding2.ruleId))];
-  const noun = gating.length === 1 ? "finding" : "findings";
-  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
 }
 
 // lib/limits.ts
@@ -478,778 +680,6 @@ function findingsFromResults(results) {
   return [...byFingerprint.values()].sort(
     (a, b) => a.path.localeCompare(b.path) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
   );
-}
-
-// lib/report-formats.ts
-var REPORT_FORMATS = ["junit", "sarif", "json", "md"];
-function isReportFormat(value) {
-  return REPORT_FORMATS.includes(value);
-}
-function parseFormatList(value) {
-  const parts = value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
-  if (parts.length === 0) return { ok: false, error: "--format needs a value. Use junit, sarif, json, or md." };
-  const formats = [];
-  for (const part of parts) {
-    if (!isReportFormat(part)) {
-      return { ok: false, error: `Unknown format "${part}". Use junit, sarif, json, or md.` };
-    }
-    if (!formats.includes(part)) formats.push(part);
-  }
-  return { ok: true, formats };
-}
-function mergeFormats(existing, incoming) {
-  const formats = [...existing];
-  for (const format of incoming) {
-    if (!formats.includes(format)) formats.push(format);
-  }
-  return formats;
-}
-function formatFileName(command, format) {
-  const prefix = command === "scan" ? "a11ygate-scan" : "a11ygate";
-  if (format === "junit") return `${prefix}.junit.xml`;
-  if (format === "sarif") return `${prefix}.sarif`;
-  if (format === "json") return `${prefix}.json`;
-  return `${prefix}.md`;
-}
-function wcagFromTags(tags) {
-  return lookupStandards(tags).flatMap(
-    (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag }] : []
-  );
-}
-function formatFindingFromScan(finding2) {
-  return {
-    ruleId: finding2.ruleId,
-    impact: finding2.impact,
-    help: finding2.help,
-    helpUrl: finding2.helpUrl,
-    tags: finding2.tags,
-    wcag: finding2.wcag.map((item) => ({ number: item.number, name: item.name, level: item.level, wcag: item.wcag })),
-    pageUrl: finding2.pageUrl,
-    selector: finding2.selector,
-    html: finding2.html,
-    fingerprint: finding2.baselineFingerprint ?? finding2.fingerprint,
-    ...finding2.baselineStatus ? { baselineStatus: finding2.baselineStatus } : {},
-    ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {}
-  };
-}
-function formatReportFromScan(report) {
-  return {
-    toolName: "A11yGate",
-    version: report.version,
-    generatedAt: report.scannedAt,
-    command: "scan",
-    ...report.baseline ? { baseline: report.baseline } : {},
-    ...report.engines ? { engines: report.engines } : {},
-    verdict: report.verdict,
-    reason: report.reason,
-    startUrl: report.startUrl,
-    pages: report.pages.filter((page) => page.scanStatus === "complete").map((page) => page.url),
-    findings: report.findings.map(formatFindingFromScan)
-  };
-}
-function formatFindingFromDiffed(finding2) {
-  return {
-    ruleId: finding2.ruleId,
-    impact: finding2.impact,
-    help: finding2.help,
-    helpUrl: finding2.helpUrl,
-    tags: finding2.tags,
-    wcag: wcagFromTags(finding2.tags),
-    pageUrl: finding2.url,
-    selector: finding2.selector,
-    html: finding2.html,
-    fingerprint: finding2.fingerprint,
-    status: finding2.status
-  };
-}
-function formatReportFromGate(input) {
-  const pages = [...new Set(input.currentResults.map((result) => result.url))];
-  const statusByFingerprint = new Map(input.findings.map((finding2) => [finding2.fingerprint, finding2.status]));
-  const findings = findingsFromResults(input.currentResults).map(
-    (finding2) => formatFindingFromDiffed({ ...finding2, status: statusByFingerprint.get(finding2.fingerprint) ?? "new" })
-  );
-  return {
-    toolName: "A11yGate",
-    version: input.version,
-    generatedAt: input.generatedAt,
-    command: "ci",
-    verdict: input.verdict,
-    reason: input.reason,
-    projectName: input.projectName,
-    pages,
-    findings
-  };
-}
-var FORMAT_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
-
-// packages/cli/src/args.ts
-var VALUE_FLAGS = {
-  "--current": "current",
-  "-c": "current",
-  "--baseline": "baseline",
-  "-b": "baseline",
-  "--threshold": "threshold",
-  "-t": "threshold",
-  "--markdown": "markdown",
-  "-m": "markdown",
-  "--json": "json",
-  "-j": "json",
-  "--update-baseline": "updateBaseline",
-  "--manual-evidence": "manualEvidence",
-  "--format": "format",
-  "--out-dir": "outDir"
-};
-function flagName(token) {
-  const eq = token.indexOf("=");
-  if (eq === -1) return { name: token };
-  return { name: token.slice(0, eq), inline: token.slice(eq + 1) };
-}
-function parseArgs(argv) {
-  if (argv.includes("--help") || argv.includes("-h")) {
-    return {
-      ok: true,
-      options: {
-        help: true,
-        version: false,
-        current: [],
-        baseline: [],
-        threshold: "serious",
-        formats: []
-      }
-    };
-  }
-  const current = [];
-  const baseline = [];
-  let threshold = "serious";
-  let markdown;
-  let json;
-  let updateBaseline;
-  let manualEvidence;
-  let formats = [];
-  let outDir;
-  let help = false;
-  let version = false;
-  let thresholdText;
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
-    if (token === "--") {
-      return { ok: false, error: "Unexpected extra arguments." };
-    }
-    if (token === "--help" || token === "-h") {
-      help = true;
-      continue;
-    }
-    if (token === "--version") {
-      version = true;
-      continue;
-    }
-    const { name, inline } = flagName(token);
-    const field = VALUE_FLAGS[name];
-    if (!field) {
-      if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
-      return { ok: false, error: `Unexpected argument ${token}.` };
-    }
-    const value = inline !== void 0 ? inline : argv[index + 1];
-    if (inline === void 0) index += 1;
-    if (value === void 0 || value.length === 0) {
-      return { ok: false, error: `${name} needs a value.` };
-    }
-    const jsonFlag = name === "--json" || name === "-j";
-    if (value.startsWith("-") && !(jsonFlag && value === "-")) {
-      return { ok: false, error: `${name} needs a value.` };
-    }
-    if (field === "current") current.push(value);
-    else if (field === "baseline") baseline.push(value);
-    else if (field === "threshold") thresholdText = value;
-    else if (field === "markdown") markdown = value;
-    else if (field === "json") json = value;
-    else if (field === "updateBaseline") updateBaseline = value;
-    else if (field === "manualEvidence") manualEvidence = value;
-    else if (field === "outDir") outDir = value;
-    else {
-      const parsed = parseFormatList(value);
-      if (!parsed.ok) return { ok: false, error: parsed.error };
-      formats = mergeFormats(formats, parsed.formats);
-    }
-  }
-  if (!help && !version && thresholdText !== void 0) {
-    if (!isImpact(thresholdText)) {
-      return {
-        ok: false,
-        error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`
-      };
-    }
-    threshold = thresholdText;
-  }
-  return {
-    ok: true,
-    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence, formats, outDir }
-  };
-}
-
-// packages/cli/src/help.ts
-function helpText() {
-  return `a11ygate \u2014 accessibility regression gate for axe-core JSON
-
-Usage:
-  a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
-                       (see a11ygate init --help)
-  a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
-  a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
-  a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
-  a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
-  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
-                       (see a11ygate scan --help)
-  a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
-                       (see a11ygate evidence --help)
-
-Options:
-  -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
-                               Each file is one result, an array of results, or { "results": ... }.
-  -b, --baseline <file>        Baseline axe-core JSON. Repeatable. Omit to treat every current finding as new.
-  -t, --threshold <impact>     minor, moderate, serious, or critical. Default: serious.
-                               Exit 1 only when a new finding is at or above this impact.
-  -m, --markdown <file>        Also write the Markdown summary to this file. It is always printed.
-  -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
-      --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
-      --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
-      --format <fmt>           Output format: junit, sarif, json, or md. Repeat or comma-separate for several.
-                               Requires --out-dir. Exit codes are unchanged.
-      --out-dir <dir>          Write a11ygate.json and a11ygate.md here, plus any --format files
-                               (a11ygate.junit.xml, a11ygate.sarif).
-  -h, --help                   Show this help.
-      --version                Show the version.
-
-Exit codes:
-  0  No detected new finding is at or above the threshold; existing debt/unassessed scope remain.
-  1  At least one new finding is at or above the threshold.
-  2  Incomplete scan coverage, unsafe outputs, invalid evidence, or unreadable arguments/JSON.
-
-Examples:
-  npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
-  npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
-  npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
-
-A file larger than 8 MB is refused. The same diff and gate as the web app are used.
-Coverage and manual-evidence flags are included in 0.2.0.
-PASS is not legal advice or certification. Baseline updates never clear the current gate result.
-`;
-}
-
-// lib/scan/engines/locators.ts
-async function resolveElementKeys(page, findings) {
-  const keys = await page.evaluate((selectors) => selectors.map((selector) => {
-    try {
-      let element = null;
-      if (selector.startsWith("/") || selector.startsWith("xpath=")) {
-        const nodes = document.evaluate(selector.replace(/^xpath=/, ""), document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE);
-        if (nodes.snapshotLength === 1) element = nodes.snapshotItem(0);
-      } else {
-        const nodes = document.querySelectorAll(selector);
-        if (nodes.length === 1) element = nodes[0];
-      }
-      if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
-      const parts = [];
-      while (element) {
-        const tag = element.localName;
-        let index = 1;
-        let sibling = element.previousElementSibling;
-        while (sibling) {
-          if (sibling.localName === tag) index += 1;
-          sibling = sibling.previousElementSibling;
-        }
-        parts.unshift(`${tag}:nth-of-type(${index})`);
-        element = element.parentElement;
-      }
-      return parts.join(">");
-    } catch {
-      return null;
-    }
-  }), findings.map((f) => f.selector));
-  return findings.map((f, i) => keys[i] ? { ...f, elementKey: keys[i] } : f);
-}
-
-// packages/cli/src/scan.ts
-import { mkdir, readFile as readFile3, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
-import path3 from "node:path";
-import { createServer } from "node:net";
-
-// lib/scan/engines/optional.ts
-import { createRequire } from "node:module";
-import { readFile } from "node:fs/promises";
-
-// lib/scan/engines/wcag-map.ts
-var WCAG_RULE_MAP = {
-  htmlcs: { "WCAG2AA.Principle1.Guideline1_1.1_1_1.H37": ["1.1.1"] },
-  ibm: { img_alt_valid: ["1.1.1"], html_lang_exists: ["3.1.1"], input_label_exists: ["1.3.1", "4.1.2"] },
-  lighthouse: { "image-alt": ["1.1.1"], "document-title": ["2.4.2"], "html-has-lang": ["3.1.1"], "color-contrast": ["1.4.3"], label: ["1.3.1", "4.1.2"], "button-name": ["4.1.2"], "link-name": ["2.4.4", "4.1.2"] },
-  axe: {
-    "image-alt": ["1.1.1"],
-    "color-contrast": ["1.4.3"],
-    label: ["4.1.2", "1.3.1"],
-    region: [],
-    "document-title": ["2.4.2"],
-    "html-has-lang": ["3.1.1"],
-    "html-lang-valid": ["3.1.1"],
-    "link-name": ["2.4.4", "4.1.2"],
-    "button-name": ["4.1.2"]
-  }
-};
-
-// lib/scan/engines/optional.ts
-var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
-var require2 = createRequire(import.meta.url);
-var normalize = (results) => results.findings;
-async function localScript(packageName, script) {
-  try {
-    return await readFile(require2.resolve(`${packageName}/${script}`), "utf8");
-  } catch {
-    throw new Error(`Missing ${packageName} engine files. Install with: npm install --save-dev ${packageName}`);
-  }
-}
-function finding(engine, url, ruleId, selector, snippet, helpUrl, wcagSc) {
-  return {
-    engine,
-    url,
-    ruleId,
-    selector,
-    snippet,
-    helpUrl,
-    impact: "serious",
-    wcagSc: wcagSc ?? [...WCAG_RULE_MAP[engine]?.[ruleId] ?? []]
-  };
-}
-function createHtmlcsEngine() {
-  return {
-    id: "htmlcs",
-    displayName: "HTML_CodeSniffer",
-    async run({ page }, url) {
-      await page.evaluate(await localScript("html_codesniffer", "build/HTMLCS.js"));
-      const issues = await page.evaluate(async () => {
-        const htmlcs = window.HTMLCS;
-        return await new Promise((resolve) => {
-          htmlcs.process("WCAG2AA", document, () => resolve(htmlcs.getMessages().map((m) => {
-            const parts = [];
-            let element = m.element;
-            while (element) {
-              const parent = element.parentElement;
-              parts.unshift(`${element.localName}:nth-child(${parent ? Array.from(parent.children).indexOf(element) + 1 : 1})`);
-              element = parent;
-            }
-            return { code: m.code, type: m.type, message: m.msg, selector: parts.join(" > "), snippet: m.element?.outerHTML ?? "" };
-          })));
-        });
-      });
-      return { raw: issues, findings: issues.filter((i) => i.type === 1).map((i) => {
-        const sc = i.code.match(/Guideline\d+_\d+\.(\d+)_(\d+)_(\d+)/);
-        return finding(
-          "htmlcs",
-          url,
-          i.code,
-          i.selector,
-          i.snippet.slice(0, 2e3),
-          "https://squizlabs.github.io/HTML_CodeSniffer/Standards/WCAG2/",
-          sc ? [`${sc[1]}.${sc[2]}.${sc[3]}`] : []
-        );
-      }) };
-    },
-    normalize
-  };
-}
-function createIbmEngine() {
-  return {
-    id: "ibm",
-    displayName: "IBM Equal Access",
-    async run({ page }, url) {
-      await page.evaluate(await localScript("accessibility-checker-engine", "ace.js"));
-      const native = await page.evaluate(async () => {
-        const ace = window.ace;
-        const report = await new ace.Checker().check(document, ["IBM_Accessibility"]);
-        return { raw: report, issues: report.results.filter((issue) => issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL").map((i) => ({
-          ruleId: i.ruleId,
-          selector: i.path?.dom ?? "",
-          snippet: i.snippet ?? ""
-        })) };
-      });
-      return { raw: native.raw, findings: native.issues.map((i) => finding(
-        "ibm",
-        url,
-        i.ruleId,
-        i.selector,
-        i.snippet,
-        `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`
-      )) };
-    },
-    normalize
-  };
-}
-function createLighthouseEngine() {
-  return {
-    id: "lighthouse",
-    displayName: "Lighthouse accessibility",
-    async run({ page, browserURL }, url) {
-      let lighthouse;
-      let puppeteer;
-      try {
-        [lighthouse, puppeteer] = await Promise.all([import("lighthouse"), import("puppeteer-core")]);
-      } catch {
-        throw new Error("Missing Lighthouse engine packages. Install with: npm install --save-dev lighthouse puppeteer-core");
-      }
-      if (!browserURL) throw new Error("Lighthouse requires the shared Chromium debugging endpoint.");
-      const browser = await puppeteer.connect({ browserURL, defaultViewport: null });
-      try {
-        const cdp = await page.context().newCDPSession(page);
-        const { targetInfo } = await cdp.send("Target.getTargetInfo");
-        await cdp.detach();
-        const target = browser.targets().find((t) => t._targetId === targetInfo.targetId);
-        const current = await target?.page();
-        if (!current) throw new Error("Could not attach Lighthouse to the existing page.");
-        const result = await lighthouse.snapshot(current, { flags: {
-          onlyCategories: ["accessibility"],
-          logLevel: "silent",
-          disableStorageReset: true,
-          formFactor: "desktop",
-          screenEmulation: { disabled: true }
-        } });
-        if (!result) throw new Error("Lighthouse returned no report.");
-        if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
-        const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
-        if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
-        return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
-          const details = a.details;
-          const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
-          return (nodes.length ? nodes : [{}]).map((n) => finding(
-            "lighthouse",
-            url,
-            a.id,
-            n.selector ?? "",
-            n.snippet ?? "",
-            a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
-          ));
-        }) };
-      } finally {
-        await browser.disconnect();
-      }
-    },
-    normalize
-  };
-}
-
-// lib/scan/robots.ts
-var ROBOTS_AGENT = "a11ygate";
-function parseRobots(text, agent = ROBOTS_AGENT) {
-  const groups = [];
-  let current = null;
-  let lastWasAgent = false;
-  for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = raw.replace(/#.*$/, "").trim();
-    if (!line) continue;
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim().toLowerCase();
-    const value = line.slice(colon + 1).trim();
-    if (key === "user-agent") {
-      if (!current || !lastWasAgent) {
-        current = { agents: [], rules: [] };
-        groups.push(current);
-      }
-      current.agents.push(value.toLowerCase());
-      lastWasAgent = true;
-      continue;
-    }
-    lastWasAgent = false;
-    if (!current) continue;
-    if (key === "disallow" || key === "allow") {
-      if (value === "") continue;
-      current.rules.push({ allow: key === "allow", pattern: value });
-    }
-  }
-  const name = agent.toLowerCase();
-  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
-  return { rules: rules2 };
-}
-function patternToRegExp(pattern) {
-  const anchored = pattern.endsWith("$");
-  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
-  return new RegExp("^" + body + (anchored ? "$" : ""));
-}
-function isAllowedByRobots(robots, pathAndQuery) {
-  if (!robots || robots.rules.length === 0) return true;
-  let best = null;
-  for (const rule of robots.rules) {
-    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
-    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
-      best = rule;
-    }
-  }
-  return best ? best.allow : true;
-}
-function robotsAllowsUrl(robots, url) {
-  const parsed = new URL(url);
-  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
-}
-async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
-    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
-    const text = (await response.text()).slice(0, 512 * 1024);
-    return { rules: parseRobots(text), note: "robots.txt honoured." };
-  } catch {
-    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// lib/scan/url.ts
-var MAX_CRAWL_PAGES = 20;
-var NON_HTML_EXTENSION = /\.(?:pdf|zip|gz|tgz|rar|7z|tar|dmg|exe|msi|apk|iso|png|jpe?g|gif|webp|avif|svg|ico|bmp|tiff?|mp3|wav|ogg|m4a|mp4|m4v|mov|avi|webm|mkv|css|js|mjs|json|xml|rss|atom|txt|csv|xlsx?|docx?|pptx?|odt|ods|woff2?|ttf|otf|eot)$/i;
-var LOGOUT_LIKE = /(?:^|[\/_\-.?=&])(?:log-?out|log-?off|sign-?out|sign-?off|logoff|signout|end-?session|destroy-?session)(?:$|[\/_\-.?=&])/i;
-function normalizeUrl(input, base) {
-  let url;
-  try {
-    url = base === void 0 ? new URL(input) : new URL(input, base);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  if (url.username || url.password) return null;
-  url.hash = "";
-  return url.toString();
-}
-function classifyLink(href, pageUrl, origin) {
-  const url = normalizeUrl(href, pageUrl);
-  if (!url) return { ok: false, reason: "not-http", url: href };
-  if (new URL(url).origin !== origin) return { ok: false, reason: "external", url };
-  const parsed = new URL(url);
-  if (NON_HTML_EXTENSION.test(parsed.pathname)) return { ok: false, reason: "non-html", url };
-  if (LOGOUT_LIKE.test(parsed.pathname + parsed.search)) return { ok: false, reason: "logout", url };
-  return { ok: true, url };
-}
-function isHtmlContentType(value) {
-  if (!value) return true;
-  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
-  return type === "" || type === "text/html" || type === "application/xhtml+xml";
-}
-
-// lib/scan/crawl.ts
-var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function clampPages(requested) {
-  if (!Number.isFinite(requested) || requested < 1) return 1;
-  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
-}
-async function crawl(options) {
-  const start = normalizeUrl(options.startUrl);
-  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
-  const origin = new URL(start).origin;
-  const maxPages = clampPages(options.maxPages);
-  const sleep = options.sleep ?? defaultSleep;
-  const crawling = maxPages > 1;
-  const queue = [start];
-  const seen = /* @__PURE__ */ new Set([start]);
-  const pages = [];
-  const skipped = [];
-  const skippedSeen = /* @__PURE__ */ new Set();
-  const skip = (entry) => {
-    const key = entry.reason + " " + entry.url;
-    if (skippedSeen.has(key)) return;
-    skippedSeen.add(key);
-    skipped.push(entry);
-  };
-  let visits = 0;
-  while (queue.length > 0) {
-    const url = queue.shift();
-    if (pages.length >= maxPages) {
-      skip({ url, reason: "cap" });
-      continue;
-    }
-    if (!robotsAllowsUrl(options.robots, url)) {
-      skip({ url, reason: "robots" });
-      continue;
-    }
-    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
-    visits += 1;
-    options.log?.(`Scanning ${url}`);
-    const outcome = await options.visit(url, crawling);
-    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
-      skip({ url, reason: "redirected-off-origin" });
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
-      continue;
-    }
-    if (outcome.result || outcome.analysed) {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
-    } else {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
-    }
-    if (!crawling) continue;
-    const base = outcome.finalUrl || url;
-    for (const href of outcome.links) {
-      const link = classifyLink(href, base, origin);
-      if (!link.ok) {
-        skip({ url: link.url, reason: link.reason, from: url });
-        continue;
-      }
-      if (seen.has(link.url)) continue;
-      seen.add(link.url);
-      queue.push(link.url);
-    }
-  }
-  return { pages, skipped };
-}
-
-// lib/scan/engines/dedupe.ts
-function normalizeLocator(locator) {
-  const value = locator.trim().replace(/^xpath=/, "");
-  if (/^\/(?:[a-zA-Z][\w-]*(?:\[\d+\])?\/)*[a-zA-Z][\w-]*(?:\[\d+\])?$/.test(value) && value.slice(1).split("/").every((part) => /\[\d+\]$/.test(part) || /^(html|body)$/.test(part))) {
-    return value.slice(1).split("/").map((part) => {
-      const [, tag, index] = part.match(/^([\w-]+)(?:\[(\d+)\])?$/);
-      return `${tag.toLowerCase()}:nth-of-type(${index ?? "1"})`;
-    }).join(">");
-  }
-  return value.split(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g).map(
-    (part, i) => i % 2 ? part : part.replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ")
-  ).join("").replace(/\[id=("|')([\w-]+)\1\]/g, "#$2");
-}
-function dedupeFindings(results) {
-  const completed = results.filter((r) => r.status === "complete");
-  const enginesByPage = /* @__PURE__ */ new Map();
-  for (const r of completed) {
-    const page = normalizeUrl(r.url) ?? r.url;
-    const engines = enginesByPage.get(page) ?? /* @__PURE__ */ new Set();
-    engines.add(r.engine);
-    enginesByPage.set(page, engines);
-  }
-  const merged = /* @__PURE__ */ new Map();
-  for (const result of completed) {
-    if (result.status !== "complete") continue;
-    for (const f of result.findings) {
-      const page = normalizeUrl(result.url) ?? result.url;
-      const locator = f.elementKey ?? normalizeLocator(f.selector);
-      const scs = [...new Set(f.wcagSc.length ? f.wcagSc : WCAG_RULE_MAP[f.engine]?.[f.ruleId] ?? [])].sort();
-      for (const sc of scs.length ? scs : [null]) {
-        const key = JSON.stringify([page, locator || [f.engine, f.ruleId, merged.size], sc ?? `${f.engine}:${f.ruleId}`]);
-        const existing = merged.get(key);
-        const engines = [.../* @__PURE__ */ new Set([...existing?.engines ?? [], result.engine])].sort();
-        const enginesRan = enginesByPage.get(page).size;
-        const representative = existing && impactRank(existing.impact) >= impactRank(f.impact) ? existing : f;
-        merged.set(key, {
-          ...representative,
-          url: page,
-          wcagSc: sc ? [sc] : [],
-          engines,
-          confidence: { confirmedBy: engines.length, enginesRan, agreement: engines.length / enginesRan }
-        });
-      }
-    }
-  }
-  return [...merged.values()];
-}
-function engineSummary(results) {
-  return {
-    used: [...new Set(results.filter((r) => r.status === "complete").map((r) => r.engine))].sort(),
-    errored: results.flatMap((r) => r.status === "errored" ? [{ engine: r.engine, url: r.url, error: r.error }] : [])
-  };
-}
-function attribution(finding2) {
-  return finding2.engines ? `detected by: ${finding2.engines.join(", ")}; confirmed by ${finding2.confidence.confirmedBy} of ${finding2.confidence.enginesRan} engines` : "";
-}
-
-// lib/guidance.ts
-var rules = {
-  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
-  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
-  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
-  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
-};
-function findingGuidance(f) {
-  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
-}
-
-// lib/export-markdown.ts
-function cell(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
-}
-function findingLine(finding2) {
-  const selector = finding2.selector.replace(/`/g, "'");
-  const impact = finding2.impact ?? "unspecified";
-  const guidance = findingGuidance(finding2);
-  return `- **${cell(finding2.ruleId)}** (${impact}) on \`${cell(finding2.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding2.help)} \u2014 ${cell(formatStandards(finding2.tags))}
-  - Affected element: \`${cell(finding2.html)}\`; fingerprint: \`${cell(finding2.fingerprint)}\`.
-  - User impact: ${cell(guidance.userImpact)}
-  - Remediation: ${cell(guidance.remediation)}
-  - Verification: ${guidance.verification.map(cell).join(" ")}${finding2.assessmentReason ? "\n  - Assessment: " + cell(finding2.assessmentReason) : ""}`;
-}
-function section(title, findings) {
-  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
-  return [`## ${title}`, "", ...findings.map(findingLine), ""];
-}
-function prSummaryMarkdown(input) {
-  const lines = [
-    `# A11yGate \u2014 ${cell(input.projectName)}`,
-    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
-    "",
-    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
-    "",
-    input.reason,
-    "",
-    "| Status | Count |",
-    "| --- | --- |",
-    `| New | ${input.diff.newFindings.length} |`,
-    `| Fixed | ${input.diff.fixedFindings.length} |`,
-    `| Still open | ${input.diff.stillOpen.length} |`,
-    "",
-    `Generated: ${input.generatedAt}`,
-    "",
-    "## Scan coverage and existing debt",
-    "",
-    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
-    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
-    "",
-    "### Unassessed scope",
-    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
-    "",
-    ...section("New", input.diff.newFindings),
-    ...section("Fixed", input.diff.fixedFindings),
-    ...section("Still open", input.diff.stillOpen),
-    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
-    "## Manual evidence \u2014 separate from automated checks",
-    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
-    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
-    "",
-    DISCLAIMER,
-    LEGAL_DISCLAIMER,
-    ""
-  ];
-  return lines.join("\n");
-}
-
-// lib/group.ts
-function groupLabel(key, value) {
-  if (key === "impact" && value === "unknown") return "unknown impact";
-  return value;
-}
-function groupFindings(findings, by) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const finding2 of findings) {
-    const key = by === "rule" ? finding2.ruleId : by === "page" ? finding2.path : finding2.impact ?? "unknown";
-    const existing = groups.get(key);
-    if (existing) existing.push(finding2);
-    else groups.set(key, [finding2]);
-  }
-  const grouped = [...groups.entries()].map(([key, items]) => ({
-    key,
-    label: groupLabel(by, key),
-    findings: items
-  }));
-  if (by === "impact") {
-    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
-    grouped.sort((a, b) => rank(b.key) - rank(a.key));
-  } else {
-    grouped.sort((a, b) => a.label.localeCompare(b.label));
-  }
-  return grouped;
 }
 
 // lib/scan/engines/normalized.ts
@@ -1585,6 +1015,656 @@ ${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + 
 </body>
 </html>
 `;
+}
+
+// lib/scan/baseline.ts
+function baselineFingerprint(finding2, occurrence = 0) {
+  if (finding2.engines) {
+    const [page, locator, sc, rule] = JSON.parse(finding2.fingerprint);
+    return JSON.stringify([normalizeUrl(page) ?? page, normalizeLocator(locator) || ["unlocated", occurrence], [...sc].sort(), rule]);
+  }
+  return JSON.stringify([
+    normalizeUrl(finding2.pageUrl) ?? finding2.pageUrl,
+    finding2.selectors.some((selector) => selector.trim()) ? finding2.selectors.map(normalizeLocator) : ["unlocated", occurrence],
+    finding2.ruleId,
+    [...new Set(finding2.wcag.map((c) => c.number))].sort()
+  ]);
+}
+function createFingerprintBaseline(report) {
+  return {
+    kind: "a11ygate-fingerprint-baseline",
+    schemaVersion: 1,
+    disclaimer: AUTOMATED_TESTING_DISCLAIMER,
+    engines: report.engines?.used ?? ["axe"],
+    findings: [...new Map(report.findings.map((f, index) => {
+      const fingerprint2 = baselineFingerprint(f, index);
+      return [fingerprint2, { fingerprint: fingerprint2, pageUrl: f.pageUrl, ruleId: f.ruleId, selector: f.selector }];
+    })).values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint))
+  };
+}
+function parseFingerprintBaseline(value) {
+  const b = value;
+  if (!b || b.kind !== "a11ygate-fingerprint-baseline" || b.schemaVersion !== 1 || !Array.isArray(b.findings) || b.findings.some((f) => !f || ["fingerprint", "pageUrl", "ruleId", "selector"].some((k) => typeof f[k] !== "string"))) {
+    throw new Error("Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1). Axe JSON baselines belong to a11ygate [ci] --baseline.");
+  }
+  if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage.");
+  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints.");
+  return b;
+}
+function parseScanReport(value) {
+  const report = value;
+  if (!report || report.kind !== "site-scan" || report.schemaVersion !== 1 || !Array.isArray(report.findings) || !Array.isArray(report.pages) || !Array.isArray(report.results)) {
+    throw new Error("Expected an A11yGate site-scan JSON report.");
+  }
+  for (const f of report.findings) {
+    if (typeof f.pageUrl !== "string" || typeof f.ruleId !== "string" || typeof f.selector !== "string" || !Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") || !Array.isArray(f.wcag)) throw new Error("Invalid scan finding.");
+    baselineFingerprint(f);
+  }
+  return report;
+}
+function applyFingerprintBaseline(report, baseline) {
+  const known = new Set(baseline.findings.map((f) => f.fingerprint));
+  const current = new Set(report.findings.map(baselineFingerprint));
+  const findings = report.findings.map((f, index) => {
+    const fingerprint2 = baselineFingerprint(f, index);
+    return { ...f, baselineFingerprint: fingerprint2, baselineStatus: known.has(fingerprint2) ? "existing" : "new" };
+  });
+  const complete = new Set(report.pages.filter((p) => p.scanStatus === "complete").flatMap((p) => [p.url, p.finalUrl]).map((url) => normalizeUrl(url) ?? url));
+  const missing = baseline.findings.filter((f) => !current.has(f.fingerprint));
+  const currentEngines = report.engines?.used ?? ["axe"];
+  const comparable = (baseline.engines ?? ["axe"]).every((engine) => currentEngines.includes(engine));
+  const fixed = missing.filter((f) => comparable && !report.engines?.errored.length && complete.has(normalizeUrl(f.pageUrl) ?? f.pageUrl)).length;
+  const summary = {
+    new: findings.filter((f) => f.baselineStatus === "new").length,
+    existing: findings.filter((f) => f.baselineStatus === "existing").length,
+    fixed,
+    unassessed: missing.length - fixed
+  };
+  const gating = gatingScanFindings(findings, report.failOn);
+  return {
+    ...report,
+    findings,
+    baseline: summary,
+    verdict: report.verdict === "ERROR" ? "ERROR" : gating.length ? "FAIL" : "PASS",
+    reason: report.verdict === "ERROR" ? report.reason : report.failOn === "none" ? "Reporting only (--fail-on none)." : `${gating.length} new finding${gating.length === 1 ? "" : "s"} at or above ${report.failOn}.`,
+    disclaimer: AUTOMATED_TESTING_DISCLAIMER
+  };
+}
+
+// lib/report-formats.ts
+var REPORT_FORMATS = ["junit", "sarif", "json", "md", "gitlab-codequality"];
+function isReportFormat(value) {
+  return REPORT_FORMATS.includes(value);
+}
+function parseFormatList(value) {
+  const parts = value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+  if (parts.length === 0) return { ok: false, error: "--format needs a value. Use junit, sarif, json, md, or gitlab-codequality." };
+  const formats = [];
+  for (const part of parts) {
+    if (!isReportFormat(part)) {
+      return { ok: false, error: `Unknown format "${part}". Use junit, sarif, json, md, or gitlab-codequality.` };
+    }
+    if (!formats.includes(part)) formats.push(part);
+  }
+  return { ok: true, formats };
+}
+function mergeFormats(existing, incoming) {
+  const formats = [...existing];
+  for (const format of incoming) {
+    if (!formats.includes(format)) formats.push(format);
+  }
+  return formats;
+}
+function formatFileName(command, format) {
+  const prefix = command === "scan" ? "a11ygate-scan" : "a11ygate";
+  if (format === "junit") return `${prefix}.junit.xml`;
+  if (format === "sarif") return `${prefix}.sarif`;
+  if (format === "gitlab-codequality") return `${prefix}.gitlab-codequality.json`;
+  if (format === "json") return `${prefix}.json`;
+  return `${prefix}.md`;
+}
+function wcagFromTags(tags) {
+  return lookupStandards(tags).flatMap(
+    (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag }] : []
+  );
+}
+function formatFindingFromScan(finding2, occurrence = 0) {
+  return {
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags,
+    wcag: finding2.wcag.map((item) => ({ number: item.number, name: item.name, level: item.level, wcag: item.wcag })),
+    pageUrl: finding2.pageUrl,
+    selector: finding2.selector,
+    selectors: finding2.selectors,
+    html: finding2.html,
+    fingerprint: finding2.baselineFingerprint ?? finding2.fingerprint,
+    baselineIdentity: baselineFingerprint(finding2, occurrence),
+    ...finding2.baselineStatus ? { baselineStatus: finding2.baselineStatus } : {},
+    ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {}
+  };
+}
+function formatReportFromScan(report) {
+  return {
+    toolName: "A11yGate",
+    version: report.version,
+    generatedAt: report.scannedAt,
+    command: "scan",
+    ...report.baseline ? { baseline: report.baseline } : {},
+    ...report.engines ? { engines: report.engines } : {},
+    verdict: report.verdict,
+    reason: report.reason,
+    startUrl: report.startUrl,
+    pages: report.pages.filter((page) => page.scanStatus === "complete").map((page) => page.url),
+    findings: report.findings.map(formatFindingFromScan)
+  };
+}
+function formatFindingFromDiffed(finding2) {
+  return {
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags,
+    wcag: wcagFromTags(finding2.tags),
+    pageUrl: finding2.url,
+    selector: finding2.selector,
+    html: finding2.html,
+    fingerprint: finding2.fingerprint,
+    status: finding2.status
+  };
+}
+function formatReportFromGate(input) {
+  const pages = [...new Set(input.currentResults.map((result) => result.url))];
+  const statusByFingerprint = new Map(input.findings.map((finding2) => [finding2.fingerprint, finding2.status]));
+  const resultsByUrl = new Map(input.currentResults.map((result) => [result.url, result]));
+  const findings = findingsFromResults(input.currentResults).map((finding2, index) => {
+    const scanFinding = toScanFinding(finding2, resultsByUrl.get(finding2.url));
+    return {
+      ...formatFindingFromDiffed({ ...finding2, status: statusByFingerprint.get(finding2.fingerprint) ?? "new" }),
+      baselineIdentity: baselineFingerprint(scanFinding, index)
+    };
+  });
+  return {
+    toolName: "A11yGate",
+    version: input.version,
+    generatedAt: input.generatedAt,
+    command: "ci",
+    verdict: input.verdict,
+    reason: input.reason,
+    projectName: input.projectName,
+    pages,
+    findings
+  };
+}
+var FORMAT_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
+
+// packages/cli/src/args.ts
+var VALUE_FLAGS = {
+  "--current": "current",
+  "-c": "current",
+  "--baseline": "baseline",
+  "-b": "baseline",
+  "--threshold": "threshold",
+  "-t": "threshold",
+  "--markdown": "markdown",
+  "-m": "markdown",
+  "--json": "json",
+  "-j": "json",
+  "--update-baseline": "updateBaseline",
+  "--manual-evidence": "manualEvidence",
+  "--format": "format",
+  "--out-dir": "outDir"
+};
+function flagName(token) {
+  const eq = token.indexOf("=");
+  if (eq === -1) return { name: token };
+  return { name: token.slice(0, eq), inline: token.slice(eq + 1) };
+}
+function parseArgs(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    return {
+      ok: true,
+      options: {
+        help: true,
+        version: false,
+        current: [],
+        baseline: [],
+        threshold: "serious",
+        formats: []
+      }
+    };
+  }
+  const current = [];
+  const baseline = [];
+  let threshold = "serious";
+  let markdown;
+  let json;
+  let updateBaseline;
+  let manualEvidence;
+  let formats = [];
+  let outDir;
+  let help = false;
+  let version = false;
+  let thresholdText;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index] ?? "";
+    if (token === "--") {
+      return { ok: false, error: "Unexpected extra arguments." };
+    }
+    if (token === "--help" || token === "-h") {
+      help = true;
+      continue;
+    }
+    if (token === "--version") {
+      version = true;
+      continue;
+    }
+    const { name, inline } = flagName(token);
+    const field = VALUE_FLAGS[name];
+    if (!field) {
+      if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
+      return { ok: false, error: `Unexpected argument ${token}.` };
+    }
+    const value = inline !== void 0 ? inline : argv[index + 1];
+    if (inline === void 0) index += 1;
+    if (value === void 0 || value.length === 0) {
+      return { ok: false, error: `${name} needs a value.` };
+    }
+    const jsonFlag = name === "--json" || name === "-j";
+    if (value.startsWith("-") && !(jsonFlag && value === "-")) {
+      return { ok: false, error: `${name} needs a value.` };
+    }
+    if (field === "current") current.push(value);
+    else if (field === "baseline") baseline.push(value);
+    else if (field === "threshold") thresholdText = value;
+    else if (field === "markdown") markdown = value;
+    else if (field === "json") json = value;
+    else if (field === "updateBaseline") updateBaseline = value;
+    else if (field === "manualEvidence") manualEvidence = value;
+    else if (field === "outDir") outDir = value;
+    else {
+      const parsed = parseFormatList(value);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      formats = mergeFormats(formats, parsed.formats);
+    }
+  }
+  if (!help && !version && thresholdText !== void 0) {
+    if (!isImpact(thresholdText)) {
+      return {
+        ok: false,
+        error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`
+      };
+    }
+    threshold = thresholdText;
+  }
+  return {
+    ok: true,
+    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence, formats, outDir }
+  };
+}
+
+// packages/cli/src/help.ts
+function helpText() {
+  return `a11ygate \u2014 accessibility regression gate for axe-core JSON
+
+Usage:
+  a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
+                       (see a11ygate init --help)
+  a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
+  a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
+  a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
+  a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
+                       (see a11ygate scan --help)
+  a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
+                       (see a11ygate evidence --help)
+
+Options:
+  -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
+                               Each file is one result, an array of results, or { "results": ... }.
+  -b, --baseline <file>        Baseline axe-core JSON. Repeatable. Omit to treat every current finding as new.
+  -t, --threshold <impact>     minor, moderate, serious, or critical. Default: serious.
+                               Exit 1 only when a new finding is at or above this impact.
+  -m, --markdown <file>        Also write the Markdown summary to this file. It is always printed.
+  -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
+      --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
+      --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
+      --format <fmt>           Output format: junit, sarif, json, md, or gitlab-codequality. Repeat or comma-separate for several.
+                               Requires --out-dir. Exit codes are unchanged.
+      --out-dir <dir>          Write a11ygate.json and a11ygate.md here, plus any --format files
+                               (a11ygate.junit.xml, a11ygate.sarif).
+  -h, --help                   Show this help.
+      --version                Show the version.
+
+Exit codes:
+  0  No detected new finding is at or above the threshold; existing debt/unassessed scope remain.
+  1  At least one new finding is at or above the threshold.
+  2  Incomplete scan coverage, unsafe outputs, invalid evidence, or unreadable arguments/JSON.
+
+Examples:
+  npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
+  npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
+  npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
+
+A file larger than 8 MB is refused. The same diff and gate as the web app are used.
+Coverage and manual-evidence flags are included in 0.2.0.
+PASS is not legal advice or certification. Baseline updates never clear the current gate result.
+`;
+}
+
+// lib/scan/engines/locators.ts
+async function resolveElementKeys(page, findings) {
+  const keys = await page.evaluate((selectors) => selectors.map((selector) => {
+    try {
+      let element = null;
+      if (selector.startsWith("/") || selector.startsWith("xpath=")) {
+        const nodes = document.evaluate(selector.replace(/^xpath=/, ""), document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE);
+        if (nodes.snapshotLength === 1) element = nodes.snapshotItem(0);
+      } else {
+        const nodes = document.querySelectorAll(selector);
+        if (nodes.length === 1) element = nodes[0];
+      }
+      if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
+      const parts = [];
+      while (element) {
+        const tag = element.localName;
+        let index = 1;
+        let sibling = element.previousElementSibling;
+        while (sibling) {
+          if (sibling.localName === tag) index += 1;
+          sibling = sibling.previousElementSibling;
+        }
+        parts.unshift(`${tag}:nth-of-type(${index})`);
+        element = element.parentElement;
+      }
+      return parts.join(">");
+    } catch {
+      return null;
+    }
+  }), findings.map((f) => f.selector));
+  return findings.map((f, i) => keys[i] ? { ...f, elementKey: keys[i] } : f);
+}
+
+// packages/cli/src/scan.ts
+import { mkdir, readFile as readFile3, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
+import path3 from "node:path";
+import { createServer } from "node:net";
+
+// lib/scan/engines/optional.ts
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
+var require2 = createRequire(import.meta.url);
+var normalize = (results) => results.findings;
+async function localScript(packageName, script) {
+  try {
+    return await readFile(require2.resolve(`${packageName}/${script}`), "utf8");
+  } catch {
+    throw new Error(`Missing ${packageName} engine files. Install with: npm install --save-dev ${packageName}`);
+  }
+}
+function finding(engine, url, ruleId, selector, snippet, helpUrl, wcagSc) {
+  return {
+    engine,
+    url,
+    ruleId,
+    selector,
+    snippet,
+    helpUrl,
+    impact: "serious",
+    wcagSc: wcagSc ?? [...WCAG_RULE_MAP[engine]?.[ruleId] ?? []]
+  };
+}
+function createHtmlcsEngine() {
+  return {
+    id: "htmlcs",
+    displayName: "HTML_CodeSniffer",
+    async run({ page }, url) {
+      await page.evaluate(await localScript("html_codesniffer", "build/HTMLCS.js"));
+      const issues = await page.evaluate(async () => {
+        const htmlcs = window.HTMLCS;
+        return await new Promise((resolve) => {
+          htmlcs.process("WCAG2AA", document, () => resolve(htmlcs.getMessages().map((m) => {
+            const parts = [];
+            let element = m.element;
+            while (element) {
+              const parent = element.parentElement;
+              parts.unshift(`${element.localName}:nth-child(${parent ? Array.from(parent.children).indexOf(element) + 1 : 1})`);
+              element = parent;
+            }
+            return { code: m.code, type: m.type, message: m.msg, selector: parts.join(" > "), snippet: m.element?.outerHTML ?? "" };
+          })));
+        });
+      });
+      return { raw: issues, findings: issues.filter((i) => i.type === 1).map((i) => {
+        const sc = i.code.match(/Guideline\d+_\d+\.(\d+)_(\d+)_(\d+)/);
+        return finding(
+          "htmlcs",
+          url,
+          i.code,
+          i.selector,
+          i.snippet.slice(0, 2e3),
+          "https://squizlabs.github.io/HTML_CodeSniffer/Standards/WCAG2/",
+          sc ? [`${sc[1]}.${sc[2]}.${sc[3]}`] : []
+        );
+      }) };
+    },
+    normalize
+  };
+}
+function createIbmEngine() {
+  return {
+    id: "ibm",
+    displayName: "IBM Equal Access",
+    async run({ page }, url) {
+      await page.evaluate(await localScript("accessibility-checker-engine", "ace.js"));
+      const native = await page.evaluate(async () => {
+        const ace = window.ace;
+        const report = await new ace.Checker().check(document, ["IBM_Accessibility"]);
+        return { raw: report, issues: report.results.filter((issue) => issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL").map((i) => ({
+          ruleId: i.ruleId,
+          selector: i.path?.dom ?? "",
+          snippet: i.snippet ?? ""
+        })) };
+      });
+      return { raw: native.raw, findings: native.issues.map((i) => finding(
+        "ibm",
+        url,
+        i.ruleId,
+        i.selector,
+        i.snippet,
+        `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`
+      )) };
+    },
+    normalize
+  };
+}
+function createLighthouseEngine() {
+  return {
+    id: "lighthouse",
+    displayName: "Lighthouse accessibility",
+    async run({ page, browserURL }, url) {
+      let lighthouse;
+      let puppeteer;
+      try {
+        [lighthouse, puppeteer] = await Promise.all([import("lighthouse"), import("puppeteer-core")]);
+      } catch {
+        throw new Error("Missing Lighthouse engine packages. Install with: npm install --save-dev lighthouse puppeteer-core");
+      }
+      if (!browserURL) throw new Error("Lighthouse requires the shared Chromium debugging endpoint.");
+      const browser = await puppeteer.connect({ browserURL, defaultViewport: null });
+      try {
+        const cdp = await page.context().newCDPSession(page);
+        const { targetInfo } = await cdp.send("Target.getTargetInfo");
+        await cdp.detach();
+        const target = browser.targets().find((t) => t._targetId === targetInfo.targetId);
+        const current = await target?.page();
+        if (!current) throw new Error("Could not attach Lighthouse to the existing page.");
+        const result = await lighthouse.snapshot(current, { flags: {
+          onlyCategories: ["accessibility"],
+          logLevel: "silent",
+          disableStorageReset: true,
+          formFactor: "desktop",
+          screenEmulation: { disabled: true }
+        } });
+        if (!result) throw new Error("Lighthouse returned no report.");
+        if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
+        const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
+        if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
+        return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
+          const details = a.details;
+          const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
+          return (nodes.length ? nodes : [{}]).map((n) => finding(
+            "lighthouse",
+            url,
+            a.id,
+            n.selector ?? "",
+            n.snippet ?? "",
+            a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
+          ));
+        }) };
+      } finally {
+        await browser.disconnect();
+      }
+    },
+    normalize
+  };
+}
+
+// lib/scan/robots.ts
+var ROBOTS_AGENT = "a11ygate";
+function parseRobots(text, agent = ROBOTS_AGENT) {
+  const groups = [];
+  let current = null;
+  let lastWasAgent = false;
+  for (const raw of text.split(/\r\n|\r|\n/)) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (key === "user-agent") {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (!current) continue;
+    if (key === "disallow" || key === "allow") {
+      if (value === "") continue;
+      current.rules.push({ allow: key === "allow", pattern: value });
+    }
+  }
+  const name = agent.toLowerCase();
+  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
+  return { rules: rules2 };
+}
+function patternToRegExp(pattern) {
+  const anchored = pattern.endsWith("$");
+  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}
+function isAllowedByRobots(robots, pathAndQuery) {
+  if (!robots || robots.rules.length === 0) return true;
+  let best = null;
+  for (const rule of robots.rules) {
+    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
+    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
+      best = rule;
+    }
+  }
+  return best ? best.allow : true;
+}
+function robotsAllowsUrl(robots, url) {
+  const parsed = new URL(url);
+  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
+}
+async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
+    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
+    const text = (await response.text()).slice(0, 512 * 1024);
+    return { rules: parseRobots(text), note: "robots.txt honoured." };
+  } catch {
+    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// lib/scan/crawl.ts
+var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function clampPages(requested) {
+  if (!Number.isFinite(requested) || requested < 1) return 1;
+  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
+}
+async function crawl(options) {
+  const start = normalizeUrl(options.startUrl);
+  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
+  const origin = new URL(start).origin;
+  const maxPages = clampPages(options.maxPages);
+  const sleep = options.sleep ?? defaultSleep;
+  const crawling = maxPages > 1;
+  const queue = [start];
+  const seen = /* @__PURE__ */ new Set([start]);
+  const pages = [];
+  const skipped = [];
+  const skippedSeen = /* @__PURE__ */ new Set();
+  const skip = (entry) => {
+    const key = entry.reason + " " + entry.url;
+    if (skippedSeen.has(key)) return;
+    skippedSeen.add(key);
+    skipped.push(entry);
+  };
+  let visits = 0;
+  while (queue.length > 0) {
+    const url = queue.shift();
+    if (pages.length >= maxPages) {
+      skip({ url, reason: "cap" });
+      continue;
+    }
+    if (!robotsAllowsUrl(options.robots, url)) {
+      skip({ url, reason: "robots" });
+      continue;
+    }
+    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
+    visits += 1;
+    options.log?.(`Scanning ${url}`);
+    const outcome = await options.visit(url, crawling);
+    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
+      skip({ url, reason: "redirected-off-origin" });
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
+      continue;
+    }
+    if (outcome.result || outcome.analysed) {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
+    } else {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
+    }
+    if (!crawling) continue;
+    const base = outcome.finalUrl || url;
+    for (const href of outcome.links) {
+      const link = classifyLink(href, base, origin);
+      if (!link.ok) {
+        skip({ url: link.url, reason: link.reason, from: url });
+        continue;
+      }
+      if (seen.has(link.url)) continue;
+      seen.add(link.url);
+      queue.push(link.url);
+    }
+  }
+  return { pages, skipped };
 }
 
 // lib/scan/engines/axe.ts
@@ -2131,6 +2211,33 @@ function toSarif(report, options = {}) {
   return stringify(log);
 }
 
+// lib/export-gitlab-codequality.ts
+var severities = { critical: "critical", serious: "major", moderate: "minor", minor: "info" };
+function sourcePath(finding2) {
+  const file = finding2.source?.file.replace(/\\/g, "/").replace(/^(\.\/)+/, "");
+  if (!file || file.startsWith("/") || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(file) || file.split("/").some((part) => part === ".." || !part)) return;
+  return file;
+}
+function toGitlabCodeQuality(report) {
+  const issues = report.findings.map((finding2, index) => {
+    const file = sourcePath(finding2);
+    const mapped = file && Number.isInteger(finding2.source?.startLine) && finding2.source.startLine >= 1;
+    const begin = mapped ? finding2.source.startLine : 1;
+    const end = mapped && Number.isInteger(finding2.source?.endLine) && finding2.source.endLine >= begin ? finding2.source.endLine : void 0;
+    return {
+      description: `${finding2.help} \u2014 URL: ${finding2.pageUrl} \u2014 selector: ${finding2.selector || "(unlocated)"} \u2014 ${FORMAT_DISCLAIMER}`,
+      check_name: finding2.ruleId,
+      // Exact R18 identity, without hashing or using the legacy report fingerprint.
+      fingerprint: finding2.baselineIdentity ?? baselineFingerprint({ ...finding2, fingerprint: finding2.fingerprint ?? "", selectors: finding2.selectors ?? [finding2.selector] }, index),
+      severity: finding2.impact ? severities[finding2.impact] : "info",
+      location: { path: mapped ? file : pageUrlToRepoRelativePath(finding2.pageUrl), lines: { begin, ...end !== void 0 ? { end } : {} } }
+    };
+  });
+  issues.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  return `${JSON.stringify(issues, null, 2)}
+`;
+}
+
 // packages/cli/src/output-paths.ts
 import { lstat, realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -2152,80 +2259,6 @@ async function assertSafeOutputs(cwd, inputs, outputs) {
     }
     protectedPaths.push(id);
   }
-}
-
-// lib/scan/baseline.ts
-function baselineFingerprint(finding2, occurrence = 0) {
-  if (finding2.engines) {
-    const [page, locator, sc, rule] = JSON.parse(finding2.fingerprint);
-    return JSON.stringify([normalizeUrl(page) ?? page, normalizeLocator(locator) || ["unlocated", occurrence], [...sc].sort(), rule]);
-  }
-  return JSON.stringify([
-    normalizeUrl(finding2.pageUrl) ?? finding2.pageUrl,
-    finding2.selectors.some((selector) => selector.trim()) ? finding2.selectors.map(normalizeLocator) : ["unlocated", occurrence],
-    finding2.ruleId,
-    [...new Set(finding2.wcag.map((c) => c.number))].sort()
-  ]);
-}
-function createFingerprintBaseline(report) {
-  return {
-    kind: "a11ygate-fingerprint-baseline",
-    schemaVersion: 1,
-    disclaimer: AUTOMATED_TESTING_DISCLAIMER,
-    engines: report.engines?.used ?? ["axe"],
-    findings: [...new Map(report.findings.map((f, index) => {
-      const fingerprint2 = baselineFingerprint(f, index);
-      return [fingerprint2, { fingerprint: fingerprint2, pageUrl: f.pageUrl, ruleId: f.ruleId, selector: f.selector }];
-    })).values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint))
-  };
-}
-function parseFingerprintBaseline(value) {
-  const b = value;
-  if (!b || b.kind !== "a11ygate-fingerprint-baseline" || b.schemaVersion !== 1 || !Array.isArray(b.findings) || b.findings.some((f) => !f || ["fingerprint", "pageUrl", "ruleId", "selector"].some((k) => typeof f[k] !== "string"))) {
-    throw new Error("Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1). Axe JSON baselines belong to a11ygate [ci] --baseline.");
-  }
-  if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage.");
-  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints.");
-  return b;
-}
-function parseScanReport(value) {
-  const report = value;
-  if (!report || report.kind !== "site-scan" || report.schemaVersion !== 1 || !Array.isArray(report.findings) || !Array.isArray(report.pages) || !Array.isArray(report.results)) {
-    throw new Error("Expected an A11yGate site-scan JSON report.");
-  }
-  for (const f of report.findings) {
-    if (typeof f.pageUrl !== "string" || typeof f.ruleId !== "string" || typeof f.selector !== "string" || !Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") || !Array.isArray(f.wcag)) throw new Error("Invalid scan finding.");
-    baselineFingerprint(f);
-  }
-  return report;
-}
-function applyFingerprintBaseline(report, baseline) {
-  const known = new Set(baseline.findings.map((f) => f.fingerprint));
-  const current = new Set(report.findings.map(baselineFingerprint));
-  const findings = report.findings.map((f, index) => {
-    const fingerprint2 = baselineFingerprint(f, index);
-    return { ...f, baselineFingerprint: fingerprint2, baselineStatus: known.has(fingerprint2) ? "existing" : "new" };
-  });
-  const complete = new Set(report.pages.filter((p) => p.scanStatus === "complete").flatMap((p) => [p.url, p.finalUrl]).map((url) => normalizeUrl(url) ?? url));
-  const missing = baseline.findings.filter((f) => !current.has(f.fingerprint));
-  const currentEngines = report.engines?.used ?? ["axe"];
-  const comparable = (baseline.engines ?? ["axe"]).every((engine) => currentEngines.includes(engine));
-  const fixed = missing.filter((f) => comparable && !report.engines?.errored.length && complete.has(normalizeUrl(f.pageUrl) ?? f.pageUrl)).length;
-  const summary = {
-    new: findings.filter((f) => f.baselineStatus === "new").length,
-    existing: findings.filter((f) => f.baselineStatus === "existing").length,
-    fixed,
-    unassessed: missing.length - fixed
-  };
-  const gating = gatingScanFindings(findings, report.failOn);
-  return {
-    ...report,
-    findings,
-    baseline: summary,
-    verdict: report.verdict === "ERROR" ? "ERROR" : gating.length ? "FAIL" : "PASS",
-    reason: report.verdict === "ERROR" ? report.reason : report.failOn === "none" ? "Reporting only (--fail-on none)." : `${gating.length} new finding${gating.length === 1 ? "" : "s"} at or above ${report.failOn}.`,
-    disclaimer: AUTOMATED_TESTING_DISCLAIMER
-  };
 }
 
 // packages/cli/src/baseline.ts
@@ -2370,7 +2403,7 @@ function scanHelpText() {
 
 Usage:
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
-                      [--format junit|sarif|json|md] [--json <file>] [--markdown <file>]
+                      [--format junit|sarif|json|md|gitlab-codequality] [--json <file>] [--markdown <file>]
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
@@ -2380,7 +2413,7 @@ Options:
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
-  --format <fmt>       Also write junit, sarif, json, or md into --out-dir. Repeat or comma-separate.
+  --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
                        Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
@@ -2604,6 +2637,9 @@ async function writeScanReport(report, options, io, engine) {
   if (options.outDir && options.formats.includes("junit")) {
     extra.push([path3.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
+  if (options.outDir && options.formats.includes("gitlab-codequality")) {
+    extra.push([path3.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+  }
   if (options.outDir && options.formats.includes("sarif")) {
     extra.push([path3.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
   }
@@ -2656,7 +2692,7 @@ async function runReport(argv, io = {}) {
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
   if (!argv[0] || argv[0].startsWith("-") || argv.includes("--help") || argv.includes("-h")) {
     (argv.includes("--help") || argv.includes("-h") ? io.stdout ?? ((s) => process.stdout.write(s)) : stderr)(
-      "Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif] [--fail-on <impact>]\n"
+      "Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif,gitlab-codequality] [--fail-on <impact>]\n"
     );
     return argv.includes("--help") || argv.includes("-h") ? 0 : 2;
   }
@@ -2883,7 +2919,7 @@ function engineText(engine) {
   return `${engine.id} ${engine.version ?? "(version not recorded)"} \u2014 ${engine.ruleSet.name}${engine.ruleSet.tags ? ` [${engine.ruleSet.tags.join(", ")}]` : ""}${engine.status === "errored" ? " \u2014 errored" : ""}`;
 }
 function frontPageMarkdown({ report, engines, commit, contents }) {
-  const severities = ["critical", "serious", "moderate", "minor", "unknown"];
+  const severities2 = ["critical", "serious", "moderate", "minor", "unknown"];
   return [
     `# A11yGate evidence pack \u2014 ${cell(report.startUrl)}`,
     "",
@@ -2909,7 +2945,7 @@ function frontPageMarkdown({ report, engines, commit, contents }) {
     "",
     "| Severity | Findings |",
     "| --- | --- |",
-    ...severities.map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
+    ...severities2.map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
     "",
     "Full findings: `scan/a11ygate-scan.md` and `scan/a11ygate-scan.html`.",
     "",
@@ -2935,7 +2971,7 @@ function frontPageMarkdown({ report, engines, commit, contents }) {
   ].join("\n");
 }
 function frontPageHtml({ report, engines, commit, contents }) {
-  const severities = ["critical", "serious", "moderate", "minor", "unknown"];
+  const severities2 = ["critical", "serious", "moderate", "minor", "unknown"];
   const pages = report.pages.map((p) => `<tr><td><code>${esc2(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc2(p.scanStatus)}${p.error ? " \u2014 " + esc2(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
   return `<!doctype html>
 <html lang="en">
@@ -2969,7 +3005,7 @@ a{color:#0b57d0}
 <table><caption>Pages</caption><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 <h2>Automated result</h2>
 <p>Verdict: <strong>${esc2(report.verdict)}</strong> (fail on: ${esc2(report.failOn)}). ${esc2(report.reason)}</p>
-<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${severities.map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("")}</tbody></table>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${severities2.map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("")}</tbody></table>
 <p>Full findings: <a href="scan/a11ygate-scan.html">detailed scan report (HTML)</a> and <code>scan/a11ygate-scan.md</code>.</p>
 <h2>What automated testing cannot cover</h2>
 <p>This pack records what automated rules detected on the pages listed above. It does not assess:</p>
@@ -4629,6 +4665,7 @@ async function run(argv, io = {}) {
       [formatFileName("ci", "md"), markdown]
     ]);
     if (options.formats.includes("junit")) files.set(formatFileName("ci", "junit"), toJunit(formatReport));
+    if (options.formats.includes("gitlab-codequality")) files.set(formatFileName("ci", "gitlab-codequality"), toGitlabCodeQuality(formatReport));
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
