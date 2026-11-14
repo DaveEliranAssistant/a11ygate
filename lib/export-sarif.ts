@@ -4,6 +4,7 @@ import { attribution } from '@/lib/scan/engines/dedupe';
 import { SITE_URL } from '@/lib/copy';
 import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport, type FormatWcag } from '@/lib/report-formats';
 import { impactRank } from '@/lib/gate';
+import { componentGroupKey, groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import type { Impact as ImpactName } from '@/lib/types';
 
 export const SARIF_SCHEMA_URL = 'https://json.schemastore.org/sarif-2.1.0.json';
@@ -74,6 +75,7 @@ type SarifResult = {
     };
     logicalLocations: Array<{ fullyQualifiedName: string; kind: string; name: string }>;
   }>;
+  relatedLocations?: Array<SarifResult['locations'][number] & { id: number; message: { text: string } }>;
   fingerprints?: Record<string, string>;
   partialFingerprints: { primaryLocationLineHash: string; a11ygate?: string };
   properties: Record<string, unknown>;
@@ -383,8 +385,33 @@ function buildRun(
     };
   });
 
+  const shared = new Map(groupSharedComponents(findings).filter((g) => g.likelySharedComponent).map((g) => [g.key, g]));
+  const members = new Map<string, FormatFinding[]>();
+  for (const f of findings) {
+    const key = componentGroupKey(f);
+    if (!shared.has(key)) continue;
+    const list = members.get(key) ?? [];
+    list.push(f);
+    members.set(key, list);
+  }
   const results = kept.map((finding) => {
     const result = toSarifResult(finding, ruleIndex);
+    const key = componentGroupKey(finding);
+    const group = shared.get(key);
+    if (group) {
+      const examples = [...(members.get(key) ?? [])].sort(compareFindings);
+      const pages = new Set<string>([finding.pageUrl]);
+      const related = examples.filter((f) => {
+        if (pages.has(f.pageUrl)) return false;
+        pages.add(f.pageUrl);
+        return true;
+      }).slice(0, limits.maxLocationsPerResult);
+      result.relatedLocations = related.map((f, index) => ({
+        ...toSarifResult(f, ruleIndex).locations[0]!, id: index + 1,
+        message: { text: `Likely shared component: ${f.ruleId} on ${f.pageUrl}; selector: ${f.selector}` },
+      }));
+      result.properties.likelySharedComponent = { key, pageCount: group.pageCount, findingCount: group.findingCount, relatedLocationsTruncated: Math.max(0, group.pageCount - 1 - related.length) };
+    }
     if (result.locations.length > limits.maxLocationsPerResult) {
       result.locations = result.locations.slice(0, limits.maxLocationsPerResult);
     }
@@ -415,6 +442,7 @@ function buildRun(
     results,
     properties: {
       disclaimer: FORMAT_DISCLAIMER,
+      sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
       ...(report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {}),
       verdict: report.verdict,
       reason: report.reason,
@@ -466,7 +494,7 @@ function shrinkSnippets(log: SarifLog, maxChars: number): void {
       if (result.message.text.length > maxChars) {
         result.message.text = `${result.message.text.slice(0, maxChars)}…`;
       }
-      for (const location of result.locations) {
+      for (const location of [...result.locations, ...(result.relatedLocations ?? [])]) {
         const snippet = location.physicalLocation.region.snippet;
         if (snippet && snippet.text.length > maxChars) {
           snippet.text = `${snippet.text.slice(0, maxChars)}…`;
@@ -528,7 +556,7 @@ export function applyGitHubSizeBudget(log: SarifLog, maxGzipBytes: number): Sari
     shrinkSnippets(log, 0);
     for (const run of log.runs) {
       for (const result of run.results) {
-        for (const location of result.locations) {
+        for (const location of [...result.locations, ...(result.relatedLocations ?? [])]) {
           delete location.physicalLocation.region.snippet;
         }
       }

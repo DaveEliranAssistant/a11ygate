@@ -54,14 +54,14 @@ function section(html: string, id: string): string {
   const start = html.indexOf(`<section id="${id}"`);
   expect(start, `section #${id}`).toBeGreaterThan(-1);
   const rest = html.slice(start);
-  const end = rest.search(/\n<section id="(?:summary|top-fixes|by-wcag|by-page|how-to-fix|limits)"|\n<\/main>/);
+  const end = rest.search(/\n<section id="(?:summary|top-fixes|shared-components|by-wcag|by-page|how-to-fix|limits)"|\n<\/main>/);
   return rest.slice(0, end);
 }
 
 describe('HTML report v2 sections (snapshots)', () => {
   const html = scanHtmlV2(report());
 
-  it.each(['summary', 'top-fixes', 'by-wcag', 'by-page', 'how-to-fix', 'limits'])('section #%s', (id) => {
+  it.each(['summary', 'top-fixes', 'shared-components', 'by-wcag', 'by-page', 'how-to-fix', 'limits'])('section #%s', (id) => {
     expect(section(html, id)).toMatchSnapshot();
   });
 

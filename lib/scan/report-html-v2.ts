@@ -17,6 +17,7 @@ import { normalizeUrl } from '@/lib/scan/url';
 import { attribution } from '@/lib/scan/engines/dedupe';
 import { AUTOMATED_LIMITS, AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { impactRank } from '@/lib/gate';
+import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { findingGuidance } from '@/lib/guidance';
 import { understandingUrl } from '@/lib/mapping';
 import { groupByCriterion, scanHtml, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
@@ -184,8 +185,17 @@ function topFixesSection(rules: RuleSummary[]): string {
     : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc(r.ruleId)}</strong></a> ${badge(r.impact)} — ${esc(r.help)}<br><span class="muted">${plural(r.pages.length, 'page')} affected; ${plural(r.occurrences, 'occurrence')}${r.newOccurrences ? `; ${r.newOccurrences} new` : ''}; priority score ${r.score}. ${r.wcag.length ? 'WCAG ' + esc(r.wcag.map((c) => c.number).join(', ')) : 'Best practice'}.</span></li>`).join('')}</ol>`;
   return `<section id="top-fixes" aria-labelledby="top-fixes-h">
 <h2 id="top-fixes-h">Top ${TOP_FIXES_LIMIT} fixes</h2>
-<p class="muted">Ordered by impact weight × pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Fixing a shared component usually clears every page it appears on.</p>
+<p class="muted">Ordered by impact weight × pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Review likely shared components below to assess whether one fix may address multiple pages.</p>
 ${body}
+</section>`;
+}
+
+function sharedComponentsSection(report: ScanReport): string {
+  const groups = groupSharedComponents(report.findings).filter((g) => g.likelySharedComponent);
+  return `<section id="shared-components" aria-labelledby="shared-components-h">
+<h2 id="shared-components-h">Likely shared components</h2>
+<p>${esc(SHARED_COMPONENT_DISCLAIMER)}</p>
+${groups.length ? groups.map((g) => `<section><h3>${esc(g.ruleId)} — likely shared component on ${plural(g.pageCount, 'page')}</h3><p>${plural(g.findingCount, 'finding')}; normalized selector: <code>${esc(g.normalizedSelector)}</code></p><ul>${g.examples.map((f) => `<li>Example page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>HTML: <code>${esc(f.html)}</code></li>`).join('')}</ul></section>`).join('') : '<p>No likely shared components detected across pages.</p>'}
 </section>`;
 }
 
@@ -314,6 +324,7 @@ ${STYLE}
 <nav aria-label="Report sections"><ul>
 <li><a href="#summary">Executive summary</a></li>
 <li><a href="#top-fixes">Top ${TOP_FIXES_LIMIT} fixes</a></li>
+<li><a href="#shared-components">Likely shared components</a></li>
 <li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
 <li><a href="#by-page">Findings by page</a></li>
 <li><a href="#how-to-fix">How to fix, by rule</a></li>
@@ -323,6 +334,7 @@ ${STYLE}
 <main>
 ${summarySection(report)}
 ${topFixesSection(rules)}
+${sharedComponentsSection(report)}
 ${byWcagSection(report, rules)}
 ${byPageSection(report)}
 ${howToFixSection(rules)}

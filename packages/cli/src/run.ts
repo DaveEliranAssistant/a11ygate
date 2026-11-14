@@ -1,3 +1,4 @@
+import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { mkdir, readFile, realpath, stat, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,6 +128,8 @@ function reportJson(input: {
       generatedAt: input.generatedAt,
       coverage: input.diff.coverage,
       baselineReview: baselineReview(input.currentResults, input.diff),
+      sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
+      sharedComponentGroups: groupSharedComponents([...input.diff.newFindings, ...input.diff.stillOpen].map((f) => ({ ...f, pageUrl: f.url }))),
       manualChecks: input.manualChecks,
       manualEvidenceNotice: 'Self-reported human evidence, not identity-verified or automatically assessed; never improves the automated gate. Unrecorded scopes remain unassessed.',
       counts: {

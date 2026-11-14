@@ -253,6 +253,7 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
       ],
       "properties": {
         "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "sharedComponentDisclaimer": "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.",
         "enginesUsed": [
           "axe",
           "ibm"
@@ -407,6 +408,7 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
       ],
       "properties": {
         "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "sharedComponentDisclaimer": "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.",
         "enginesUsed": [
           "axe",
           "ibm"

@@ -4,7 +4,7 @@ import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
-import { groupFindings } from '@/lib/group';
+import { SHARED_COMPONENT_DISCLAIMER, groupSharedComponents, type SharedComponentGroup, groupFindings } from '@/lib/group';
 import { CRITERIA, lookupStandards, type Criterion } from '@/lib/mapping';
 import { normalizeAxeResults, toLegacyFinding } from '@/lib/scan/engines/normalized';
 import type { CrawlResult, SkippedLink } from '@/lib/scan/crawl';
@@ -88,6 +88,8 @@ export type ScanReport = {
   pages: ScanPageSummary[];
   skipped: SkippedLink[];
   findings: ScanFinding[];
+  sharedComponentDisclaimer?: string;
+  sharedComponentGroups?: SharedComponentGroup[];
   boundaries: string[];
   /** Raw per-page axe results; valid `--current` input for the A11yGate gate. */
   results: AxeResults[];
@@ -233,6 +235,8 @@ export function buildScanReport(input: {
     pages,
     skipped: input.crawl.skipped,
     findings,
+    sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
+    sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
       if (index === 2 && input.authenticated) return 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.';
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== undefined))) {
