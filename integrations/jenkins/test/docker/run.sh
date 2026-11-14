@@ -39,7 +39,7 @@ for name in ['package.json', 'package-lock.json', 'tsconfig.json', 'packages', '
     target = dest / name
     target.parent.mkdir(parents=True, exist_ok=True)
     if src.is_dir():
-        shutil.copytree(src, target, ignore=shutil.ignore_patterns('node_modules', 'dist', '.gradle', 'build', '.env*', '.npmrc'))
+        shutil.copytree(src, target, ignore=shutil.ignore_patterns('node_modules', 'dist', '.gradle', 'build', '.env*', '.npmrc', '__pycache__'))
     else:
         shutil.copy2(src, target)
 shutil.copy2(root / 'integrations/jenkins/test/docker/Dockerfile', context / 'Dockerfile')
@@ -47,6 +47,6 @@ PY
 docker build --progress=plain -t "$image" "$context" 2>&1 | tee "$output/docker-build.log"
 # Everything, including Jenkins's API, is on container loopback; no host ports,
 # host network, privileged mode, Docker socket mount, or credentials.
-docker run -d --name "$name" --shm-size=1g "$image" >/dev/null
+docker run -d --name "$name" --network none --shm-size=1g "$image" >/dev/null
 docker exec -d "$name" node /opt/a11ygate/integrations/jenkins/test/docker/fixtures.mjs
 python3 "$root/integrations/jenkins/test/docker/verify.py" "$name" "$output"

@@ -100,6 +100,12 @@ class A11yGateTest extends BasePipelineTest {
   }
 
   @Test
+  void commaSeparatedFormatsTrimWhitespaceAndDropEmptyEntries() {
+    script.call([url: 'http://127.0.0.1/', formats: ' junit, , sarif '])
+    assertTrue(lastSh.contains('--format junit,sarif'))
+  }
+
+  @Test
   void setupErrorFailsTheBuild() {
     nextExit = 2
     def error = assertThrows(Exception) { script.call([url: 'http://127.0.0.1:4173/']) }

@@ -6,8 +6,8 @@ import subprocess
 import sys
 import time
 
-container, output = sys.argv[1:]
-output = pathlib.Path(output)
+container = ''
+output = pathlib.Path('.')
 BASE = 'http://127.0.0.1:8080'
 
 
@@ -76,11 +76,19 @@ def verify(fixture):
             pass
 
 
-until('JCasC jobs and Jenkins startup', lambda: api('/job/clean/api/json'))
-headers = request('/api/json', '-I')
-version = next(line.split(':', 1)[1].strip() for line in headers.splitlines()
-               if line.lower().startswith('x-jenkins:'))
-assert version == '2.580.2', f'Unexpected Jenkins version: {version}'
-print(f'Jenkins {version}', flush=True)
-summaries = [verify(fixture) for fixture in ('bad', 'clean')]
-(output / 'summary.md').write_text(f'Tested on Jenkins {version}\n\n' + '\n\n'.join(summaries) + '\n')
+def main():
+    global container, output
+    container, directory = sys.argv[1:]
+    output = pathlib.Path(directory)
+    until('JCasC jobs and Jenkins startup', lambda: api('/job/clean/api/json'))
+    headers = request('/api/json', '-I')
+    version = next(line.split(':', 1)[1].strip() for line in headers.splitlines()
+                   if line.lower().startswith('x-jenkins:'))
+    assert version == '2.580.2', f'Unexpected Jenkins version: {version}'
+    print(f'Jenkins {version}', flush=True)
+    summaries = [verify(fixture) for fixture in ('bad', 'clean')]
+    (output / 'summary.md').write_text(f'Tested on Jenkins {version}\n\n' + '\n\n'.join(summaries) + '\n')
+
+
+if __name__ == '__main__':
+    main()

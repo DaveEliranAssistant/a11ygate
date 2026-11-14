@@ -15,7 +15,7 @@ JCasC, Pipeline, Git, Timestamper, and JUnit plugins. It executes the unchanged
 `examples/jenkins/Jenkinsfile`, loading the real `vars/a11yGate.groovy` through a
 local Git shared library. Independent BAD and clean jobs have fresh workspaces.
 Both fixture HTTP servers and Jenkins listen on **127.0.0.1 inside the container**.
-No ports are published. The host reads Jenkins's HTTP API through `docker exec
+The runtime container uses `--network none`; only loopback is available. No ports are published. The host reads Jenkins's HTTP API through `docker exec
 curl`; CSRF crumbs and anonymous session cookies are local, temporary state.
 No credentials, external controller, remote library checkout, or third-party
 site scans are involved. Package, plugin, image, and browser downloads occur
