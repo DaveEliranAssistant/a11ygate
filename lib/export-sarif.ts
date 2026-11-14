@@ -61,6 +61,8 @@ type SarifRegion = {
 };
 
 type SarifResult = {
+  baselineState?: 'new' | 'unchanged';
+  suppressions?: { kind: 'external'; status: 'accepted'; justification: string }[];
   ruleId: string;
   ruleIndex?: number;
   level: SarifLevel;
@@ -300,6 +302,10 @@ function toSarifResult(finding: FormatFinding, ruleIndex: Map<string, number>): 
     ruleId: finding.ruleId,
     ...(index !== undefined ? { ruleIndex: index } : {}),
     level: sarifLevel(finding.impact),
+    // SARIF 2.1.0 §3.27.24: https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html
+    ...(finding.baselineStatus ? { baselineState: finding.baselineStatus === 'existing' ? 'unchanged' as const : 'new' as const } : {}),
+    ...(finding.baselineStatus ? { suppressions: finding.baselineStatus === 'existing'
+      ? [{ kind: 'external' as const, status: 'accepted' as const, justification: 'Existing finding accepted in the fingerprint baseline; remains accessibility debt.' }] : [] } : {}),
     message: {
       text: `${finding.help} (${finding.impact ?? 'unspecified'}) at ${finding.selector} on ${finding.pageUrl}${finding.engines ? '; ' + attribution(finding) : ''}`,
     },
@@ -412,6 +418,7 @@ function buildRun(
       ...(report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {}),
       verdict: report.verdict,
       reason: report.reason,
+      ...(report.baseline ? { baseline: report.baseline } : {}),
       command: report.command,
       engine,
       ...(report.startUrl ? { startUrl: report.startUrl } : {}),

@@ -30,6 +30,8 @@ export const SCAN_BOUNDARIES = [
 export type ScanCriterion = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag' | 'en301549'>;
 
 export type ScanFinding = Partial<Agreement> & {
+  baselineStatus?: 'new' | 'existing';
+  baselineFingerprint?: string;
   pageUrl: string;
   ruleId: string;
   impact: Impact | null;
@@ -56,6 +58,7 @@ export type ScanPageSummary = {
 };
 
 export type ScanReport = {
+  baseline?: import('./baseline').BaselineSummary;
   engineResults?: EnginePageResult[];
   engines?: ReturnType<typeof engineSummary>;
   disclaimer?: string;
@@ -112,7 +115,7 @@ export function toScanFinding(finding: Finding, result: AxeResults): ScanFinding
 
 export function gatingScanFindings(findings: readonly ScanFinding[], failOn: FailOn): ScanFinding[] {
   if (failOn === 'none') return [];
-  return findings.filter((f) => meetsThreshold(f.impact, failOn));
+  return findings.filter((f) => f.baselineStatus !== 'existing' && meetsThreshold(f.impact, failOn));
 }
 
 /** 0 = nothing at or above --fail-on, 1 = at least one finding meets it. Errors (2) are decided by the caller. */
@@ -286,7 +289,7 @@ function heading(value: string): string {
 }
 
 function mdFinding(f: ScanFinding): string {
-  return `- **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 
 export function scanMarkdown(report: ScanReport): string {
@@ -303,6 +306,7 @@ export function scanMarkdown(report: ScanReport): string {
     '',
     `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${report.axeVersion ?? 'n/a'}; A11yGate ${report.version}.`,
     '',
+    ...(report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, '', AUTOMATED_TESTING_DISCLAIMER, ''] : []),
     '## Pages',
     '',
     '| Page | HTTP | Status | Findings |',
@@ -344,7 +348,7 @@ function safeHref(url: string): string {
 }
 
 function htmlFinding(f: ScanFinding): string {
-  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 
 function htmlGroups(title: string, groups: ScanGroup[]): string {
@@ -382,7 +386,7 @@ a{color:#0b57d0}
 <p>${esc(report.reason)}</p>
 <p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${esc(report.axeVersion ?? 'n/a')}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
-<h2>Pages</h2>
+${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups('Findings by WCAG criterion', groupByCriterion(report.findings))}
 ${htmlGroups('Findings by severity', groupBySeverity(report.findings))}

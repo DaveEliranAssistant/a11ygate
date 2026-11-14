@@ -110,3 +110,11 @@ See [engine documentation](https://github.com/DaveEliranAssistant/a11ygate/blob/
 for offline behavior, licensing and the opt-in report fields.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Fingerprint baselines
+
+Use `a11ygate baseline create <scan.json|out-dir>` to record existing findings,
+then `a11ygate scan <url> --baseline .a11ygate-baseline.json` to gate new findings.
+Saved scans can be compared with `a11ygate report <scan.json|out-dir> --baseline <file>`.
+See [baseline mode](../../docs/baseline-mode.md) for examples and exporter behavior.
+The separate `a11ygate [ci] --baseline <axe.json>` format remains unchanged.

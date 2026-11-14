@@ -22,6 +22,7 @@ export type SourceLocation = {
 export type FormatWcag = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag'>;
 
 export type FormatFinding = Partial<Agreement> & {
+  baselineStatus?: 'new' | 'existing';
   ruleId: string;
   impact: Impact | null;
   help: string;
@@ -37,6 +38,7 @@ export type FormatFinding = Partial<Agreement> & {
 };
 
 export type FormatReport = {
+  baseline?: ScanReport['baseline'];
   engines?: ScanReport['engines'];
   toolName: 'A11yGate';
   version: string;
@@ -104,7 +106,8 @@ export function formatFindingFromScan(finding: ScanFinding): FormatFinding {
     pageUrl: finding.pageUrl,
     selector: finding.selector,
     html: finding.html,
-    fingerprint: finding.fingerprint,
+    fingerprint: finding.baselineFingerprint ?? finding.fingerprint,
+    ...(finding.baselineStatus ? { baselineStatus: finding.baselineStatus } : {}),
     ...(finding.engines ? { engines: finding.engines, confidence: finding.confidence } : {}),
   };
 }
@@ -115,6 +118,7 @@ export function formatReportFromScan(report: ScanReport): FormatReport {
     version: report.version,
     generatedAt: report.scannedAt,
     command: 'scan',
+    ...(report.baseline ? { baseline: report.baseline } : {}),
     ...(report.engines ? { engines: report.engines } : {}),
     verdict: report.verdict,
     reason: report.reason,

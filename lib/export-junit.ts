@@ -82,7 +82,7 @@ export function toJunit(report: FormatReport): string {
   const cases = [...failed, ...passing].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name),
   );
-  const failures = failed.length;
+  const failures = failed.filter((g) => g.findings.some((f) => f.baselineStatus !== 'existing')).length;
   const tests = cases.length;
   const timestamp = escapeXml(report.generatedAt);
   const properties = [
@@ -93,16 +93,18 @@ export function toJunit(report: FormatReport): string {
     property('reason', report.reason),
     property('command', report.command),
   ];
+  if (report.baseline) properties.push(...Object.entries(report.baseline).map(([key, value]) => property(`baseline-${key}`, String(value))));
   if (report.engines) properties.push(property('engines-used', report.engines.used.join(', ')), property('engines-errored', JSON.stringify(report.engines.errored)));
   if (report.startUrl) properties.push(property('startUrl', report.startUrl));
   if (report.projectName) properties.push(property('projectName', report.projectName));
 
   const testcases = cases.map((item) => {
     const attrs = `classname="${escapeXml(item.classname)}" name="${escapeXml(item.name)}" time="0"`;
-    if (item.findings.length === 0) return `    <testcase ${attrs}/>`;
+    if (item.findings.length === 0 || item.findings.every((f) => f.baselineStatus === 'existing')) return `    <testcase ${attrs}/>`;
+    const failingItem = { ...item, findings: item.findings.filter((f) => f.baselineStatus !== 'existing') };
     const type = escapeXml(item.name);
-    const message = escapeXml(failureMessage(item));
-    const body = escapeXml(failureBody(item));
+    const message = escapeXml(failureMessage(failingItem));
+    const body = escapeXml(failureBody(failingItem));
     return `    <testcase ${attrs}>\n      <failure message="${message}" type="${type}">${body}</failure>\n    </testcase>`;
   });
 

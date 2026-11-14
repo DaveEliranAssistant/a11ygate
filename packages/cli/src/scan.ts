@@ -1,5 +1,5 @@
 import { resolveElementKeys } from '@/lib/scan/engines/locators';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:net';
 import { ENGINE_IDS, createHtmlcsEngine, createIbmEngine, createLighthouseEngine, type EngineId } from '@/lib/scan/engines/optional';
@@ -14,6 +14,10 @@ export { toAxeResults } from '@/lib/scan/engines/axe';
 import { toJunit } from '@/lib/export-junit';
 import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromScan, mergeFormats, parseFormatList, type ReportFormat } from '@/lib/report-formats';
+import { assertSafeOutputs } from './output-paths';
+import { applyFingerprintBaseline, parseFingerprintBaseline } from '@/lib/scan/baseline';
+import type { FingerprintBaseline } from '@/lib/scan/baseline';
+import { readScanInput } from './baseline';
 
 export type ScanOptions = {
   help: boolean;
@@ -22,6 +26,7 @@ export type ScanOptions = {
   failOn: FailOn;
   delayMs: number;
   outDir?: string;
+  baseline?: string;
   json?: string;
   markdown?: string;
   html?: string;
@@ -35,7 +40,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format']);
+const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ['axe'] };
@@ -89,7 +94,8 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     } else if (name === '--delay-ms') {
       if (!/^\d+$/.test(value) || Number(value) > 60_000) return { ok: false, error: '--delay-ms needs a whole number of milliseconds from 0 to 60000.' };
       options.delayMs = Number(value);
-    } else if (name === '--out-dir') options.outDir = value;
+    } else if (name === '--baseline') options.baseline = value;
+    else if (name === '--out-dir') options.outDir = value;
     else if (name === '--json') options.json = value;
     else if (name === '--markdown') options.markdown = value;
     else if (name === '--html') options.html = value;
@@ -123,6 +129,7 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --baseline <file>    Fingerprint baseline from baseline create; gate only new findings.
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
@@ -176,6 +183,8 @@ export type ScanIo = {
   now?: () => Date;
   version?: string;
   engine?: ScanEngineFactory;
+  /** Saved scan input protected against output aliases. */
+  reportInput?: string;
   fetch?: FetchLike;
   sleep?: (ms: number) => Promise<void>;
 };
@@ -307,6 +316,14 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   }
   for (const warning of options.warnings) stderr(`${warning}\n`);
 
+  let baseline: FingerprintBaseline | undefined;
+  try {
+    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile(path.resolve(cwd, options.baseline), 'utf8')));
+  } catch (error) {
+    stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}\n`);
+    return 2;
+  }
+
   const userAgent = scanUserAgent(version);
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? (globalThis.fetch as unknown as FetchLike);
@@ -345,7 +362,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     return 2;
   }
 
-  const report = buildScanReport({
+  let report = buildScanReport({
     crawl: result,
     version,
     scannedAt: now().toISOString(),
@@ -357,6 +374,14 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     robotsNote: robots.note,
     engineResults: engine.engineResults,
   });
+  if (baseline) report = applyFingerprintBaseline(report, baseline);
+  return writeScanReport(report, options, io, engine);
+}
+
+async function writeScanReport(report: import('@/lib/scan/report').ScanReport, options: ScanOptions, io: ScanIo, engine?: ScanEngine): Promise<number> {
+  const cwd = io.cwd ?? process.cwd();
+  const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const markdown = scanMarkdown(report);
 
@@ -381,12 +406,17 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
         [options.html, options.html ? scanHtml(report) : ''],
       ];
   try {
+    if (options.baseline || io.reportInput) {
+      await assertSafeOutputs(cwd, [options.baseline, io.reportInput].filter((f): f is string => !!f),
+        [...targets.map(([file]) => file).filter((f): f is string => !!f),
+          ...(options.outDir ? options.engines.map((id) => path.join(options.outDir!, 'engines', `${id}.json`)) : [])]);
+    }
     if (options.outDir) await mkdir(path.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
       const evidenceDir = path.resolve(cwd, options.outDir, 'engines');
       await mkdir(evidenceDir, { recursive: true });
       for (const id of options.engines) {
-        const native = engine.rawEngineResults?.filter((e) => e.engine === id);
+        const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === 'axe' ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
         await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
       }
@@ -396,11 +426,39 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    stderr(`Could not write the scan report${code ? ` (${code})` : ''}.\n`);
+    stderr(`Could not write the scan report${code ? ` (${code})` : ''}: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
   }
 
   stdout(options.json === '-' ? json : markdown);
-  if (report.engineResults?.some((e) => e.status === 'errored')) return 2;
-  return report.verdict === 'FAIL' ? 1 : scanExitCode(report.findings, options.failOn);
+  if (report.verdict === 'ERROR' || report.engineResults?.some((e) => e.status === 'errored')) return 2;
+  return report.verdict === 'FAIL' ? 1 : scanExitCode(report.findings, report.failOn);
+}
+
+/** Re-export a saved scan without launching a browser or touching the network. */
+export async function runReport(argv: readonly string[], io: ScanIo = {}): Promise<number> {
+  const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
+  if (!argv[0] || argv[0].startsWith('-') || argv.includes('--help') || argv.includes('-h')) {
+    ((argv.includes('--help') || argv.includes('-h')) ? io.stdout ?? ((s: string) => process.stdout.write(s)) : stderr)(
+      'Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif] [--fail-on <impact>]\n');
+    return (argv.includes('--help') || argv.includes('-h')) ? 0 : 2;
+  }
+  const parsed = parseScanArgs(['https://saved-report.invalid', ...argv.slice(1)]);
+  if (!parsed.ok) { stderr(parsed.error + '\n'); return 2; }
+  try {
+    const cwd = io.cwd ?? process.cwd();
+    let report = await readScanInput(argv[0], cwd);
+    if (argv.some((a) => a === '--fail-on' || a.startsWith('--fail-on='))) {
+      const failOn = parsed.options.failOn;
+      const failing = scanExitCode(report.findings, failOn);
+      report = { ...report, failOn, verdict: report.verdict === 'ERROR' ? 'ERROR' : failing ? 'FAIL' : 'PASS',
+        reason: report.verdict === 'ERROR' ? report.reason : `${failing ? 'At least one finding is' : 'No finding is'} at or above ${failOn}.` };
+    }
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile(path.resolve(cwd, parsed.options.baseline), 'utf8'))));
+    const source = path.resolve(cwd, argv[0]);
+    const reportInput = (await stat(source)).isDirectory() ? path.join(source, 'a11ygate-scan.json') : source;
+    const engines = report.engines?.used ?? ['axe'];
+    if (engines.some((id) => !(ENGINE_IDS as readonly string[]).includes(id))) throw new Error('Unknown engine in saved report.');
+    return await writeScanReport(report, { ...parsed.options, engines: engines as EngineId[] }, { ...io, reportInput });
+  } catch (error) { stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}\n`); return 2; }
 }
