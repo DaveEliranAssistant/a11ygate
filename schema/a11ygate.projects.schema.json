@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.projects.schema.json",
+  "title": "A11yGate multi-project runs",
+  "description": "Each project references a separate scan configuration. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["projects"],
+  "properties": {
+    "projects": {
+      "type": "array", "minItems": 1, "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "config"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$", "description": "Unique portable output directory name."},
+          "config": {"type": "string", "minLength": 1, "description": "Scan YAML path relative to the projects file; its paths resolve relative to that config file."}
+        }
+      }
+    }
+  }
+}
