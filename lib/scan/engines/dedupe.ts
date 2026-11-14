@@ -5,7 +5,7 @@ import type { EnginePageResult } from './types';
 import { WCAG_RULE_MAP } from './wcag-map';
 
 export type Agreement = { engines: string[]; confidence: { confirmedBy: number; enginesRan: number; agreement: number } };
-export type MergedFinding = NormalizedFinding & Agreement;
+export type MergedFinding = NormalizedFinding & Agreement & { states?: string[] };
 
 /** Conservative text fallback; DOM-resolved elementKey handles CSS/XPath equivalence.
  * Never collapse descendant/child combinators, case-sensitive values or different indexes.
@@ -31,7 +31,7 @@ export function normalizeLocator(locator: string): string {
  * successfully completed engines on that page (errors excluded, also reported).
  * This measures agreement, not probability of conformance. Highest impact wins.
  */
-export function dedupeFindings(results: readonly EnginePageResult[]): MergedFinding[] {
+export function dedupeFindings(results: readonly EnginePageResult[], interactionStates = false): MergedFinding[] {
   const completed = results.filter((r) => r.status === 'complete');
   const enginesByPage = new Map<string, Set<string>>();
   for (const r of completed) {
@@ -54,7 +54,8 @@ export function dedupeFindings(results: readonly EnginePageResult[]): MergedFind
         const engines = [...new Set([...(existing?.engines ?? []), result.engine])].sort();
         const enginesRan = enginesByPage.get(page)!.size;
         const representative = existing && impactRank(existing.impact) >= impactRank(f.impact) ? existing : f;
-        merged.set(key, { ...representative, url: page, wcagSc: sc ? [sc] : [], engines,
+        const states = interactionStates ? [...new Set([...(existing?.states ?? []), ...(new URL(result.url).hash ? [result.url] : [])])] : [];
+        merged.set(key, { ...representative, url: interactionStates ? representative.url : page, ...(states.length ? { states } : {}), wcagSc: sc ? [sc] : [], engines,
           confidence: { confirmedBy: engines.length, enginesRan, agreement: engines.length / enginesRan } });
       }
     }

@@ -158,6 +158,111 @@
           "x-cli": ["--header-env"]
         }
       }
+    },
+    "interactions": {
+      "description": "Opt-in route states. --interactions reads this list from a local JSON file.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route",
+          "name",
+          "steps"
+        ],
+        "properties": {
+          "route": {
+            "type": "string",
+            "pattern": "^/(?!/)[^#\\s]*$"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "action",
+                "selector"
+              ],
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "click",
+                    "press",
+                    "wait"
+                  ]
+                },
+                "selector": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "action": {
+                        "const": "press"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "key"
+                    ],
+                    "properties": {
+                      "key": {}
+                    }
+                  },
+                  "else": {
+                    "not": {
+                      "required": [
+                        "key"
+                      ],
+                      "properties": {
+                        "key": {}
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "x-cli": [
+        "--interactions"
+      ]
+    },
+    "autoInteractions": {
+      "description": "Opt in to opening collapsed controls and popup buttons, individually.",
+      "type": "boolean",
+      "x-cli": [
+        "--auto-interactions"
+      ]
+    },
+    "interactionBudget": {
+      "description": "Maximum attempted interaction steps per route, shared by explicit and auto states. Default 10.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "x-cli": [
+        "--interaction-budget"
+      ]
     }
   }
 }

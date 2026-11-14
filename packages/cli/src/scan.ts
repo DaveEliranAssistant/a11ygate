@@ -1,3 +1,5 @@
+import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
+import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
 import { prepareAuth, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
 import { AuthRedactor } from '@/lib/scan/redact';
@@ -29,6 +31,9 @@ import { readScanInput } from './baseline';
 import { loadEffectiveConfig } from './effective-config';
 
 export type ScanOptions = AuthOptions & {
+  interactions?: string | InteractionState[];
+  autoInteractions?: boolean;
+  interactionBudget?: number;
   start?: string;
   waitOn?: string;
   storybook?: string;
@@ -61,7 +66,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
+const VALUE_FLAGS = new Set(['--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -80,6 +85,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? undefined : token.slice(eq + 1);
 
+    if (name === '--auto-interactions') {
+      if (inline !== undefined) return { ok: false, error: '--auto-interactions takes no value.' };
+      options.autoInteractions = true; continue;
+    }
     if (name === '--ignore-robots') {
       if (inline !== undefined) return { ok: false, error: '--ignore-robots takes no value.' };
       options.ignoreRobots = true; continue;
@@ -107,7 +116,13 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--start') options.start = value;
+    if (name === '--interactions') {
+      try { options.interactions = value.trim().startsWith('[') ? parseInteractionStates(JSON.parse(value)) : value; }
+      catch { return { ok: false, error: 'Invalid interaction states.' }; }
+    } else if (name === '--interaction-budget') {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return { ok: false, error: '--interaction-budget must be from 1 to 100.' };
+      options.interactionBudget = Number(value);
+    } else if (name === '--start') options.start = value;
     else if (name === '--wait-on') options.waitOn = value;
     else if (name === '--storybook') options.storybook = value;
     else if (name === '--include' || name === '--exclude') {
@@ -197,6 +212,9 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --interactions <file> Load opt-in route states from local JSON (click, press, wait).
+  --auto-interactions Open collapsed/popup controls one at a time (default off).
+  --interaction-budget <n> Maximum attempted steps per route (1–100, default 10).
   --start <cmd>         Run a trusted local shell command; requires --wait-on. Stops its process group after scanning.
   --wait-on <url>       Wait for loopback HTTP 2xx (same origin); --timeout-ms sets readiness deadline (default 30000).
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
@@ -240,7 +258,7 @@ Opt-in engine peers (install only those selected):
 IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
 See docs/engines.md for licenses and engine result/error reporting.
 
-Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only; explicit login scripts may
+Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only by default; opt-in interactions activate configured UI controls, and explicit login scripts may
 interact with the login form. Same-origin crawling only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
 
@@ -256,13 +274,14 @@ Exit codes:
 export type ScanEngine = {
   /** Native adapter outputs, archived independently of public report serialization. */
   rawEngineResults?: { engine: string; url: string; status: string; native?: unknown; error?: string }[];
+  interactionPages?: PageRecord[];
   axeVersion?: string;
   engineResults?: EnginePageResult[];
   visit: (url: string, collectLinks: boolean, signal?: AbortSignal) => Promise<VisitOutcome>;
   close: () => Promise<void>;
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -291,7 +310,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -350,7 +369,9 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     await browserServer?.close().catch(() => undefined);
     throw new ScanSetupError(auth?.script ? (error as Error).message : 'Could not initialize authentication storage state.');
   }
+  const interactionPages: PageRecord[] = [];
   return {
+    ...(interactions ? { interactionPages } : {}),
     rawEngineResults,
     ...(extended ? { engineResults } : {}),
     visit: async (url, collectLinks, signal) => {
@@ -358,7 +379,13 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
       const abort = () => { void page.close().catch(() => undefined); };
       signal?.addEventListener('abort', abort, { once: true });
       if (signal?.aborted) abort();
-      // Read-only: no clicks, no form input, no dialogs accepted.
+      // Native browser dialogs are always dismissed; DOM dialogs may be opened explicitly.
+      if (interactions) await installInteractionGuards(page);
+      let interacting = false;
+      if (interactions) await page.route('**/*', route => {
+        if (interacting && !['GET', 'HEAD', 'OPTIONS'].includes(route.request().method())) return route.abort('blockedbyclient');
+        return route.continue();
+      });
       page.on('dialog', (dialog) => void dialog.dismiss().catch(() => undefined));
       let navigating = true;
       let blockedNavigation: string | undefined;
@@ -367,7 +394,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         // request-stage pause runs on every redirect hop, before network access.
         const session = await context.newCDPSession(page);
         session.on('Fetch.requestPaused', (event) => {
-          const external = new URL(event.request.url).origin !== origin;
+          const external = new URL(event.request.url).origin !== origin || interacting;
           if (external) blockedNavigation = event.request.url;
           void session.send(external ? 'Fetch.failRequest' : 'Fetch.continueRequest', {
             requestId: event.requestId,
@@ -405,27 +432,32 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
           const routes = (window as unknown as { __a11ygateRoutes?: string[] }).__a11ygateRoutes ?? [];
           return [...Array.from(document.querySelectorAll('a[href]')).slice(0, 10000).map((a) => (a as HTMLAnchorElement).href), ...routes].slice(0, 10000);
         }) : [];
-        let result: import('@/lib/types').AxeResults | undefined;
-        for (const id of engines) {
-          if (id === 'axe' && axeEngine) {
-            nativeByPage.delete(page);
-            const execution = await runEngine(axeEngine, page, url);
-            rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeByPage.get(page) } : {}), url });
-            if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
-            if (!extended && execution.status === 'errored') throw new Error(execution.error);
-            if (execution.status === 'complete') result = execution.native;
-            if (extended) engineResults.push(execution.status === 'complete'
-              ? { url, engine: id, status: 'complete', findings: execution.findings }
-              : { url, engine: id, status: 'errored', error: execution.error });
-          } else if (id !== 'axe') {
-            const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
-            rawEngineResults.push({ ...execution, url });
-            if (execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
-            engineResults.push(execution.status === 'complete'
-              ? { url, engine: id, status: 'complete', findings: execution.findings }
-              : { url, engine: id, status: 'errored', error: execution.error });
+        const scanPage = async (scanUrl: string) => {
+          let result: import('@/lib/types').AxeResults | undefined;
+          for (const id of engines) {
+            if (id === 'axe' && axeEngine) {
+              nativeByPage.delete(page);
+              const execution = await runEngine(axeEngine, page, scanUrl);
+              rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeByPage.get(page) } : {}), url: scanUrl });
+              if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
+              if (!extended && execution.status === 'errored') throw new Error(execution.error);
+              if (execution.status === 'complete') result = execution.native;
+              if (extended) engineResults.push(execution.status === 'complete'
+                ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
+                : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
+            } else if (id !== 'axe') {
+              const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
+              rawEngineResults.push({ ...execution, url: scanUrl });
+              if (execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
+              engineResults.push(execution.status === 'complete'
+                ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
+                : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
+            }
           }
-        }
+          return result;
+        };
+        const result = await scanPage(url);
+        if (interactions) interactionPages.push(...await scanInteractionStates(page, url, interactions, scanPage, value => { interacting = value; }, timeoutMs));
         return { status, finalUrl, contentType, links, result, ...(extended ? { analysed: true } : {}) };
       } catch (error) {
         const detail = navigating && error instanceof Error && error.name === 'TimeoutError' ? `Page timeout after ${timeoutMs}ms.` : error instanceof Error ? error.message.split('\n')[0] : 'Navigation failed.';
@@ -480,6 +512,13 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     stdout(scanHelpText());
     return 0;
   }
+  let interactions: InteractionOptions | undefined;
+  try {
+    if (options.interactions || options.autoInteractions) {
+      const states = typeof options.interactions === 'string' ? JSON.parse(await readFile(path.resolve(cwd, options.interactions), 'utf8')) : options.interactions ?? [];
+      interactions = { states: parseInteractionStates(states), auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+    }
+  } catch { stderr('Could not read valid interaction states from the local JSON file.\n'); return 2; }
   let auth: PreparedAuth;
   try { auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor); }
   catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
@@ -517,7 +556,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}) });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
@@ -545,6 +584,11 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     await engine.close();
   }
 
+  if (engine.interactionPages) {
+    // Concurrent visits may finish out of order; retain crawl route order in reports.
+    const states = result.pages.flatMap(page => engine.interactionPages!.filter(state => normalizeUrl(state.url) === page.url));
+    result.pages.push(...states);
+  }
   const first = result.pages[0];
   if (!first || first.scanStatus !== 'complete') {
     stderr(`Start page could not be scanned: ${first?.error ?? 'unreachable'}\n`);
@@ -570,6 +614,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
       ignoreRobots: options.ignoreRobots,
     },
     engineResults: engine.engineResults,
+    interactions: !!interactions,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
@@ -610,8 +655,8 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
         [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ''],
       ];
   try {
-    if (options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
-      await assertSafeOutputs(cwd, [options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f): f is string => !!f),
+    if (typeof options.interactions === 'string' || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
+      await assertSafeOutputs(cwd, [typeof options.interactions === 'string' ? options.interactions : undefined, options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f): f is string => !!f),
         [...targets.map(([file]) => file).filter((f): f is string => !!f),
           ...(options.outDir ? options.engines.map((id) => path.join(options.outDir!, 'engines', `${id}.json`)) : [])]);
     }

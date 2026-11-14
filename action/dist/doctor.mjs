@@ -520,6 +520,22 @@ function adaptersForEnv(env = {}) {
   return listed.includes("stub") ? [...BUILTIN_ADAPTERS, stubAdapter("stub")] : BUILTIN_ADAPTERS;
 }
 
+// lib/scan/interactions.ts
+function parseInteractionStates(value) {
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Interactions must be a list of at most 100 states.");
+  const names = /* @__PURE__ */ new Set();
+  for (const state of value) {
+    if (!state || typeof state !== "object" || Object.keys(state).some((k) => !["route", "name", "steps"].includes(k)) || typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route) || typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-") || !Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error("Each interaction needs route (/path), unique name (letters, numbers, _ or -; auto- is reserved), and 1\u2013100 steps.");
+    const label = state.route + "#" + state.name;
+    if (names.has(label)) throw new Error("Interaction state labels must be unique.");
+    names.add(label);
+    for (const step of state.steps) {
+      if (!step || typeof step !== "object" || Object.keys(step).some((k) => !["action", "selector", "key"].includes(k)) || !["click", "press", "wait"].includes(step.action) || typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512 || (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0)) throw new Error("Interaction steps need action click/press/wait and a selector; press also needs a key.");
+    }
+  }
+  return value;
+}
+
 // lib/modelfix/config.ts
 var ON = /* @__PURE__ */ new Set(["on", "true", "1", "yes"]);
 var OFF = /* @__PURE__ */ new Set(["off", "false", "0", "no"]);
@@ -751,6 +767,111 @@ var a11ygate_schema_default = {
           "x-cli": ["--header-env"]
         }
       }
+    },
+    interactions: {
+      description: "Opt-in route states. --interactions reads this list from a local JSON file.",
+      type: "array",
+      maxItems: 100,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "route",
+          "name",
+          "steps"
+        ],
+        properties: {
+          route: {
+            type: "string",
+            pattern: "^/(?!/)[^#\\s]*$"
+          },
+          name: {
+            type: "string",
+            pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          steps: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "action",
+                "selector"
+              ],
+              properties: {
+                action: {
+                  type: "string",
+                  enum: [
+                    "click",
+                    "press",
+                    "wait"
+                  ]
+                },
+                selector: {
+                  type: "string",
+                  minLength: 1,
+                  maxLength: 512
+                },
+                key: {
+                  type: "string",
+                  minLength: 1,
+                  maxLength: 80
+                }
+              },
+              allOf: [
+                {
+                  if: {
+                    properties: {
+                      action: {
+                        const: "press"
+                      }
+                    }
+                  },
+                  then: {
+                    required: [
+                      "key"
+                    ],
+                    properties: {
+                      key: {}
+                    }
+                  },
+                  else: {
+                    not: {
+                      required: [
+                        "key"
+                      ],
+                      properties: {
+                        key: {}
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "x-cli": [
+        "--interactions"
+      ]
+    },
+    autoInteractions: {
+      description: "Opt in to opening collapsed controls and popup buttons, individually.",
+      type: "boolean",
+      "x-cli": [
+        "--auto-interactions"
+      ]
+    },
+    interactionBudget: {
+      description: "Maximum attempted interaction steps per route, shared by explicit and auto states. Default 10.",
+      type: "integer",
+      minimum: 1,
+      maximum: 100,
+      "x-cli": [
+        "--interaction-budget"
+      ]
     }
   }
 };
@@ -790,6 +911,11 @@ function scalar(raw, line) {
     return text.slice(1, -1).replace(/''/g, "'");
   }
   if (text.startsWith("[")) {
+    try {
+      const value = JSON.parse(text);
+      if (Array.isArray(value)) return value;
+    } catch {
+    }
     if (!text.endsWith("]")) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
     const inner = text.slice(1, -1).trim();
     return inner ? inner.split(",").map((item) => scalar(item, line)) : [];
@@ -806,7 +932,17 @@ function parseBlock(lines, start, indent) {
     let i2 = start;
     while (i2 < lines.length && lines[i2].indent === indent && (lines[i2].text.startsWith("- ") || lines[i2].text === "-")) {
       const item = lines[i2].text.slice(1).trim();
-      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i2].number}: lists of mappings are not supported in .a11ygate.yml.`);
+      if (item === "" || /^[^\s'"[]*:(\s|$)/.test(item)) {
+        const begin = i2++;
+        while (i2 < lines.length && lines[i2].indent > indent) i2++;
+        const children = lines.slice(begin + 1, i2);
+        const nested = item ? [{ indent: indent + 2, text: item, number: lines[begin].number }, ...children] : children;
+        if (!nested.length) throw new YamlError(`line ${lines[begin].number}: empty list item.`);
+        const [value, next] = parseBlock(nested, 0, nested[0].indent);
+        if (next !== nested.length) throw new YamlError(`line ${lines[begin].number}: unexpected list indentation.`);
+        list.push(value);
+        continue;
+      }
       list.push(scalar(item, lines[i2].number));
       i2++;
     }
@@ -912,11 +1048,13 @@ function check(schema, value, where, errors) {
     if (schema.maximum !== void 0 && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
   }
   if (typeof value === "string") {
+    if (schema.maxLength !== void 0 && value.length > schema.maxLength) errors.push(`'${label}' is too long.`);
     if (schema.minLength !== void 0 && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
     else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ""}`.trimEnd());
   }
   if (Array.isArray(value)) {
     if (schema.minItems !== void 0 && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? "" : "s"}.`);
+    if (schema.maxItems !== void 0 && value.length > schema.maxItems) errors.push(`'${label}' has too many items.`);
     if (schema.uniqueItems) {
       const duplicate = value.find((item, index) => value.indexOf(item) !== index);
       if (duplicate !== void 0) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
@@ -926,6 +1064,11 @@ function check(schema, value, where, errors) {
   if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
     const properties = schema.properties ?? {};
     const known = Object.keys(properties);
+    for (const key of schema.required ?? []) if (!Object.hasOwn(value, key)) errors.push(`'${label}.${key}' is required.`);
+    if (properties.action && properties.key) {
+      const step = value;
+      if (step.action === "press" !== Object.hasOwn(step, "key")) errors.push(`'${label}' needs key only for press actions.`);
+    }
     for (const [key, child] of Object.entries(value)) {
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
@@ -951,6 +1094,9 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  interactions: { flag: "--interactions", commands: scan, default: [] },
+  autoInteractions: { flag: "--auto-interactions", commands: scan, default: false },
+  interactionBudget: { flag: "--interaction-budget", commands: scan, default: 10 },
   url: { flag: "--url", commands: scan, default: "" },
   crawl: { flag: "--crawl", commands: scan, default: 0 },
   maxPages: { flag: "--max-pages", commands: scan, default: 1 },
@@ -1035,6 +1181,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       sources[key] = `env:${name}`;
     }
   }
+  parseInteractionStates(values.interactions);
   const remaining = [];
   const supplied = /* @__PURE__ */ new Set();
   let hasPositionalUrl = false;
@@ -1064,14 +1211,20 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (key === "ignoreRobots" && token.includes("=")) throw new Error("--ignore-robots takes no value.");
-    let value = schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
+    if (["ignoreRobots", "autoInteractions"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    let value = key === "interactions" ? (() => {
+      try {
+        return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8")));
+      } catch {
+        throw new Error("Invalid --interactions; provide a readable local JSON file containing route states.");
+      }
+    })() : schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
     if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
     if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) {
       if (key === "engines") throw new Error("Invalid --engines. Use a comma-separated list of axe,htmlcs,ibm,lighthouse.");
       throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
     }
-    if (schema.type === "array" && key !== "engines" && supplied.has(key)) {
+    if (schema.type === "array" && !["engines", "interactions"].includes(key) && supplied.has(key)) {
       const items = [...values[key], ...value];
       values[key] = key === "formats" ? [...new Set(items)] : items;
     } else values[key] = value;
@@ -1098,7 +1251,8 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (schemaAt(key).type === "boolean") {
       if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
       else if (value) prefix.push(flag);
-    } else if (Array.isArray(value)) {
+    } else if (key === "interactions") prefix.push(flag, JSON.stringify(value));
+    else if (Array.isArray(value)) {
       if (["engines", "formats"].includes(key)) {
         if (value.length) prefix.push(flag, value.join(","));
       } else for (const item of value) prefix.push(flag, String(item));

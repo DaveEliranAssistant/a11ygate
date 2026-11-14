@@ -28,6 +28,9 @@ function yamlEntry(key: string, value: unknown): string {
 }
 // Explicit expected destination, independent of the production wiring registry.
 const cases: [string, unknown, string, unknown][] = [
+  ['interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }], 'interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }]],
+  ['autoInteractions', true, 'autoInteractions', true],
+  ['interactionBudget', 4, 'interactionBudget', 4],
   ['url', 'https://other.test/', 'url', 'https://other.test/'],
   ['crawl', 7, 'maxPages', 7], ['maxPages', 31, 'maxPages', 31],
   ['maxDepth', 4, 'maxDepth', 4], ['timeoutMs', 1234, 'timeoutMs', 1234],
@@ -84,7 +87,8 @@ describe('precedence, validation and unchanged defaults', () => {
   it.each(cases)('%s: flag > env > YAML > default', async (key, yamlValue) => {
     const schema = key.split('.').reduce((node, part) => node.properties![part]!, CONFIG_SCHEMA);
     let envValue: unknown;
-    if (schema.type === 'array') envValue = key === 'engines' ? ['axe'] : key === 'formats' ? ['json'] : key.startsWith('auth.') ? ['other=OTHER'] : ['/environment/**'];
+    if (key === 'interactions') envValue = [{ route: '/env', name: 'open', steps: [{ action: 'wait', selector: '#env' }] }];
+    else if (schema.type === 'array') envValue = key === 'engines' ? ['axe'] : key === 'formats' ? ['json'] : key.startsWith('auth.') ? ['other=OTHER'] : ['/environment/**'];
     else if (schema.type === 'integer') envValue = key === 'reportVersion' ? 2 : key === 'concurrency' ? 2 : 2;
     else if (schema.type === 'boolean') envValue = false;
     else envValue = key === 'url' ? 'https://env.test/' : key === 'failOn' ? 'critical' : 'environment';
@@ -92,9 +96,9 @@ describe('precedence, validation and unchanged defaults', () => {
     const repoConfig = yamlEntry(key, yamlValue);
     expect(loadEffectiveConfig('scan', [], { repoConfig, env }).values[key]).toEqual(envValue);
     // Boolean CLI opts into true; lists replace rather than append to lower-precedence values.
-    const flagValue = key === 'ignoreRobots' ? true : yamlValue;
+    const flagValue = ['ignoreRobots', 'autoInteractions'].includes(key) ? true : yamlValue;
     const flag = CONFIG_WIRING[key]!.flag;
-    const args = key === 'ignoreRobots' ? [flag] : [flag, Array.isArray(flagValue) ? flagValue.join(',') : String(flagValue)];
+    const args = ['ignoreRobots', 'autoInteractions'].includes(key) ? [flag] : [flag, key === 'interactions' ? JSON.stringify(flagValue) : Array.isArray(flagValue) ? flagValue.join(',') : String(flagValue)];
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).values[key]).toEqual(flagValue);
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).sources[key]).toBe(`flag:${flag}`);
   });
