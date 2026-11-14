@@ -9,12 +9,16 @@ import { secretEnvValues } from '@/lib/evidence/secrets';
 
 export type AuthOptions = {
   storageState?: string;
+  sessionStorage?: string;
   loginScript?: string;
   loginTimeoutMs?: number;
   cookieEnv?: string[];
   headerEnv?: string[];
 };
+export type SessionStorageState = { origins: { origin: string; sessionStorage: { name: string; value: string }[] }[] };
+
 export type PreparedAuth = {
+  sessionStorage?: SessionStorageState;
   state?: BrowserContextOptions['storageState'];
   script?: string;
   timeout: number;
@@ -64,12 +68,33 @@ export async function prepareAuth(options: AuthOptions, cwd: string, origin: str
       auth.state = state;
     } catch { throw new Error('Could not read --storage-state: expected a Playwright storageState JSON file.'); }
   }
+  if (options.sessionStorage) {
+    try {
+      const state = JSON.parse(await readFile(path.resolve(cwd, options.sessionStorage), 'utf8'));
+      if (!state || !Array.isArray(state.origins)) throw new Error();
+      const seen = new Set<string>();
+      for (const item of state.origins) {
+        if (!item || typeof item.origin !== 'string' || !/^https?:$/.test(new URL(item.origin).protocol) || new URL(item.origin).origin !== item.origin || seen.has(item.origin) || !Array.isArray(item.sessionStorage)) throw new Error();
+        seen.add(item.origin);
+        for (const entry of item.sessionStorage) if (!entry || typeof entry.name !== 'string' || typeof entry.value !== 'string') throw new Error();
+      }
+      redactor.storage(state);
+      auth.sessionStorage = state;
+    } catch { throw new Error('Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries.'); }
+  }
   if (options.loginScript) auth.script = pathToFileURL(path.resolve(cwd, options.loginScript)).href;
   return auth;
 }
 
+/** Runs before page scripts, including frames and subsequent navigations. */
+export function restoreSessionStorage(state: SessionStorageState): void {
+  const entries = state.origins.find(item => item.origin === window.location.origin)?.sessionStorage;
+  if (entries) for (const { name, value } of entries) window.sessionStorage.setItem(name, value);
+}
+
 /** Inject only into the scan origin, including redirect hops. Never forward headers to third parties. */
-export async function installAuth(context: BrowserContext, origin: string, auth: Pick<PreparedAuth, 'cookies' | 'headers'>): Promise<void> {
+export async function installAuth(context: BrowserContext, origin: string, auth: Pick<PreparedAuth, 'cookies' | 'headers' | 'sessionStorage'>): Promise<void> {
+  if (auth.sessionStorage) await context.addInitScript(restoreSessionStorage, auth.sessionStorage);
   await context.addCookies(auth.cookies);
   if (Object.keys(auth.headers).length === 0) return;
   await context.route('**/*', async (route) => {
@@ -87,6 +112,7 @@ const { parentPort, workerData } = require('node:worker_threads');
   const browser = await chromium.connect(workerData.endpoint);
   try {
     const context = await browser.newContext({ ...workerData.contextOptions, storageState: workerData.state });
+    if (workerData.sessionStorage) await context.addInitScript({ content: '(' + workerData.restoreSessionStorage + ')(' + JSON.stringify(workerData.sessionStorage) + ')' });
     await context.addCookies(workerData.cookies);
     if (Object.keys(workerData.headers).length) await context.route('**/*', async route => {
       if (new URL(route.request().url()).origin === workerData.origin) await route.fulfill({ response: await route.fetch({ maxRedirects: 0, headers: { ...route.request().headers(), ...workerData.headers } }) });
@@ -99,7 +125,17 @@ const { parentPort, workerData } = require('node:worker_threads');
     const mod = await import(workerData.script);
     if (typeof mod.default !== 'function') throw new Error('export');
     await mod.default(page, workerData.env);
-    parentPort.postMessage({ state: await context.storageState() });
+    const origins = new Map((workerData.sessionStorage?.origins ?? []).map(item => [item.origin, item]));
+    for (const openPage of context.pages()) {
+      for (const frame of openPage.frames()) {
+        const item = await frame.evaluate(() => {
+          if (!/^https?:$/.test(location.protocol)) return null;
+          return { origin: location.origin, sessionStorage: Object.keys(sessionStorage).map(name => ({ name, value: sessionStorage.getItem(name) })) };
+        });
+        if (item) origins.set(item.origin, item);
+      }
+    }
+    parentPort.postMessage({ state: await context.storageState(), sessionStorage: { origins: [...origins.values()] } });
     await context.close();
   } finally { await browser.close(); }
 })().catch(() => parentPort.postMessage({ failed: true }));
@@ -109,6 +145,7 @@ export async function runLoginScript(endpoint: string, origin: string, auth: Pre
   return new Promise((resolve, reject) => {
     const worker = new Worker(LOGIN_WORKER, { eval: true, stdout: true, stderr: true, workerData: {
       endpoint, origin, script: auth.script, timeout: auth.timeout, env: auth.env,
+      sessionStorage: auth.sessionStorage, restoreSessionStorage: restoreSessionStorage.toString(),
       state: auth.state, cookies: auth.cookies, headers: auth.headers, contextOptions,
       playwright: createRequire(import.meta.url).resolve('playwright'),
     } });
@@ -122,6 +159,8 @@ export async function runLoginScript(endpoint: string, origin: string, auth: Pre
       clearTimeout(timer);
       if (message.failed) { fail(); return; }
       auth.redactor.storage(message.state);
+      auth.redactor.storage(message.sessionStorage);
+      auth.sessionStorage = message.sessionStorage;
       void worker.terminate();
       resolve(message.state);
     });

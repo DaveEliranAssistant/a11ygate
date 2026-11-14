@@ -1525,7 +1525,7 @@ var AuthRedactor = class {
   }
   storage(state) {
     for (const cookie of state.cookies ?? []) this.add(cookie.value);
-    for (const origin of state.origins ?? []) for (const entry of origin.localStorage ?? []) this.add(entry.value);
+    for (const origin of state.origins ?? []) for (const entry of [...origin.localStorage ?? [], ...origin.sessionStorage ?? []]) this.add(entry.value);
   }
   text(input) {
     let output = input;
@@ -1597,10 +1597,31 @@ async function prepareAuth(options, cwd, origin, env = process.env, redactor = n
       throw new Error("Could not read --storage-state: expected a Playwright storageState JSON file.");
     }
   }
+  if (options.sessionStorage) {
+    try {
+      const state = JSON.parse(await readFile(path.resolve(cwd, options.sessionStorage), "utf8"));
+      if (!state || !Array.isArray(state.origins)) throw new Error();
+      const seen = /* @__PURE__ */ new Set();
+      for (const item of state.origins) {
+        if (!item || typeof item.origin !== "string" || !/^https?:$/.test(new URL(item.origin).protocol) || new URL(item.origin).origin !== item.origin || seen.has(item.origin) || !Array.isArray(item.sessionStorage)) throw new Error();
+        seen.add(item.origin);
+        for (const entry of item.sessionStorage) if (!entry || typeof entry.name !== "string" || typeof entry.value !== "string") throw new Error();
+      }
+      redactor.storage(state);
+      auth.sessionStorage = state;
+    } catch {
+      throw new Error("Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries.");
+    }
+  }
   if (options.loginScript) auth.script = pathToFileURL(path.resolve(cwd, options.loginScript)).href;
   return auth;
 }
+function restoreSessionStorage(state) {
+  const entries = state.origins.find((item) => item.origin === window.location.origin)?.sessionStorage;
+  if (entries) for (const { name, value } of entries) window.sessionStorage.setItem(name, value);
+}
 async function installAuth(context, origin, auth) {
+  if (auth.sessionStorage) await context.addInitScript(restoreSessionStorage, auth.sessionStorage);
   await context.addCookies(auth.cookies);
   if (Object.keys(auth.headers).length === 0) return;
   await context.route("**/*", async (route) => {
@@ -1615,6 +1636,7 @@ const { parentPort, workerData } = require('node:worker_threads');
   const browser = await chromium.connect(workerData.endpoint);
   try {
     const context = await browser.newContext({ ...workerData.contextOptions, storageState: workerData.state });
+    if (workerData.sessionStorage) await context.addInitScript({ content: '(' + workerData.restoreSessionStorage + ')(' + JSON.stringify(workerData.sessionStorage) + ')' });
     await context.addCookies(workerData.cookies);
     if (Object.keys(workerData.headers).length) await context.route('**/*', async route => {
       if (new URL(route.request().url()).origin === workerData.origin) await route.fulfill({ response: await route.fetch({ maxRedirects: 0, headers: { ...route.request().headers(), ...workerData.headers } }) });
@@ -1627,7 +1649,17 @@ const { parentPort, workerData } = require('node:worker_threads');
     const mod = await import(workerData.script);
     if (typeof mod.default !== 'function') throw new Error('export');
     await mod.default(page, workerData.env);
-    parentPort.postMessage({ state: await context.storageState() });
+    const origins = new Map((workerData.sessionStorage?.origins ?? []).map(item => [item.origin, item]));
+    for (const openPage of context.pages()) {
+      for (const frame of openPage.frames()) {
+        const item = await frame.evaluate(() => {
+          if (!/^https?:$/.test(location.protocol)) return null;
+          return { origin: location.origin, sessionStorage: Object.keys(sessionStorage).map(name => ({ name, value: sessionStorage.getItem(name) })) };
+        });
+        if (item) origins.set(item.origin, item);
+      }
+    }
+    parentPort.postMessage({ state: await context.storageState(), sessionStorage: { origins: [...origins.values()] } });
     await context.close();
   } finally { await browser.close(); }
 })().catch(() => parentPort.postMessage({ failed: true }));
@@ -1640,6 +1672,8 @@ async function runLoginScript(endpoint, origin, auth, contextOptions) {
       script: auth.script,
       timeout: auth.timeout,
       env: auth.env,
+      sessionStorage: auth.sessionStorage,
+      restoreSessionStorage: restoreSessionStorage.toString(),
       state: auth.state,
       cookies: auth.cookies,
       headers: auth.headers,
@@ -1668,6 +1702,8 @@ async function runLoginScript(endpoint, origin, auth, contextOptions) {
         return;
       }
       auth.redactor.storage(message.state);
+      auth.redactor.storage(message.sessionStorage);
+      auth.sessionStorage = message.sessionStorage;
       void worker.terminate();
       resolve(message.state);
     });
@@ -3724,7 +3760,7 @@ function effectiveModelFixConfig(config2, env = process.env) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -3784,6 +3820,7 @@ function parseScanArgs(argv) {
       else if (name === "--timeout-ms") options.timeoutMs = Number(value);
       else options.concurrency = Number(value);
     } else if (name === "--storage-state") options.storageState = value;
+    else if (name === "--session-storage") options.sessionStorage = value;
     else if (name === "--login-script") options.loginScript = value;
     else if (name === "--login-timeout-ms") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 3e5) return { ok: false, error: "--login-timeout-ms must be from 1 to 300000." };
@@ -3859,6 +3896,7 @@ Options:
   --start <cmd>         Run a trusted local shell command; requires --wait-on. Stops its process group after scanning.
   --wait-on <url>       Wait for loopback HTTP 2xx (same origin); --timeout-ms sets readiness deadline (default 30000).
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
+  --session-storage <file> Read origin-scoped sessionStorage JSON (never written back).
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
   --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
   --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
@@ -4212,7 +4250,7 @@ Run a11ygate scan --help for usage.
       ignoreRobots: options.ignoreRobots
     },
     engineResults: engine.engineResults,
-    authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
+    authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
@@ -4249,10 +4287,10 @@ async function writeScanReport(report, options, io, engine) {
     [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ""]
   ];
   try {
-    if (options.baseline || io.reportInput || options.storageState || options.loginScript) {
+    if (options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
       await assertSafeOutputs(
         cwd,
-        [options.baseline, io.reportInput, options.storageState, options.loginScript].filter((f) => !!f),
+        [options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
           ...options.outDir ? options.engines.map((id) => path5.join(options.outDir, "engines", `${id}.json`)) : []

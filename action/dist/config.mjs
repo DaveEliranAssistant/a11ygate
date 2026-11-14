@@ -437,7 +437,7 @@ var AuthRedactor = class {
   }
   storage(state) {
     for (const cookie of state.cookies ?? []) this.add(cookie.value);
-    for (const origin of state.origins ?? []) for (const entry of origin.localStorage ?? []) this.add(entry.value);
+    for (const origin of state.origins ?? []) for (const entry of [...origin.localStorage ?? [], ...origin.sessionStorage ?? []]) this.add(entry.value);
   }
   text(input) {
     let output = input;

@@ -12,6 +12,18 @@ export async function serveAuthFixture(secret: string) {
     };
     if (url.pathname === '/redirect') { res.writeHead(302, { location: url.searchParams.get('to') ?? '/login' }).end(); return; }
     if (url.pathname === '/robots.txt') { res.writeHead(404).end(); return; }
+    if (url.pathname === '/session-protected' || url.pathname === '/session-next') {
+      html(`<script>
+        const token = sessionStorage.getItem('session');
+        if (token !== ${JSON.stringify(secret)}) location.replace('/login');
+        else document.addEventListener('DOMContentLoaded', () => {
+          document.querySelector('main').innerHTML = '<h1>Session protected</h1><img src="data:,"><a href="/session-next">Next page</a>';
+          document.querySelector('img').setAttribute('data-session', token);
+          sessionStorage.removeItem('session');
+        });
+      </script>`);
+      return;
+    }
     if (url.pathname === '/login') {
       html('<h1>Test login</h1><form method="post" action="/session"><label>Test password <input name="password" type="password"></label><button>Log in</button></form>');
       return;

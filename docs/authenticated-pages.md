@@ -12,8 +12,11 @@ Build the CLI with `npm run cli:build`. Authentication is opt-in:
 # Read an existing Playwright storageState file. Never write it into the repo.
 a11ygate scan http://127.0.0.1:3000/account --storage-state /secure/test-state.json --out-dir out
 
-# Run trusted login code, then scan using its cookies and localStorage.
+# Run trusted login code, then scan using its cookies, localStorage and sessionStorage.
 a11ygate scan http://127.0.0.1:3000/account --login-script ./test-login.mjs --login-timeout-ms 30000 --out-dir out
+
+# Read sessionStorage from a secure file (format below).
+a11ygate scan http://127.0.0.1:3000/account --session-storage /secure/test-session.json --out-dir out
 
 # Inject values from your shell/CI secret store; only variable names go in arguments.
 a11ygate scan http://127.0.0.1:3000/account --cookie-env session=A11YGATE_TEST_SESSION --out-dir out
@@ -57,10 +60,10 @@ infinite loops are terminated, and the browser is closed on failure.
 
 Authentication methods can be combined: storage state loads first, injected
 cookies/headers apply next, and the login script runs last. The scan uses a new
-context initialized from the login context's cookies and localStorage. Session
-storage, in-memory JavaScript sessions, client certificates, and interactive MFA
-are not transferred/supported. No updated storage state is saved. Protect and
-expire your input state file as you would a password.
+context initialized from the login context's cookies, localStorage and sessionStorage.
+In-memory JavaScript sessions, client certificates, and interactive MFA are not
+transferred/supported. No updated storage state is saved. Protect and expire your
+input state file as you would a password.
 
 A redirect to a recognizable login/SSO path, a page containing a password input,
 or HTTP 401/403 is reported as **Not authenticated**, with verdict ERROR and exit
@@ -70,7 +73,24 @@ custom identity-provider routes without a password form can evade detection.
 Check the final URL and scope in your report to confirm the intended page was
 scanned. Ordinary same-origin redirects remain supported.
 
-Cookie values, localStorage values, explicitly injected environment values,
+`--session-storage` is a per-run CLI input and accepts JSON with this shape (placeholder values only):
+
+```json
+{"origins":[{"origin":"https://test.example","sessionStorage":[{"name":"session","value":"PLACEHOLDER"}]}]}
+```
+
+Use test accounts only. Keep this file outside the repo. Origins must be exact HTTP(S)
+origins, including the port, with no path or trailing slash. Duplicate origins and
+non-string entries are rejected without echoing input. Values are installed by an
+init script before application scripts on every page load and frame navigation,
+only when the document origin matches. Other origins receive none of these values.
+The input also initializes the login context. After login, sessionStorage is captured
+from frames in pages still open when the script returns; for repeated origins the
+last captured frame wins and replaces that origin's input entries. Leave authenticated
+pages open until return. Closed tabs and origins navigated away from cannot be captured.
+No sessionStorage file is written back or included in reports.
+
+Cookie values, localStorage values, sessionStorage values, explicitly injected environment values,
 secret-named environment variables, token fields, bearer/basic authorization,
 and credential query parameters are redacted before report serialization. This
 covers JSON, Markdown, HTML, SARIF, JUnit, stdout/stderr and native engine evidence.

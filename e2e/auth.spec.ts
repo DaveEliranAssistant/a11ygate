@@ -54,7 +54,7 @@ test.afterAll(async () => {
 });
 
 test('unauthenticated redirect and HTTP denial are errors, with saved reports', async () => {
-  for (const pathname of ['/protected', '/denied']) {
+  for (const pathname of ['/protected', '/denied', '/session-protected']) {
     const out = path.join(dir, `unauth-${pathname.slice(1)}`);
     const result = await run(['scan', fixture.origin + pathname, '--out-dir', out]);
     expect(result.code).toBe(2);
@@ -66,12 +66,26 @@ test('unauthenticated redirect and HTTP denial are errors, with saved reports', 
   }
 });
 
-for (const method of ['storage-state', 'login-script', 'cookie-env', 'header-env']) {
+for (const method of ['storage-state', 'login-script', 'cookie-env', 'header-env', 'session-storage', 'session-login-script']) {
   test(`${method} scans protected content and redacts all outputs and the evidence pack`, async () => {
     const out = path.join(dir, `out-${method}`);
     let args: string[];
     let env: Record<string, string> = {};
-    if (method === 'storage-state') {
+    const session = method.startsWith('session-');
+    const target = fixture.origin + (session ? '/session-protected' : '/protected');
+    if (method === 'session-storage') {
+      const file = path.join(dir, 'session.json');
+      await writeFile(file, JSON.stringify({ origins: [{ origin: fixture.origin, sessionStorage: [{ name: 'session', value: secret }] }] }));
+      args = ['--session-storage', file];
+    } else if (method === 'session-login-script') {
+      const file = path.join(dir, 'session-login.mjs');
+      await writeFile(file, `export default async (page, env) => {
+        await page.goto(${JSON.stringify(fixture.origin + '/login')});
+        await page.evaluate(value => sessionStorage.setItem('session', value), env.VALUE);
+      };`);
+      args = ['--login-script', file];
+      env = { VALUE: secret };
+    } else if (method === 'storage-state') {
       const file = path.join(dir, 'state.json');
       await writeFile(file, JSON.stringify({ cookies: [{ name: 'session', value: encodeURIComponent(secret), domain: '127.0.0.1', path: '/', expires: -1, httpOnly: true, secure: false, sameSite: 'Lax' }], origins: [] }));
       args = ['--storage-state', file];
@@ -88,11 +102,11 @@ for (const method of ['storage-state', 'login-script', 'cookie-env', 'header-env
       env = { TEST_AUTH_SECRET: secret, TEST_AUTH_INITIAL_COOKIE: 'not-authenticated' };
     } else if (method === 'cookie-env') { args = ['--cookie-env', 'session=TEST_AUTH_COOKIE']; env = { TEST_AUTH_COOKIE: encodeURIComponent(secret) }; }
     else { args = ['--header-env', 'Authorization=TEST_AUTH_HEADER']; env = { TEST_AUTH_HEADER: `Bearer ${secret}` }; }
-    const result = await run(['scan', fixture.origin + '/protected', ...args, '--out-dir', out, '--format', 'junit,sarif,gitlab-codequality'], env);
+    const result = await run(['scan', target, ...args, ...(session ? ['--crawl', '2', '--delay-ms', '0'] : []), '--out-dir', out, '--format', 'junit,sarif,gitlab-codequality'], env);
     expect(result.code, 'protected page has a deliberate image-alt violation').toBe(1);
     const report = JSON.parse(await readFile(path.join(out, 'a11ygate-scan.json'), 'utf8'));
-    expect(report.pages[0].finalUrl).toBe(fixture.origin + '/protected');
-    expect(report.counts.pagesScanned).toBe(1);
+    expect(report.pages[0].finalUrl).toBe(target);
+    expect(report.counts.pagesScanned).toBe(session ? 2 : 1);
     expect(report.boundaries.join(' ')).toContain('Authentication was explicitly configured');
     expect(report.boundaries.join(' ')).not.toContain('without logging in');
     expect(report.findings.some((f: { ruleId: string }) => f.ruleId === 'image-alt')).toBe(true);
@@ -151,4 +165,31 @@ test('off-origin redirects are blocked before requests or injected headers leave
     expect(JSON.parse(result.stdout).skipped).toContainEqual(expect.objectContaining({ reason: 'redirected-off-origin' }));
     expect(leaked, 'headers must be scoped to the scan origin across redirects').toBe(false);
   } finally { await new Promise<void>((resolve, reject) => other.close(error => error ? reject(error) : resolve())); }
+});
+
+test('sessionStorage is not restored to a different origin', async () => {
+  const other = await serveAuthFixture(secret);
+  try {
+    const file = path.join(dir, 'isolated-session.json');
+    await writeFile(file, JSON.stringify({ origins: [{ origin: fixture.origin, sessionStorage: [{ name: 'session', value: secret }] }] }));
+    const result = await run(['scan', other.origin + '/session-protected', '--session-storage', file, '--json', '-']);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('Not authenticated');
+    expect(JSON.parse(result.stdout).counts.pagesScanned).toBe(0);
+    expect((result.stdout + result.stderr).includes(secret)).toBe(false);
+  } finally { await other.close(); }
+});
+
+test('sessionStorage input initializes the login script context', async () => {
+  const file = path.join(dir, 'initial-session.json');
+  const script = path.join(dir, 'initial-session.mjs');
+  await writeFile(file, JSON.stringify({ origins: [{ origin: fixture.origin, sessionStorage: [{ name: 'session', value: secret }] }] }));
+  await writeFile(script, `export default async page => {
+    await page.goto(${JSON.stringify(fixture.origin + '/login')});
+    if (!(await page.evaluate(() => sessionStorage.getItem('session')))) throw new Error('missing');
+  };`);
+  const result = await run(['scan', fixture.origin + '/session-protected', '--session-storage', file, '--login-script', script, '--json', '-']);
+  expect(result.code).toBe(1);
+  expect(JSON.parse(result.stdout).counts.pagesScanned).toBe(1);
+  expect((result.stdout + result.stderr).includes(secret)).toBe(false);
 });
