@@ -8,20 +8,27 @@ export const AUTO_SELECTOR = '[aria-expanded="false"], button[aria-haspopup]:not
 
 /** Validate before starting a browser. State names are report labels, not URL navigation. */
 export function parseInteractionStates(value: unknown): InteractionState[] {
-  if (!Array.isArray(value) || value.length > 100) throw new Error('Interactions must be a list of at most 100 states.');
+  if (!Array.isArray(value) || value.length > 100) throw new Error('interactions (top level): must be a list of at most 100 states.');
   const names = new Set<string>();
-  for (const state of value) {
-    if (!state || typeof state !== 'object' || Object.keys(state).some(k => !['route', 'name', 'steps'].includes(k)) ||
-      typeof state.route !== 'string' || !state.route.startsWith('/') || state.route.startsWith('//') || /[#\s]/.test(state.route) ||
-      typeof state.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith('auto-') ||
-      !Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error('Each interaction needs route (/path), unique name (letters, numbers, _ or -; auto- is reserved), and 1–100 steps.');
+  for (const [index, state] of value.entries()) {
+    const at = `interactions[${index}]`;
+    if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error(`${at}: each interaction must be an object with route, name and steps.`);
+    const extra = Object.keys(state).find(k => !['route', 'name', 'steps'].includes(k));
+    if (extra !== undefined) throw new Error(`${at}: unknown field ${JSON.stringify(extra.slice(0, 40))}; allowed fields are route, name and steps.`);
+    if (typeof state.route !== 'string' || !state.route.startsWith('/') || state.route.startsWith('//') || /[#\s]/.test(state.route)) throw new Error(`${at}.route: must be a same-site path starting with / (no #, spaces or //).`);
+    if (typeof state.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith('auto-')) throw new Error(`${at}.name: must be 1–80 letters, numbers, _ or - (auto- is reserved).`);
+    if (!Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error(`${at}.steps: must be a list of 1–100 steps.`);
     const label = state.route + '#' + state.name;
-    if (names.has(label)) throw new Error('Interaction state labels must be unique.');
+    if (names.has(label)) throw new Error(`${at}.name: interaction state labels (route + name) must be unique.`);
     names.add(label);
-    for (const step of state.steps) {
-      if (!step || typeof step !== 'object' || Object.keys(step).some(k => !['action', 'selector', 'key'].includes(k)) ||
-        !['click', 'press', 'wait'].includes(step.action) || typeof step.selector !== 'string' || !step.selector.trim() || step.selector.length > 512 ||
-        (step.action === 'press' ? typeof step.key !== 'string' || !step.key.trim() || step.key.length > 80 : step.key !== undefined)) throw new Error('Interaction steps need action click/press/wait and a selector; press also needs a key.');
+    for (const [stepIndex, step] of state.steps.entries()) {
+      const stepAt = `${at}.steps[${stepIndex}]`;
+      if (!step || typeof step !== 'object' || Array.isArray(step)) throw new Error(`${stepAt}: each step must be an object with action and selector.`);
+      const stepExtra = Object.keys(step).find(k => !['action', 'selector', 'key'].includes(k));
+      if (stepExtra !== undefined) throw new Error(`${stepAt}: unknown field ${JSON.stringify(stepExtra.slice(0, 40))}; allowed fields are action, selector and key.`);
+      if (!['click', 'press', 'wait'].includes(step.action)) throw new Error(`${stepAt}.action: must be click, press or wait.`);
+      if (typeof step.selector !== 'string' || !step.selector.trim() || step.selector.length > 512) throw new Error(`${stepAt}.selector: must be a non-empty selector of at most 512 characters.`);
+      if (step.action === 'press' ? typeof step.key !== 'string' || !step.key.trim() || step.key.length > 80 : step.key !== undefined) throw new Error(`${stepAt}.key: ${step.action === 'press' ? 'press needs a key of at most 80 characters' : 'only press steps take a key'}.`);
     }
   }
   return value as InteractionState[];

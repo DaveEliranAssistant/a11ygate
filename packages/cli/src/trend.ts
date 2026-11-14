@@ -2,6 +2,7 @@ import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_PACK_TOTAL_BYTES, parseScanReport, sha256, type EvidenceManifest } from '@/lib/evidence/pack';
 import { readZip } from '@/lib/evidence/zip';
+import { createFingerprintBaseline, parseScanReport as parseStrictScanReport } from '@/lib/scan/baseline';
 import { buildTrend, renderTrendHtml, type TrendOrder, type TrendRunInput } from '@/lib/trend';
 
 export type TrendIo = { cwd?: string; stdout?: (chunk: string) => void; stderr?: (chunk: string) => void };
@@ -56,34 +57,89 @@ export function parseTrendArgs(argv: readonly string[]): { ok: true; options: Tr
   return { ok: true, options };
 }
 
-function parseManifest(text: string): EvidenceManifest | null {
-  try {
-    const m = JSON.parse(text) as Partial<EvidenceManifest>;
-    if (m?.tool !== 'a11ygate' || m.kind !== 'evidence-pack' || m.schemaVersion !== 1 || !m.timestamps || !m.commit || !Array.isArray(m.files)) return null;
-    if (Number.isNaN(Date.parse(m.timestamps.scannedAt ?? m.timestamps.packedAt ?? ''))) return null;
-    // committedAt and branch are optional (A11Y-R48); packs made earlier have neither.
-    // Drop malformed values rather than rejecting the pack.
-    const commit = m.commit as Record<string, unknown>;
-    if (commit.committedAt !== undefined && (typeof commit.committedAt !== 'string' || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
-    if (commit.branch !== undefined && typeof commit.branch !== 'string') delete commit.branch;
-    return m as EvidenceManifest;
-  } catch {
-    return null;
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const optionalString = (v: unknown) => v === undefined || v === null || typeof v === 'string';
+
+/**
+ * Returns the manifest, or a message naming the first field the trend report reads that has the wrong shape
+ * (for example "field commit.sha must be a string"). Never throws and never echoes field values.
+ */
+export function parseManifest(text: string): EvidenceManifest | string {
+  let m: unknown;
+  try { m = JSON.parse(text); } catch { return 'not valid JSON.'; }
+  if (!isRecord(m)) return 'field (top level) must be a JSON object.';
+  if (m.tool !== 'a11ygate') return 'field tool must be "a11ygate".';
+  if (m.kind !== 'evidence-pack') return 'field kind must be "evidence-pack".';
+  if (m.schemaVersion !== 1) return 'field schemaVersion must be 1.';
+  const { timestamps, commit, files } = m;
+  if (!isRecord(timestamps)) return 'field timestamps must be an object.';
+  for (const key of ['scannedAt', 'packedAt'] as const) if (!optionalString(timestamps[key])) return `field timestamps.${key} must be a string.`;
+  if (!isRecord(commit)) return 'field commit must be an object.';
+  if (!optionalString(commit.sha)) return 'field commit.sha must be a string.';
+  if (!Array.isArray(files)) return 'field files must be a list.';
+  for (const [index, f] of files.entries()) {
+    if (!isRecord(f)) return `field files[${index}] must be an object.`;
+    if (typeof f.path !== 'string') return `field files[${index}].path must be a string.`;
+    if (typeof f.sha256 !== 'string') return `field files[${index}].sha256 must be a string.`;
   }
+  const when = timestamps.scannedAt ?? timestamps.packedAt;
+  if (Number.isNaN(Date.parse((when ?? '') as string))) return `field timestamps.${timestamps.scannedAt != null ? 'scannedAt' : 'packedAt'} must be an ISO date.`;
+  // committedAt and branch are optional (A11Y-R48); packs made earlier have neither.
+  // Drop malformed values rather than rejecting the pack.
+  if (commit.committedAt !== undefined && (typeof commit.committedAt !== 'string' || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
+  if (commit.branch !== undefined && typeof commit.branch !== 'string') delete commit.branch;
+  return m as unknown as EvidenceManifest;
+}
+
+/** First field of the scan report the trend reads that has the wrong shape, or null. */
+function scanReportProblem(report: Record<string, unknown>): string | null {
+  if (typeof report.startUrl !== 'string') return 'field startUrl must be a string';
+  if (typeof report.verdict !== 'string') return 'field verdict must be a string';
+  if (!isRecord(report.counts)) return 'field counts must be an object';
+  if (typeof report.counts.pagesScanned !== 'number') return 'field counts.pagesScanned must be a number';
+  for (const [index, p] of (report.pages as unknown[]).entries()) {
+    if (!isRecord(p)) return `field pages[${index}] must be an object`;
+    if (typeof p.url !== 'string') return `field pages[${index}].url must be a string`;
+    if (!optionalString(p.finalUrl)) return `field pages[${index}].finalUrl must be a string`;
+    if (!optionalString(p.scanStatus)) return `field pages[${index}].scanStatus must be a string`;
+  }
+  if (report.engines !== undefined) {
+    if (!isRecord(report.engines)) return 'field engines must be an object';
+    if (!Array.isArray(report.engines.used)) return 'field engines.used must be a list';
+    if (!Array.isArray(report.engines.errored)) return 'field engines.errored must be a list';
+  }
+  return null;
 }
 
 /** Validates one pack: manifest shape, scan report shape, and the scan report's SHA-256 against the manifest. */
-function readPack(source: string, files: Map<string, Uint8Array>): TrendRunInput | string {
+export function readPack(source: string, files: Map<string, Uint8Array>): TrendRunInput | string {
   const manifestData = files.get('manifest.json');
   const scanData = files.get(SCAN_PATH);
   if (!manifestData || !scanData) return `${source}: not an evidence pack (manifest.json or ${SCAN_PATH} missing).`;
   const manifest = parseManifest(Buffer.from(manifestData).toString('utf8'));
-  if (!manifest) return `${source}: manifest.json is not an A11yGate evidence-pack manifest.`;
+  if (typeof manifest === 'string') return `${source}: manifest.json is not an A11yGate evidence-pack manifest: ${manifest}`;
   const recorded = manifest.files.find((f) => f.path === SCAN_PATH);
-  if (!recorded || recorded.sha256 !== sha256(scanData)) return `${source}: ${SCAN_PATH} does not match the SHA-256 in manifest.json.`;
+  if (!recorded) return `${source}: manifest.json field files has no entry for ${SCAN_PATH}.`;
+  if (recorded.sha256 !== sha256(scanData)) return `${source}: ${SCAN_PATH} does not match the SHA-256 in manifest.json.`;
   const report = parseScanReport(Buffer.from(scanData).toString('utf8'));
-  if (!report) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report.`;
+  if (!report) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report (${scanReportFieldHint(Buffer.from(scanData).toString('utf8'))}).`;
+  // Fields the trend reads; validated here so a malformed pack is skipped instead of failing the whole run.
+  const problem = scanReportProblem(report as unknown as Record<string, unknown>);
+  if (problem) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report (${problem}).`;
+  try { parseStrictScanReport(report); createFingerprintBaseline(report); }
+  catch (error) { return `${source}: ${SCAN_PATH}: ${(error as Error).message}`; }
   return { source, manifest, report };
+}
+
+/** Names the first top-level field that makes lib/evidence/pack parseScanReport refuse the report. */
+function scanReportFieldHint(text: string): string {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return 'not valid JSON'; }
+  if (!isRecord(value)) return 'field (top level) must be a JSON object';
+  if (value.tool !== 'a11ygate') return 'field tool must be "a11ygate"';
+  if (value.kind !== 'site-scan') return 'field kind must be "site-scan"';
+  for (const key of ['pages', 'findings'] as const) if (!Array.isArray(value[key])) return `field ${key} must be a list`;
+  return !value.counts ? 'field counts is missing' : 'field options is missing';
 }
 
 async function loadPacks(dir: string, warn: (message: string) => void): Promise<TrendRunInput[]> {

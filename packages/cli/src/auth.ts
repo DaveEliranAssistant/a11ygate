@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
@@ -6,6 +5,7 @@ import path from 'node:path';
 import type { BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
+import { readJsonInput } from './input-file';
 
 export type AuthCheck = { url?: string; mustHaveSelector?: string; mustNotHaveSelector?: string; mustNotRedirectTo?: string };
 export type AuthOptions = {
@@ -23,6 +23,8 @@ export type PreparedAuth = {
   check?: AuthCheck;
   sessionStorage?: SessionStorageState;
   state?: BrowserContextOptions['storageState'];
+  /** --storage-state path as given, so later browser errors can name the file. */
+  stateFile?: string;
   script?: string;
   timeout: number;
   env: NodeJS.ProcessEnv;
@@ -34,6 +36,61 @@ export type PreparedAuth = {
 export function envMapping(value: string): { name: string; env: string } | null {
   const match = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
   return match ? { name: match[1]!, env: match[2]! } : null;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+const isHttpOrigin = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  try { const url = new URL(value); return /^https?:$/.test(url.protocol) && url.origin === value; } catch { return false; }
+};
+const isHttpUrl = (value: string): boolean => { try { return /^https?:$/.test(new URL(value).protocol); } catch { return false; } };
+const SAME_SITE = ['Strict', 'Lax', 'None'] as const;
+const nameValues = (value: unknown, field: string): void => {
+  if (!Array.isArray(value)) throw new Error(`field ${field} must be a list.`);
+  value.forEach((entry, index) => { if (!isObject(entry) || typeof entry.name !== 'string' || typeof entry.value !== 'string') throw new Error(`field ${field}[${index}] needs string name and value.`); });
+};
+
+/** Shape check for a Playwright storageState file; values are never echoed. */
+export function parseStorageState(value: unknown): NonNullable<BrowserContextOptions['storageState']> & object {
+  if (!isObject(value)) throw new Error('field (top level) must be a JSON object with cookies and origins.');
+  if (value.cookies !== undefined) {
+    if (!Array.isArray(value.cookies)) throw new Error('field cookies must be a list.');
+    value.cookies.forEach((cookie, index) => {
+      const field = `cookies[${index}]`;
+      if (!isObject(cookie) || typeof cookie.name !== 'string' || typeof cookie.value !== 'string') throw new Error(`field ${field} needs string name and value.`);
+      if (cookie.name.trim() === '') throw new Error(`field ${field}.name must not be empty.`);
+      if (cookie.url !== undefined && (typeof cookie.url !== 'string' || !isHttpUrl(cookie.url))) throw new Error(`field ${field}.url must be an http(s) URL.`);
+      if (cookie.domain !== undefined && (typeof cookie.domain !== 'string' || cookie.domain.trim() === '')) throw new Error(`field ${field}.domain must be a non-empty string.`);
+      if (cookie.path !== undefined && (typeof cookie.path !== 'string' || !cookie.path.startsWith('/'))) throw new Error(`field ${field}.path must be a string starting with /.`);
+      // Playwright needs either a url or a domain/path pair to place the cookie.
+      if (cookie.url === undefined && (cookie.domain === undefined || cookie.path === undefined)) throw new Error(`field ${field} needs url, or both domain and path.`);
+      if (cookie.expires !== undefined && (typeof cookie.expires !== 'number' || !Number.isFinite(cookie.expires) || (cookie.expires < 0 && cookie.expires !== -1))) throw new Error(`field ${field}.expires must be -1 or a non-negative Unix time in seconds.`);
+      for (const flag of ['httpOnly', 'secure'] as const) if (cookie[flag] !== undefined && typeof cookie[flag] !== 'boolean') throw new Error(`field ${field}.${flag} must be true or false.`);
+      if (cookie.sameSite !== undefined && !(SAME_SITE as readonly unknown[]).includes(cookie.sameSite)) throw new Error(`field ${field}.sameSite must be one of ${SAME_SITE.join(', ')}.`);
+    });
+  }
+  if (value.origins !== undefined) {
+    if (!Array.isArray(value.origins)) throw new Error('field origins must be a list.');
+    value.origins.forEach((origin, index) => {
+      if (!isObject(origin) || typeof origin.origin !== 'string') throw new Error(`field origins[${index}].origin must be a string.`);
+      if (origin.localStorage !== undefined) nameValues(origin.localStorage, `origins[${index}].localStorage`);
+    });
+  }
+  return value as NonNullable<BrowserContextOptions['storageState']> & object;
+}
+
+/** Validates an --session-storage file: unique http(s) origins with name/value entries. */
+export function parseSessionStorageState(value: unknown): SessionStorageState {
+  if (!isObject(value)) throw new Error('field (top level) must be a JSON object with origins.');
+  if (!Array.isArray(value.origins)) throw new Error('field origins must be a list.');
+  const seen = new Set<string>();
+  value.origins.forEach((item, index) => {
+    if (!isObject(item) || !isHttpOrigin(item.origin)) throw new Error(`field origins[${index}].origin must be an http(s) origin.`);
+    if (seen.has(item.origin)) throw new Error(`field origins[${index}].origin is listed twice.`);
+    seen.add(item.origin);
+    nameValues(item.sessionStorage, `origins[${index}].sessionStorage`);
+  });
+  return value as SessionStorageState;
 }
 
 export async function prepareAuth(options: AuthOptions, cwd: string, origin: string, env = process.env, redactor = new AuthRedactor()): Promise<PreparedAuth> {
@@ -73,25 +130,15 @@ export async function prepareAuth(options: AuthOptions, cwd: string, origin: str
     }
   }
   if (options.storageState) {
-    try {
-      const state = JSON.parse(await readFile(path.resolve(cwd, options.storageState), 'utf8'));
-      redactor.storage(state);
-      auth.state = state;
-    } catch { throw new Error('Could not read --storage-state: expected a Playwright storageState JSON file.'); }
+    try { auth.state = await readJsonInput(cwd, options.storageState, parseStorageState); }
+    catch (error) { throw new Error(`Could not read --storage-state: expected a Playwright storageState JSON file (${(error as Error).message.replace(/\.$/, '')}).`, { cause: error }); }
+    auth.stateFile = options.storageState;
+    redactor.storage(auth.state as Parameters<AuthRedactor['storage']>[0]);
   }
   if (options.sessionStorage) {
-    try {
-      const state = JSON.parse(await readFile(path.resolve(cwd, options.sessionStorage), 'utf8'));
-      if (!state || !Array.isArray(state.origins)) throw new Error();
-      const seen = new Set<string>();
-      for (const item of state.origins) {
-        if (!item || typeof item.origin !== 'string' || !/^https?:$/.test(new URL(item.origin).protocol) || new URL(item.origin).origin !== item.origin || seen.has(item.origin) || !Array.isArray(item.sessionStorage)) throw new Error();
-        seen.add(item.origin);
-        for (const entry of item.sessionStorage) if (!entry || typeof entry.name !== 'string' || typeof entry.value !== 'string') throw new Error();
-      }
-      redactor.storage(state);
-      auth.sessionStorage = state;
-    } catch { throw new Error('Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries.'); }
+    try { auth.sessionStorage = await readJsonInput(cwd, options.sessionStorage, parseSessionStorageState); }
+    catch (error) { throw new Error(`Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries (${(error as Error).message.replace(/\.$/, '')}).`, { cause: error }); }
+    redactor.storage(auth.sessionStorage);
   }
   if (options.loginScript) auth.script = pathToFileURL(path.resolve(cwd, options.loginScript)).href;
   return auth;

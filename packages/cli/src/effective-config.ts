@@ -88,8 +88,16 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     }
   }
   const parsed = parseConfigYaml(repoConfig ?? '');
-  if (!parsed.ok || validateConfig(parsed.value).length) throw new Error('Invalid .a11ygate.yml. Run a11ygate config validate to check its schema.');
-  const yaml = parsed.value;
+  const problems = parsed.ok ? validateConfig(parsed.value) : parsed.errors;
+  if (problems.length) {
+    // Name where the problem is (field or line) without echoing the value.
+    const first = problems[0]!;
+    const line = /^line \d+/.exec(first)?.[0];
+    const key = /'([^']+)'/.exec(first)?.[1];
+    const at = [line, key && `field '${key}'`].filter(Boolean).join(', ');
+    throw new Error(`Invalid .a11ygate.yml${at ? ` (${at})` : ''}. Run a11ygate config validate to check its schema.`);
+  }
+  const yaml = parsed.ok ? parsed.value : {};
   const values: Record<string, unknown> = {};
   const sources: Record<string, string> = {};
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
@@ -105,7 +113,8 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
       values[key] = value; sources[key] = `env:${name}`;
     }
   }
-  parseInteractionStates(values.interactions);
+  try { parseInteractionStates(values.interactions); }
+  catch (error) { throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${(error as Error).message}`, { cause: error }); }
   // Parse only registered options here; command-specific parsing and validation stays in the command parser.
   const remaining: string[] = [];
   const supplied = new Set<string>();
@@ -135,8 +144,19 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     if (text === undefined) throw new Error(`${name} needs a value.`);
     if (['ignoreRobots', 'autoInteractions', 'keyboard'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
     let value = key === 'interactions' ? (() => {
-      try { return parseInteractionStates(JSON.parse(text.trim().startsWith('[') ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), 'utf8'))); }
-      catch { throw new Error('Invalid --interactions; provide a readable local JSON file containing route states.'); }
+      const inline = text.trim().startsWith('[');
+      const source = inline ? '--interactions' : text;
+      let raw: string;
+      if (inline) raw = text;
+      else {
+        try { raw = readFileSync(path.resolve(io.cwd ?? process.cwd(), text), 'utf8'); }
+        catch (error) { throw new Error(`Invalid --interactions (${source}: ${(error as NodeJS.ErrnoException).code === 'ENOENT' ? 'file not found' : 'could not read the file'}); provide a readable local JSON file containing route states.`, { cause: error }); }
+      }
+      let json: unknown;
+      // No cause: JSON syntax messages can quote file content.
+      try { json = JSON.parse(raw.replace(/^\uFEFF/, '')); } catch { throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`); }
+      try { return parseInteractionStates(json); }
+      catch (error) { throw new Error(`Invalid --interactions (${source}: ${(error as Error).message.replace(/\.$/, '')}).`, { cause: error }); }
     })() : schema.type === 'array' && !['engines', 'formats'].includes(key) ? [text] : decode(text, schema);
     if (key === 'formats' && Array.isArray(value)) value = [...new Set(value)];
     // Keep legacy --crawl >20 clamping in the scan parser.

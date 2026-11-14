@@ -65,6 +65,8 @@ Run `npx a11ygate doctor` first. The most common failures, with the exact messag
 | `The job token lacks required workflow permissions: ...` | [permissions](docs/troubleshooting.md#permissions) |
 | `<path>: file not found.` or verdict INCOMPLETE (exit 2) | [gate errors](docs/troubleshooting.md#gate-errors-exit-2) |
 
+Malformed input files (`.a11ygate.yml`, fingerprint baseline, interactions, `--storage-state`, `--session-storage`, evidence pack zips) fail with a message naming the file and field, exit 2 and print no stack trace. Add `--debug` (or set `A11YGATE_DEBUG=1`) to see the stack of an unexpected error. Evidence pack zips are read in memory only; entries with unsafe paths (`..`, absolute, drive letters, backslashes) or a declared size over 64 MB are refused before anything is inflated.
+
 ## What A11yGate does not do
 
 A11yGate is an automated regression gate. It does not do a manual accessibility audit, it does not test with assistive technology (screen readers, switch access, voice control, magnifiers), it does not give legal advice, and it does not certify anything. Details and other limits: [docs/what-a11ygate-does-not-do.md](docs/what-a11ygate-does-not-do.md).

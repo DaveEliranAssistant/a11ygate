@@ -1,5 +1,6 @@
+import { debugDetail } from './fatal';
 import { execFile } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { SharedComponentGroup } from '@/lib/group';
@@ -11,6 +12,7 @@ import {
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { readScanInput } from './baseline';
 import type { RunIo } from './run';
+import { readJsonInput } from './input-file';
 
 export const REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
 Record a reviewer decision once for a likely shared component group instead of per finding.
@@ -105,12 +107,17 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
     if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
     const report = await readScanInput(args.input!, cwd);
     const baselinePath = path.resolve(cwd, args.baseline!);
-    const baseline: FingerprintBaseline = parseFingerprintBaseline(JSON.parse(await readFile(baselinePath, 'utf8')));
+    const baseline: FingerprintBaseline = await readJsonInput(cwd, args.baseline!, parseFingerprintBaseline);
     let decisions = baseline.groupDecisions ?? [];
     const groups = reviewableGroups(report.findings);
     const shared = groups.filter((g) => g.likelySharedComponent);
     const save = async (next: GroupDecision[]) => {
-      await writeFile(baselinePath, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + '\n', 'utf8');
+      // Write a sibling temp file and rename it over the baseline so an interrupted write never leaves a partial file.
+      const temp = `${baselinePath}.${process.pid}.tmp`;
+      try {
+        await writeFile(temp, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+        await rename(temp, baselinePath);
+      } catch (error) { await rm(temp, { force: true }); throw error; }
     };
     const reviewer = async () => {
       const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
@@ -177,7 +184,7 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
       return 0;
     } finally { close(); }
   } catch (error) {
-    stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 }

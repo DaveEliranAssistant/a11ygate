@@ -1,7 +1,9 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { debugDetail } from './fatal';
+import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createFingerprintBaseline, parseScanReport } from '@/lib/scan/baseline';
 import type { RunIo } from './run';
+import { readJsonInput } from './input-file';
 
 export const BASELINE_HELP = `a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   --from <scan.json>   Read a saved site-scan report (also accepts an out-dir).
@@ -14,9 +16,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 
 export async function readScanInput(file: string, cwd: string) {
-  let absolute = path.resolve(cwd, file);
-  if ((await stat(absolute)).isDirectory()) absolute = path.join(absolute, 'a11ygate-scan.json');
-  return parseScanReport(JSON.parse(await readFile(absolute, 'utf8')));
+  const isDirectory = (await stat(path.resolve(cwd, file)).catch(() => null))?.isDirectory();
+  return readJsonInput(cwd, isDirectory ? path.join(file, 'a11ygate-scan.json') : file, parseScanReport);
 }
 
 export async function runBaseline(argv: readonly string[], io: RunIo): Promise<number> {
@@ -45,7 +46,7 @@ export async function runBaseline(argv: readonly string[], io: RunIo): Promise<n
     stdout(`Wrote fingerprint baseline ${output}\n`);
     return 0;
   } catch (error) {
-    stderr(`Could not create baseline: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not create baseline: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 }

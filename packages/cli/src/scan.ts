@@ -2,11 +2,12 @@ import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/s
 import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
 import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
+import { readJsonInput } from './input-file';
 import { prepareAuth, passesAuthCheck, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
 import { resolveElementKeys } from '@/lib/scan/engines/locators';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:net';
 import { ENGINE_IDS, createHtmlcsEngine, createIbmEngine, createLighthouseEngine, type EngineId } from '@/lib/scan/engines/optional';
@@ -31,6 +32,7 @@ import type { FingerprintBaseline } from '@/lib/scan/baseline';
 import { readScanInput } from './baseline';
 
 import { loadEffectiveConfig } from './effective-config';
+import { debugDetail } from './fatal';
 
 export type ScanOptions = AuthOptions & {
   keyboard?: boolean;
@@ -142,7 +144,7 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       options.keyboardBudget = Number(value);
     } else if (name === '--interactions') {
       try { options.interactions = value.trim().startsWith('[') ? parseInteractionStates(JSON.parse(value)) : value; }
-      catch { return { ok: false, error: 'Invalid interaction states.' }; }
+      catch (error) { return { ok: false, error: `Invalid interaction states (--interactions: ${error instanceof SyntaxError ? 'not valid JSON' : (error as Error).message.replace(/\.$/, '')}).` }; }
     } else if (name === '--interaction-budget') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return { ok: false, error: '--interaction-budget must be from 1 to 100.' };
       options.interactionBudget = Number(value);
@@ -416,7 +418,8 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
   } catch (error) {
     await browser.close().catch(() => undefined);
     await browserServer?.close().catch(() => undefined);
-    throw new ScanSetupError(auth?.script ? (error as Error).message : 'Could not initialize authentication storage state.');
+    // Playwright's own message is not shown by default: it can describe stored cookie values. --debug adds it (redacted) via cause.
+    throw new ScanSetupError(auth?.script ? (error as Error).message : `Could not initialize authentication storage state${auth?.stateFile ? ` from ${auth.stateFile}` : ''}; check each cookie has name, value, url or domain/path, and valid expires/httpOnly/secure/sameSite.`, { cause: error });
   }
   // Probe only an explicitly configured URL, once after authentication. A failed
   // probe is reported on pages as incomplete coverage, never as an empty pass.
@@ -571,12 +574,12 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   const safeIo = { ...io, redactor, stdout: (s: string) => output(redactor.text(s)), stderr: (s: string) => errors(redactor.text(s)) };
   try {
     if (!argv.includes('--help') && !argv.includes('-h')) argv = loadEffectiveConfig('scan', argv, io).argv;
-  } catch (error) { safeIo.stderr(`${(error as Error).message}\n`); return 2; }
+  } catch (error) { safeIo.stderr(`${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   const parsed = parseScanArgs(argv);
   if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
   try {
     return await withLocalServer(parsed.options, io.cwd ?? process.cwd(), io.env ?? process.env, () => runScanInternal(argv, safeIo));
-  } catch (error) { safeIo.stderr(`Scan failed: ${(error as Error).message}\n`); return 2; }
+  } catch (error) { safeIo.stderr(`Scan failed: ${(error as Error).message}\n${debugDetail(error)}`); return 2; }
 }
 
 async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<number> {
@@ -599,20 +602,20 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   let interactions: InteractionOptions | undefined;
   try {
     if (options.interactions || options.autoInteractions) {
-      const states = typeof options.interactions === 'string' ? JSON.parse(await readFile(path.resolve(cwd, options.interactions), 'utf8')) : options.interactions ?? [];
-      interactions = { states: parseInteractionStates(states), auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+      const states = typeof options.interactions === 'string' ? await readJsonInput(cwd, options.interactions, parseInteractionStates) : parseInteractionStates(options.interactions ?? []);
+      interactions = { states, auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
     }
-  } catch { stderr('Could not read valid interaction states from the local JSON file.\n'); return 2; }
+  } catch (error) { stderr(`Could not read valid interaction states from the local JSON file: ${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   let auth: PreparedAuth;
   try { auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor); }
-  catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
+  catch (error) { stderr(`${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   for (const warning of options.warnings) stderr(`${warning}\n`);
 
   let baseline: FingerprintBaseline | undefined;
   try {
-    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile(path.resolve(cwd, options.baseline), 'utf8')));
+    if (options.baseline) baseline = await readJsonInput(cwd, options.baseline, parseFingerprintBaseline);
   } catch (error) {
-    stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 
@@ -642,7 +645,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   try {
     engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
   } catch (error) {
-    stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, '\n') : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`}${debugDetail(error)}`);
     return 2;
   }
 
@@ -799,11 +802,11 @@ async function runReportInternal(argv: readonly string[], io: ScanIo): Promise<n
       report = { ...report, failOn, verdict: report.verdict === 'ERROR' ? 'ERROR' : failing ? 'FAIL' : 'PASS',
         reason: report.verdict === 'ERROR' ? report.reason : `${failing ? 'At least one finding is' : 'No finding is'} at or above ${failOn}.` };
     }
-    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile(path.resolve(cwd, parsed.options.baseline), 'utf8'))));
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, await readJsonInput(cwd, parsed.options.baseline, parseFingerprintBaseline));
     const source = path.resolve(cwd, argv[0]);
     const reportInput = (await stat(source)).isDirectory() ? path.join(source, 'a11ygate-scan.json') : source;
     const engines = report.engines?.used ?? ['axe'];
     if (engines.some((id) => !(ENGINE_IDS as readonly string[]).includes(id))) throw new Error('Unknown engine in saved report.');
     return await writeScanReport(report, { ...parsed.options, engines: engines as EngineId[] }, { ...io, reportInput });
-  } catch (error) { stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}\n`); return 2; }
+  } catch (error) { stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`); return 2; }
 }

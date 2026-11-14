@@ -1,5 +1,35 @@
 #!/usr/bin/env node
 
+// packages/cli/src/fatal.ts
+function debugRequested(argv2, env = process.env) {
+  return argv2.includes("--debug") || env.A11YGATE_DEBUG === "1";
+}
+function stripDebugFlag(argv2) {
+  return argv2.filter((arg) => arg !== "--debug");
+}
+function formatFatal(error, debug2) {
+  const message = error instanceof Error ? error.message || "A11yGate failed." : "A11yGate failed.";
+  if (debug2 && error instanceof Error && error.stack) return `${error.stack}
+`;
+  return `${message}${debug2 ? "" : "\nRun again with --debug for details."}
+`;
+}
+var debugEnabled = false;
+function setDebug(on) {
+  debugEnabled = on;
+}
+function debugDetail(error) {
+  if (!debugEnabled) return "";
+  const lines = [];
+  let current = error;
+  for (let depth = 0; current instanceof Error && depth < 5; depth++) {
+    lines.push(`${depth ? "Caused by: " : ""}${current.stack ?? current.message}`);
+    current = current.cause;
+  }
+  return lines.length ? `${lines.join("\n")}
+` : "";
+}
+
 // lib/fingerprint.ts
 function unescapeCss(value) {
   return value.replace(/\\(.)/g, "$1");
@@ -49,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path13 = parsed.pathname || "/";
-    if (path13.length > 1 && path13.endsWith("/")) path13 = path13.slice(0, -1);
-    return path13 || "/";
+    let path14 = parsed.pathname || "/";
+    if (path14.length > 1 && path14.endsWith("/")) path14 = path14.slice(0, -1);
+    return path14 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path13 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path13.length > 1 && path13.endsWith("/")) path13 = path13.slice(0, -1);
-    return path13;
+    let path14 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path14.length > 1 && path14.endsWith("/")) path14 = path14.slice(0, -1);
+    return path14;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -146,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path13 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path14 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path13, html, !html || path13.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path14, html, !html || path14.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -179,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir5, readFile as readFile9, realpath as realpath3, stat as stat4, lstat as lstat5, writeFile as writeFile7 } from "node:fs/promises";
-import path12 from "node:path";
+import { mkdir as mkdir5, readFile as readFile6, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile7 } from "node:fs/promises";
+import path13 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -615,21 +645,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path13) {
+function readImpact(value, path14) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path13} must be minor, moderate, serious, critical, or null`
+    error: `${path14} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path13) {
+function readTarget(value, path14) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path13}.target must be an array of strings`;
+    return `${path14}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path13}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path14}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -637,52 +667,52 @@ function readTarget(value, path13) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path13}.target must be an array of strings`;
+    return `${path14}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path13) {
-  if (!isRecord(value)) return `${path13} must be an object`;
-  const target = readTarget(value.target, path13);
+function validateNode(value, path14) {
+  if (!isRecord(value)) return `${path14} must be an object`;
+  const target = readTarget(value.target, path14);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path13}.html must be a string`;
+  if (typeof value.html !== "string") return `${path14}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path13}.impact`);
+    const impact = readImpact(value.impact, `${path14}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path13) {
-  if (!isRecord(value)) return `${path13} must be an object`;
+function validateViolation(value, path14) {
+  if (!isRecord(value)) return `${path14} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path13}.id must be a non-empty string`;
+    return `${path14}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path13}.impact is missing`;
+    return `${path14}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path13}.impact`);
+  const impact = readImpact(value.impact, `${path14}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path13}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path14}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path13}.tags must be an array of strings`;
+    return `${path14}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path13}.help must be a non-empty string`;
+    return `${path14}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path13}.helpUrl must be a non-empty string`;
+    return `${path14}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path13}.nodes must contain at least one node`;
+    return `${path14}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path13}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path14}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -698,37 +728,37 @@ function validateViolation(value, path13) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path13) {
-  if (!isRecord(value)) return `${path13} must be an axe result object`;
+function validateResult(value, path14) {
+  if (!isRecord(value)) return `${path14} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path13}.url must be a non-empty string`;
+    return `${path14}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path13}.timestamp must be an ISO date string`;
+    return `${path14}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path13}.testEngine.version must be a non-empty string`;
+    return `${path14}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path13}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path14}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path13}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path14}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path13}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path13}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path13}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path13}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path14}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path14}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path14}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path14}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path13}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path14}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path13}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path14}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path13}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path14}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -829,7 +859,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path13 = pagePath(result.url);
+    const path14 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -844,7 +874,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path13,
+          path: path14,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1390,28 +1420,56 @@ function createFingerprintBaseline(report) {
   };
 }
 function parseFingerprintBaseline(value) {
-  const b = value;
-  if (!b || b.kind !== "a11ygate-fingerprint-baseline" || b.schemaVersion !== 1 || !Array.isArray(b.findings) || b.findings.some((f) => !f || ["fingerprint", "pageUrl", "ruleId", "selector"].some((k) => typeof f[k] !== "string"))) {
-    throw new Error("Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1). Axe JSON baselines belong to a11ygate [ci] --baseline.");
+  const raw = value;
+  const field = !raw || typeof raw !== "object" || Array.isArray(raw) ? "(top level)" : raw.kind !== "a11ygate-fingerprint-baseline" ? "kind" : raw.schemaVersion !== 1 ? "schemaVersion" : !Array.isArray(raw.findings) ? "findings" : null;
+  if (field) {
+    throw new Error(`Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1, findings list); invalid field ${field}. Axe JSON baselines belong to a11ygate [ci] --baseline.`);
   }
-  if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage.");
-  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints.");
+  const b = raw;
+  b.findings.forEach((f, index) => {
+    if (!f || typeof f !== "object") throw new Error(`Invalid baseline field findings[${index}]: expected an object.`);
+    const key = ["fingerprint", "pageUrl", "ruleId", "selector"].find((k) => typeof f[k] !== "string");
+    if (key) throw new Error(`Invalid baseline field findings[${index}].${key}: expected a string.`);
+  });
+  if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage (field engines): expected a list of engine names.");
+  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints (field findings[].fingerprint).");
   if (b.groupDecisions !== void 0) {
-    if (!Array.isArray(b.groupDecisions)) throw new Error("Invalid baseline group decisions.");
-    b.groupDecisions.forEach(validateGroupDecision);
-    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error("Duplicate group decisions.");
+    if (!Array.isArray(b.groupDecisions)) throw new Error("Invalid baseline group decisions (field groupDecisions).");
+    b.groupDecisions.forEach((decision, index) => {
+      try {
+        validateGroupDecision(decision);
+      } catch (error) {
+        throw new Error(`${error.message.replace(/\.$/, "")} (field groupDecisions[${index}]).`);
+      }
+    });
+    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error("Duplicate group decisions (field groupDecisions[].groupKey).");
   }
   return b;
 }
+function validEngineFingerprint(value) {
+  if (typeof value !== "string") return false;
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return false;
+  }
+  return Array.isArray(parsed) && parsed.length === 4 && typeof parsed[0] === "string" && typeof parsed[1] === "string" && Array.isArray(parsed[2]) && parsed[2].every((sc) => typeof sc === "string") && typeof parsed[3] === "string";
+}
 function parseScanReport(value) {
   const report = value;
-  if (!report || report.kind !== "site-scan" || report.schemaVersion !== 1 || !Array.isArray(report.findings) || !Array.isArray(report.pages) || !Array.isArray(report.results)) {
-    throw new Error("Expected an A11yGate site-scan JSON report.");
-  }
-  for (const f of report.findings) {
-    if (typeof f.pageUrl !== "string" || typeof f.ruleId !== "string" || typeof f.selector !== "string" || !Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") || !Array.isArray(f.wcag)) throw new Error("Invalid scan finding.");
+  const field = !report || typeof report !== "object" || Array.isArray(report) ? "(top level)" : report.kind !== "site-scan" ? "kind" : report.schemaVersion !== 1 ? "schemaVersion" : !Array.isArray(report.findings) ? "findings" : !Array.isArray(report.pages) ? "pages" : !Array.isArray(report.results) ? "results" : null;
+  if (field) throw new Error(`Expected an A11yGate site-scan JSON report; invalid field ${field}.`);
+  report.findings.forEach((f, index) => {
+    if (!f || typeof f !== "object") throw new Error(`Invalid scan finding (field findings[${index}]).`);
+    const key = ["pageUrl", "ruleId", "selector"].find((k) => typeof f[k] !== "string") ?? (!Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") ? "selectors" : !Array.isArray(f.wcag) || f.wcag.some((c) => !c || typeof c !== "object" || typeof c.number !== "string") ? "wcag" : void 0);
+    if (key) throw new Error(`Invalid scan finding (field findings[${index}].${key}).`);
+    if (f.engines !== void 0) {
+      if (!Array.isArray(f.engines) || f.engines.some((e) => typeof e !== "string")) throw new Error(`Invalid scan finding (field findings[${index}].engines).`);
+      if (!validEngineFingerprint(f.fingerprint)) throw new Error(`Invalid scan finding (field findings[${index}].fingerprint).`);
+    }
     baselineFingerprint(f);
-  }
+  });
   return report;
 }
 function applyFingerprintBaseline(report, baseline, now = /* @__PURE__ */ new Date()) {
@@ -1584,8 +1642,8 @@ function flagName(token) {
   if (eq === -1) return { name: token };
   return { name: token.slice(0, eq), inline: token.slice(eq + 1) };
 }
-function parseArgs(argv) {
-  if (argv.includes("--help") || argv.includes("-h")) {
+function parseArgs(argv2) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     return {
       ok: true,
       options: {
@@ -1610,8 +1668,8 @@ function parseArgs(argv) {
   let help = false;
   let version = false;
   let thresholdText;
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
+  for (let index = 0; index < argv2.length; index += 1) {
+    const token = argv2[index] ?? "";
     if (token === "--") {
       return { ok: false, error: "Unexpected extra arguments." };
     }
@@ -1629,7 +1687,7 @@ function parseArgs(argv) {
       if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
       return { ok: false, error: `Unexpected argument ${token}.` };
     }
-    const value = inline !== void 0 ? inline : argv[index + 1];
+    const value = inline !== void 0 ? inline : argv2[index + 1];
     if (inline === void 0) index += 1;
     if (value === void 0 || value.length === 0) {
       return { ok: false, error: `${name} needs a value.` };
@@ -1724,15 +1782,27 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 // lib/scan/interactions.ts
 var AUTO_SELECTOR = '[aria-expanded="false"], button[aria-haspopup]:not([aria-haspopup="false"]), [role="button"][aria-haspopup]:not([aria-haspopup="false"])';
 function parseInteractionStates(value) {
-  if (!Array.isArray(value) || value.length > 100) throw new Error("Interactions must be a list of at most 100 states.");
+  if (!Array.isArray(value) || value.length > 100) throw new Error("interactions (top level): must be a list of at most 100 states.");
   const names = /* @__PURE__ */ new Set();
-  for (const state of value) {
-    if (!state || typeof state !== "object" || Object.keys(state).some((k) => !["route", "name", "steps"].includes(k)) || typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route) || typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-") || !Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error("Each interaction needs route (/path), unique name (letters, numbers, _ or -; auto- is reserved), and 1\u2013100 steps.");
+  for (const [index, state] of value.entries()) {
+    const at = `interactions[${index}]`;
+    if (!state || typeof state !== "object" || Array.isArray(state)) throw new Error(`${at}: each interaction must be an object with route, name and steps.`);
+    const extra = Object.keys(state).find((k) => !["route", "name", "steps"].includes(k));
+    if (extra !== void 0) throw new Error(`${at}: unknown field ${JSON.stringify(extra.slice(0, 40))}; allowed fields are route, name and steps.`);
+    if (typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route)) throw new Error(`${at}.route: must be a same-site path starting with / (no #, spaces or //).`);
+    if (typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-")) throw new Error(`${at}.name: must be 1\u201380 letters, numbers, _ or - (auto- is reserved).`);
+    if (!Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error(`${at}.steps: must be a list of 1\u2013100 steps.`);
     const label = state.route + "#" + state.name;
-    if (names.has(label)) throw new Error("Interaction state labels must be unique.");
+    if (names.has(label)) throw new Error(`${at}.name: interaction state labels (route + name) must be unique.`);
     names.add(label);
-    for (const step of state.steps) {
-      if (!step || typeof step !== "object" || Object.keys(step).some((k) => !["action", "selector", "key"].includes(k)) || !["click", "press", "wait"].includes(step.action) || typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512 || (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0)) throw new Error("Interaction steps need action click/press/wait and a selector; press also needs a key.");
+    for (const [stepIndex, step] of state.steps.entries()) {
+      const stepAt = `${at}.steps[${stepIndex}]`;
+      if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error(`${stepAt}: each step must be an object with action and selector.`);
+      const stepExtra = Object.keys(step).find((k) => !["action", "selector", "key"].includes(k));
+      if (stepExtra !== void 0) throw new Error(`${stepAt}: unknown field ${JSON.stringify(stepExtra.slice(0, 40))}; allowed fields are action, selector and key.`);
+      if (!["click", "press", "wait"].includes(step.action)) throw new Error(`${stepAt}.action: must be click, press or wait.`);
+      if (typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512) throw new Error(`${stepAt}.selector: must be a non-empty selector of at most 512 characters.`);
+      if (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0) throw new Error(`${stepAt}.key: ${step.action === "press" ? "press needs a key of at most 80 characters" : "only press steps take a key"}.`);
     }
   }
   return value;
@@ -1883,12 +1953,40 @@ function storyUrls(index, base) {
   return [...new Set(ids)].map((id) => new URL(`iframe.html?id=${encodeURIComponent(id)}&viewMode=story`, base).href);
 }
 
+// packages/cli/src/input-file.ts
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
+var MAX_INPUT_JSON_BYTES = 64 * 1024 * 1024;
+async function readJsonInput(cwd, file, parse, maxBytes = MAX_INPUT_JSON_BYTES) {
+  const absolute = path.resolve(cwd, file);
+  let text;
+  try {
+    const info = await stat(absolute);
+    if (info.isDirectory()) throw Object.assign(new Error(), { code: "EISDIR" });
+    if (info.size > maxBytes) throw Object.assign(new Error(), { code: "EFBIG" });
+    text = await readFile(absolute, "utf8");
+  } catch (error) {
+    const code3 = error.code;
+    throw new Error(`${file}: ${code3 === "ENOENT" ? "file not found" : code3 === "EISDIR" ? "is a directory, not a file" : code3 === "EFBIG" ? `larger than ${maxBytes / 1024 / 1024} MB` : "could not read the file"}.`, { cause: error });
+  }
+  let value;
+  try {
+    value = JSON.parse(text.replace(/^﻿/, ""));
+  } catch {
+    throw new Error(`${file}: not valid JSON.`);
+  }
+  try {
+    return parse(value);
+  } catch (error) {
+    throw new Error(`${file}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+}
+
 // packages/cli/src/auth.ts
-import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
-import path from "node:path";
+import path2 from "node:path";
 
 // lib/scan/redact.ts
 var AuthRedactor = class {
@@ -1942,6 +2040,68 @@ function envMapping(value) {
   const match = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
   return match ? { name: match[1], env: match[2] } : null;
 }
+var isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var isHttpOrigin = (value) => {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return /^https?:$/.test(url.protocol) && url.origin === value;
+  } catch {
+    return false;
+  }
+};
+var isHttpUrl = (value) => {
+  try {
+    return /^https?:$/.test(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+};
+var SAME_SITE = ["Strict", "Lax", "None"];
+var nameValues = (value, field) => {
+  if (!Array.isArray(value)) throw new Error(`field ${field} must be a list.`);
+  value.forEach((entry, index) => {
+    if (!isObject(entry) || typeof entry.name !== "string" || typeof entry.value !== "string") throw new Error(`field ${field}[${index}] needs string name and value.`);
+  });
+};
+function parseStorageState(value) {
+  if (!isObject(value)) throw new Error("field (top level) must be a JSON object with cookies and origins.");
+  if (value.cookies !== void 0) {
+    if (!Array.isArray(value.cookies)) throw new Error("field cookies must be a list.");
+    value.cookies.forEach((cookie, index) => {
+      const field = `cookies[${index}]`;
+      if (!isObject(cookie) || typeof cookie.name !== "string" || typeof cookie.value !== "string") throw new Error(`field ${field} needs string name and value.`);
+      if (cookie.name.trim() === "") throw new Error(`field ${field}.name must not be empty.`);
+      if (cookie.url !== void 0 && (typeof cookie.url !== "string" || !isHttpUrl(cookie.url))) throw new Error(`field ${field}.url must be an http(s) URL.`);
+      if (cookie.domain !== void 0 && (typeof cookie.domain !== "string" || cookie.domain.trim() === "")) throw new Error(`field ${field}.domain must be a non-empty string.`);
+      if (cookie.path !== void 0 && (typeof cookie.path !== "string" || !cookie.path.startsWith("/"))) throw new Error(`field ${field}.path must be a string starting with /.`);
+      if (cookie.url === void 0 && (cookie.domain === void 0 || cookie.path === void 0)) throw new Error(`field ${field} needs url, or both domain and path.`);
+      if (cookie.expires !== void 0 && (typeof cookie.expires !== "number" || !Number.isFinite(cookie.expires) || cookie.expires < 0 && cookie.expires !== -1)) throw new Error(`field ${field}.expires must be -1 or a non-negative Unix time in seconds.`);
+      for (const flag of ["httpOnly", "secure"]) if (cookie[flag] !== void 0 && typeof cookie[flag] !== "boolean") throw new Error(`field ${field}.${flag} must be true or false.`);
+      if (cookie.sameSite !== void 0 && !SAME_SITE.includes(cookie.sameSite)) throw new Error(`field ${field}.sameSite must be one of ${SAME_SITE.join(", ")}.`);
+    });
+  }
+  if (value.origins !== void 0) {
+    if (!Array.isArray(value.origins)) throw new Error("field origins must be a list.");
+    value.origins.forEach((origin, index) => {
+      if (!isObject(origin) || typeof origin.origin !== "string") throw new Error(`field origins[${index}].origin must be a string.`);
+      if (origin.localStorage !== void 0) nameValues(origin.localStorage, `origins[${index}].localStorage`);
+    });
+  }
+  return value;
+}
+function parseSessionStorageState(value) {
+  if (!isObject(value)) throw new Error("field (top level) must be a JSON object with origins.");
+  if (!Array.isArray(value.origins)) throw new Error("field origins must be a list.");
+  const seen = /* @__PURE__ */ new Set();
+  value.origins.forEach((item, index) => {
+    if (!isObject(item) || !isHttpOrigin(item.origin)) throw new Error(`field origins[${index}].origin must be an http(s) origin.`);
+    if (seen.has(item.origin)) throw new Error(`field origins[${index}].origin is listed twice.`);
+    seen.add(item.origin);
+    nameValues(item.sessionStorage, `origins[${index}].sessionStorage`);
+  });
+  return value;
+}
 async function prepareAuth(options, cwd, origin, env = process.env, redactor = new AuthRedactor()) {
   for (const value of secretEnvValues(env, 1)) redactor.add(value);
   const auth = { timeout: options.loginTimeoutMs ?? 3e4, env: { ...env }, cookies: [], headers: {}, redactor };
@@ -1980,30 +2140,22 @@ async function prepareAuth(options, cwd, origin, env = process.env, redactor = n
   }
   if (options.storageState) {
     try {
-      const state = JSON.parse(await readFile(path.resolve(cwd, options.storageState), "utf8"));
-      redactor.storage(state);
-      auth.state = state;
-    } catch {
-      throw new Error("Could not read --storage-state: expected a Playwright storageState JSON file.");
+      auth.state = await readJsonInput(cwd, options.storageState, parseStorageState);
+    } catch (error) {
+      throw new Error(`Could not read --storage-state: expected a Playwright storageState JSON file (${error.message.replace(/\.$/, "")}).`, { cause: error });
     }
+    auth.stateFile = options.storageState;
+    redactor.storage(auth.state);
   }
   if (options.sessionStorage) {
     try {
-      const state = JSON.parse(await readFile(path.resolve(cwd, options.sessionStorage), "utf8"));
-      if (!state || !Array.isArray(state.origins)) throw new Error();
-      const seen = /* @__PURE__ */ new Set();
-      for (const item of state.origins) {
-        if (!item || typeof item.origin !== "string" || !/^https?:$/.test(new URL(item.origin).protocol) || new URL(item.origin).origin !== item.origin || seen.has(item.origin) || !Array.isArray(item.sessionStorage)) throw new Error();
-        seen.add(item.origin);
-        for (const entry of item.sessionStorage) if (!entry || typeof entry.name !== "string" || typeof entry.value !== "string") throw new Error();
-      }
-      redactor.storage(state);
-      auth.sessionStorage = state;
-    } catch {
-      throw new Error("Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries.");
+      auth.sessionStorage = await readJsonInput(cwd, options.sessionStorage, parseSessionStorageState);
+    } catch (error) {
+      throw new Error(`Could not read --session-storage: expected JSON with origins containing origin and sessionStorage name/value entries (${error.message.replace(/\.$/, "")}).`, { cause: error });
     }
+    redactor.storage(auth.sessionStorage);
   }
-  if (options.loginScript) auth.script = pathToFileURL(path.resolve(cwd, options.loginScript)).href;
+  if (options.loginScript) auth.script = pathToFileURL(path2.resolve(cwd, options.loginScript)).href;
   return auth;
 }
 function restoreSessionStorage(state) {
@@ -2149,8 +2301,8 @@ async function resolveElementKeys(page, findings) {
 }
 
 // packages/cli/src/scan.ts
-import { mkdir, readFile as readFile4, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
-import path5 from "node:path";
+import { mkdir, stat as stat4, writeFile as writeFile2 } from "node:fs/promises";
+import path6 from "node:path";
 import { createServer } from "node:net";
 
 // lib/scan/engines/optional.ts
@@ -3593,16 +3745,16 @@ function toGitlabDecided(report) {
 }
 
 // packages/cli/src/output-paths.ts
-import { lstat, realpath, stat } from "node:fs/promises";
-import path2 from "node:path";
+import { lstat, realpath, stat as stat2 } from "node:fs/promises";
+import path3 from "node:path";
 async function assertSafeOutputs(cwd, inputs, outputs) {
   const identify = async (file) => {
-    const absolute = path2.resolve(cwd, file);
+    const absolute = path3.resolve(cwd, file);
     const canonical2 = await realpath(absolute).catch(async () => {
       if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling output symlink.");
-      return path2.join(await realpath(path2.dirname(absolute)).catch(() => path2.dirname(absolute)), path2.basename(absolute));
+      return path3.join(await realpath(path3.dirname(absolute)).catch(() => path3.dirname(absolute)), path3.basename(absolute));
     });
-    const info = await stat(absolute).catch(() => null);
+    const info = await stat2(absolute).catch(() => null);
     return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : void 0 };
   };
   const protectedPaths = await Promise.all(inputs.map(identify));
@@ -3616,8 +3768,8 @@ async function assertSafeOutputs(cwd, inputs, outputs) {
 }
 
 // packages/cli/src/baseline.ts
-import { readFile as readFile3, stat as stat2, writeFile } from "node:fs/promises";
-import path3 from "node:path";
+import { stat as stat3, writeFile } from "node:fs/promises";
+import path4 from "node:path";
 var BASELINE_HELP = `a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   --from <scan.json>   Read a saved site-scan report (also accepts an out-dir).
   --out-dir <dir>     Read a11ygate-scan.json from this directory.
@@ -3628,28 +3780,27 @@ The separate a11ygate [ci] --baseline continues to accept axe JSON only.
 Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 async function readScanInput(file, cwd) {
-  let absolute = path3.resolve(cwd, file);
-  if ((await stat2(absolute)).isDirectory()) absolute = path3.join(absolute, "a11ygate-scan.json");
-  return parseScanReport(JSON.parse(await readFile3(absolute, "utf8")));
+  const isDirectory = (await stat3(path4.resolve(cwd, file)).catch(() => null))?.isDirectory();
+  return readJsonInput(cwd, isDirectory ? path4.join(file, "a11ygate-scan.json") : file, parseScanReport);
 }
-async function runBaseline(argv, io) {
+async function runBaseline(argv2, io) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     stdout(BASELINE_HELP);
     return 0;
   }
-  if (argv[0] !== "create") {
+  if (argv2[0] !== "create") {
     stderr(BASELINE_HELP);
     return 2;
   }
   let source;
   let output = ".a11ygate-baseline.json";
   try {
-    for (let i = 1; i < argv.length; i++) {
-      const token = argv[i];
+    for (let i = 1; i < argv2.length; i++) {
+      const token = argv2[i];
       if (["--from", "--out-dir", "--output"].includes(token)) {
-        const value = argv[++i];
+        const value = argv2[++i];
         if (!value || value.startsWith("-")) throw new Error(`${token} needs a value.`);
         if (token === "--output") output = value;
         else {
@@ -3662,13 +3813,13 @@ async function runBaseline(argv, io) {
     const cwd = io.cwd ?? process.cwd();
     const report = await readScanInput(source ?? "a11ygate-scan.json", cwd);
     if (report.counts.pagesFailed || report.engines?.errored.length || report.verdict === "ERROR") throw new Error("Cannot create a baseline from incomplete scan coverage.");
-    await writeFile(path3.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    await writeFile(path4.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
     stdout(`Wrote fingerprint baseline ${output}
 `);
     return 0;
   } catch (error) {
     stderr(`Could not create baseline: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
@@ -3741,7 +3892,7 @@ var MODEL_FIXES_OFF = resolveModelFixConfig({});
 
 // packages/cli/src/effective-config.ts
 import { readFileSync } from "node:fs";
-import path4 from "node:path";
+import path5 from "node:path";
 
 // schema/a11ygate.schema.json
 var a11ygate_schema_default = {
@@ -4112,6 +4263,7 @@ function parseBlock(lines, start, indent) {
     const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
     if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
     const key = match[1].replace(/^(['"])(.*)\1$/, "$2");
+    if (key === "__proto__") throw new YamlError(`line ${number}: the key '__proto__' is not allowed.`);
     if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
     const rest = (match[2] ?? "").trim();
     i++;
@@ -4312,20 +4464,27 @@ function decode(text, schema) {
   }
   return text;
 }
-function loadEffectiveConfig(command, argv = [], io = {}) {
+function loadEffectiveConfig(command, argv2 = [], io = {}) {
   const env = io.env ?? process.env;
   let repoConfig = io.repoConfig;
   if (repoConfig === void 0) {
     try {
-      repoConfig = readFileSync(path4.join(io.cwd ?? process.cwd(), CONFIG_FILE), "utf8");
+      repoConfig = readFileSync(path5.join(io.cwd ?? process.cwd(), CONFIG_FILE), "utf8");
     } catch (error) {
       if (error.code !== "ENOENT") throw new Error("Could not read .a11ygate.yml.");
       repoConfig = null;
     }
   }
   const parsed = parseConfigYaml(repoConfig ?? "");
-  if (!parsed.ok || validateConfig(parsed.value).length) throw new Error("Invalid .a11ygate.yml. Run a11ygate config validate to check its schema.");
-  const yaml = parsed.value;
+  const problems = parsed.ok ? validateConfig(parsed.value) : parsed.errors;
+  if (problems.length) {
+    const first = problems[0];
+    const line = /^line \d+/.exec(first)?.[0];
+    const key = /'([^']+)'/.exec(first)?.[1];
+    const at = [line, key && `field '${key}'`].filter(Boolean).join(", ");
+    throw new Error(`Invalid .a11ygate.yml${at ? ` (${at})` : ""}. Run a11ygate config validate to check its schema.`);
+  }
+  const yaml = parsed.ok ? parsed.value : {};
   const values = {};
   const sources = {};
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
@@ -4345,12 +4504,16 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       sources[key] = `env:${name}`;
     }
   }
-  parseInteractionStates(values.interactions);
+  try {
+    parseInteractionStates(values.interactions);
+  } catch (error) {
+    throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${error.message}`, { cause: error });
+  }
   const remaining = [];
   const supplied = /* @__PURE__ */ new Set();
   let hasPositionalUrl = false;
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i];
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
     const [name] = token.split("=");
     const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
     if (!entry) {
@@ -4363,7 +4526,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
         remaining.push(token);
       } else {
         remaining.push(token);
-        if (token.startsWith("-") && !token.includes("=") && !["--help", "-h", "--version", "--strict"].includes(token) && argv[i + 1] && (!argv[i + 1].startsWith("-") || argv[i + 1] === "-")) remaining.push(argv[++i]);
+        if (token.startsWith("-") && !token.includes("=") && !["--help", "-h", "--version", "--strict"].includes(token) && argv2[i + 1] && (!argv2[i + 1].startsWith("-") || argv2[i + 1] === "-")) remaining.push(argv2[++i]);
       }
       continue;
     }
@@ -4371,16 +4534,33 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
     const schema = schemaAt(key);
     let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
-    if (key === "crawl" && text === void 0 && !/^\d+$/.test(argv[i + 1] ?? "")) text = "20";
+    if (key === "crawl" && text === void 0 && !/^\d+$/.test(argv2[i + 1] ?? "")) text = "20";
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
-    else if (text === void 0) text = argv[++i];
+    else if (text === void 0) text = argv2[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
     if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
+      const inline = text.trim().startsWith("[");
+      const source = inline ? "--interactions" : text;
+      let raw;
+      if (inline) raw = text;
+      else {
+        try {
+          raw = readFileSync(path5.resolve(io.cwd ?? process.cwd(), text), "utf8");
+        } catch (error) {
+          throw new Error(`Invalid --interactions (${source}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}); provide a readable local JSON file containing route states.`, { cause: error });
+        }
+      }
+      let json;
       try {
-        return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path4.resolve(io.cwd ?? process.cwd(), text), "utf8")));
+        json = JSON.parse(raw.replace(/^\uFEFF/, ""));
       } catch {
-        throw new Error("Invalid --interactions; provide a readable local JSON file containing route states.");
+        throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`);
+      }
+      try {
+        return parseInteractionStates(json);
+      } catch (error) {
+        throw new Error(`Invalid --interactions (${source}: ${error.message.replace(/\.$/, "")}).`, { cause: error });
       }
     })() : schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
     if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
@@ -4469,11 +4649,11 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
 var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
-function parseScanArgs(argv) {
+function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
+  for (let index = 0; index < argv2.length; index += 1) {
+    const token = argv2[index] ?? "";
     if (token === "--help" || token === "-h") {
       options.help = true;
       continue;
@@ -4507,8 +4687,8 @@ function parseScanArgs(argv) {
     }
     if (name === "--crawl") {
       let text = inline;
-      if (text === void 0 && /^\d+$/.test(argv[index + 1] ?? "")) {
-        text = argv[index + 1];
+      if (text === void 0 && /^\d+$/.test(argv2[index + 1] ?? "")) {
+        text = argv2[index + 1];
         index += 1;
       }
       if (text === void 0) {
@@ -4522,7 +4702,7 @@ function parseScanArgs(argv) {
       continue;
     }
     if (!VALUE_FLAGS2.has(name)) return { ok: false, error: `Unknown scan option ${token}.` };
-    const value = inline !== void 0 ? inline : argv[index + 1];
+    const value = inline !== void 0 ? inline : argv2[index + 1];
     if (inline === void 0) index += 1;
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
@@ -4533,8 +4713,8 @@ function parseScanArgs(argv) {
     } else if (name === "--interactions") {
       try {
         options.interactions = value.trim().startsWith("[") ? parseInteractionStates(JSON.parse(value)) : value;
-      } catch {
-        return { ok: false, error: "Invalid interaction states." };
+      } catch (error) {
+        return { ok: false, error: `Invalid interaction states (--interactions: ${error instanceof SyntaxError ? "not valid JSON" : error.message.replace(/\.$/, "")}).` };
       }
     } else if (name === "--interaction-budget") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return { ok: false, error: "--interaction-budget must be from 1 to 100." };
@@ -4607,7 +4787,7 @@ function parseScanArgs(argv) {
     const sitemap = normalizeUrl(options.sitemap, url);
     if (!sitemap || new URL(sitemap).origin !== new URL(url).origin) return { ok: false, error: "--sitemap must be a same-origin http(s) URL." };
     options.sitemap = sitemap;
-    if (options.pageLimit === void 0 && !argv.some((arg) => arg === "--crawl" || arg.startsWith("--crawl="))) options.maxPages = MAX_CRAWL_PAGES;
+    if (options.pageLimit === void 0 && !argv2.some((arg) => arg === "--crawl" || arg.startsWith("--crawl="))) options.maxPages = MAX_CRAWL_PAGES;
   }
   if (options.start && !options.waitOn) return { ok: false, error: "--start requires --wait-on." };
   for (const value of [options.waitOn, options.storybook]) {
@@ -4777,7 +4957,7 @@ Install it with: npx playwright install chromium
   } catch (error) {
     await browser.close().catch(() => void 0);
     await browserServer?.close().catch(() => void 0);
-    throw new ScanSetupError(auth?.script ? error.message : "Could not initialize authentication storage state.");
+    throw new ScanSetupError(auth?.script ? error.message : `Could not initialize authentication storage state${auth?.stateFile ? ` from ${auth.stateFile}` : ""}; check each cookie has name, value, url or domain/path, and valid expires/httpOnly/secure/sameSite.`, { cause: error });
   }
   let initialAuthPassed = true;
   if (auth?.check?.url) {
@@ -4928,36 +5108,36 @@ Install it with: npx playwright install chromium
 function scanUserAgent(version) {
   return `Mozilla/5.0 (compatible; A11yGate/${version}; +https://a11ygate.vercel.app) read-only accessibility scan`;
 }
-async function runScan(argv, io = {}) {
+async function runScan(argv2, io = {}) {
   const redactor = io.redactor ?? new AuthRedactor();
   for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
   const output = io.stdout ?? ((s) => process.stdout.write(s));
   const errors = io.stderr ?? ((s) => process.stderr.write(s));
   const safeIo = { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) };
   try {
-    if (!argv.includes("--help") && !argv.includes("-h")) argv = loadEffectiveConfig("scan", argv, io).argv;
+    if (!argv2.includes("--help") && !argv2.includes("-h")) argv2 = loadEffectiveConfig("scan", argv2, io).argv;
   } catch (error) {
     safeIo.stderr(`${error.message}
-`);
+${debugDetail(error)}`);
     return 2;
   }
-  const parsed = parseScanArgs(argv);
-  if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
+  const parsed = parseScanArgs(argv2);
+  if (!parsed.ok || parsed.options.help) return runScanInternal(argv2, safeIo);
   try {
-    return await withLocalServer(parsed.options, io.cwd ?? process.cwd(), io.env ?? process.env, () => runScanInternal(argv, safeIo));
+    return await withLocalServer(parsed.options, io.cwd ?? process.cwd(), io.env ?? process.env, () => runScanInternal(argv2, safeIo));
   } catch (error) {
     safeIo.stderr(`Scan failed: ${error.message}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
-async function runScanInternal(argv, io) {
+async function runScanInternal(argv2, io) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
   const version = io.version ?? "0.0.0";
-  const parsed = parseScanArgs(argv);
+  const parsed = parseScanArgs(argv2);
   if (!parsed.ok) {
     stderr(`${parsed.error}
 Run a11ygate scan --help for usage.
@@ -4972,11 +5152,12 @@ Run a11ygate scan --help for usage.
   let interactions;
   try {
     if (options.interactions || options.autoInteractions) {
-      const states = typeof options.interactions === "string" ? JSON.parse(await readFile4(path5.resolve(cwd, options.interactions), "utf8")) : options.interactions ?? [];
-      interactions = { states: parseInteractionStates(states), auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+      const states = typeof options.interactions === "string" ? await readJsonInput(cwd, options.interactions, parseInteractionStates) : parseInteractionStates(options.interactions ?? []);
+      interactions = { states, auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
     }
-  } catch {
-    stderr("Could not read valid interaction states from the local JSON file.\n");
+  } catch (error) {
+    stderr(`Could not read valid interaction states from the local JSON file: ${error.message}
+${debugDetail(error)}`);
     return 2;
   }
   let auth;
@@ -4984,17 +5165,17 @@ Run a11ygate scan --help for usage.
     auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor);
   } catch (error) {
     stderr(`${error.message}
-`);
+${debugDetail(error)}`);
     return 2;
   }
   for (const warning of options.warnings) stderr(`${warning}
 `);
   let baseline;
   try {
-    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile4(path5.resolve(cwd, options.baseline), "utf8")));
+    if (options.baseline) baseline = await readJsonInput(cwd, options.baseline, parseFingerprintBaseline);
   } catch (error) {
     stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
   const userAgent = scanUserAgent(version);
@@ -5027,8 +5208,8 @@ Run a11ygate scan --help for usage.
   try {
     engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {} });
   } catch (error) {
-    stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
-`);
+    stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, "\n") : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
+`}${debugDetail(error)}`);
     return 2;
   }
   let result;
@@ -5103,20 +5284,20 @@ async function writeScanReport(report, options, io, engine) {
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
-    extra.push([path5.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+    extra.push([path6.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
   if (options.outDir && options.formats.includes("gitlab-codequality")) {
-    extra.push([path5.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+    extra.push([path6.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
     const decided = toGitlabDecided(formatReport);
-    if (decided) extra.push([path5.join(options.outDir, "codequality-decided.json"), decided]);
+    if (decided) extra.push([path6.join(options.outDir, "codequality-decided.json"), decided]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path5.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
+    extra.push([path6.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
   }
   const targets = options.outDir ? [
-    [path5.join(options.outDir, "a11ygate-scan.json"), json],
-    [path5.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path5.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
+    [path6.join(options.outDir, "a11ygate-scan.json"), json],
+    [path6.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path6.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -5130,23 +5311,23 @@ async function writeScanReport(report, options, io, engine) {
         [typeof options.interactions === "string" ? options.interactions : void 0, options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
-          ...options.outDir ? options.engines.map((id) => path5.join(options.outDir, "engines", `${id}.json`)) : []
+          ...options.outDir ? options.engines.map((id) => path6.join(options.outDir, "engines", `${id}.json`)) : []
         ]
       );
     }
-    if (options.outDir) await mkdir(path5.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) await mkdir(path6.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
-      const evidenceDir = path5.resolve(cwd, options.outDir, "engines");
+      const evidenceDir = path6.resolve(cwd, options.outDir, "engines");
       await mkdir(evidenceDir, { recursive: true });
       for (const id of options.engines) {
         const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile2(path5.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
+        await writeFile2(path6.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
 `, "utf8");
       }
     }
     for (const [file, content] of targets) {
-      if (file) await writeFile2(path5.resolve(cwd, file), content, "utf8");
+      if (file) await writeFile2(path6.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
     const code3 = error.code;
@@ -5158,30 +5339,30 @@ async function writeScanReport(report, options, io, engine) {
   if (report.verdict === "ERROR" || report.engineResults?.some((e) => e.status === "errored")) return 2;
   return report.verdict === "FAIL" ? 1 : scanExitCode(report.findings, report.failOn);
 }
-async function runReport(argv, io = {}) {
+async function runReport(argv2, io = {}) {
   const redactor = io.redactor ?? new AuthRedactor();
   for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
   const output = io.stdout ?? ((s) => process.stdout.write(s));
   const errors = io.stderr ?? ((s) => process.stderr.write(s));
-  return runReportInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+  return runReportInternal(argv2, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
 }
-async function runReportInternal(argv, io) {
+async function runReportInternal(argv2, io) {
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (!argv[0] || argv[0].startsWith("-") || argv.includes("--help") || argv.includes("-h")) {
-    (argv.includes("--help") || argv.includes("-h") ? io.stdout ?? ((s) => process.stdout.write(s)) : stderr)(
+  if (!argv2[0] || argv2[0].startsWith("-") || argv2.includes("--help") || argv2.includes("-h")) {
+    (argv2.includes("--help") || argv2.includes("-h") ? io.stdout ?? ((s) => process.stdout.write(s)) : stderr)(
       "Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif,gitlab-codequality] [--fail-on <impact>]\n"
     );
-    return argv.includes("--help") || argv.includes("-h") ? 0 : 2;
+    return argv2.includes("--help") || argv2.includes("-h") ? 0 : 2;
   }
-  const parsed = parseScanArgs(["https://saved-report.invalid", ...argv.slice(1)]);
+  const parsed = parseScanArgs(["https://saved-report.invalid", ...argv2.slice(1)]);
   if (!parsed.ok) {
     stderr(parsed.error + "\n");
     return 2;
   }
   try {
     const cwd = io.cwd ?? process.cwd();
-    let report = await readScanInput(argv[0], cwd);
-    if (argv.some((a) => a === "--fail-on" || a.startsWith("--fail-on="))) {
+    let report = await readScanInput(argv2[0], cwd);
+    if (argv2.some((a) => a === "--fail-on" || a.startsWith("--fail-on="))) {
       const failOn = parsed.options.failOn;
       const failing = scanExitCode(report.findings, failOn);
       report = {
@@ -5191,23 +5372,23 @@ async function runReportInternal(argv, io) {
         reason: report.verdict === "ERROR" ? report.reason : `${failing ? "At least one finding is" : "No finding is"} at or above ${failOn}.`
       };
     }
-    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile4(path5.resolve(cwd, parsed.options.baseline), "utf8"))));
-    const source = path5.resolve(cwd, argv[0]);
-    const reportInput = (await stat3(source)).isDirectory() ? path5.join(source, "a11ygate-scan.json") : source;
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, await readJsonInput(cwd, parsed.options.baseline, parseFingerprintBaseline));
+    const source = path6.resolve(cwd, argv2[0]);
+    const reportInput = (await stat4(source)).isDirectory() ? path6.join(source, "a11ygate-scan.json") : source;
     const engines = report.engines?.used ?? ["axe"];
     if (engines.some((id) => !ENGINE_IDS.includes(id))) throw new Error("Unknown engine in saved report.");
     return await writeScanReport(report, { ...parsed.options, engines }, { ...io, reportInput });
   } catch (error) {
     stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
 
 // packages/cli/src/review.ts
 import { execFile } from "node:child_process";
-import { readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
-import path6 from "node:path";
+import { rename, rm, writeFile as writeFile3 } from "node:fs/promises";
+import path7 from "node:path";
 import { createInterface } from "node:readline/promises";
 var REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
 Record a reviewer decision once for a likely shared component group instead of per finding.
@@ -5230,10 +5411,10 @@ function gitUserName(cwd) {
     execFile("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
   });
 }
-function parseReviewArgs(argv) {
+function parseReviewArgs(argv2) {
   const args = { list: false };
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i];
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
     const eq = token.indexOf("=");
     const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
     if (name === "--list") {
@@ -5241,7 +5422,7 @@ function parseReviewArgs(argv) {
       continue;
     }
     if (["--baseline", "--group", "--decision", "--reason", "--expires"].includes(name)) {
-      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv[++i];
+      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv2[++i];
       if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
       if (name === "--baseline") args.baseline = value;
       else if (name === "--group") args.group = value;
@@ -5283,26 +5464,33 @@ function describeGroup(g, decisions) {
 `).join("") + `  decision: ${d ? `${d.decision} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}` : "none"}
 `;
 }
-async function runReview(argv, io = {}) {
+async function runReview(argv2, io = {}) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     stdout(REVIEW_HELP);
     return 0;
   }
   const cwd = io.cwd ?? process.cwd();
   const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
   try {
-    const args = parseReviewArgs(argv);
+    const args = parseReviewArgs(argv2);
     if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
     const report = await readScanInput(args.input, cwd);
-    const baselinePath = path6.resolve(cwd, args.baseline);
-    const baseline = parseFingerprintBaseline(JSON.parse(await readFile5(baselinePath, "utf8")));
+    const baselinePath = path7.resolve(cwd, args.baseline);
+    const baseline = await readJsonInput(cwd, args.baseline, parseFingerprintBaseline);
     let decisions = baseline.groupDecisions ?? [];
     const groups = reviewableGroups(report.findings);
     const shared = groups.filter((g) => g.likelySharedComponent);
     const save = async (next) => {
-      await writeFile3(baselinePath, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + "\n", "utf8");
+      const temp = `${baselinePath}.${process.pid}.tmp`;
+      try {
+        await writeFile3(temp, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+        await rename(temp, baselinePath);
+      } catch (error) {
+        await rm(temp, { force: true });
+        throw error;
+      }
     };
     const reviewer = async () => {
       const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
@@ -5390,15 +5578,15 @@ Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
     }
   } catch (error) {
     stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
 
 // packages/cli/src/evidence.ts
 import { execFile as execFile2 } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile6, writeFile as writeFile4 } from "node:fs/promises";
-import path7 from "node:path";
+import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile3, writeFile as writeFile4 } from "node:fs/promises";
+import path8 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -5422,8 +5610,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path13) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path13);
+function shouldStore(path14) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path14);
 }
 function createZip(entries) {
   const local = [];
@@ -5482,29 +5670,82 @@ function createZip(entries) {
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, centralBuffer, end]);
 }
-function readZip(zip) {
-  const buf = Buffer.from(zip);
-  const endAt = buf.lastIndexOf(Buffer.from([80, 75, 5, 6]));
-  if (endAt < 0) throw new Error("Not a zip archive.");
+var ZipError = class extends Error {
+};
+function unsafeZipEntryName(name) {
+  if (!name || name.length > 1024 || name.includes("\\") || name.includes("\0") || name.startsWith("/") || /^[A-Za-z]:/.test(name)) return true;
+  const segments = (name.endsWith("/") ? name.slice(0, -1) : name).split("/");
+  return segments.some((segment) => segment === "" || segment === "." || segment === "..");
+}
+function readZip(zip, limits = {}) {
+  const maxEntryBytes = limits.maxEntryBytes ?? 64 * 1024 * 1024;
+  const maxTotalBytes = limits.maxTotalBytes ?? 256 * 1024 * 1024;
+  const maxEntries = limits.maxEntries ?? 1e4;
+  const buf = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength);
+  const need = (at2, length, what) => {
+    if (!Number.isInteger(at2) || at2 < 0 || at2 + length > buf.length) throw new ZipError(`Corrupt zip: ${what} is outside the file.`);
+  };
+  const signature = Buffer.from([80, 75, 5, 6]);
+  let endAt = buf.lastIndexOf(signature);
+  while (endAt >= 0 && endAt + 22 > buf.length) endAt = endAt > 0 ? buf.lastIndexOf(signature, endAt - 1) : -1;
+  if (endAt < 0 || buf.length - endAt > 22 + 65535) throw new ZipError("Not a zip archive.");
   const count = buf.readUInt16LE(endAt + 10);
+  const centralSize = buf.readUInt32LE(endAt + 12);
   let at = buf.readUInt32LE(endAt + 16);
+  if (count === 65535 || at === 4294967295 || centralSize === 4294967295) throw new ZipError("ZIP64 archives are not supported.");
+  if (count > maxEntries) throw new ZipError(`Zip has ${count} entries; at most ${maxEntries} are allowed.`);
+  need(at, centralSize, "central directory");
   const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  let total = 0;
   for (let i = 0; i < count; i += 1) {
-    if (buf.readUInt32LE(at) !== 33639248) throw new Error("Corrupt central directory.");
+    need(at, 46, `central directory record ${i + 1}`);
+    if (buf.readUInt32LE(at) !== 33639248) throw new ZipError("Corrupt central directory.");
+    const flags = buf.readUInt16LE(at + 8);
     const method = buf.readUInt16LE(at + 10);
     const crc = buf.readUInt32LE(at + 16);
     const compressed = buf.readUInt32LE(at + 20);
+    const declared = buf.readUInt32LE(at + 24);
     const nameLength = buf.readUInt16LE(at + 28);
     const extraLength = buf.readUInt16LE(at + 30);
     const commentLength = buf.readUInt16LE(at + 32);
     const localAt = buf.readUInt32LE(at + 42);
+    need(at + 46, nameLength, `name of entry ${i + 1}`);
     const name = buf.subarray(at + 46, at + 46 + nameLength).toString("utf8");
-    const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
-    const body = buf.subarray(dataAt, dataAt + compressed);
-    const data = method === 0 ? Buffer.from(body) : inflateRawSync(body);
-    if (crc32(data) !== crc) throw new Error(`CRC mismatch for ${name}.`);
-    entries.push({ path: name, data });
+    const label = JSON.stringify(name.slice(0, 200));
+    if (unsafeZipEntryName(name)) throw new ZipError(`Unsafe zip entry name ${label}: absolute paths, drive letters, backslashes and ".." are refused.`);
+    if (seen.has(name)) throw new ZipError(`Duplicate zip entry ${label}.`);
+    seen.add(name);
+    if (flags & 1) throw new ZipError(`Zip entry ${label} is encrypted; encrypted archives are not supported.`);
+    if (compressed === 4294967295 || declared === 4294967295) throw new ZipError(`Zip entry ${label} uses ZIP64; ZIP64 archives are not supported.`);
+    if (method !== 0 && method !== 8) throw new ZipError(`Zip entry ${label} uses unsupported compression method ${method}.`);
+    if (declared > maxEntryBytes) throw new ZipError(`Zip entry ${label} declares ${declared} bytes; the limit is ${maxEntryBytes} bytes per entry.`);
+    total += declared;
+    if (total > maxTotalBytes) throw new ZipError(`Zip entries declare more than ${maxTotalBytes} bytes in total.`);
     at += 46 + nameLength + extraLength + commentLength;
+    if (name.endsWith("/")) {
+      if (declared !== 0) throw new ZipError(`Zip directory entry ${label} has data.`);
+      continue;
+    }
+    need(localAt, 30, `local header of ${label}`);
+    if (buf.readUInt32LE(localAt) !== 67324752) throw new ZipError(`Corrupt local header for ${label}.`);
+    const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
+    need(dataAt, compressed, `data of ${label}`);
+    const body = buf.subarray(dataAt, dataAt + compressed);
+    let data;
+    if (method === 0) {
+      if (compressed !== declared) throw new ZipError(`Size mismatch for ${label}.`);
+      data = Buffer.from(body);
+    } else {
+      try {
+        data = inflateRawSync(body, { maxOutputLength: Math.max(1, declared + 1) });
+      } catch {
+        throw new ZipError(`Corrupt compressed data for ${label}.`);
+      }
+      if (data.length !== declared) throw new ZipError(`Size mismatch for ${label}.`);
+    }
+    if (crc32(data) !== crc) throw new ZipError(`CRC mismatch for ${label}.`);
+    entries.push({ path: name, data });
   }
   return entries;
 }
@@ -5572,8 +5813,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path13) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path13);
+function isTextPath(path14) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path14);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -5722,8 +5963,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path13, make] of generated) {
-    if (!files.has(path13)) files.set(path13, { path: path13, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path14, make] of generated) {
+    if (!files.has(path14)) files.set(path14, { path: path14, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -5796,18 +6037,18 @@ included. Packing is refused if a file appears to contain a credential.
 Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 }
-function parseEvidenceArgs(argv) {
-  if (argv.includes("--help") || argv.includes("-h")) return { ok: true, options: { help: true } };
-  if (argv[0] !== "pack") return { ok: false, error: argv[0] ? `Unknown evidence command "${argv[0]}". Use: a11ygate evidence pack.` : "Missing evidence command. Use: a11ygate evidence pack." };
+function parseEvidenceArgs(argv2) {
+  if (argv2.includes("--help") || argv2.includes("-h")) return { ok: true, options: { help: true } };
+  if (argv2[0] !== "pack") return { ok: false, error: argv2[0] ? `Unknown evidence command "${argv2[0]}". Use: a11ygate evidence pack.` : "Missing evidence command. Use: a11ygate evidence pack." };
   const options = { help: false };
-  for (let index = 1; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
+  for (let index = 1; index < argv2.length; index += 1) {
+    const token = argv2[index] ?? "";
     const eq = token.indexOf("=");
     const name = eq === -1 ? token : token.slice(0, eq);
     if (name !== "--from" && name !== "--out" && name !== "--commit") {
       return { ok: false, error: token.startsWith("-") ? `Unknown evidence option ${token}.` : `Unexpected argument ${token}.` };
     }
-    const value = eq === -1 ? argv[index += 1] : token.slice(eq + 1);
+    const value = eq === -1 ? argv2[index += 1] : token.slice(eq + 1);
     if (!value || value.startsWith("-")) return { ok: false, error: `${name} needs a value.` };
     if (name === "--from") options.from = value;
     else if (name === "--out") options.out = value;
@@ -5856,8 +6097,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path7.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile6(file), source: "copied" });
+    const file = path8.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile3(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -5870,15 +6111,15 @@ async function collectInputs(dir, warn) {
     }],
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
-    const names = await readdir(path7.join(dir, sub)).catch(() => []);
+    const names = await readdir(path8.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path7.join(dir, sub, name);
+      const file = path8.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile6(file);
+      const data = await readFile3(file);
       if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -5888,19 +6129,19 @@ async function collectInputs(dir, warn) {
   }
   return files;
 }
-async function runEvidence(argv, io = {}) {
+async function runEvidence(argv2, io = {}) {
   const redactor = new AuthRedactor();
   for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
   const output = io.stdout ?? ((s) => process.stdout.write(s));
   const errors = io.stderr ?? ((s) => process.stderr.write(s));
-  return runEvidenceInternal(argv, { ...io, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+  return runEvidenceInternal(argv2, { ...io, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
 }
-async function runEvidenceInternal(argv, io) {
+async function runEvidenceInternal(argv2, io) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
-  const parsed = parseEvidenceArgs(argv);
+  const parsed = parseEvidenceArgs(argv2);
   if (!parsed.ok) {
     stderr(`${parsed.error}
 Run a11ygate evidence --help for usage.
@@ -5912,14 +6153,14 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path7.resolve(cwd, options.from);
-  const scanJsonPath = path7.join(dir, "a11ygate-scan.json");
+  const dir = path8.resolve(cwd, options.from);
+  const scanJsonPath = path8.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile6(scanJsonPath, "utf8");
+  const scanJson = await readFile3(scanJsonPath, "utf8");
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `));
   let commit;
@@ -5946,9 +6187,9 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path7.resolve(cwd, options.out ?? path7.join(options.from, "a11ygate-evidence.zip"));
+  const out = path8.resolve(cwd, options.out ?? path8.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir2(path7.dirname(out), { recursive: true });
+    await mkdir2(path8.dirname(out), { recursive: true });
     await writeFile4(out, result.zip);
   } catch (error) {
     const code3 = error.code;
@@ -5957,14 +6198,14 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path7.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path8.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
 
 // packages/cli/src/trend.ts
-import { lstat as lstat3, mkdir as mkdir3, readdir as readdir2, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
-import path8 from "node:path";
+import { lstat as lstat3, mkdir as mkdir3, readdir as readdir2, readFile as readFile4, writeFile as writeFile5 } from "node:fs/promises";
+import path9 from "node:path";
 
 // lib/trend.ts
 var TREND_ORDERED_BY = {
@@ -6190,17 +6431,17 @@ Nothing is fetched; the HTML has no scripts and no external resources.
 Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 }
-function parseTrendArgs(argv) {
-  if (argv.includes("--help") || argv.includes("-h")) return { ok: true, options: { help: true } };
+function parseTrendArgs(argv2) {
+  if (argv2.includes("--help") || argv2.includes("-h")) return { ok: true, options: { help: true } };
   const options = { help: false };
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
+  for (let index = 0; index < argv2.length; index += 1) {
+    const token = argv2[index] ?? "";
     if (token === "--out-dir" || token.startsWith("--out-dir=")) {
-      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv[index += 1];
+      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv2[index += 1];
       if (!value || value.startsWith("-")) return { ok: false, error: "--out-dir needs a value." };
       options.outDir = value;
     } else if (token === "--order" || token.startsWith("--order=")) {
-      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv[index += 1];
+      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv2[index += 1];
       if (value !== "scan" && value !== "commit") return { ok: false, error: "--order must be scan or commit." };
       options.order = value;
     } else if (token.startsWith("-")) return { ok: false, error: `Unknown trend option ${token}.` };
@@ -6210,35 +6451,92 @@ function parseTrendArgs(argv) {
   if (!options.dir) return { ok: false, error: "Pass the directory of evidence packs: a11ygate trend <dir>." };
   return { ok: true, options };
 }
+var isRecord2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+var optionalString = (v) => v === void 0 || v === null || typeof v === "string";
 function parseManifest(text) {
+  let m;
   try {
-    const m = JSON.parse(text);
-    if (m?.tool !== "a11ygate" || m.kind !== "evidence-pack" || m.schemaVersion !== 1 || !m.timestamps || !m.commit || !Array.isArray(m.files)) return null;
-    if (Number.isNaN(Date.parse(m.timestamps.scannedAt ?? m.timestamps.packedAt ?? ""))) return null;
-    const commit = m.commit;
-    if (commit.committedAt !== void 0 && (typeof commit.committedAt !== "string" || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
-    if (commit.branch !== void 0 && typeof commit.branch !== "string") delete commit.branch;
-    return m;
+    m = JSON.parse(text);
   } catch {
-    return null;
+    return "not valid JSON.";
   }
+  if (!isRecord2(m)) return "field (top level) must be a JSON object.";
+  if (m.tool !== "a11ygate") return 'field tool must be "a11ygate".';
+  if (m.kind !== "evidence-pack") return 'field kind must be "evidence-pack".';
+  if (m.schemaVersion !== 1) return "field schemaVersion must be 1.";
+  const { timestamps, commit, files } = m;
+  if (!isRecord2(timestamps)) return "field timestamps must be an object.";
+  for (const key of ["scannedAt", "packedAt"]) if (!optionalString(timestamps[key])) return `field timestamps.${key} must be a string.`;
+  if (!isRecord2(commit)) return "field commit must be an object.";
+  if (!optionalString(commit.sha)) return "field commit.sha must be a string.";
+  if (!Array.isArray(files)) return "field files must be a list.";
+  for (const [index, f] of files.entries()) {
+    if (!isRecord2(f)) return `field files[${index}] must be an object.`;
+    if (typeof f.path !== "string") return `field files[${index}].path must be a string.`;
+    if (typeof f.sha256 !== "string") return `field files[${index}].sha256 must be a string.`;
+  }
+  const when = timestamps.scannedAt ?? timestamps.packedAt;
+  if (Number.isNaN(Date.parse(when ?? ""))) return `field timestamps.${timestamps.scannedAt != null ? "scannedAt" : "packedAt"} must be an ISO date.`;
+  if (commit.committedAt !== void 0 && (typeof commit.committedAt !== "string" || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
+  if (commit.branch !== void 0 && typeof commit.branch !== "string") delete commit.branch;
+  return m;
+}
+function scanReportProblem(report) {
+  if (typeof report.startUrl !== "string") return "field startUrl must be a string";
+  if (typeof report.verdict !== "string") return "field verdict must be a string";
+  if (!isRecord2(report.counts)) return "field counts must be an object";
+  if (typeof report.counts.pagesScanned !== "number") return "field counts.pagesScanned must be a number";
+  for (const [index, p] of report.pages.entries()) {
+    if (!isRecord2(p)) return `field pages[${index}] must be an object`;
+    if (typeof p.url !== "string") return `field pages[${index}].url must be a string`;
+    if (!optionalString(p.finalUrl)) return `field pages[${index}].finalUrl must be a string`;
+    if (!optionalString(p.scanStatus)) return `field pages[${index}].scanStatus must be a string`;
+  }
+  if (report.engines !== void 0) {
+    if (!isRecord2(report.engines)) return "field engines must be an object";
+    if (!Array.isArray(report.engines.used)) return "field engines.used must be a list";
+    if (!Array.isArray(report.engines.errored)) return "field engines.errored must be a list";
+  }
+  return null;
 }
 function readPack(source, files) {
   const manifestData = files.get("manifest.json");
   const scanData = files.get(SCAN_PATH);
   if (!manifestData || !scanData) return `${source}: not an evidence pack (manifest.json or ${SCAN_PATH} missing).`;
   const manifest = parseManifest(Buffer.from(manifestData).toString("utf8"));
-  if (!manifest) return `${source}: manifest.json is not an A11yGate evidence-pack manifest.`;
+  if (typeof manifest === "string") return `${source}: manifest.json is not an A11yGate evidence-pack manifest: ${manifest}`;
   const recorded = manifest.files.find((f) => f.path === SCAN_PATH);
-  if (!recorded || recorded.sha256 !== sha256(scanData)) return `${source}: ${SCAN_PATH} does not match the SHA-256 in manifest.json.`;
+  if (!recorded) return `${source}: manifest.json field files has no entry for ${SCAN_PATH}.`;
+  if (recorded.sha256 !== sha256(scanData)) return `${source}: ${SCAN_PATH} does not match the SHA-256 in manifest.json.`;
   const report = parseScanReport2(Buffer.from(scanData).toString("utf8"));
-  if (!report) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report.`;
+  if (!report) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report (${scanReportFieldHint(Buffer.from(scanData).toString("utf8"))}).`;
+  const problem = scanReportProblem(report);
+  if (problem) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report (${problem}).`;
+  try {
+    parseScanReport(report);
+    createFingerprintBaseline(report);
+  } catch (error) {
+    return `${source}: ${SCAN_PATH}: ${error.message}`;
+  }
   return { source, manifest, report };
+}
+function scanReportFieldHint(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return "not valid JSON";
+  }
+  if (!isRecord2(value)) return "field (top level) must be a JSON object";
+  if (value.tool !== "a11ygate") return 'field tool must be "a11ygate"';
+  if (value.kind !== "site-scan") return 'field kind must be "site-scan"';
+  for (const key of ["pages", "findings"]) if (!Array.isArray(value[key])) return `field ${key} must be a list`;
+  return !value.counts ? "field counts is missing" : "field options is missing";
 }
 async function loadPacks(dir, warn) {
   const inputs = [];
   for (const name of (await readdir2(dir)).sort()) {
-    const full = path8.join(dir, name);
+    const full = path9.join(dir, name);
     const info = await lstat3(full);
     let files = null;
     if (info.isFile() && name.toLowerCase().endsWith(".zip")) {
@@ -6247,17 +6545,17 @@ async function loadPacks(dir, warn) {
         continue;
       }
       try {
-        files = new Map(readZip(await readFile7(full)).map((e) => [e.path, e.data]));
+        files = new Map(readZip(await readFile4(full)).map((e) => [e.path, e.data]));
       } catch (error) {
         warn(`Skipped ${name}: ${error.message}`);
         continue;
       }
     } else if (info.isDirectory()) {
-      const manifest = path8.join(full, "manifest.json");
-      const scan2 = path8.join(full, ...SCAN_PATH.split("/"));
+      const manifest = path9.join(full, "manifest.json");
+      const scan2 = path9.join(full, ...SCAN_PATH.split("/"));
       const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
       if (!await isFile(manifest) || !await isFile(scan2)) continue;
-      files = /* @__PURE__ */ new Map([["manifest.json", await readFile7(manifest)], [SCAN_PATH, await readFile7(scan2)]]);
+      files = /* @__PURE__ */ new Map([["manifest.json", await readFile4(manifest)], [SCAN_PATH, await readFile4(scan2)]]);
     } else continue;
     const pack = readPack(name, files);
     if (typeof pack === "string") warn(`Skipped ${pack}`);
@@ -6265,11 +6563,11 @@ async function loadPacks(dir, warn) {
   }
   return inputs;
 }
-async function runTrend(argv, io = {}) {
+async function runTrend(argv2, io = {}) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
-  const parsed = parseTrendArgs(argv);
+  const parsed = parseTrendArgs(argv2);
   if (!parsed.ok) {
     stderr(`${parsed.error}
 Run a11ygate trend --help for usage.
@@ -6280,7 +6578,7 @@ Run a11ygate trend --help for usage.
     stdout(trendHelpText());
     return 0;
   }
-  const dir = path8.resolve(cwd, parsed.options.dir);
+  const dir = path9.resolve(cwd, parsed.options.dir);
   const info = await lstat3(dir).catch(() => null);
   if (!info?.isDirectory()) {
     stderr(`${parsed.options.dir}: not a directory.
@@ -6297,20 +6595,20 @@ Run a11ygate trend --help for usage.
   const trend = buildTrend(inputs, parsed.options.order ?? "auto");
   if (parsed.options.order === "commit" && trend.ordering.note) stderr(`Note: ${trend.ordering.note}
 `);
-  const outDir = path8.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
+  const outDir = path9.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
   try {
     await mkdir3(outDir, { recursive: true });
-    await writeFile5(path8.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
+    await writeFile5(path9.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
 `, "utf8");
-    await writeFile5(path8.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
+    await writeFile5(path9.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the trend report${code3 ? ` (${code3})` : ""}.
 `);
     return 2;
   }
-  const rel = path8.relative(cwd, outDir) || ".";
-  stdout(`Wrote ${path8.join(rel, TREND_JSON)} and ${path8.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
+  const rel = path9.relative(cwd, outDir) || ".";
+  stdout(`Wrote ${path9.join(rel, TREND_JSON)} and ${path9.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
 `);
   return 0;
 }
@@ -6319,7 +6617,7 @@ Run a11ygate trend --help for usage.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path9 from "node:path";
+import path10 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -6475,8 +6773,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path13) {
-  const match = /\.([a-z0-9]+)$/i.exec(path13);
+function fileKind(path14) {
+  const match = /\.([a-z0-9]+)$/i.exec(path14);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -6522,7 +6820,7 @@ function parseJson(text) {
     return null;
   }
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function unfence(text) {
@@ -6531,7 +6829,7 @@ function unfence(text) {
 }
 function draftFromModelText(text, request) {
   const body = parseJson(unfence(text));
-  if (!isRecord2(body)) throw new ProviderError("invalid-output", "model reply is not a JSON object", { rejection: "schema" });
+  if (!isRecord3(body)) throw new ProviderError("invalid-output", "model reply is not a JSON object", { rejection: "schema" });
   const { replacement, rationale } = body;
   if (!Array.isArray(replacement) || !replacement.every((line) => typeof line === "string") || typeof rationale !== "string") {
     throw new ProviderError("invalid-output", "model reply does not match the schema", { rejection: "schema" });
@@ -6627,8 +6925,8 @@ function groqAdapter(options = {}) {
         throw httpError("groq", response.status, retryAfterMs, false, false);
       }
       const body = parseJson(await readCapped(response));
-      const choice = isRecord2(body) && Array.isArray(body.choices) ? body.choices[0] : null;
-      const content = isRecord2(choice) && isRecord2(choice.message) ? choice.message.content : null;
+      const choice = isRecord3(body) && Array.isArray(body.choices) ? body.choices[0] : null;
+      const content = isRecord3(choice) && isRecord3(choice.message) ? choice.message.content : null;
       if (typeof content !== "string") throw new ProviderError("invalid-output", "groq: unexpected response shape", { rejection: "schema" });
       return draftFromModelText(content, request);
     }
@@ -6641,15 +6939,15 @@ function maxOf(...values) {
 var GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 var GEMINI_MODEL = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 function geminiRetryDelay(body) {
-  const error = isRecord2(body) && isRecord2(body.error) ? body.error : null;
+  const error = isRecord3(body) && isRecord3(body.error) ? body.error : null;
   const details = error && Array.isArray(error.details) ? error.details : [];
   for (const detail of details) {
-    if (isRecord2(detail) && typeof detail.retryDelay === "string") return parseDuration(detail.retryDelay);
+    if (isRecord3(detail) && typeof detail.retryDelay === "string") return parseDuration(detail.retryDelay);
   }
   return null;
 }
 function geminiErrorText(body) {
-  const error = isRecord2(body) && isRecord2(body.error) ? body.error : null;
+  const error = isRecord3(body) && isRecord3(body.error) ? body.error : null;
   return error ? `${String(error.status ?? "")} ${String(error.message ?? "")}` : "";
 }
 function geminiAdapter(options = {}) {
@@ -6690,9 +6988,9 @@ function geminiAdapter(options = {}) {
         throw httpError("gemini", response.status, retryAfterMs, quota, regionBlocked);
       }
       const body = parseJson(await readCapped(response));
-      const candidate = isRecord2(body) && Array.isArray(body.candidates) ? body.candidates[0] : null;
-      const parts = isRecord2(candidate) && isRecord2(candidate.content) && Array.isArray(candidate.content.parts) ? candidate.content.parts : null;
-      const text = parts?.map((part) => isRecord2(part) && typeof part.text === "string" ? part.text : "").join("") ?? null;
+      const candidate = isRecord3(body) && Array.isArray(body.candidates) ? body.candidates[0] : null;
+      const parts = isRecord3(candidate) && isRecord3(candidate.content) && Array.isArray(candidate.content.parts) ? candidate.content.parts : null;
+      const text = parts?.map((part) => isRecord3(part) && typeof part.text === "string" ? part.text : "").join("") ?? null;
       if (!text) throw new ProviderError("invalid-output", "gemini: unexpected response shape", { rejection: "schema" });
       return draftFromModelText(text, request);
     }
@@ -6702,11 +7000,11 @@ var CLOUDFLARE_BASE = "https://api.cloudflare.com/client/v4/accounts/";
 var CLOUDFLARE_ACCOUNT = /^[a-f0-9]{32}$/;
 var CLOUDFLARE_MODEL = /^@cf\/[a-z0-9-]+\/[a-z0-9._-]+$/i;
 function cloudflareErrors(body) {
-  const errors = isRecord2(body) && Array.isArray(body.errors) ? body.errors : [];
+  const errors = isRecord3(body) && Array.isArray(body.errors) ? body.errors : [];
   const codes = [];
   let text = "";
   for (const error of errors) {
-    if (!isRecord2(error)) continue;
+    if (!isRecord3(error)) continue;
     if (typeof error.code === "number") codes.push(error.code);
     if (typeof error.message === "string") text += ` ${error.message}`;
   }
@@ -6753,7 +7051,7 @@ function cloudflareAdapter(options = {}) {
         throw httpError("cloudflare", response.status, retryAfterMs, quota, regionBlocked);
       }
       const body = parseJson(await readCapped(response));
-      const result = isRecord2(body) && isRecord2(body.result) ? body.result : null;
+      const result = isRecord3(body) && isRecord3(body.result) ? body.result : null;
       const content = result?.response;
       if (typeof content !== "string") throw new ProviderError("invalid-output", "cloudflare: unexpected response shape", { rejection: "schema" });
       return draftFromModelText(content, request);
@@ -6787,8 +7085,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path13, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path13) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path14, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path14) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -6845,7 +7143,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path9.join(cwd, "package.json"));
+  const require3 = createRequire3(path10.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -6857,7 +7155,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path9.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path10.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -6975,18 +7273,18 @@ ${findings.some((f) => f.status === "fail" || f.status === "unknown") ? "Preflig
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
 }
-async function runDoctor(argv, io = {}) {
+async function runDoctor(argv2, io = {}) {
   const stdout = io.stdout ?? ((text) => process.stdout.write(text));
   const stderr = io.stderr ?? ((text) => process.stderr.write(text));
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     stdout("Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n");
     return 0;
   }
   let strict = false;
   let engines;
   let modelFixes;
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i];
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
     const equals = token.indexOf("=");
     const name = equals === -1 ? token : token.slice(0, equals);
     const inline = equals === -1 ? void 0 : token.slice(equals + 1);
@@ -6999,7 +7297,7 @@ async function runDoctor(argv, io = {}) {
 `);
       return 2;
     }
-    const value = inline ?? argv[++i];
+    const value = inline ?? argv2[++i];
     if (!value || value.startsWith("-")) {
       stderr(`${name} needs a value.
 `);
@@ -7026,12 +7324,12 @@ async function runDoctor(argv, io = {}) {
 
 // packages/cli/src/init.ts
 import { lstat as lstat4, mkdir as mkdir4, realpath as realpath2, writeFile as writeFile6 } from "node:fs/promises";
-import path11 from "node:path";
+import path12 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import path10 from "node:path";
+import { readFile as readFile5 } from "node:fs/promises";
+import path11 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -7041,16 +7339,16 @@ a11ygate config validate [file]
   ${SCHEMA_COMMENT}
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
-async function runConfig(argv, io = {}) {
+async function runConfig(argv2, io = {}) {
   const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
   const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     stdout(CONFIG_HELP);
     return 0;
   }
-  if (argv[0] === "print") {
-    const command = ["scan", "ci", "doctor"].includes(argv[1] ?? "") ? argv[1] : "scan";
-    const flags = argv.slice(command === argv[1] ? 2 : 1);
+  if (argv2[0] === "print") {
+    const command = ["scan", "ci", "doctor"].includes(argv2[1] ?? "") ? argv2[1] : "scan";
+    const flags = argv2.slice(command === argv2[1] ? 2 : 1);
     try {
       const config2 = loadEffectiveConfig(command, flags, io);
       const invalid = () => new Error("Invalid options for config print; use scan/ci/doctor --help for supported arguments.");
@@ -7071,18 +7369,18 @@ async function runConfig(argv, io = {}) {
       return 0;
     } catch (error) {
       stderr(`${error.message}
-`);
+${debugDetail(error)}`);
       return 2;
     }
   }
-  if (argv[0] !== "validate" || argv.length > 2 || argv[1]?.startsWith("-")) {
+  if (argv2[0] !== "validate" || argv2.length > 2 || argv2[1]?.startsWith("-")) {
     stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
     return 2;
   }
-  const file = argv[1] ?? CONFIG_FILE;
+  const file = argv2[1] ?? CONFIG_FILE;
   let text;
   try {
-    text = await readFile8(path10.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile5(path11.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -7197,14 +7495,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path11.join(parent, part);
+    parent = path12.join(parent, part);
     await mkdir4(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path11.join(parent, parts.at(-1));
+  const destination = path12.join(parent, parts.at(-1));
   const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -7229,22 +7527,22 @@ async function writeStarter(cwd, file, content, force, stdout) {
 `);
   return true;
 }
-async function runInit(argv, io = {}) {
+async function runInit(argv2, io = {}) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
     stdout(INIT_HELP);
     return 0;
   }
   const options = { target: "github", url: defaultUrl, crawl: 10, failOn: "serious", yes: false, force: false };
   const supplied = /* @__PURE__ */ new Set();
   try {
-    for (let i = 0; i < argv.length; i++) {
-      const flag = argv[i];
+    for (let i = 0; i < argv2.length; i++) {
+      const flag = argv2[i];
       if (flag === "--yes") options.yes = true;
       else if (flag === "--force") options.force = true;
       else if (["--target", "--url", "--crawl", "--fail-on", "--baseline"].includes(flag)) {
-        const value = argv[++i];
+        const value = argv2[++i];
         if (!value || value.startsWith("-")) throw new Error(`${flag} needs a value.`);
         supplied.add(flag);
         if (flag === "--target") options.target = value;
@@ -7280,7 +7578,7 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat4(path11.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path12.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -7473,20 +7771,20 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path12.resolve(cwd, file);
+  return path13.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
   for (const file of files) {
     const absolute = resolveInput(cwd, file);
     try {
-      const info = await stat4(absolute);
+      const info = await stat5(absolute);
       if (!info.isFile()) return { ok: false, error: `${file}: not a file.` };
       if (info.size === 0) return { ok: false, error: `${file}: The file is empty.` };
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile9(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile6(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -7502,14 +7800,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path12.dirname(fileURLToPath(import.meta.url));
+  const here = path13.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path12.join(here, "..", "package.json"),
-    path12.join(here, "..", "..", "packages", "cli", "package.json")
+    path13.join(here, "..", "package.json"),
+    path13.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile9(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile6(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -7569,26 +7867,26 @@ function reportJson(input) {
   )}
 `;
 }
-async function run(argv, io = {}) {
+async function run(argv2, io = {}) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
-  if (argv[0] === "init") return runInit(argv.slice(1), io);
-  if (argv[0] === "doctor") return runDoctor(argv.slice(1), io);
-  if (argv[0] === "config") return runConfig(argv.slice(1), io);
-  if (argv[0] === "baseline") return runBaseline(argv.slice(1), io);
-  if (argv[0] === "review") return runReview(argv.slice(1), io);
-  if (argv[0] === "report") return runReport(argv.slice(1), io);
-  if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
-  if (argv[0] === "evidence") return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
-  if (argv[0] === "trend") return runTrend(argv.slice(1), io);
-  let gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
+  if (argv2[0] === "init") return runInit(argv2.slice(1), io);
+  if (argv2[0] === "doctor") return runDoctor(argv2.slice(1), io);
+  if (argv2[0] === "config") return runConfig(argv2.slice(1), io);
+  if (argv2[0] === "baseline") return runBaseline(argv2.slice(1), io);
+  if (argv2[0] === "review") return runReview(argv2.slice(1), io);
+  if (argv2[0] === "report") return runReport(argv2.slice(1), io);
+  if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
+  if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
+  if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
+  let gateArgv = argv2[0] === "ci" ? argv2.slice(1) : argv2;
   try {
     if (!gateArgv.some((arg) => ["--help", "-h", "--version"].includes(arg))) gateArgv = loadEffectiveConfig("ci", gateArgv, io).argv;
   } catch (error) {
     stderr(`${error.message}
-`);
+${debugDetail(error)}`);
     return 2;
   }
   const parsed = parseArgs(gateArgv);
@@ -7621,17 +7919,17 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path12.join(await realpath3(path12.dirname(absolute)).catch(() => path12.dirname(absolute)), path12.basename(absolute));
+        return path13.join(await realpath3(path13.dirname(absolute)).catch(() => path13.dirname(absolute)), path13.basename(absolute));
       });
-      const info = await stat4(absolute).catch(() => null);
+      const info = await stat5(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
     };
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path12.join(options.outDir, formatFileName("ci", "json")),
-      path12.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path12.join(options.outDir, formatFileName("ci", format)))
+      path13.join(options.outDir, formatFileName("ci", "json")),
+      path13.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path13.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -7768,7 +8066,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir5(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile7(path12.join(dir, name), content, "utf8");
+        await writeFile7(path13.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
@@ -7781,14 +8079,15 @@ async function run(argv, io = {}) {
 }
 
 // packages/cli/src/bin.ts
-void run(process.argv.slice(2)).then(
+var argv = process.argv.slice(2);
+var debug = debugRequested(argv);
+setDebug(debug);
+void run(stripDebugFlag(argv)).then(
   (code3) => {
     process.exitCode = code3;
   },
   (error) => {
-    const message = error instanceof Error ? error.message : "A11yGate failed.";
-    process.stderr.write(`${message}
-`);
+    process.stderr.write(formatFatal(error, debug));
     process.exitCode = 2;
   }
 );
