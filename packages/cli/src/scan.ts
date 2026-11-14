@@ -1,5 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createServer } from 'node:net';
+import { ENGINE_IDS, createHtmlcsEngine, createIbmEngine, createLighthouseEngine, type EngineId } from '@/lib/scan/engines/optional';
+import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
 import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanHtml, scanMarkdown, type FailOn } from '@/lib/scan/report';
 import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
@@ -23,7 +26,7 @@ export type ScanOptions = {
   html?: string;
   formats: ReportFormat[];
   warnings: string[];
-  engines: ['axe'];
+  engines: EngineId[];
 };
 
 export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; error: string };
@@ -74,8 +77,11 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       return { ok: false, error: `${name} needs a value.` };
     }
     if (name === '--engines') {
-      if (value !== 'axe') return { ok: false, error: `Unknown --engines \"${value}\". Only axe is available; use --engines axe.` };
-      options.engines = ['axe'];
+      const ids = value.split(',');
+      if (ids.some((id) => !(ENGINE_IDS as readonly string[]).includes(id)) || new Set(ids).size !== ids.length) {
+        return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
+      }
+      options.engines = ids as EngineId[];
     } else if (name === '--fail-on') {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
@@ -116,7 +122,7 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
-  --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
+  --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
@@ -130,6 +136,11 @@ Options:
 
 Requires the optional peer dependencies:
   npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium
+
+Opt-in engine peers (install only those selected):
+  npm install --save-dev html_codesniffer accessibility-checker-engine lighthouse puppeteer-core
+IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
+See docs/engines.md for licenses and engine result/error reporting.
 
 Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
 login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
@@ -146,11 +157,12 @@ Exit codes:
 
 export type ScanEngine = {
   axeVersion?: string;
+  engineResults?: EnginePageResult[];
   visit: (url: string, collectLinks: boolean) => Promise<VisitOutcome>;
   close: () => Promise<void>;
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[] }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -175,28 +187,47 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'] }) => {
+  const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
-  let axeModule: typeof import('@axe-core/playwright');
+  let axeModule: typeof import('@axe-core/playwright') | undefined;
   try {
     playwright = await import('playwright');
-    axeModule = await import('@axe-core/playwright');
+    if (engines.includes('axe') && !extended) axeModule = await import('@axe-core/playwright');
   } catch (error) {
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
-  const AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
-  const axeEngine = createAxeEngine(async (page: import('playwright').Page) =>
-    await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike, userAgent);
+  const axeEngine = engines.includes('axe') ? createAxeEngine(async (page: import('playwright').Page) => {
+    if (!axeModule) {
+      try { axeModule = await import('@axe-core/playwright'); }
+      catch { throw new Error('Missing @axe-core/playwright. Install with: npm install --save-dev @axe-core/playwright'); }
+    }
+    const AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
+    return await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike;
+  }, userAgent) : undefined;
+  const engineResults: EnginePageResult[] = [];
+  // Bind debugging to loopback only and enable it only for Lighthouse. Chromium and
+  // all adapters share the same browser and targets.
+  let debugPort: number | undefined;
+  if (engines.includes('lighthouse')) {
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    debugPort = (server.address() as import('node:net').AddressInfo).port;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+  const browserURL = debugPort ? `http://127.0.0.1:${debugPort}` : undefined;
+  const optionalEngines = { htmlcs: createHtmlcsEngine(), ibm: createIbmEngine(), lighthouse: createLighthouseEngine() };
   let browser: import('playwright').Browser;
   try {
-    browser = await playwright.chromium.launch({ headless: true });
+    browser = await playwright.chromium.launch({ headless: true, ...(debugPort ? { args: [`--remote-debugging-port=${debugPort}`, '--remote-debugging-address=127.0.0.1'] } : {}) });
   } catch (error) {
     const detail = error instanceof Error ? error.message.split('\n')[0] : 'unknown error';
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).\nInstall it with: npx playwright install chromium\n`);
   }
   const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: 'block', javaScriptEnabled: true });
   return {
+    ...(extended ? { engineResults } : {}),
     visit: async (url, collectLinks) => {
       const page = await context.newPage();
       // Read-only: no clicks, no form input, no dialogs accepted.
@@ -210,9 +241,23 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin })
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
         const links = collectLinks ? await page.$$eval('a[href]', (anchors) => anchors.map((a) => (a as HTMLAnchorElement).href)) : [];
-        const execution = await runEngine(axeEngine, page, url);
-        if (execution.status === 'errored') throw new Error(execution.error);
-        return { status, finalUrl, contentType, links, result: execution.native };
+        let result: import('@/lib/types').AxeResults | undefined;
+        for (const id of engines) {
+          if (id === 'axe' && axeEngine) {
+            const execution = await runEngine(axeEngine, page, url);
+            if (!extended && execution.status === 'errored') throw new Error(execution.error);
+            if (execution.status === 'complete') result = execution.native;
+            if (extended) engineResults.push(execution.status === 'complete'
+              ? { url, engine: id, status: 'complete', findings: execution.findings }
+              : { url, engine: id, status: 'errored', error: execution.error });
+          } else if (id !== 'axe') {
+            const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
+            engineResults.push(execution.status === 'complete'
+              ? { url, engine: id, status: 'complete', findings: execution.findings }
+              : { url, engine: id, status: 'errored', error: execution.error });
+          }
+        }
+        return { status, finalUrl, contentType, links, result, ...(extended ? { analysed: true } : {}) };
       } catch (error) {
         const detail = error instanceof Error ? error.message.split('\n')[0] : 'Navigation failed.';
         return { status: null, finalUrl: url, links: [], error: detail };
@@ -261,7 +306,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
 
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
@@ -298,6 +343,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     delayMs: options.delayMs,
     userAgent,
     robotsNote: robots.note,
+    engineResults: engine.engineResults,
   });
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const markdown = scanMarkdown(report);
@@ -334,5 +380,6 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   }
 
   stdout(options.json === '-' ? json : markdown);
-  return scanExitCode(report.findings, options.failOn);
+  if (report.engineResults?.some((e) => e.status === 'errored')) return 2;
+  return report.verdict === 'FAIL' ? 1 : scanExitCode(report.findings, options.failOn);
 }

@@ -14,7 +14,7 @@ export type NormalizedFinding = {
   snippet: string;
   helpUrl: string;
   /** Original public axe finding retained for lossless compatibility. */
-  compatibility: Finding;
+  compatibility?: Finding;
 };
 
 export function normalizeAxeFinding(finding: Finding): NormalizedFinding {
@@ -34,6 +34,7 @@ export function normalizeAxeResults(results: AxeResults): NormalizedFinding[] {
 /** Deliberately emits only the historical public Finding fields, in historical order. */
 export function toLegacyFinding(normalized: NormalizedFinding): Finding {
   const f = normalized.compatibility;
+  if (!f) throw new Error('Only axe findings have a legacy representation.');
   return {
     fingerprint: f.fingerprint, ruleId: f.ruleId, impact: f.impact, tags: f.tags,
     help: f.help, helpUrl: f.helpUrl, selector: f.selector, html: f.html,

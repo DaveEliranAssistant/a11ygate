@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir2, readFile, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdir as mkdir2, readFile as readFile2, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
 import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -196,7 +196,7 @@ function meetsThreshold(impact, threshold) {
   return impactRank(impact) >= impactRank(threshold);
 }
 function gatingFindings(findings, threshold) {
-  return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
+  return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
 }
 function gateVerdict(newFindings, threshold, coverage) {
   if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
@@ -207,7 +207,7 @@ function verdictReason(newFindings, threshold) {
   if (gating.length === 0) {
     return `No new finding is at or above ${threshold}.`;
   }
-  const rules2 = [...new Set(gating.map((finding) => finding.ruleId))];
+  const rules2 = [...new Set(gating.map((finding2) => finding2.ruleId))];
   const noun = gating.length === 1 ? "finding" : "findings";
   return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
 }
@@ -438,9 +438,9 @@ function parseAxeDocuments(documents) {
   if (documents.length === 0) return { ok: false, error: "Choose at least one JSON file." };
   const results = [];
   let synthetic = false;
-  for (const document of documents) {
-    const parsed = parseAxeJson(document.text);
-    if (!parsed.ok) return { ok: false, error: `${document.name}: ${parsed.error}` };
+  for (const document2 of documents) {
+    const parsed = parseAxeJson(document2.text);
+    if (!parsed.ok) return { ok: false, error: `${document2.name}: ${parsed.error}` };
     results.push(...parsed.results);
     synthetic = synthetic || parsed.synthetic;
   }
@@ -454,7 +454,7 @@ function findingsFromResults(results) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
         const resolvedImpact = node.impact !== void 0 ? node.impact : violation.impact;
-        const finding = {
+        const finding2 = {
           fingerprint: fingerprint(violation.id, selector, result.url),
           ruleId: violation.id,
           impact: resolvedImpact,
@@ -468,9 +468,9 @@ function findingsFromResults(results) {
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
-        const existing = byFingerprint.get(finding.fingerprint);
-        if (!existing || impactRank(finding.impact) > impactRank(existing.impact)) {
-          byFingerprint.set(finding.fingerprint, finding);
+        const existing = byFingerprint.get(finding2.fingerprint);
+        if (!existing || impactRank(finding2.impact) > impactRank(existing.impact)) {
+          byFingerprint.set(finding2.fingerprint, finding2);
         }
       }
     }
@@ -516,18 +516,18 @@ function wcagFromTags(tags) {
     (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag }] : []
   );
 }
-function formatFindingFromScan(finding) {
+function formatFindingFromScan(finding2) {
   return {
-    ruleId: finding.ruleId,
-    impact: finding.impact,
-    help: finding.help,
-    helpUrl: finding.helpUrl,
-    tags: finding.tags,
-    wcag: finding.wcag.map((item) => ({ number: item.number, name: item.name, level: item.level, wcag: item.wcag })),
-    pageUrl: finding.pageUrl,
-    selector: finding.selector,
-    html: finding.html,
-    fingerprint: finding.fingerprint
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags,
+    wcag: finding2.wcag.map((item) => ({ number: item.number, name: item.name, level: item.level, wcag: item.wcag })),
+    pageUrl: finding2.pageUrl,
+    selector: finding2.selector,
+    html: finding2.html,
+    fingerprint: finding2.fingerprint
   };
 }
 function formatReportFromScan(report) {
@@ -543,26 +543,26 @@ function formatReportFromScan(report) {
     findings: report.findings.map(formatFindingFromScan)
   };
 }
-function formatFindingFromDiffed(finding) {
+function formatFindingFromDiffed(finding2) {
   return {
-    ruleId: finding.ruleId,
-    impact: finding.impact,
-    help: finding.help,
-    helpUrl: finding.helpUrl,
-    tags: finding.tags,
-    wcag: wcagFromTags(finding.tags),
-    pageUrl: finding.url,
-    selector: finding.selector,
-    html: finding.html,
-    fingerprint: finding.fingerprint,
-    status: finding.status
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags,
+    wcag: wcagFromTags(finding2.tags),
+    pageUrl: finding2.url,
+    selector: finding2.selector,
+    html: finding2.html,
+    fingerprint: finding2.fingerprint,
+    status: finding2.status
   };
 }
 function formatReportFromGate(input) {
   const pages = [...new Set(input.currentResults.map((result) => result.url))];
-  const statusByFingerprint = new Map(input.findings.map((finding) => [finding.fingerprint, finding.status]));
+  const statusByFingerprint = new Map(input.findings.map((finding2) => [finding2.fingerprint, finding2.status]));
   const findings = findingsFromResults(input.currentResults).map(
-    (finding) => formatFindingFromDiffed({ ...finding, status: statusByFingerprint.get(finding.fingerprint) ?? "new" })
+    (finding2) => formatFindingFromDiffed({ ...finding2, status: statusByFingerprint.get(finding2.fingerprint) ?? "new" })
   );
   return {
     toolName: "A11yGate",
@@ -728,6 +728,167 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 // packages/cli/src/scan.ts
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createServer } from "node:net";
+
+// lib/scan/engines/optional.ts
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+
+// lib/scan/engines/wcag-map.ts
+var WCAG_RULE_MAP = {
+  htmlcs: { "WCAG2AA.Principle1.Guideline1_1.1_1_1.H37": ["1.1.1"] },
+  ibm: { img_alt_valid: ["1.1.1"], html_lang_exists: ["3.1.1"], input_label_exists: ["1.3.1", "4.1.2"] },
+  lighthouse: { "image-alt": ["1.1.1"], "document-title": ["2.4.2"], "html-has-lang": ["3.1.1"], "color-contrast": ["1.4.3"], label: ["1.3.1", "4.1.2"], "button-name": ["4.1.2"], "link-name": ["2.4.4", "4.1.2"] },
+  axe: {
+    "image-alt": ["1.1.1"],
+    "color-contrast": ["1.4.3"],
+    label: ["4.1.2", "1.3.1"],
+    region: [],
+    "document-title": ["2.4.2"],
+    "html-has-lang": ["3.1.1"],
+    "html-lang-valid": ["3.1.1"],
+    "link-name": ["2.4.4", "4.1.2"],
+    "button-name": ["4.1.2"]
+  }
+};
+
+// lib/scan/engines/optional.ts
+var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
+var require2 = createRequire(import.meta.url);
+async function localScript(packageName, script) {
+  try {
+    return await readFile(require2.resolve(`${packageName}/${script}`), "utf8");
+  } catch {
+    throw new Error(`Missing ${packageName} engine files. Install with: npm install --save-dev ${packageName}`);
+  }
+}
+function finding(engine, url, ruleId, selector, snippet, helpUrl, wcagSc) {
+  return {
+    engine,
+    url,
+    ruleId,
+    selector,
+    snippet,
+    helpUrl,
+    impact: "serious",
+    wcagSc: wcagSc ?? [...WCAG_RULE_MAP[engine]?.[ruleId] ?? []]
+  };
+}
+function createHtmlcsEngine() {
+  return {
+    id: "htmlcs",
+    displayName: "HTML_CodeSniffer",
+    async run({ page }, url) {
+      await page.evaluate(await localScript("html_codesniffer", "build/HTMLCS.js"));
+      const issues = await page.evaluate(async () => {
+        const htmlcs = window.HTMLCS;
+        return await new Promise((resolve) => {
+          htmlcs.process("WCAG2AA", document, () => resolve(htmlcs.getMessages().filter((m) => m.type === 1).map((m) => {
+            const parts = [];
+            let element = m.element;
+            while (element) {
+              const parent = element.parentElement;
+              parts.unshift(`${element.localName}:nth-child(${parent ? Array.from(parent.children).indexOf(element) + 1 : 1})`);
+              element = parent;
+            }
+            return { code: m.code, selector: parts.join(" > "), snippet: m.element?.outerHTML?.slice(0, 2e3) ?? "" };
+          })));
+        });
+      });
+      return issues.map((i) => {
+        const sc = i.code.match(/Guideline\d+_\d+\.(\d+)_(\d+)_(\d+)/);
+        return finding(
+          "htmlcs",
+          url,
+          i.code,
+          i.selector,
+          i.snippet,
+          "https://squizlabs.github.io/HTML_CodeSniffer/Standards/WCAG2/",
+          sc ? [`${sc[1]}.${sc[2]}.${sc[3]}`] : []
+        );
+      });
+    },
+    normalize: (results) => results
+  };
+}
+function createIbmEngine() {
+  return {
+    id: "ibm",
+    displayName: "IBM Equal Access",
+    async run({ page }, url) {
+      await page.evaluate(await localScript("accessibility-checker-engine", "ace.js"));
+      const issues = await page.evaluate(async () => {
+        const ace = window.ace;
+        const report = await new ace.Checker().check(document, ["IBM_Accessibility"]);
+        return report.results.filter((issue) => issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL").map((i) => ({
+          ruleId: i.ruleId,
+          selector: i.path?.dom ?? "",
+          snippet: i.snippet ?? ""
+        }));
+      });
+      return issues.map((i) => finding(
+        "ibm",
+        url,
+        i.ruleId,
+        i.selector,
+        i.snippet,
+        `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`
+      ));
+    },
+    normalize: (results) => results
+  };
+}
+function createLighthouseEngine() {
+  return {
+    id: "lighthouse",
+    displayName: "Lighthouse accessibility",
+    async run({ page, browserURL }, url) {
+      let lighthouse;
+      let puppeteer;
+      try {
+        [lighthouse, puppeteer] = await Promise.all([import("lighthouse"), import("puppeteer-core")]);
+      } catch {
+        throw new Error("Missing Lighthouse engine packages. Install with: npm install --save-dev lighthouse puppeteer-core");
+      }
+      if (!browserURL) throw new Error("Lighthouse requires the shared Chromium debugging endpoint.");
+      const browser = await puppeteer.connect({ browserURL, defaultViewport: null });
+      try {
+        const cdp = await page.context().newCDPSession(page);
+        const { targetInfo } = await cdp.send("Target.getTargetInfo");
+        await cdp.detach();
+        const target = browser.targets().find((t) => t._targetId === targetInfo.targetId);
+        const current = await target?.page();
+        if (!current) throw new Error("Could not attach Lighthouse to the existing page.");
+        const result = await lighthouse.snapshot(current, { flags: {
+          onlyCategories: ["accessibility"],
+          logLevel: "silent",
+          disableStorageReset: true,
+          formFactor: "desktop",
+          screenEmulation: { disabled: true }
+        } });
+        if (!result) throw new Error("Lighthouse returned no report.");
+        if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
+        const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
+        if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
+        return Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
+          const details = a.details;
+          const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
+          return (nodes.length ? nodes : [{}]).map((n) => finding(
+            "lighthouse",
+            url,
+            a.id,
+            n.selector ?? "",
+            n.snippet ?? "",
+            a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
+          ));
+        });
+      } finally {
+        await browser.disconnect();
+      }
+    },
+    normalize: (results) => results
+  };
+}
 
 // lib/scan/robots.ts
 var ROBOTS_AGENT = "a11ygate";
@@ -872,7 +1033,7 @@ async function crawl(options) {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
       continue;
     }
-    if (outcome.result) {
+    if (outcome.result || outcome.analysed) {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
     } else {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
@@ -908,15 +1069,15 @@ function findingGuidance(f) {
 function cell(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
 }
-function findingLine(finding) {
-  const selector = finding.selector.replace(/`/g, "'");
-  const impact = finding.impact ?? "unspecified";
-  const guidance = findingGuidance(finding);
-  return `- **${cell(finding.ruleId)}** (${impact}) on \`${cell(finding.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding.help)} \u2014 ${cell(formatStandards(finding.tags))}
-  - Affected element: \`${cell(finding.html)}\`; fingerprint: \`${cell(finding.fingerprint)}\`.
+function findingLine(finding2) {
+  const selector = finding2.selector.replace(/`/g, "'");
+  const impact = finding2.impact ?? "unspecified";
+  const guidance = findingGuidance(finding2);
+  return `- **${cell(finding2.ruleId)}** (${impact}) on \`${cell(finding2.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding2.help)} \u2014 ${cell(formatStandards(finding2.tags))}
+  - Affected element: \`${cell(finding2.html)}\`; fingerprint: \`${cell(finding2.fingerprint)}\`.
   - User impact: ${cell(guidance.userImpact)}
   - Remediation: ${cell(guidance.remediation)}
-  - Verification: ${guidance.verification.map(cell).join(" ")}${finding.assessmentReason ? "\n  - Assessment: " + cell(finding.assessmentReason) : ""}`;
+  - Verification: ${guidance.verification.map(cell).join(" ")}${finding2.assessmentReason ? "\n  - Assessment: " + cell(finding2.assessmentReason) : ""}`;
 }
 function section(title, findings) {
   if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
@@ -969,11 +1130,11 @@ function groupLabel(key, value) {
 }
 function groupFindings(findings, by) {
   const groups = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    const key = by === "rule" ? finding.ruleId : by === "page" ? finding.path : finding.impact ?? "unknown";
+  for (const finding2 of findings) {
+    const key = by === "rule" ? finding2.ruleId : by === "page" ? finding2.path : finding2.impact ?? "unknown";
     const existing = groups.get(key);
-    if (existing) existing.push(finding);
-    else groups.set(key, [finding]);
+    if (existing) existing.push(finding2);
+    else groups.set(key, [finding2]);
   }
   const grouped = [...groups.entries()].map(([key, items]) => ({
     key,
@@ -989,34 +1150,19 @@ function groupFindings(findings, by) {
   return grouped;
 }
 
-// lib/scan/engines/wcag-map.ts
-var WCAG_RULE_MAP = {
-  axe: {
-    "image-alt": ["1.1.1"],
-    "color-contrast": ["1.4.3"],
-    label: ["4.1.2", "1.3.1"],
-    region: [],
-    "document-title": ["2.4.2"],
-    "html-has-lang": ["3.1.1"],
-    "html-lang-valid": ["3.1.1"],
-    "link-name": ["2.4.4", "4.1.2"],
-    "button-name": ["4.1.2"]
-  }
-};
-
 // lib/scan/engines/normalized.ts
-function normalizeAxeFinding(finding) {
-  const mapped = lookupStandards(finding.tags).flatMap((hit) => hit.kind === "criterion" ? [hit.number] : []);
+function normalizeAxeFinding(finding2) {
+  const mapped = lookupStandards(finding2.tags).flatMap((hit) => hit.kind === "criterion" ? [hit.number] : []);
   return {
     engine: "axe",
-    ruleId: finding.ruleId,
-    wcagSc: mapped.length ? mapped : [...WCAG_RULE_MAP.axe?.[finding.ruleId] ?? []],
-    impact: finding.impact,
-    url: finding.url,
-    selector: finding.selector,
-    snippet: finding.html,
-    helpUrl: finding.helpUrl,
-    compatibility: finding
+    ruleId: finding2.ruleId,
+    wcagSc: mapped.length ? mapped : [...WCAG_RULE_MAP.axe?.[finding2.ruleId] ?? []],
+    impact: finding2.impact,
+    url: finding2.url,
+    selector: finding2.selector,
+    snippet: finding2.html,
+    helpUrl: finding2.helpUrl,
+    compatibility: finding2
   };
 }
 function normalizeAxeResults(results) {
@@ -1024,6 +1170,7 @@ function normalizeAxeResults(results) {
 }
 function toLegacyFinding(normalized) {
   const f = normalized.compatibility;
+  if (!f) throw new Error("Only axe findings have a legacy representation.");
   return {
     fingerprint: f.fingerprint,
     ruleId: f.ruleId,
@@ -1059,24 +1206,24 @@ function selectorsFor(result, ruleId, selector) {
   const node = result.violations.find((v) => v.id === ruleId)?.nodes.find((n) => n.target.join(" ") === selector);
   return node ? [...node.target] : [selector];
 }
-function toScanFinding(finding, result) {
-  const hits = lookupStandards(finding.tags);
+function toScanFinding(finding2, result) {
+  const hits = lookupStandards(finding2.tags);
   const wcag = hits.flatMap(
     (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag, en301549: hit.en301549 }] : []
   );
   return {
-    pageUrl: finding.url,
-    ruleId: finding.ruleId,
-    impact: finding.impact,
-    selector: finding.selector,
-    selectors: selectorsFor(result, finding.ruleId, finding.selector),
-    html: finding.html,
-    help: finding.help,
-    helpUrl: finding.helpUrl,
-    tags: finding.tags,
+    pageUrl: finding2.url,
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    selector: finding2.selector,
+    selectors: selectorsFor(result, finding2.ruleId, finding2.selector),
+    html: finding2.html,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags,
     wcag,
     bestPractice: wcag.length === 0,
-    fingerprint: finding.fingerprint
+    fingerprint: finding2.fingerprint
   };
 }
 function gatingScanFindings(findings, failOn) {
@@ -1115,7 +1262,9 @@ function buildScanReport(input) {
     });
   }
   const gating = gatingScanFindings(findings, input.failOn);
-  const verdict = gating.length > 0 ? "FAIL" : "PASS";
+  const extraGating = input.failOn === "none" ? [] : (input.engineResults ?? []).flatMap((e) => e.engine !== "axe" && e.status === "complete" ? e.findings.filter((f) => meetsThreshold(f.impact, input.failOn)) : []);
+  const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
+  const verdict = engineErrors ? "ERROR" : gating.length + extraGating.length > 0 ? "FAIL" : "PASS";
   const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
   return {
     tool: "a11ygate",
@@ -1128,7 +1277,8 @@ function buildScanReport(input) {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason,
+    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : extraGating.length ? `${gating.length + extraGating.length} findings at or above ${input.failOn} across selected engines (not deduplicated).` : reason,
+    ...input.engineResults ? { engineResults: input.engineResults } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
@@ -1146,11 +1296,11 @@ function buildScanReport(input) {
 }
 function groupByCriterion(findings) {
   const groups = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    const keys = finding.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
+  for (const finding2 of findings) {
+    const keys = finding2.bestPractice ? [{ key: "best-practice", label: "Best practice (no WCAG success criterion mapped)" }] : finding2.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
     for (const { key, label } of keys) {
       const group2 = groups.get(key) ?? { key, label, findings: [] };
-      group2.findings.push(finding);
+      group2.findings.push(finding2);
       groups.set(key, group2);
     }
   }
@@ -1237,6 +1387,12 @@ function scanMarkdown(report) {
   if (robotsSkipped.length > 0) {
     lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
   }
+  if (report.engineResults) lines.push("## Engine results (separate, not deduplicated)", "", ...report.engineResults.flatMap((e) => [
+    `### ${cell(e.engine)} \u2014 ${cell(e.url)} \u2014 ${e.status}`,
+    "",
+    ...e.status === "errored" ? [cell(e.error)] : e.findings.map((f) => `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) \u2014 ${code(f.selector)} \u2014 ${code(f.snippet)}`),
+    ""
+  ]));
   lines.push("## Scope and boundaries", "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
   return lines.join("\n");
 }
@@ -1284,7 +1440,7 @@ a{color:#0b57d0}
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
-<h2>Scope and boundaries</h2>
+${report.engineResults ? "<h2>Engine results (separate, not deduplicated)</h2>" + report.engineResults.map((e) => `<section><h3>${esc(e.engine)} \u2014 ${esc(e.url)} \u2014 ${esc(e.status)}</h3>${e.status === "errored" ? `<p>${esc(e.error)}</p>` : `<ul>${e.findings.map((f) => `<li><strong>${esc(f.ruleId)}</strong> (${esc(f.impact ?? "unspecified")}) \u2014 <code>${esc(f.selector)}</code> \u2014 <code>${esc(f.snippet)}</code></li>`).join("")}</ul>`}</section>`).join("") + "\n" : ""}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>
@@ -1328,12 +1484,17 @@ function createAxeEngine(analyze, userAgent) {
 }
 
 // lib/scan/engines/types.ts
-async function runEngine(engine, context, url) {
+async function runEngine(engine, context, url, timeoutMs = 3e4) {
+  let timer;
   try {
-    const native = await engine.run(context, url);
+    const native = await Promise.race([engine.run(context, url), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Engine ${engine.id} timed out after ${timeoutMs}ms.`)), timeoutMs);
+    })]);
     return { engine: engine.id, status: "complete", native, findings: engine.normalize(native) };
   } catch (error) {
     return { engine: engine.id, status: "errored", error: error instanceof Error ? error.message.split("\n")[0] : "Engine failed." };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -1346,14 +1507,14 @@ function escapeXml(value) {
 }
 function groupFindingsByRuleAndPage(findings) {
   const groups = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    const key = `${finding.pageUrl}\0${finding.ruleId}`;
+  for (const finding2 of findings) {
+    const key = `${finding2.pageUrl}\0${finding2.ruleId}`;
     const existing = groups.get(key);
     if (existing) {
-      existing.findings.push(finding);
+      existing.findings.push(finding2);
       continue;
     }
-    groups.set(key, { classname: finding.pageUrl, name: finding.ruleId, findings: [finding] });
+    groups.set(key, { classname: finding2.pageUrl, name: finding2.ruleId, findings: [finding2] });
   }
   return [...groups.values()].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
@@ -1369,13 +1530,13 @@ function failureMessage(group2) {
 }
 function failureBody(group2) {
   const lines = [FORMAT_DISCLAIMER, failureMessage(group2)];
-  for (const finding of group2.findings) {
-    const wcag = finding.wcag.length > 0 ? finding.wcag.map((item) => `WCAG ${item.number} ${item.name} (${item.level})`).join("; ") : "best practice (no WCAG success criterion mapped)";
+  for (const finding2 of group2.findings) {
+    const wcag = finding2.wcag.length > 0 ? finding2.wcag.map((item) => `WCAG ${item.number} ${item.name} (${item.level})`).join("; ") : "best practice (no WCAG success criterion mapped)";
     lines.push(
-      `- ${finding.pageUrl} \u2014 ${finding.selector} \u2014 ${wcag}`,
-      `  element: ${finding.html}`,
-      finding.helpUrl ? `  guidance: ${finding.helpUrl}` : "",
-      finding.status ? `  status: ${finding.status}` : ""
+      `- ${finding2.pageUrl} \u2014 ${finding2.selector} \u2014 ${wcag}`,
+      `  element: ${finding2.html}`,
+      finding2.helpUrl ? `  guidance: ${finding2.helpUrl}` : "",
+      finding2.status ? `  status: ${finding2.status}` : ""
     );
   }
   return lines.filter((line) => line.length > 0).join("\n");
@@ -1439,41 +1600,41 @@ function wcagTags(wcag, tags) {
 }
 function uniqueRules(findings) {
   const byId = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    const existing = byId.get(finding.ruleId);
-    if (!existing || impactRank(finding.impact) > impactRank(existing.impact)) {
-      byId.set(finding.ruleId, finding);
+  for (const finding2 of findings) {
+    const existing = byId.get(finding2.ruleId);
+    if (!existing || impactRank(finding2.impact) > impactRank(existing.impact)) {
+      byId.set(finding2.ruleId, finding2);
     }
   }
   return [...byId.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 }
-function artifactLocation(finding) {
-  if (finding.source?.file) {
-    const uri = finding.source.file.replace(/\\/g, "/");
+function artifactLocation(finding2) {
+  if (finding2.source?.file) {
+    const uri = finding2.source.file.replace(/\\/g, "/");
     return { uri };
   }
-  return { uri: finding.pageUrl };
+  return { uri: finding2.pageUrl };
 }
-function region(finding) {
-  if (finding.source) {
+function region(finding2) {
+  if (finding2.source) {
     return {
-      startLine: finding.source.startLine,
-      ...finding.source.startColumn !== void 0 ? { startColumn: finding.source.startColumn } : {},
-      ...finding.source.endLine !== void 0 ? { endLine: finding.source.endLine } : {},
-      ...finding.source.endColumn !== void 0 ? { endColumn: finding.source.endColumn } : {},
-      snippet: { text: finding.html },
-      message: { text: `selector: ${finding.selector}` }
+      startLine: finding2.source.startLine,
+      ...finding2.source.startColumn !== void 0 ? { startColumn: finding2.source.startColumn } : {},
+      ...finding2.source.endLine !== void 0 ? { endLine: finding2.source.endLine } : {},
+      ...finding2.source.endColumn !== void 0 ? { endColumn: finding2.source.endColumn } : {},
+      snippet: { text: finding2.html },
+      message: { text: `selector: ${finding2.selector}` }
     };
   }
   return {
-    snippet: { text: finding.html },
-    message: { text: `selector: ${finding.selector}` }
+    snippet: { text: finding2.html },
+    message: { text: `selector: ${finding2.selector}` }
   };
 }
 function taxaFor(findings) {
   const byId = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    for (const item of finding.wcag) {
+  for (const finding2 of findings) {
+    for (const item of finding2.wcag) {
       if (!byId.has(item.number)) byId.set(item.number, item);
     }
   }
@@ -1507,38 +1668,38 @@ function toSarif(report) {
   });
   const results = [...report.findings].sort(
     (a, b) => a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
-  ).map((finding) => {
-    const index = ruleIndex.get(finding.ruleId);
+  ).map((finding2) => {
+    const index = ruleIndex.get(finding2.ruleId);
     return {
-      ruleId: finding.ruleId,
+      ruleId: finding2.ruleId,
       ...index !== void 0 ? { ruleIndex: index } : {},
-      level: sarifLevel(finding.impact),
+      level: sarifLevel(finding2.impact),
       message: {
-        text: `${finding.help} (${finding.impact ?? "unspecified"}) at ${finding.selector} on ${finding.pageUrl}`
+        text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}`
       },
       locations: [
         {
           physicalLocation: {
-            artifactLocation: artifactLocation(finding),
-            region: region(finding)
+            artifactLocation: artifactLocation(finding2),
+            region: region(finding2)
           },
           logicalLocations: [
             {
-              fullyQualifiedName: finding.selector,
+              fullyQualifiedName: finding2.selector,
               kind: "element",
-              name: finding.selector
+              name: finding2.selector
             }
           ]
         }
       ],
-      ...finding.fingerprint ? { fingerprints: { a11ygate: finding.fingerprint }, partialFingerprints: { a11ygate: finding.fingerprint } } : {},
+      ...finding2.fingerprint ? { fingerprints: { a11ygate: finding2.fingerprint }, partialFingerprints: { a11ygate: finding2.fingerprint } } : {},
       properties: {
-        selector: finding.selector,
-        impact: finding.impact ?? "unspecified",
-        tags: finding.tags,
-        wcag: finding.wcag.map((item) => item.number),
-        pageUrl: finding.pageUrl,
-        ...finding.status ? { status: finding.status } : {}
+        selector: finding2.selector,
+        impact: finding2.impact ?? "unspecified",
+        tags: finding2.tags,
+        wcag: finding2.wcag.map((item) => item.number),
+        pageUrl: finding2.pageUrl,
+        ...finding2.status ? { status: finding2.status } : {}
       }
     };
   });
@@ -1623,8 +1784,11 @@ function parseScanArgs(argv) {
       return { ok: false, error: `${name} needs a value.` };
     }
     if (name === "--engines") {
-      if (value !== "axe") return { ok: false, error: `Unknown --engines "${value}". Only axe is available; use --engines axe.` };
-      options.engines = ["axe"];
+      const ids = value.split(",");
+      if (ids.some((id) => !ENGINE_IDS.includes(id)) || new Set(ids).size !== ids.length) {
+        return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
+      }
+      options.engines = ids;
     } else if (name === "--fail-on") {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
@@ -1664,7 +1828,7 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
-  --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
+  --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
@@ -1678,6 +1842,11 @@ Options:
 
 Requires the optional peer dependencies:
   npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium
+
+Opt-in engine peers (install only those selected):
+  npm install --save-dev html_codesniffer accessibility-checker-engine lighthouse puppeteer-core
+IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
+See docs/engines.md for licenses and engine result/error reporting.
 
 Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
 login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
@@ -1698,21 +1867,44 @@ function isModuleNotFound(error) {
   const code2 = error?.code;
   return code2 === "ERR_MODULE_NOT_FOUND" || code2 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
+  const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
   try {
     playwright = await import("playwright");
-    axeModule = await import("@axe-core/playwright");
+    if (engines.includes("axe") && !extended) axeModule = await import("@axe-core/playwright");
   } catch (error) {
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
-  const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
-  const axeEngine = createAxeEngine(async (page) => await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze(), userAgent);
+  const axeEngine = engines.includes("axe") ? createAxeEngine(async (page) => {
+    if (!axeModule) {
+      try {
+        axeModule = await import("@axe-core/playwright");
+      } catch {
+        throw new Error("Missing @axe-core/playwright. Install with: npm install --save-dev @axe-core/playwright");
+      }
+    }
+    const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
+    return await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+  }, userAgent) : void 0;
+  const engineResults = [];
+  let debugPort;
+  if (engines.includes("lighthouse")) {
+    const server = createServer();
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    debugPort = server.address().port;
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+  const browserURL = debugPort ? `http://127.0.0.1:${debugPort}` : void 0;
+  const optionalEngines = { htmlcs: createHtmlcsEngine(), ibm: createIbmEngine(), lighthouse: createLighthouseEngine() };
   let browser;
   try {
-    browser = await playwright.chromium.launch({ headless: true });
+    browser = await playwright.chromium.launch({ headless: true, ...debugPort ? { args: [`--remote-debugging-port=${debugPort}`, "--remote-debugging-address=127.0.0.1"] } : {} });
   } catch (error) {
     const detail = error instanceof Error ? error.message.split("\n")[0] : "unknown error";
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).
@@ -1721,6 +1913,7 @@ Install it with: npx playwright install chromium
   }
   const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true });
   return {
+    ...extended ? { engineResults } : {},
     visit: async (url, collectLinks) => {
       const page = await context.newPage();
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
@@ -1733,9 +1926,19 @@ Install it with: npx playwright install chromium
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
         const links = collectLinks ? await page.$$eval("a[href]", (anchors) => anchors.map((a) => a.href)) : [];
-        const execution = await runEngine(axeEngine, page, url);
-        if (execution.status === "errored") throw new Error(execution.error);
-        return { status, finalUrl, contentType, links, result: execution.native };
+        let result;
+        for (const id of engines) {
+          if (id === "axe" && axeEngine) {
+            const execution = await runEngine(axeEngine, page, url);
+            if (!extended && execution.status === "errored") throw new Error(execution.error);
+            if (execution.status === "complete") result = execution.native;
+            if (extended) engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
+          } else if (id !== "axe") {
+            const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
+            engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
+          }
+        }
+        return { status, finalUrl, contentType, links, result, ...extended ? { analysed: true } : {} };
       } catch (error) {
         const detail = error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
         return { status: null, finalUrl: url, links: [], error: detail };
@@ -1783,7 +1986,7 @@ Run a11ygate scan --help for usage.
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -1819,7 +2022,8 @@ Run a11ygate scan --help for usage.
     maxPages: options.maxPages,
     delayMs: options.delayMs,
     userAgent,
-    robotsNote: robots.note
+    robotsNote: robots.note,
+    engineResults: engine.engineResults
   });
   const json = `${JSON.stringify(report, null, 2)}
 `;
@@ -1854,7 +2058,8 @@ Run a11ygate scan --help for usage.
     return 2;
   }
   stdout(options.json === "-" ? json : markdown);
-  return scanExitCode(report.findings, options.failOn);
+  if (report.engineResults?.some((e) => e.status === "errored")) return 2;
+  return report.verdict === "FAIL" ? 1 : scanExitCode(report.findings, options.failOn);
 }
 
 // lib/export-baseline.ts
@@ -1897,8 +2102,8 @@ function byLocation(a, b) {
 }
 function indexByFingerprint(findings) {
   const indexed = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    if (!indexed.has(finding.fingerprint)) indexed.set(finding.fingerprint, finding);
+  for (const finding2 of findings) {
+    if (!indexed.has(finding2.fingerprint)) indexed.set(finding2.fingerprint, finding2);
   }
   return indexed;
 }
@@ -1907,17 +2112,17 @@ function diffScans(current, baseline) {
   const next = indexByFingerprint(current);
   const newFindings = [];
   const stillOpen = [];
-  for (const finding of next.values()) {
-    if (base.has(finding.fingerprint)) {
-      stillOpen.push({ ...finding, status: "still-open" });
+  for (const finding2 of next.values()) {
+    if (base.has(finding2.fingerprint)) {
+      stillOpen.push({ ...finding2, status: "still-open" });
     } else {
-      newFindings.push({ ...finding, status: "new" });
+      newFindings.push({ ...finding2, status: "new" });
     }
   }
   const fixedFindings = [];
-  for (const finding of base.values()) {
-    if (!next.has(finding.fingerprint)) {
-      fixedFindings.push({ ...finding, status: "fixed" });
+  for (const finding2 of base.values()) {
+    if (!next.has(finding2.fingerprint)) {
+      fixedFindings.push({ ...finding2, status: "fixed" });
     }
   }
   newFindings.sort(byLocation);
@@ -2033,7 +2238,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile2(absolute, "utf8") });
     } catch (error) {
       const code2 = error.code;
       if (code2 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -2056,28 +2261,28 @@ async function readVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile2(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
   }
   return "0.0.0";
 }
-function findingJson(finding) {
+function findingJson(finding2) {
   return {
-    status: finding.status,
-    assessmentReason: finding.assessmentReason,
-    guidance: findingGuidance(finding),
-    fingerprint: finding.fingerprint,
-    ruleId: finding.ruleId,
-    impact: finding.impact,
-    path: finding.path,
-    url: finding.url,
-    selector: finding.selector,
-    html: finding.html,
-    help: finding.help,
-    helpUrl: finding.helpUrl,
-    tags: finding.tags
+    status: finding2.status,
+    assessmentReason: finding2.assessmentReason,
+    guidance: findingGuidance(finding2),
+    fingerprint: finding2.fingerprint,
+    ruleId: finding2.ruleId,
+    impact: finding2.impact,
+    path: finding2.path,
+    url: finding2.url,
+    selector: finding2.selector,
+    html: finding2.html,
+    help: finding2.help,
+    helpUrl: finding2.helpUrl,
+    tags: finding2.tags
   };
 }
 function reportJson(input) {

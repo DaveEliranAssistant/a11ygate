@@ -1,3 +1,4 @@
+import { checkEngineLicenses } from '../../scripts/check-engine-licenses.mjs';
 import { build } from 'esbuild';
 import { existsSync } from 'node:fs';
 import { chmod, copyFile, mkdir } from 'node:fs/promises';
@@ -19,10 +20,13 @@ const atAlias = {
   },
 };
 
+checkEngineLicenses();
+
 await mkdir(path.dirname(outfile), { recursive: true });
 await mkdir(path.dirname(actionOut), { recursive: true });
 
-await build({
+const cliBuild = await build({
+  metafile: true,
   entryPoints: [path.join(packageRoot, 'src', 'bin.ts')],
   bundle: true,
   platform: 'node',
@@ -32,10 +36,16 @@ await build({
   banner: { js: '#!/usr/bin/env node' },
   legalComments: 'none',
   // Optional peer dependencies for `a11ygate scan`; loaded with dynamic import at runtime.
-  external: ['playwright', 'playwright-core', '@axe-core/playwright'],
+  external: ['playwright', 'playwright-core', '@axe-core/playwright', 'html_codesniffer', 'accessibility-checker-engine', 'lighthouse', 'puppeteer-core'],
   logLevel: 'warning',
   plugins: [atAlias],
 });
+
+// All engine packages remain runtime peers, including their transitive code.
+// Failing here prevents a future import change from silently bundling engine code.
+for (const input of Object.keys(cliBuild.metafile.inputs)) {
+  if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency: ${input}`);
+}
 
 // Pure, network-free fix rules for the Action's suggested changes (action/suggestions.mjs).
 await build({

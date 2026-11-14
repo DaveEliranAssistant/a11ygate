@@ -12,6 +12,7 @@ export type VisitOutcome = {
   links: string[];
   /** axe result when the page was analysed. */
   result?: AxeResults;
+  analysed?: boolean;
   error?: string;
 };
 
@@ -89,7 +90,7 @@ export async function crawl(options: CrawlOptions): Promise<CrawlResult> {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'skipped', error: 'Redirected to another origin; not scanned.' });
       continue;
     }
-    if (outcome.result) {
+    if (outcome.result || outcome.analysed) {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'complete', result: outcome.result });
     } else {
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'failed', error: outcome.error ?? 'Page was not analysed.' });

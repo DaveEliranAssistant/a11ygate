@@ -19,7 +19,10 @@
     "db:migrate": "node scripts/migrate-waitlist.mjs",
     "cli:build": "node packages/cli/build.mjs",
     "a11ygate": "node packages/cli/dist/cli.mjs",
-    "test:jenkins": "cd integrations/jenkins && ./gradlew test"
+    "test:jenkins": "cd integrations/jenkins && ./gradlew test",
+    "licenses:check": "node scripts/check-engine-licenses.mjs",
+    "prebuild": "npm run licenses:check",
+    "pretest": "npm run licenses:check"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -35,11 +38,15 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "accessibility-checker-engine": "^4.0.35",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
+    "html_codesniffer": "^2.5.1",
+    "lighthouse": "^12.8.2",
+    "puppeteer-core": "^24.43.1",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
     "xmllint-wasm": "^5.3.0"
