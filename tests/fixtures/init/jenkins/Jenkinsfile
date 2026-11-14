@@ -1,0 +1,38 @@
+// Declarative example for A11yGate. This is the file the docs and CI tests include.
+// Load integrations/jenkins as a shared library (see docs/integrations/jenkins.md once published),
+// or copy vars/a11yGate.groovy into your own library.
+//
+// Agent: Node 20+ and, for `scan`, Playwright Chromium. Docker image alternative: image: 'node:22'.
+// Automated testing only. Not a WCAG audit, certification or legal advice.
+
+@Library('a11ygate') _
+
+pipeline {
+  agent any
+  options {
+    timestamps()
+  }
+  parameters {
+    string(name: 'SITE_URL', defaultValue: 'http://127.0.0.1:4173/', description: 'Site you are authorized to test')
+    choice(name: 'FAIL_ON', choices: ['serious', 'critical', 'moderate', 'minor', 'none'], description: 'Minimum impact that makes the build UNSTABLE')
+  }
+  stages {
+    stage('Accessibility scan') {
+      steps {
+        a11yGate(
+          url: params.SITE_URL,
+          crawl: 10,
+          failOn: params.FAIL_ON,
+          formats: ['junit', 'sarif', 'json', 'md'],
+          cli: 'node packages/cli/dist/cli.mjs',
+          outDir: 'a11y-results'
+        )
+      }
+    }
+  }
+  post {
+    always {
+      echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'
+    }
+  }
+}

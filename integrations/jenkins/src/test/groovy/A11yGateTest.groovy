@@ -119,4 +119,49 @@ class A11yGateTest extends BasePipelineTest {
     assertTrue(lastSh.contains(' --crawl --fail-on'))
     assertEquals(true, dockerInside)
   }
+
+  @Test
+  void optionalBaselineIsPassedAsShellData() {
+    script.call([url: 'http://127.0.0.1/', baseline: '.a11ygate-baseline.json'])
+    assertTrue(lastSh.contains(" --baseline '.a11ygate-baseline.json'"))
+    script.call([url: 'http://127.0.0.1/', baseline: "reviewer's baseline.json"])
+    assertTrue(lastSh.contains(" --baseline 'reviewer'\\''s baseline.json'"))
+  }
+
+  // Execute the actual init snapshots through JenkinsPipelineUnit's mocked declarative DSL.
+  // Library resolution is configured by the Jenkins administrator; the library step itself
+  // is loaded by setUp(), so strip only that controller-side annotation here.
+  private void runGeneratedPipeline(String fixture) {
+    binding.setVariable('any', 'any')
+    binding.setVariable('params', [SITE_URL: 'http://127.0.0.1:4173/', FAIL_ON: 'serious'])
+    ['pipeline', 'options', 'parameters', 'stages', 'steps', 'post', 'always', 'timestamps'].each { name ->
+      helper.registerAllowedMethod(name, [Closure.class], { Closure body -> body.call() })
+    }
+    helper.registerAllowedMethod('agent', [String.class], { String ignored -> })
+    helper.registerAllowedMethod('timestamps', [], { -> })
+    helper.registerAllowedMethod('stage', [String.class, Closure.class], { String ignored, Closure body -> body.call() })
+    helper.registerAllowedMethod('string', [Map.class], { Map ignored -> })
+    helper.registerAllowedMethod('choice', [Map.class], { Map ignored -> })
+    helper.registerAllowedMethod('echo', [String.class], { String ignored -> })
+    helper.registerAllowedMethod('a11yGate', [Map.class], { Map args -> script.call(args) })
+    def source = new File('../../tests/fixtures/init/jenkins/' + fixture).text
+    assertTrue(source.contains("@Library('a11ygate') _"))
+    loadInlineScript(source.replace("@Library('a11ygate') _", '')).run()
+  }
+
+  @Test
+  void generatedInitJenkinsfileRunsWithSharedLibraryAndPublishesReports() {
+    runGeneratedPipeline('Jenkinsfile')
+    assertTrue(lastSh.contains("scan 'http://127.0.0.1:4173/' --crawl 10 --fail-on serious --format junit,sarif,json,md"))
+    assertEquals('a11y-results/*.junit.xml', lastJunit.testResults.toString())
+    assertEquals('a11y-results/**', lastArchive.artifacts.toString())
+  }
+
+  @Test
+  void generatedInitBaselineJenkinsfileUsesFingerprintBaseline() {
+    runGeneratedPipeline('Jenkinsfile.baseline')
+    assertTrue(lastSh.contains(" --baseline '.a11ygate-baseline.json'"))
+    assertEquals('a11y-results/*.junit.xml', lastJunit.testResults.toString())
+  }
+
 }

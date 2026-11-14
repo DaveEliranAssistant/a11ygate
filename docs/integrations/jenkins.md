@@ -136,6 +136,7 @@ The step is `a11yGate(url:, crawl:, failOn:, formats:, ...)`. See the header of 
 | `crawl` | Optional. `true` crawls up to the CLI cap (20 pages); a number is a page count; omitted or `false` scans only the start URL. |
 | `failOn` | `minor`, `moderate`, `serious` (default), `critical`, or `none`. |
 | `formats` | List or comma-separated: `junit`, `sarif`, `json`, `md`. Default: all four. Requires `--out-dir`. |
+| `baseline` | Optional fingerprint baseline path, created from saved scan evidence with `a11ygate baseline create`. |
 | `outDir` | Report directory. Default: `a11y-results`. |
 | `cli` | Command that runs the CLI. Default: `npx --yes @qe-atlas/a11ygate`. Use a source build until `scan`/`--format` are published. |
 | `image` | Optional Docker image. When set, the step runs inside `docker.image(image).inside(...)`. |
@@ -196,3 +197,5 @@ Python 3 is required. Evidence is saved under `test-results/jenkins-e2e/`, inclu
 ## Disclaimer
 
 Automated testing only. Not a WCAG audit, certification or legal advice. axe-core finds a subset of issues. A SUCCESS or empty JUnit report is not conformance, certification, or legal advice.
+
+For generated starter files, see [a11ygate init](init.md).

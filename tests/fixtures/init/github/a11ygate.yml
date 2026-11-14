@@ -1,0 +1,55 @@
+# Scan only a site you own or are authorized to test.
+# Start your local application before the scan step (including a readiness check).
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+name: A11yGate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    env:
+      A11YGATE_URL: "http://127.0.0.1:4173/"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Source build until scan ships in a published CLI release.
+      - uses: actions/checkout@v4
+        with:
+          repository: DaveEliranAssistant/a11ygate
+          ref: 3fc98754c66dbe9947e3df8588281aa1258fb66e
+          path: .a11ygate-tool
+          persist-credentials: false
+      - name: Install scanner
+        working-directory: .a11ygate-tool
+        run: |
+          npm ci
+          npm run cli:build
+          npx playwright install --with-deps chromium
+      # Add your application's install/build/start commands here for loopback scans.
+      - name: Scan authorized site
+        run: node .a11ygate-tool/packages/cli/dist/cli.mjs scan "$A11YGATE_URL" --crawl 10 --fail-on serious --format junit,sarif,json,md --out-dir a11y-results
+      - name: Archive reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11ygate-results
+          path: a11y-results/
+      # Fork PR tokens cannot upload SARIF. Code scanning availability depends on the repository.
+      - name: Upload SARIF
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: a11y-results/a11ygate-scan.sarif
+          category: a11ygate

@@ -1,0 +1,7 @@
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+# Setup choices; scan uses the explicit flags in the generated CI file.
+engines: [axe]
+modelFixes: false
+url: "http://127.0.0.1:4173/"
+crawl: 10
+failOn: serious

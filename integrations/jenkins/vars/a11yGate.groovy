@@ -9,6 +9,7 @@
  *   failOn      minor, moderate, serious (default), critical, or none.
  *   formats     List or comma-separated: junit, sarif, json, md. Default: junit,sarif,json,md.
  *   outDir      Report directory. Default: a11y-results.
+ *   baseline    Optional fingerprint baseline file (from a11ygate baseline create).
  *   cli         Command that runs the A11yGate CLI. Default: npx --yes @qe-atlas/a11ygate
  *               Published 0.1.0 does not include scan/--format; use a source build
  *               (for example: node packages/cli/dist/cli.mjs) until those ship.
@@ -52,7 +53,9 @@ def call(Map args = [:]) {
   }
 
   def formatArg = formats ? " --format ${formats.join(',')} --out-dir '${outDir}'" : " --out-dir '${outDir}'"
-  def command = "${cli} scan '${args.url}'${crawlArg} --fail-on ${failOn}${formatArg}"
+  // Quote a baseline path as shell data, just as the init-generated fixed path is passed.
+  def baselineArg = args.baseline ? " --baseline '" + args.baseline.toString().replace("'", "'\\''") + "'" : ''
+  def command = "${cli} scan '${args.url}'${crawlArg} --fail-on ${failOn}${baselineArg}${formatArg}"
 
   def runScan = {
     def status = sh(script: command, returnStatus: true)
