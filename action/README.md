@@ -60,7 +60,7 @@ When `comment` and `suggest-fixes` are both true, the action also posts pull req
 
 ## Model-assisted fixes (experimental, default off)
 
-This is an early slice of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). It can ask free-tier model providers (Groq, Gemini, Cloudflare Workers AI) for a draft when provider env vars are set. Every draft is treated as untrusted and validated. A draft-only publisher exists for drafts that an isolated re-scan verified, but the action does not run that verifier yet, so it publishes no model output. Only the sanitized outcome (for example `unverified-discarded`, `adapters-failed`) appears in the run summary.
+This is an early slice of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). It can ask free-tier model providers (Groq, Gemini, Cloudflare Workers AI) for a draft when provider env vars are set. Every draft is treated as untrusted and validated. When the model path is on, the action runs the isolated verifier: each validated draft is applied in a disposable git worktree pinned to the pull request head commit, the pages that were scanned are re-scanned locally on 127.0.0.1 with headless Chromium and axe, and only a draft that clears its finding without new findings can be published. Logs show only the sanitized outcome (for example `unverified-discarded`, `verify-rejected`, `adapters-failed`).
 
 - **Default off.** It stays off unless the `model-fixes` input (or `A11YGATE_MODEL_FIXES`) is `on` **and** the repository opts in with this exact line in `.a11ygate.yml` at the repository root:
 
@@ -73,6 +73,34 @@ This is an early slice of the design in [docs/design/model-written-fix-prs.md](.
 - When models are off, no provider is configured, every provider fails, or the budget is used up, the action posts exactly the rule-based suggestions described above. The gate result and exit code do not change.
 - Verified drafts are only ever published as a **draft** pull request (`model-fixes-publish: draft-pr`, the default) or a review comment labelled "model-drafted, needs human review" (`review-suggestion`), with provider, model, finding fingerprint, source commit and re-scan evidence. A11yGate never marks them ready, approves or merges them, and dedupes by commit and finding. Without `pull-requests: write` and `contents: write` it warns and reports only; the exit code does not change.
 - Rule-based suggestions keep their `TODO(a11ygate)` placeholders. A11yGate does not invent alt, label or accessible-name text.
+
+### Isolated re-scan in the action
+
+- **Routes** come from the `url` of each `current` axe JSON file (for example `http://127.0.0.1:4173/cart.html` → `cart.html`), served from the checkout on 127.0.0.1. The original URL is never fetched. Axe tags come from the inputs' `toolOptions.runOnly` when they all agree, otherwise the CLI scan tags. Pages that need a build step or a click to show a finding (for example an open dialog) are not covered yet.
+- **Checkout:** the workspace must be at the pull request head commit, for example `actions/checkout@v4` with `ref: ${{ github.event.pull_request.head.sha }}`. The default merge-commit checkout is skipped with a warning and drafts are discarded.
+- **Chromium:** `playwright` and `@axe-core/playwright` are resolved from the consumer's checkout (`npm ci`), and Playwright Chromium must already be installed (`npx playwright install --with-deps chromium`) before the action runs. If either is missing, verification fails closed: a sanitized warning is logged, nothing is published, and the exit code does not change.
+- **Permissions:** opening a draft fix PR needs `contents: write` and `pull-requests: write` on the job. Without them (403) or on a rate limit (429) the action reports only.
+- Draft fix PRs target the scanned head branch of same-repository pull requests only (never forks). GitHub does not offer draft pull requests on every plan; when it refuses one, the draft is posted as a labelled review suggestion instead.
+
+### Offline stub provider (demo and development only)
+
+`A11YGATE_MODEL_PROVIDERS=stub` registers an offline stub adapter so the full path (route → draft → validate → re-scan → draft PR) can be demonstrated without provider keys. It makes no network request and only inserts `TODO(a11ygate)` placeholders (for example `aria-label="TODO(a11ygate): name this control"`), or a TODO review comment for contrast; it never writes real alt, label or name text. It is never registered unless `stub` is listed explicitly, still needs `modelFixes: true`, `model-fixes: on` and a request budget and timeout, and is not meant for production use.
+
+```yaml
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      # npm ci and npx playwright install --with-deps chromium, then your axe scan
+      - uses: DaveEliranAssistant/a11ygate-action@v1
+        env:
+          A11YGATE_MODEL_PROVIDERS: stub        # demo/dev only
+          A11YGATE_MODEL_MAX_REQUESTS: '5'
+          A11YGATE_MODEL_TIMEOUT_MS: '10000'
+        with:
+          current: a11y-results/index.json
+          comment: true
+          model-fixes: on
+```
 
 ### Providers, order and environment variables
 

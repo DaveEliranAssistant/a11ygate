@@ -1,4 +1,4 @@
-export { BUILTIN_ADAPTERS, failingAdapter, staticAdapter, stubAdapter, stubDraft } from '@/lib/modelfix/adapters';
+export { adaptersForEnv, BUILTIN_ADAPTERS, failingAdapter, staticAdapter, stubAdapter, stubDraft } from '@/lib/modelfix/adapters';
 export { gitBlobHash, requiredReviewFlags, validateDraft } from '@/lib/modelfix/validate';
 export type { ValidateContext } from '@/lib/modelfix/validate';
 export { MODEL_FIXES_OFF, parseRepoConsent, parseSwitch, resolveModelFixConfig } from '@/lib/modelfix/config';

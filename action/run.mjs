@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCommentBody, findA11yComment } from './comment.mjs';
-import { REPO_CONFIG_FILE, resolveModelFixConfig } from './dist/modelfix.mjs';
+import { adaptersForEnv, REPO_CONFIG_FILE, resolveModelFixConfig } from './dist/modelfix.mjs';
 import { postSuggestions, readWorkspaceFile } from './suggestions.mjs';
 
 const actionDir = path.dirname(fileURLToPath(import.meta.url));
@@ -149,22 +149,64 @@ async function suggestFixes(jsonPath) {
   }
   const modelFixes = resolveModelFixConfig({ repoConfig, flag: process.env.A11Y_MODEL_FIXES, env: process.env });
   for (const message of modelFixes.warnings) warning(`A11yGate: ${message}`);
-  await postSuggestions({
-    report,
-    repo,
-    pr,
-    headSha: (process.env.A11Y_HEAD_SHA || '').trim(),
-    workspace,
-    modelFixes,
-    env: process.env,
-    // Draft-only publishing of verified drafts (draft PR, or labelled review suggestion). No verifier
-    // is wired into the Action yet, so nothing verifies and nothing is published in this phase.
-    modelPublish: modelPublishOptions(repo),
-    lang: (process.env.A11Y_SUGGEST_LANG || '').trim() || 'en',
-    github: (pathname, options = {}) => github(pathname, { ...options, token, api }),
-    warn: warning,
-    info: (message) => process.stdout.write(`${message}\n`),
-  });
+  // The isolated verifier (git worktree + local 127.0.0.1 re-scan) is only loaded when the model path is
+  // enabled. With model fixes off or denied, nothing below runs and F1 behaviour is unchanged.
+  const verify = modelFixes.enabled ? await modelVerifier(workspace) : null;
+  const publish = modelPublishOptions(repo);
+  try {
+    await postSuggestions({
+      report,
+      repo,
+      pr,
+      headSha: (process.env.A11Y_HEAD_SHA || '').trim(),
+      workspace,
+      modelFixes,
+      // Built-in free-tier adapters (inert without credentials). The offline stub is added only when
+      // A11YGATE_MODEL_PROVIDERS explicitly lists `stub` (demo/dev only).
+      modelAdapters: adaptersForEnv(process.env),
+      env: process.env,
+      modelVerifier: verify ? verify.verifier : undefined,
+      // Verified drafts only: a draft PR (never ready/approved/merged) or a labelled review suggestion.
+      modelPublish: { ...publish, routes: verify ? verify.routes : [] },
+      lang: (process.env.A11Y_SUGGEST_LANG || '').trim() || 'en',
+      github: (pathname, options = {}) => github(pathname, { ...options, token, api }),
+      warn: warning,
+      info: (message) => process.stdout.write(`${message}\n`),
+    });
+  } finally {
+    if (verify) await verify.close().catch(() => undefined);
+  }
+}
+
+/** Routes and axe tags for the re-scan, from the current axe JSON inputs. */
+function readAxeInputs() {
+  const inputs = [];
+  for (const file of splitPaths(process.env.A11Y_CURRENT)) {
+    try {
+      inputs.push(JSON.parse(readFileSync(file, 'utf8')));
+    } catch {
+      // Unreadable inputs already fail the gate; the verifier just has fewer routes.
+    }
+  }
+  return inputs;
+}
+
+/** Isolated verifier for model drafts, or null. Never throws; failures warn and fail closed. */
+async function modelVerifier(workspace) {
+  try {
+    const { createActionVerifier, rescanPlanFromAxeInputs } = await import('./dist/modelfix-verify.mjs');
+    const plan = rescanPlanFromAxeInputs(readAxeInputs());
+    return await createActionVerifier({
+      workspace,
+      headSha: (process.env.A11Y_HEAD_SHA || '').trim(),
+      routes: plan.routes,
+      tags: plan.tags,
+      warn: warning,
+    });
+  } catch {
+    warning('A11yGate model verifier could not start. Drafts are discarded; nothing is published.');
+    return null;
+  }
 }
 
 function outputPaths() {

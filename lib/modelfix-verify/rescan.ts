@@ -90,15 +90,17 @@ type AxeRun = { testEngine: { version: string }; violations: { id: string; nodes
  * dependencies, loaded on first use). Uses the scan command's axe tags unless
  * `tags` is given; the same instance must be used before and after a patch.
  */
-export function createLocalAxeRescanner(options: { tags?: readonly string[] } = {}): Rescanner {
+export type RescanModules = { playwright: typeof import('playwright'); axe: typeof import('@axe-core/playwright') };
+
+export function createLocalAxeRescanner(options: { tags?: readonly string[]; load?: () => Promise<RescanModules> } = {}): Rescanner {
   const tags = [...(options.tags ?? AXE_TAGS)];
+  const load = options.load ?? (async (): Promise<RescanModules> => ({ playwright: await import('playwright'), axe: await import('@axe-core/playwright') }));
   let browser: import('playwright').Browser | null = null;
   let AxeBuilder: typeof import('@axe-core/playwright').default | null = null;
 
   async function ready() {
     if (!browser || !AxeBuilder) {
-      const playwright = await import('playwright');
-      const axeModule = await import('@axe-core/playwright');
+      const { playwright, axe: axeModule } = await load();
       AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
       browser = await playwright.chromium.launch({ headless: true });
     }

@@ -73,6 +73,25 @@ await build({
   plugins: [atAlias],
 });
 
+// Isolated verifier for the Action (git worktree + local 127.0.0.1 re-scan). Loaded only when model
+// fixes are on and the repository opted in. Browser packages stay optional runtime peers.
+const verifyBuild = await build({
+  metafile: true,
+  entryPoints: [path.join(repoRoot, 'lib', 'modelfix-verify', 'index.ts')],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node20',
+  outfile: path.join(repoRoot, 'action', 'dist', 'modelfix-verify.mjs'),
+  legalComments: 'none',
+  external: ['playwright', 'playwright-core', '@axe-core/playwright'],
+  logLevel: 'warning',
+  plugins: [atAlias],
+});
+for (const input of Object.keys(verifyBuild.metafile.inputs)) {
+  if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency in modelfix-verify: ${input}`);
+}
+
 await chmod(outfile, 0o755);
 await copyFile(outfile, actionOut);
 await chmod(actionOut, 0o755);

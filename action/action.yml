@@ -42,7 +42,7 @@ inputs:
     required: false
     default: en
   model-fixes:
-    description: Optional model-drafted fixes (experimental). Needs provider env vars, see action README. on or off. Needs modelFixes true in the repository's .a11ygate.yml; cannot override a repository denial. Drafts are validated; only verified drafts may be published as a draft PR or labelled review suggestion. Falls back to rule-based suggestions.
+    description: Optional model-drafted fixes (experimental). Needs provider env vars, see action README. on or off. Needs modelFixes true in the repository's .a11ygate.yml; cannot override a repository denial. Drafts are validated and re-scanned in an isolated worktree on 127.0.0.1 (needs the pull request head commit checked out and Playwright Chromium installed); only verified drafts may be published as a draft PR or labelled review suggestion. A11YGATE_MODEL_PROVIDERS=stub enables an offline demo stub (demo/dev only). Falls back to rule-based suggestions.
     required: false
     default: 'off'
   model-fixes-publish:
