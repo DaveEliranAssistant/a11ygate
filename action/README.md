@@ -186,7 +186,7 @@ Free-tier notes. Only the Cloudflare figures are sourced; recheck before relying
 - Replies are untrusted. They are size-capped, must be JSON, and go through the same draft validator as any other draft (path, range, blob hash, no scripts, no check suppression). A reply that writes alt, label or accessible-name text instead of a `TODO(a11ygate)` placeholder is rejected.
 - Raw prompts, replies and error bodies are not logged. Provider retention, training use and regional processing are **unverified** here. A11yGate makes no "no storage" or "no training" claim. Repository owners must check and accept each provider's current terms before enabling it.
 
-A manual live check, `scripts/modelfix-live-smoke.mjs`, is not run by CI or any npm script. It sends one synthetic fixture snippet per provider and needs `A11YGATE_LIVE_SMOKE=1` plus your own credentials.
+A manual live check, `scripts/modelfix-live-smoke.mjs`, is not run by CI or any npm script. It sends one synthetic fixture snippet per provider and needs `A11YGATE_LIVE_SMOKE=1` plus your own credentials. The repository also ships `.github/workflows/provider-smoke.yml`, which runs that script on manual dispatch only (never on pull requests, pushes or a schedule). Each provider runs only if its repository secrets exist (`GROQ_API_KEY` + `A11YGATE_MODEL_GROQ_MODEL`; `GEMINI_API_KEY` + `A11YGATE_MODEL_GEMINI_MODEL`; `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `A11YGATE_MODEL_CLOUDFLARE_MODEL`); otherwise it is reported as skipped and the job still passes. It uploads a sanitized `provider-smoke.json` artifact (provider, model, latency, result, token counts) with no prompts, replies or credentials.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 

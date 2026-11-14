@@ -19,13 +19,20 @@
  * prints only sanitized status: provider state, outcome and rejection codes.
  * It never prints prompts, replies or credentials. Check your provider plan
  * first: a key alone does not prove that requests are free.
+ *
+ * A provider whose credentials/model are missing is reported as `skipped`
+ * (not configured) and does not fail the run; with nothing configured the
+ * script exits 0. Optional flags (used by .github/workflows/provider-smoke.yml):
+ *   --json-out <file>   write the sanitized JSON artifact
+ *   --summary <file>    append a sanitized Markdown table (e.g. $GITHUB_STEP_SUMMARY)
  */
 import { build } from 'esbuild';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { KNOWN_PROVIDERS, missingSecrets, runProviderSmoke, smokeArtifact, smokeSummary } from './provider-smoke-lib.mjs';
 
 if (process.env.A11YGATE_LIVE_SMOKE !== '1') {
   console.error('Refusing to run: this script calls live model providers. Set A11YGATE_LIVE_SMOKE=1 to opt in.');
@@ -33,15 +40,30 @@ if (process.env.A11YGATE_LIVE_SMOKE !== '1') {
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const known = ['groq', 'gemini', 'cloudflare'];
-const selected = process.argv.slice(2).length ? process.argv.slice(2) : known;
-if (selected.some((id) => !known.includes(id))) {
-  console.error(`Unknown provider. Choose from: ${known.join(', ')}`);
+const args = process.argv.slice(2);
+const options = { jsonOut: null, summary: null };
+const selected = [];
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === '--json-out' || args[i] === '--summary') {
+    const value = args[i + 1];
+    if (!value) {
+      console.error(`${args[i]} needs a file path.`);
+      process.exit(2);
+    }
+    options[args[i] === '--json-out' ? 'jsonOut' : 'summary'] = value;
+    i += 1;
+  } else {
+    selected.push(args[i]);
+  }
+}
+if (selected.some((id) => !KNOWN_PROVIDERS.includes(id))) {
+  console.error(`Unknown provider. Choose from: ${KNOWN_PROVIDERS.join(', ')}`);
   process.exit(2);
 }
+const providers = selected.length ? selected : [...KNOWN_PROVIDERS];
 
-const dir = await mkdtemp(path.join(os.tmpdir(), 'a11ygate-live-smoke-'));
-try {
+/** Bundles lib/modelfix only when at least one provider is configured. */
+async function loadModelfix(dir) {
   const outfile = path.join(dir, 'modelfix.mjs');
   await build({
     entryPoints: [path.join(repoRoot, 'lib', 'modelfix', 'index.ts')],
@@ -62,36 +84,20 @@ try {
       },
     ],
   });
-  const modelfix = await import(pathToFileURL(outfile).href);
+  return import(pathToFileURL(outfile).href);
+}
 
-  // Synthetic fixture only.
-  const page = ['<!doctype html>', '<html lang="en">', '<body>', '  <p class="muted" style="color:#aaa">Sample text</p>', '</body>', '</html>', ''].join('\n');
-  const files = [{ path: 'fixture/index.html', content: page, diffLines: new Set(page.split('\n').map((_, i) => i + 1)) }];
-  const findings = [{ fingerprint: 'smoke-contrast', ruleId: 'color-contrast', html: '<p class="muted" style="color:#aaa">', status: 'new' }];
-
-  for (const id of selected) {
-    const env = {
-      ...process.env,
-      A11YGATE_MODEL_PROVIDERS: id,
-      A11YGATE_MODEL_MAX_REQUESTS: '1',
-      A11YGATE_MODEL_TIMEOUT_MS: process.env.A11YGATE_MODEL_TIMEOUT_MS || '20000',
-    };
-    const config = modelfix.resolveModelFixConfig({ repoConfig: 'modelFixes: true\n', flag: 'on', env });
-    const adapters = modelfix.freeTierAdapters({ env });
-    const result = await modelfix.planWithModelFixes({ findings, files, config, env, adapters });
-    const route = result.model.routes[0]?.model ?? null;
-    console.log(
-      JSON.stringify({
-        provider: id,
-        status: result.model.status,
-        requests: result.model.modelRequests,
-        outcome: route?.outcome ?? null,
-        rejections: route?.rejections ?? [],
-        providerState: result.model.providers?.find((p) => p.id === id)?.state ?? 'not-configured',
-      }),
-    );
-  }
+const dir = await mkdtemp(path.join(os.tmpdir(), 'a11ygate-live-smoke-'));
+let exitCode = 0;
+try {
+  const anyConfigured = providers.some((id) => missingSecrets(id, process.env).length === 0);
+  const modelfix = anyConfigured ? await loadModelfix(dir) : null;
+  const run = await runProviderSmoke({ env: process.env, providers, modelfix });
+  exitCode = run.exitCode;
+  if (options.jsonOut) await writeFile(options.jsonOut, `${JSON.stringify(smokeArtifact(run.results), null, 2)}\n`);
+  if (options.summary) await appendFile(options.summary, `${smokeSummary(run.results)}\n`);
   console.log('Automated testing only. Not a WCAG audit, certification or legal advice.');
 } finally {
   await rm(dir, { recursive: true, force: true });
 }
+process.exit(exitCode);
