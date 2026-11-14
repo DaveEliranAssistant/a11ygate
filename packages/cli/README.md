@@ -4,6 +4,8 @@ Command-line accessibility regression gate for [axe-core](https://github.com/deq
 
 Licensed under the [MIT License](LICENSE).
 
+See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-upgrade-notes.md) for the proposed 0.2.0 (not published; `package.json` version is still 0.1.0).
+
 ## Usage
 
 ```bash
