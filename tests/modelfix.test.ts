@@ -165,15 +165,16 @@ describe('no-model fallback equals F1-only output', () => {
   it('a successful stub draft is discarded unpublished (no verifier yet)', async () => {
     const env = { ...BUDGET, A11YGATE_MODEL_PROVIDERS: 'groq' };
     const stub = counted(
-      staticAdapter('groq', (findingId) => ({
+      staticAdapter('groq', (findingId, request) => ({
         findingId,
+        sourceBlobHash: request.sourceBlobHash,
         path: 'site/index.html',
         startLine: 5,
         endLine: 5,
         original: ['  <p class="muted">Low contrast text</p>'],
         replacement: ['  <p class="muted" style="color:#000">Low contrast text</p>'],
         rationale: 'stub',
-        humanReview: [],
+        humanReview: ['model-drafted', 'visual-change'],
       })),
     );
     const config = resolveModelFixConfig({ repoConfig: OPTED_IN, flag: 'on', env });

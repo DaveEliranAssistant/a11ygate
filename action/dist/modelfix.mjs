@@ -13,7 +13,342 @@ function staticAdapter(id, make) {
   return {
     id,
     isConfigured: () => true,
-    draft: async (request) => make(request.findingId)
+    draft: async (request) => make(request.findingId, request)
+  };
+}
+var NAME_RULES = /* @__PURE__ */ new Set([
+  "aria-command-name",
+  "aria-dialog-name",
+  "aria-input-field-name",
+  "aria-meter-name",
+  "aria-progressbar-name",
+  "aria-toggle-field-name",
+  "aria-tooltip-name",
+  "aria-treeitem-name"
+]);
+function addAttribute(lines, name, value) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /<([a-zA-Z][\w.:-]*)/.exec(lines[index]);
+    if (!match) continue;
+    const at = match.index + match[0].length;
+    const next = [...lines];
+    next[index] = `${lines[index].slice(0, at)} ${name}="${value}"${lines[index].slice(at)}`;
+    return next;
+  }
+  return null;
+}
+function reviewComment(path2, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path2) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+}
+function stubDraft(request) {
+  const base = {
+    findingId: request.findingId,
+    sourceBlobHash: request.sourceBlobHash,
+    path: request.path,
+    startLine: request.startLine,
+    endLine: request.endLine,
+    original: [...request.original]
+  };
+  if (request.ruleId === "image-alt" || NAME_RULES.has(request.ruleId)) {
+    const image = request.ruleId === "image-alt";
+    const replacement = image ? addAttribute(request.original, "alt", "TODO(a11ygate): describe this image or confirm it is decorative") : addAttribute(request.original, "aria-label", "TODO(a11ygate): name this control");
+    if (!replacement) return null;
+    return {
+      ...base,
+      replacement,
+      rationale: `Stub draft: adds a ${image ? "alt" : "aria-label"} placeholder. A person must write the final text.`,
+      humanReview: ["model-drafted", "placeholder-accessible-name"]
+    };
+  }
+  if (request.ruleId === "color-contrast") {
+    const indent = /^\s*/.exec(request.original[0] ?? "")?.[0] ?? "";
+    return {
+      ...base,
+      replacement: [reviewComment(request.path, indent, "TODO(a11ygate): raise text/background contrast; a person must pick the colours"), ...request.original],
+      rationale: "Stub draft: marks the element for a contrast fix. It does not choose colours.",
+      humanReview: ["model-drafted"]
+    };
+  }
+  return null;
+}
+function stubAdapter(id = "stub") {
+  return {
+    id,
+    isConfigured: () => true,
+    draft: async (request) => {
+      const draft = stubDraft(request);
+      if (!draft) throw new Error("stub adapter has no draft for this finding");
+      return draft;
+    }
+  };
+}
+
+// lib/modelfix/validate.ts
+import { createHash } from "node:crypto";
+import { lstatSync, realpathSync } from "node:fs";
+import path from "node:path";
+
+// lib/modelfix/types.ts
+var REPO_CONFIG_FILE = ".a11ygate.yml";
+var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
+  "color-contrast",
+  "image-alt",
+  // ARIA accessible-name rules.
+  "aria-command-name",
+  "aria-dialog-name",
+  "aria-input-field-name",
+  "aria-meter-name",
+  "aria-progressbar-name",
+  "aria-toggle-field-name",
+  "aria-tooltip-name",
+  "aria-treeitem-name"
+]);
+var HUMAN_REVIEW_FLAGS = [
+  /** Always set: the change was written by a model. */
+  "model-drafted",
+  /** Alt / accessible-name text was set to something other than a TODO(a11ygate) placeholder (design §7). */
+  "generated-accessible-name",
+  /** Alt / accessible-name text is a TODO(a11ygate) placeholder; a person must write the final wording. */
+  "placeholder-accessible-name",
+  /** Visible text content changed. */
+  "visible-text-changed",
+  /** Colours or other presentation changed; a person must confirm the design intent. */
+  "visual-change"
+];
+var DRAFT_LIMITS = {
+  /** Max UTF-8 bytes of the joined replacement. */
+  maxReplacementBytes: 4096,
+  /** Max replacement lines beyond the original range length. */
+  maxExtraLines: 5,
+  /** Max replacement lines in total. */
+  maxReplacementLines: 40,
+  /** Max characters in one replacement line. */
+  maxLineLength: 1e3,
+  /** Max characters in the rationale. */
+  maxRationaleLength: 1e3
+};
+
+// lib/modelfix/validate.ts
+var PLACEHOLDER = "TODO(a11ygate)";
+function gitBlobHash(content) {
+  const body = Buffer.from(content, "utf8");
+  return createHash("sha1").update(`blob ${body.length}\0`).update(body).digest("hex");
+}
+var DRAFT_KEYS = ["findingId", "sourceBlobHash", "path", "startLine", "endLine", "original", "replacement", "rationale", "humanReview"];
+var MULTI_FILE_KEYS = /* @__PURE__ */ new Set(["files", "edits", "patches", "patch", "diff", "additionalFiles", "changes", "paths"]);
+var SCANNER_CONFIG = [
+  /(^|\/)\.?a11ygate\.ya?ml$/i,
+  /(^|\/)\.?a11ygate(rc)?(\.[a-z]+)?$/i,
+  /(^|\/)\.axerc(\.[a-z]+)?$/i,
+  /(^|\/)axe(\.config)?\.(json|js|cjs|mjs|ts|ya?ml)$/i,
+  /(^|\/)\.?lighthouserc(\.[a-z]+)?$/i,
+  /(^|\/)\.?pa11y(ci|rc)?(\.[a-z]+)?$/i,
+  /(^|\/)\.htmlcsrc(\.[a-z]+)?$/i,
+  /(^|\/)\.github\//i,
+  /(^|\/)action\.ya?ml$/i,
+  /(^|\/)\.gitlab-ci\.ya?ml$/i,
+  /(^|\/)(package|package-lock|npm-shrinkwrap)\.json$/i,
+  /(^|\/)(yarn\.lock|pnpm-lock\.yaml)$/i,
+  /(^|\/)(playwright|vitest|jest|cypress)\.config\.[a-z]+$/i,
+  /(^|\/)(eslint\.config\.[a-z]+|\.eslintrc(\.[a-z]+)?)$/i,
+  /(^|\/)(stylelint\.config\.[a-z]+|\.stylelintrc(\.[a-z]+)?)$/i
+];
+var TEST_FILE = [/(^|\/)(tests?|__tests__|e2e|spec)\//i, /\.(test|spec)\.[a-z]+$/i];
+var SUPPRESSION = [
+  /eslint-disable/i,
+  /stylelint-disable/i,
+  /@ts-(ignore|nocheck|expect-error)/i,
+  /axe-(skip|ignore|disable)/i,
+  /data-axe-[a-z-]*/i,
+  /a11ygate-(skip|ignore|disable)/i,
+  /htmlcs-(ignore|skip|disable)/i,
+  /pa11y-(ignore|skip|disable)/i,
+  /lighthouse-(ignore|skip|disable)/i,
+  /\bnoqa\b/i,
+  /aria-hidden\s*=\s*["'{]?\s*true/i,
+  /\brole\s*=\s*["'{]?\s*(presentation|none)\b/i,
+  /\balt\s*=\s*(""|''|\{\s*(""|''|``)\s*\})/i,
+  /display\s*:\s*["']?none/i,
+  /visibility\s*:\s*["']?hidden/i,
+  /\bhidden\b(?=[\s>=/])/i,
+  /opacity\s*:\s*["']?0(\.0+)?\s*[;"'}]/i
+];
+var EXECUTABLE = [
+  /<\s*script\b/i,
+  /javascript\s*:/i,
+  /\son[a-z]+\s*=/i,
+  /<\s*(iframe|object|embed|base|meta)\b/i,
+  /\bsrcdoc\s*=/i,
+  /dangerouslySetInnerHTML/,
+  /\binnerHTML\b/,
+  /\beval\s*\(/,
+  /\bnew\s+Function\b/,
+  /\b(require|import)\s*\(/,
+  /child_process/,
+  /^\s*#!/m
+];
+var NAME_ATTRS = ["alt", "aria-label", "aria-labelledby", "aria-description", "aria-describedby", "title", "label"];
+var NAME_ATTR = new RegExp(`(?:^|[\\s<])(${NAME_ATTRS.join("|")})\\s*=\\s*("[^"]*"|'[^']*'|\\{[^}]*\\}|[^\\s>]+)`, "gi");
+var PRESENTATION_ATTR = /(?:^|[\s<])(style|class|className|color|bgcolor|background)\s*=\s*("[^"]*"|'[^']*'|\{[^}]*\}|[^\s>]+)/gi;
+var CSS_COLOR = /\b(color|background(?:-color)?|fill|stroke)\s*:[^;"'}]*/gi;
+function count(text, pattern) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  return (text.match(new RegExp(pattern.source, flags)) ?? []).length;
+}
+function added(before, after, patterns) {
+  return patterns.find((pattern) => count(after, pattern) > count(before, pattern)) ?? null;
+}
+function isStringArray(value) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+function isLine(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
+function parseSchema(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return { code: "schema", detail: "draft is not an object" };
+  const record = input;
+  for (const key of Object.keys(record)) {
+    if (MULTI_FILE_KEYS.has(key)) return { code: "extra-file", detail: `draft carries extra file entries (${key})` };
+    if (!DRAFT_KEYS.includes(key)) return { code: "schema", detail: `unknown field ${key}` };
+  }
+  for (const key of DRAFT_KEYS) if (!(key in record)) return { code: "schema", detail: `missing field ${key}` };
+  const { findingId, sourceBlobHash, path: file, startLine, endLine, original, replacement, rationale, humanReview } = record;
+  if (typeof findingId !== "string" || !findingId) return { code: "schema", detail: "findingId must be a non-empty string" };
+  if (typeof sourceBlobHash !== "string" || !/^[0-9a-f]{40}$/.test(sourceBlobHash)) return { code: "schema", detail: "sourceBlobHash must be 40 lower-case hex characters" };
+  if (typeof file !== "string") return { code: "schema", detail: "path must be a string" };
+  if (!isLine(startLine) || !isLine(endLine) || endLine < startLine) return { code: "schema", detail: "startLine/endLine must be positive integers with endLine >= startLine" };
+  if (!isStringArray(original) || !isStringArray(replacement)) return { code: "schema", detail: "original and replacement must be string arrays" };
+  if (typeof rationale !== "string" || !rationale.trim()) return { code: "schema", detail: "rationale must be a non-empty string" };
+  if (rationale.length > DRAFT_LIMITS.maxRationaleLength) return { code: "oversize", detail: "rationale too long" };
+  if (!isStringArray(humanReview) || !humanReview.every((flag) => HUMAN_REVIEW_FLAGS.includes(flag))) {
+    return { code: "schema", detail: "humanReview must list known flags only" };
+  }
+  return input;
+}
+function unsafePath(file) {
+  if (!file) return "empty path";
+  if (file.includes("\0")) return "null byte in path";
+  if (/[\u0000-\u001f\u007f]/.test(file)) return "control character in path";
+  if (file.includes("\\")) return "backslash in path";
+  if (file.startsWith("/") || /^[a-z]:/i.test(file) || file.startsWith("~")) return "absolute path";
+  if (/%2e|%2f|%5c/i.test(file)) return "encoded path separator";
+  const segments = file.split("/");
+  if (segments.some((segment) => segment === "..")) return "parent directory segment";
+  if (segments.some((segment) => segment === "" || segment === ".")) return "non-normalized path";
+  if (path.posix.normalize(file) !== file) return "non-normalized path";
+  return null;
+}
+function symlinkEscape(repoRoot, file) {
+  let root;
+  try {
+    root = realpathSync(repoRoot);
+  } catch {
+    return { code: "missing-file", detail: "repository root not found" };
+  }
+  const target = path.join(root, ...file.split("/"));
+  try {
+    lstatSync(target);
+  } catch {
+    return { code: "missing-file", detail: "file not found under the repository root" };
+  }
+  let real;
+  try {
+    real = realpathSync(target);
+  } catch {
+    return { code: "symlink-escape", detail: "path does not resolve inside the repository" };
+  }
+  const relative = path.relative(root, real);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return { code: "symlink-escape", detail: "path resolves outside the repository root" };
+  }
+  return null;
+}
+function attrValues(text, pattern) {
+  const values = /* @__PURE__ */ new Map();
+  for (const match of text.matchAll(pattern)) {
+    const name = match[1].toLowerCase();
+    values.set(name, [...values.get(name) ?? [], match[2]]);
+  }
+  return values;
+}
+function visibleText(text) {
+  return text.replace(/<!--[\s\S]*?-->/g, " ").replace(/\{\/\*[\s\S]*?\*\/\}/g, " ").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+function presentation(text) {
+  return JSON.stringify([...attrValues(text, PRESENTATION_ATTR)], null, 0) + (text.match(CSS_COLOR) ?? []).join("|");
+}
+function requiredReviewFlags(original, replacement) {
+  const flags = /* @__PURE__ */ new Set(["model-drafted"]);
+  const nameFlag = (text) => text.includes(PLACEHOLDER) ? "placeholder-accessible-name" : "generated-accessible-name";
+  const before = attrValues(original, NAME_ATTR);
+  for (const [name, values] of attrValues(replacement, NAME_ATTR)) {
+    const previous = before.get(name) ?? [];
+    for (const value of values) if (!previous.includes(value)) flags.add(nameFlag(value));
+  }
+  const textBefore = visibleText(original);
+  const textAfter = visibleText(replacement);
+  if (textBefore !== textAfter) {
+    flags.add("visible-text-changed");
+    flags.add(nameFlag(textAfter));
+  }
+  if (presentation(original) !== presentation(replacement)) flags.add("visual-change");
+  return HUMAN_REVIEW_FLAGS.filter((flag) => flags.has(flag));
+}
+function validateDraft(input, context) {
+  try {
+    return validate(input, context);
+  } catch {
+    return { ok: false, rejection: { code: "schema", detail: "draft could not be read" } };
+  }
+}
+function reject(code, detail) {
+  return { ok: false, rejection: { code, detail } };
+}
+function validate(input, { request, content, repoRoot }) {
+  const parsed = parseSchema(input);
+  if ("code" in parsed) return reject(parsed.code, parsed.detail);
+  const draft = parsed;
+  if (draft.findingId !== request.findingId) return reject("finding-mismatch", "draft answers a different finding");
+  const unsafe = unsafePath(draft.path);
+  if (unsafe) return reject("path-traversal", unsafe);
+  if (SCANNER_CONFIG.some((pattern) => pattern.test(draft.path))) return reject("scanner-config", "draft targets scanner, CI or gate configuration");
+  if (TEST_FILE.some((pattern) => pattern.test(draft.path))) return reject("check-suppression", "draft targets a test file");
+  if (draft.path !== request.path) return reject("extra-file", "draft names a file outside the request");
+  if (repoRoot !== void 0) {
+    const escape = symlinkEscape(repoRoot, draft.path);
+    if (escape) return reject(escape.code, escape.detail);
+  }
+  if (draft.startLine !== request.startLine || draft.endLine !== request.endLine) return reject("range-mismatch", "draft range differs from the request");
+  const blob = gitBlobHash(content);
+  if (draft.sourceBlobHash !== blob || request.sourceBlobHash !== blob) return reject("blob-mismatch", "source blob hash does not match the file");
+  const lines = content.split("\n").map((line) => line.replace(/\r$/, ""));
+  if (draft.endLine > lines.length) return reject("range-mismatch", "range is past the end of the file");
+  const actual = lines.slice(draft.startLine - 1, draft.endLine);
+  if (draft.original.length !== actual.length || draft.original.some((line, index) => line !== actual[index])) {
+    return reject("original-mismatch", "original text does not match the file at the range");
+  }
+  const replacement = draft.replacement.join("\n");
+  const original = draft.original.join("\n");
+  if (Buffer.byteLength(replacement, "utf8") > DRAFT_LIMITS.maxReplacementBytes) return reject("oversize", "replacement over the byte cap");
+  if (draft.replacement.length > DRAFT_LIMITS.maxReplacementLines) return reject("oversize", "replacement over the line cap");
+  if (draft.replacement.length > draft.original.length + DRAFT_LIMITS.maxExtraLines) return reject("oversize", "replacement grows the range too much");
+  if (draft.replacement.some((line) => line.length > DRAFT_LIMITS.maxLineLength)) return reject("oversize", "replacement line too long");
+  if (draft.replacement.some((line) => /[\n\r\u0000]/.test(line))) return reject("schema", "replacement lines must not contain line breaks or null bytes");
+  if (!replacement.trim()) return reject("empty-replacement", "drafts may not delete the range");
+  if (replacement === original) return reject("no-change", "replacement equals the original");
+  if (added(original, replacement, SUPPRESSION)) return reject("check-suppression", "replacement adds a check suppression or hides content");
+  if (added(original, replacement, EXECUTABLE)) return reject("executable-payload", "replacement adds executable content");
+  const required = requiredReviewFlags(original, replacement);
+  const flags = /* @__PURE__ */ new Set([...draft.humanReview, ...required]);
+  const humanReview = HUMAN_REVIEW_FLAGS.filter((flag) => flags.has(flag));
+  return {
+    ok: true,
+    value: {
+      draft,
+      humanReview,
+      needsHumanReview: true,
+      requiresAcknowledgement: humanReview.includes("generated-accessible-name") || humanReview.includes("placeholder-accessible-name")
+    }
   };
 }
 
@@ -285,8 +620,8 @@ var KINDS = {
   js: "jsx",
   mjs: "jsx"
 };
-function sourceKind(path) {
-  const ext = /\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase() ?? "";
+function sourceKind(path2) {
+  const ext = /\.([a-z0-9]+)$/i.exec(path2)?.[1]?.toLowerCase() ?? "";
   return KINDS[ext] ?? null;
 }
 var IGNORED = /* @__PURE__ */ new Set(["style", "key", "ref"]);
@@ -339,7 +674,7 @@ function mapFinding(html, files) {
 }
 
 // lib/fix/types.ts
-var PLACEHOLDER = "TODO(a11ygate)";
+var PLACEHOLDER2 = "TODO(a11ygate)";
 
 // lib/fix/rules/shared.ts
 function attribute(name, value) {
@@ -375,7 +710,7 @@ ${indent}` : comment;
 }
 
 // lib/fix/rules/accessible-name.ts
-var NAME_PLACEHOLDER = `${PLACEHOLDER}: add accessible name`;
+var NAME_PLACEHOLDER = `${PLACEHOLDER2}: add accessible name`;
 var NOISE = /* @__PURE__ */ new Set([
   "icon",
   "icons",
@@ -474,8 +809,8 @@ var accessibleNameRule = (input) => {
   const value = title ?? icon?.name ?? NAME_PLACEHOLDER;
   const attr = attribute("aria-label", value) ?? attribute("aria-label", NAME_PLACEHOLDER);
   if (!attr) return null;
-  const placeholder = attr.includes(PLACEHOLDER);
-  const note = placeholder ? `No title, icon name or nearby text to reuse, so this adds a \`${PLACEHOLDER}\` placeholder. Replace it with the real name before merging.` : title ? "Copies the existing `title` into `aria-label`." : `Derives \`aria-label\` from the ${icon?.from}. Confirm it describes what the control does.`;
+  const placeholder = attr.includes(PLACEHOLDER2);
+  const note = placeholder ? `No title, icon name or nearby text to reuse, so this adds a \`${PLACEHOLDER2}\` placeholder. Replace it with the real name before merging.` : title ? "Copies the existing `title` into `aria-label`." : `Derives \`aria-label\` from the ${icon?.from}. Confirm it describes what the control does.`;
   return { rule: "accessible-name", edits: [insertAfterName(tag.nameEnd, attr)], placeholder, note };
 };
 
@@ -514,7 +849,7 @@ var htmlLangRule = ({ kind, tag, lang }) => {
   const value = safeLang(lang);
   const existing = getAttr(tag, "lang");
   if (existing && !(existing.kind === "literal" && (existing.value ?? "").trim() === "") && existing.kind !== "bare") return null;
-  const todo = `${PLACEHOLDER}: confirm "${value}" is the main language of this document`;
+  const todo = `${PLACEHOLDER2}: confirm "${value}" is the main language of this document`;
   const comment = kind === "html" ? `<!-- ${todo} -->` : `{/* ${todo} */}`;
   const edits = existing ? [{ start: existing.start, end: existing.end, text: `lang="${value}"` }] : [insertAfterName(tag.nameEnd, `lang="${value}"`)];
   edits.push({ start: tag.end, end: tag.end, text: comment });
@@ -522,12 +857,12 @@ var htmlLangRule = ({ kind, tag, lang }) => {
     rule: "html-has-lang",
     edits,
     placeholder: true,
-    note: `Sets \`lang="${value}"\` from the configured default and adds a \`${PLACEHOLDER}\` comment to confirm the language.`
+    note: `Sets \`lang="${value}"\` from the configured default and adds a \`${PLACEHOLDER2}\` comment to confirm the language.`
   };
 };
 
 // lib/fix/rules/image-alt.ts
-var ALT_TODO = `${PLACEHOLDER}: write alt text that describes this image, or confirm it is decorative and keep alt=""`;
+var ALT_TODO = `${PLACEHOLDER2}: write alt text that describes this image, or confirm it is decorative and keep alt=""`;
 var imageAltRule = ({ source, kind, tag }) => {
   if (kind === "jsx" ? tag.tagName !== "img" : tag.tagName.toLowerCase() !== "img") return null;
   if (getAttr(tag, "alt")) return null;
@@ -545,7 +880,7 @@ var imageAltRule = ({ source, kind, tag }) => {
     rule: "image-alt",
     edits,
     placeholder: true,
-    note: `Adds \`alt=""\` and a \`${PLACEHOLDER}\` comment. A human must write a real description, or confirm the image is decorative.`
+    note: `Adds \`alt=""\` and a \`${PLACEHOLDER2}\` comment. A human must write a real description, or confirm the image is decorative.`
   };
 };
 
@@ -710,22 +1045,6 @@ function planSuggestions(findings, files, options = {}) {
   return plan;
 }
 
-// lib/modelfix/types.ts
-var REPO_CONFIG_FILE = ".a11ygate.yml";
-var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
-  "color-contrast",
-  "image-alt",
-  // ARIA accessible-name rules.
-  "aria-command-name",
-  "aria-dialog-name",
-  "aria-input-field-name",
-  "aria-meter-name",
-  "aria-progressbar-name",
-  "aria-toggle-field-name",
-  "aria-tooltip-name",
-  "aria-treeitem-name"
-]);
-
 // lib/modelfix/orchestrator.ts
 var NO_F1_PATCH = /* @__PURE__ */ new Set(["unsupported-rule", "no-safe-fix"]);
 function routeFindings(findings, files, plan, sourceCommit) {
@@ -766,16 +1085,17 @@ function draftRequest(route, files) {
     path: file.path,
     startLine: route.startLine,
     endLine: route.endLine,
-    original: file.content.split("\n").slice(route.startLine - 1, route.endLine).map((line) => line.replace(/\r$/, ""))
+    original: file.content.split("\n").slice(route.startLine - 1, route.endLine).map((line) => line.replace(/\r$/, "")),
+    sourceBlobHash: gitBlobHash(file.content)
   };
 }
 async function withDeadline(timeoutMs, run) {
   const controller = new AbortController();
   let timer;
-  const deadline = new Promise((_, reject) => {
+  const deadline = new Promise((_, reject2) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new Error("timeout"));
+      reject2(new Error("timeout"));
     }, timeoutMs);
   });
   try {
@@ -796,7 +1116,7 @@ var MESSAGES = {
 };
 function finish(status, routes, modelRequests, outcome) {
   if (outcome) {
-    for (const route of routes) if (route.model && route.model.provider === null) route.model.outcome = outcome;
+    for (const route of routes) if (route.model && route.model.provider === null && route.model.outcome !== "draft-rejected") route.model.outcome = outcome;
   }
   return { status, routes, modelRequests, message: MESSAGES[status] };
 }
@@ -823,6 +1143,8 @@ async function runModelPath(input, routes) {
   for (const route of eligible) {
     const request = draftRequest(route, input.files);
     if (!request || !route.model) continue;
+    const content = input.files.find((item) => item.path === request.path)?.content ?? "";
+    const rejections = [];
     for (const adapter of adapters) {
       if (failed.has(adapter.id)) continue;
       if (requests >= config.maxRequests) {
@@ -831,7 +1153,12 @@ async function runModelPath(input, routes) {
       }
       requests += 1;
       try {
-        await withDeadline(config.timeoutMs, (signal) => adapter.draft(request, signal));
+        const draft = await withDeadline(config.timeoutMs, (signal) => adapter.draft({ ...request, original: [...request.original] }, signal));
+        const result = validateDraft(draft, { request, content, repoRoot: input.repoRoot });
+        if (!result.ok) {
+          rejections.push(result.rejection.code);
+          continue;
+        }
         route.model = { outcome: "unverified-discarded", provider: adapter.id };
         break;
       } catch {
@@ -839,7 +1166,8 @@ async function runModelPath(input, routes) {
       }
     }
     if (route.model.provider === null) {
-      route.model.outcome = overBudget ? "over-budget" : "adapters-failed";
+      if (rejections.length > 0) route.model = { outcome: "draft-rejected", provider: null, rejections };
+      else route.model.outcome = overBudget ? "over-budget" : "adapters-failed";
     }
   }
   if (failed.size === adapters.length) return finish("adapters-failed", routes, requests, "adapters-failed");
@@ -859,14 +1187,21 @@ async function planWithModelFixes(input) {
 }
 export {
   BUILTIN_ADAPTERS,
+  DRAFT_LIMITS,
+  HUMAN_REVIEW_FLAGS,
   MODEL_ELIGIBLE_RULES,
   MODEL_FIXES_OFF,
   REPO_CONFIG_FILE,
   failingAdapter,
+  gitBlobHash,
   parseRepoConsent,
   parseSwitch,
   planWithModelFixes,
+  requiredReviewFlags,
   resolveModelFixConfig,
   routeFindings,
-  staticAdapter
+  staticAdapter,
+  stubAdapter,
+  stubDraft,
+  validateDraft
 };

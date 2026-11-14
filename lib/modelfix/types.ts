@@ -74,6 +74,8 @@ export type ModelOutcome =
   | 'no-budget'
   | 'over-budget'
   | 'adapters-failed'
+  /** Every draft returned for this finding failed validation. Nothing was applied or published. */
+  | 'draft-rejected'
   /** A draft came back but no verifier exists yet, so it was discarded unpublished. */
   | 'unverified-discarded';
 
@@ -90,7 +92,7 @@ export type RouteRecord = {
   startLine: number | null;
   endLine: number | null;
   /** Set only for `model-eligible`. */
-  model: { outcome: ModelOutcome; provider: string | null } | null;
+  model: { outcome: ModelOutcome; provider: string | null; rejections?: DraftRejectionCode[] } | null;
 };
 
 export type ModelRunStatus =
@@ -108,24 +110,123 @@ export type ModelDraftRequest = {
   findingId: string;
   ruleId: string;
   sourceCommit: string | null;
+  /** The only file a draft may touch (repository-relative, `/`-separated). */
   path: string;
+  /** 1-based inclusive line range; the only range a draft may replace. */
   startLine: number;
   endLine: number;
   /** Exact original lines of the mapped element. */
   original: string[];
+  /** Git blob SHA-1 of the whole file at `path` (see `gitBlobHash`). */
+  sourceBlobHash: string;
 };
 
-/** Structured adapter output. Untrusted until validated, applied in isolation and re-scanned (later phases). */
+/**
+ * Human-review flags. Every model draft carries `model-drafted`; the validator
+ * adds the others when it detects the matching change, whatever the adapter
+ * claimed. No flag ever means "safe to merge without review".
+ */
+export const HUMAN_REVIEW_FLAGS = [
+  /** Always set: the change was written by a model. */
+  'model-drafted',
+  /** Alt / accessible-name text was set to something other than a TODO(a11ygate) placeholder (design §7). */
+  'generated-accessible-name',
+  /** Alt / accessible-name text is a TODO(a11ygate) placeholder; a person must write the final wording. */
+  'placeholder-accessible-name',
+  /** Visible text content changed. */
+  'visible-text-changed',
+  /** Colours or other presentation changed; a person must confirm the design intent. */
+  'visual-change',
+] as const;
+
+export type HumanReviewFlag = (typeof HUMAN_REVIEW_FLAGS)[number];
+
+/**
+ * Structured adapter output (schema v1). Untrusted until validated by
+ * `validateDraft`, applied in isolation and re-scanned (later phases).
+ *
+ * Exactly one file and one line range: the ones in the request.
+ */
 export type ModelDraft = {
+  /** Finding fingerprint from the request. */
   findingId: string;
+  /** Git blob SHA-1 of the whole file the draft was written against (40 lower-case hex). */
+  sourceBlobHash: string;
+  /** Allowed file: must equal the request path. */
   path: string;
+  /** Allowed range: must equal the request range. */
   startLine: number;
   endLine: number;
+  /** Exact original lines at the range. */
   original: string[];
+  /** Replacement lines for the whole range. */
   replacement: string[];
+  /** Short plain-text reason for the change. */
   rationale: string;
-  humanReview: string[];
+  /** Review flags the adapter declares. The validator adds any it requires. */
+  humanReview: HumanReviewFlag[];
 };
+
+/** Size caps for a draft (documented in docs/design/model-written-fix-prs.md §2). */
+export const DRAFT_LIMITS = {
+  /** Max UTF-8 bytes of the joined replacement. */
+  maxReplacementBytes: 4096,
+  /** Max replacement lines beyond the original range length. */
+  maxExtraLines: 5,
+  /** Max replacement lines in total. */
+  maxReplacementLines: 40,
+  /** Max characters in one replacement line. */
+  maxLineLength: 1000,
+  /** Max characters in the rationale. */
+  maxRationaleLength: 1000,
+} as const;
+
+export type DraftRejectionCode =
+  /** Not an object, missing/extra/mistyped fields, unknown review flag. */
+  | 'schema'
+  /** `findingId` is not the requested finding. */
+  | 'finding-mismatch'
+  /** The draft names a file other than the request path, or carries extra file entries. */
+  | 'extra-file'
+  /** `..`, absolute, backslash, null byte, drive letter or other unsafe path. */
+  | 'path-traversal'
+  /** The path resolves through a symlink outside the repository root. */
+  | 'symlink-escape'
+  /** The path does not exist under the repository root. */
+  | 'missing-file'
+  /** The draft targets scanner, CI or gate configuration. */
+  | 'scanner-config'
+  /** The draft tries to suppress or hide a check (ignore comments, hiding content, test files). */
+  | 'check-suppression'
+  /** Script, event handler or other executable content added. */
+  | 'executable-payload'
+  /** Range differs from the request. */
+  | 'range-mismatch'
+  /** `original` is not the exact text at the range. */
+  | 'original-mismatch'
+  /** `sourceBlobHash` does not match the file. */
+  | 'blob-mismatch'
+  /** Over a `DRAFT_LIMITS` cap. */
+  | 'oversize'
+  /** Empty or whitespace-only replacement (deletion). */
+  | 'empty-replacement'
+  /** Replacement equals the original. */
+  | 'no-change';
+
+export type DraftRejection = { code: DraftRejectionCode; detail: string };
+
+/** A draft that passed validation. Still unverified: it has not been applied or re-scanned. */
+export type ValidatedDraft = {
+  draft: ModelDraft;
+  /** Declared flags plus every flag the validator requires, in `HUMAN_REVIEW_FLAGS` order. */
+  humanReview: HumanReviewFlag[];
+  /** Always true for model output. */
+  needsHumanReview: true;
+  /** True when a person must explicitly acknowledge generated wording before the change is ready (design §7). */
+  requiresAcknowledgement: boolean;
+};
+
+export type DraftValidation = { ok: true; value: ValidatedDraft } | { ok: false; rejection: DraftRejection };
 
 /** Provider adapter contract. Live adapters (Groq, Gemini, Cloudflare) are later tasks. */
 export interface ModelAdapter {
