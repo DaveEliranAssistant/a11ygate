@@ -24,12 +24,16 @@ Guide: [GitHub Action integration](../docs/integrations/github-action.md). Sibli
 
 Check these four items before you turn on comments, SARIF or model-fix drafts. The copy-paste workflow below shows all of them.
 
+<a id="doctor-pr-creation"></a>
+
 ### 1. "Allow GitHub Actions to create and approve pull requests" (model-fix draft PRs only)
 
 Model-fix **draft** pull requests need the repository setting **Settings → Actions → General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests"** ([GitHub Docs: Preventing GitHub Actions from creating or approving pull requests](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)). The **Workflow permissions** section is documented under [Setting the permissions of the GITHUB_TOKEN for your repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#setting-the-permissions-of-the-github_token-for-your-repository). New personal repositories have it off; organization repositories inherit the organization setting.
 
 - When it is off, GitHub refuses the pull request (403). A11yGate stops publishing and falls back to **report-only**: the gate result, job summary, comment and rule-based suggestions are unchanged, and no draft PR is opened. The exit code does not change.
 - **OWNER ACTION.** Turning this setting on is a decision for the repository or organization owner. A11yGate and its maintainers never change it for you. It is not needed for the gate, the comment, suggested changes or SARIF.
+
+<a id="doctor-permissions"></a>
 
 ### 2. `permissions:` per mode
 
@@ -44,6 +48,8 @@ Set the job token's scopes in the workflow `permissions:` block ([GitHub Docs: w
 | SARIF upload to code scanning | `read` | — | — | `write` |
 
 SARIF upload with `github/codeql-action/upload-sarif` needs `security-events: write` ([GitHub Docs: Uploading a SARIF file to GitHub](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file#uploading-a-code-scanning-analysis-with-github-actions)). Without the write scopes, A11yGate warns and reports only.
+
+<a id="doctor-checkout"></a>
 
 ### 3. Check out the pull request head commit
 
@@ -60,6 +66,18 @@ For `pull_request` workflows from forks, the `GITHUB_TOKEN` is read-only and sec
 - Do not switch to `pull_request_target` to get a write token for fork code. Keep `pull_request`.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Automatic preflight
+
+Before the gate, the Action runs an advisory `a11ygate doctor` preflight. Failed
+or unknown checks warn and continue; there is no strict Action input. It checks
+the real checkout SHA, job permissions when available, the Actions PR setting
+through a read-only API, Node, requested engine peers, Chromium when model
+verification needs it, and model provider configuration. It never opens a PR as
+a probe or changes repository settings. JSON-only runs need no browser peers.
+See [Doctor](../docs/integrations/github-action.md#doctor) for detection limits,
+permissions-context signals and all check explanations. For a separate local
+check, use `a11ygate doctor`; add `--strict` to exit 1 on failed checks.
 
 ## Inputs
 
