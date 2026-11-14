@@ -8,6 +8,7 @@ import {
   isExpired, REVIEW_DECISIONS, type DecisionHistoryAction, type DecisionHistoryEntry, type GroupDecision, type ReviewDecisionKind,
 } from '@/lib/scan/review';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { debugDetail } from './fatal';
 import { writeFileAtomic } from './atomic-write';
 import { readScanInput } from './baseline';
 import type { ReviewIo } from './review';
@@ -118,7 +119,7 @@ export async function runReviewList(argv: readonly string[], io: ReviewIo = {}):
     stdout(`\n${decisions.length} decision(s).\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
     return 0;
   } catch (error) {
-    stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 }
@@ -158,7 +159,7 @@ export async function runReviewRemove(argv: readonly string[], io: ReviewIo = {}
     stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.\n`);
     return 0;
   } catch (error) {
-    stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 }
@@ -183,7 +184,7 @@ export async function runReviewPrune(argv: readonly string[], io: ReviewIo = {})
     stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].\n`);
     return 0;
   } catch (error) {
-    stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}\n`);
+    stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
     return 2;
   }
 }

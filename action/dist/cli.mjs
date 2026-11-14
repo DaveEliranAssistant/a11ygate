@@ -6007,7 +6007,7 @@ ${AUTOMATED_TESTING_DISCLAIMER}
     return 0;
   } catch (error) {
     stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
@@ -6055,7 +6055,7 @@ async function runReviewRemove(argv2, io = {}) {
     return 0;
   } catch (error) {
     stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
@@ -6089,7 +6089,7 @@ async function runReviewPrune(argv2, io = {}) {
     return 0;
   } catch (error) {
     stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}
-`);
+${debugDetail(error)}`);
     return 2;
   }
 }
