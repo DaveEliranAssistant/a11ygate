@@ -106,6 +106,17 @@ test.describe('a11ygate scan against a local fixture site', () => {
     const single = await runCli(['scan', `${server.origin}/products.html`, '--json', '-']);
     expect(single.code, single.stderr).toBe(0);
     expect((JSON.parse(single.stdout) as Report).pages).toHaveLength(1);
+    const explicit = await runCli(['scan', `${server.origin}/products.html`, '--engines', 'axe', '--json', '-']);
+    expect(explicit.code, explicit.stderr).toBe(single.code);
+    // Only run timestamps vary between these two local browser scans.
+    const deterministic = (json: string) => JSON.stringify(JSON.parse(json), (key, value) =>
+      key === 'timestamp' || key === 'scannedAt' ? '<timestamp>' : value);
+    expect(deterministic(explicit.stdout)).toBe(deterministic(single.stdout));
+    expect(explicit.stdout).not.toContain('"engine":');
+    const unknown = await runCli(['scan', `${server.origin}/`, '--engines', 'pa11y']);
+    expect(unknown.code).toBe(2);
+    expect(unknown.stderr).toContain('Only axe is available');
+
   });
 
   test('exit codes follow --fail-on and errors exit 2', async () => {

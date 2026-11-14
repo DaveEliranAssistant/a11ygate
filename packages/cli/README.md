@@ -71,3 +71,6 @@ The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Scanning accepts `--engines axe` and defaults to axe only. Other engines are not enabled yet.
+Automated testing only. Not a WCAG audit, certification or legal advice.

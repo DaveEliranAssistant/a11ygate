@@ -873,6 +873,57 @@ function findingsFromResults(results) {
   );
 }
 
+// lib/scan/engines/wcag-map.ts
+var WCAG_RULE_MAP = {
+  axe: {
+    "image-alt": ["1.1.1"],
+    "color-contrast": ["1.4.3"],
+    label: ["4.1.2", "1.3.1"],
+    region: [],
+    "document-title": ["2.4.2"],
+    "html-has-lang": ["3.1.1"],
+    "html-lang-valid": ["3.1.1"],
+    "link-name": ["2.4.4", "4.1.2"],
+    "button-name": ["4.1.2"]
+  }
+};
+
+// lib/scan/engines/normalized.ts
+function normalizeAxeFinding(finding) {
+  const mapped = lookupStandards(finding.tags).flatMap((hit) => hit.kind === "criterion" ? [hit.number] : []);
+  return {
+    engine: "axe",
+    ruleId: finding.ruleId,
+    wcagSc: mapped.length ? mapped : [...WCAG_RULE_MAP.axe?.[finding.ruleId] ?? []],
+    impact: finding.impact,
+    url: finding.url,
+    selector: finding.selector,
+    snippet: finding.html,
+    helpUrl: finding.helpUrl,
+    compatibility: finding
+  };
+}
+function normalizeAxeResults(results) {
+  return findingsFromResults([results]).map(normalizeAxeFinding);
+}
+function toLegacyFinding(normalized) {
+  const f = normalized.compatibility;
+  return {
+    fingerprint: f.fingerprint,
+    ruleId: f.ruleId,
+    impact: f.impact,
+    tags: f.tags,
+    help: f.help,
+    helpUrl: f.helpUrl,
+    selector: f.selector,
+    html: f.html,
+    url: f.url,
+    path: f.path,
+    engineVersion: f.engineVersion,
+    timestamp: f.timestamp
+  };
+}
+
 // lib/scan/report.ts
 var FAIL_ON_VALUES = [...IMPACTS, "none"];
 function isFailOn(value) {
@@ -929,7 +980,7 @@ function buildScanReport(input) {
     let pageFindings = [];
     if (page.result) {
       results.push(page.result);
-      pageFindings = findingsFromResults([page.result]).map((f) => toScanFinding(f, page.result));
+      pageFindings = normalizeAxeResults(page.result).map((f) => toScanFinding(toLegacyFinding(f), page.result));
       for (const f of pageFindings) {
         byImpact[f.impact ?? "unknown"] += 1;
         totals[f.impact ?? "unknown"] += 1;
@@ -1127,12 +1178,55 @@ ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
 `;
 }
 
+// lib/scan/engines/axe.ts
+function flattenTarget(target) {
+  return target.map((part) => Array.isArray(part) ? part.map(String).join(" ") : String(part)).filter((s) => s.trim().length > 0);
+}
+function toAxeResults(url, axe, userAgent) {
+  const violations = axe.violations.map((v) => ({
+    id: v.id,
+    impact: isImpact(v.impact) ? v.impact : null,
+    tags: [...v.tags],
+    help: v.help || v.id,
+    helpUrl: v.helpUrl || `https://dequeuniversity.com/rules/axe/${v.id}`,
+    nodes: v.nodes.map((n) => ({ target: flattenTarget(n.target), html: n.html, ...n.impact !== void 0 ? { impact: isImpact(n.impact) ? n.impact : null } : {} })).filter((n) => n.target.length > 0)
+  })).filter((v) => v.nodes.length > 0);
+  return {
+    url,
+    timestamp: new Date(axe.timestamp).toISOString(),
+    testEngine: { version: axe.testEngine.version },
+    violations,
+    toolOptions: { runOnly: { type: "tag", values: [...AXE_TAGS] } },
+    scanConfig: { source: "a11ygate scan", readOnly: true, browser: "chromium", userAgent },
+    ...axe.testEnvironment && typeof axe.testEnvironment === "object" ? { testEnvironment: axe.testEnvironment } : {},
+    scanStatus: "complete"
+  };
+}
+function createAxeEngine(analyze, userAgent) {
+  return {
+    id: "axe",
+    displayName: "axe-core",
+    run: async (context, url) => toAxeResults(url, await analyze(context), userAgent),
+    normalize: normalizeAxeResults
+  };
+}
+
+// lib/scan/engines/types.ts
+async function runEngine(engine, context, url) {
+  try {
+    const native = await engine.run(context, url);
+    return { engine: engine.id, status: "complete", native, findings: engine.normalize(native) };
+  } catch (error) {
+    return { engine: engine.id, status: "errored", error: error instanceof Error ? error.message.split("\n")[0] : "Engine failed." };
+  }
+}
+
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines"]);
 function parseScanArgs(argv) {
-  const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, warnings: [] };
+  const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, warnings: [], engines: ["axe"] };
   const positionals = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? "";
@@ -1169,7 +1263,10 @@ function parseScanArgs(argv) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--fail-on") {
+    if (name === "--engines") {
+      if (value !== "axe") return { ok: false, error: `Unknown --engines "${value}". Only axe is available; use --engines axe.` };
+      options.engines = ["axe"];
+    } else if (name === "--fail-on") {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
     } else if (name === "--delay-ms") {
@@ -1199,6 +1296,7 @@ Usage:
                       [--json <file>] [--markdown <file>] [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
@@ -1215,6 +1313,8 @@ Boundaries: only scan sites you own or are authorized to test. Read-only (no cli
 login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
 
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 Exit codes:
   0  No finding is at or above --fail-on.
   1  At least one finding is at or above --fail-on.
@@ -1224,29 +1324,6 @@ Exit codes:
 var ScanSetupError = class extends Error {
 };
 var INSTALL_HINT = "a11ygate scan needs the optional peer dependencies playwright and @axe-core/playwright.\nInstall them with: npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium\n";
-function flattenTarget(target) {
-  return target.map((part) => Array.isArray(part) ? part.map(String).join(" ") : String(part)).filter((s) => s.trim().length > 0);
-}
-function toAxeResults(url, axe, userAgent) {
-  const violations = axe.violations.map((v) => ({
-    id: v.id,
-    impact: isImpact(v.impact) ? v.impact : null,
-    tags: [...v.tags],
-    help: v.help || v.id,
-    helpUrl: v.helpUrl || `https://dequeuniversity.com/rules/axe/${v.id}`,
-    nodes: v.nodes.map((n) => ({ target: flattenTarget(n.target), html: n.html, ...n.impact !== void 0 ? { impact: isImpact(n.impact) ? n.impact : null } : {} })).filter((n) => n.target.length > 0)
-  })).filter((v) => v.nodes.length > 0);
-  return {
-    url,
-    timestamp: new Date(axe.timestamp).toISOString(),
-    testEngine: { version: axe.testEngine.version },
-    violations,
-    toolOptions: { runOnly: { type: "tag", values: [...AXE_TAGS] } },
-    scanConfig: { source: "a11ygate scan", readOnly: true, browser: "chromium", userAgent },
-    ...axe.testEnvironment && typeof axe.testEnvironment === "object" ? { testEnvironment: axe.testEnvironment } : {},
-    scanStatus: "complete"
-  };
-}
 function isModuleNotFound(error) {
   const code2 = error?.code;
   return code2 === "ERR_MODULE_NOT_FOUND" || code2 === "MODULE_NOT_FOUND";
@@ -1262,6 +1339,7 @@ var playwrightEngine = async ({ userAgent, origin }) => {
     throw error;
   }
   const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
+  const axeEngine = createAxeEngine(async (page) => await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze(), userAgent);
   let browser;
   try {
     browser = await playwright.chromium.launch({ headless: true });
@@ -1285,8 +1363,9 @@ Install it with: npx playwright install chromium
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
         const links = collectLinks ? await page.$$eval("a[href]", (anchors) => anchors.map((a) => a.href)) : [];
-        const axe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
-        return { status, finalUrl, contentType, links, result: toAxeResults(url, axe, userAgent) };
+        const execution = await runEngine(axeEngine, page, url);
+        if (execution.status === "errored") throw new Error(execution.error);
+        return { status, finalUrl, contentType, links, result: execution.native };
       } catch (error) {
         const detail = error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
         return { status: null, finalUrl: url, links: [], error: detail };

@@ -4,7 +4,9 @@ import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
 import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanHtml, scanMarkdown, type FailOn } from '@/lib/scan/report';
 import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
 import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
-import { isImpact, type AxeResults, type AxeViolation } from '@/lib/types';
+import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
+import { runEngine } from '@/lib/scan/engines/types';
+export { toAxeResults } from '@/lib/scan/engines/axe';
 
 export type ScanOptions = {
   help: boolean;
@@ -17,6 +19,7 @@ export type ScanOptions = {
   markdown?: string;
   html?: string;
   warnings: string[];
+  engines: ['axe'];
 };
 
 export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; error: string };
@@ -24,10 +27,10 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms']);
+const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
-  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, warnings: [] };
+  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, warnings: [], engines: ['axe'] };
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? '';
@@ -66,7 +69,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--fail-on') {
+    if (name === '--engines') {
+      if (value !== 'axe') return { ok: false, error: `Unknown --engines \"${value}\". Only axe is available; use --engines axe.` };
+      options.engines = ['axe'];
+    } else if (name === '--fail-on') {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
     } else if (name === '--delay-ms') {
@@ -97,6 +103,7 @@ Usage:
                       [--json <file>] [--markdown <file>] [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
@@ -112,6 +119,8 @@ Requires the optional peer dependencies:
 Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
 login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
 
 Exit codes:
   0  No finding is at or above --fail-on.
@@ -145,42 +154,6 @@ export const INSTALL_HINT =
   'a11ygate scan needs the optional peer dependencies playwright and @axe-core/playwright.\n' +
   'Install them with: npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium\n';
 
-type AxeLike = {
-  testEngine: { version: string };
-  timestamp: string;
-  testEnvironment?: unknown;
-  violations: { id: string; impact?: string | null; tags: string[]; help: string; helpUrl: string; nodes: { target: unknown[]; html: string; impact?: string | null }[] }[];
-};
-
-function flattenTarget(target: readonly unknown[]): string[] {
-  return target.map((part) => (Array.isArray(part) ? part.map(String).join(' ') : String(part))).filter((s) => s.trim().length > 0);
-}
-
-export function toAxeResults(url: string, axe: AxeLike, userAgent: string): AxeResults {
-  const violations: AxeViolation[] = axe.violations
-    .map((v) => ({
-      id: v.id,
-      impact: isImpact(v.impact) ? v.impact : null,
-      tags: [...v.tags],
-      help: v.help || v.id,
-      helpUrl: v.helpUrl || `https://dequeuniversity.com/rules/axe/${v.id}`,
-      nodes: v.nodes
-        .map((n) => ({ target: flattenTarget(n.target), html: n.html, ...(n.impact !== undefined ? { impact: isImpact(n.impact) ? n.impact : null } : {}) }))
-        .filter((n) => n.target.length > 0),
-    }))
-    .filter((v) => v.nodes.length > 0);
-  return {
-    url,
-    timestamp: new Date(axe.timestamp).toISOString(),
-    testEngine: { version: axe.testEngine.version },
-    violations,
-    toolOptions: { runOnly: { type: 'tag', values: [...AXE_TAGS] } },
-    scanConfig: { source: 'a11ygate scan', readOnly: true, browser: 'chromium', userAgent },
-    ...(axe.testEnvironment && typeof axe.testEnvironment === 'object' ? { testEnvironment: axe.testEnvironment as Record<string, unknown> } : {}),
-    scanStatus: 'complete',
-  };
-}
-
 function isModuleNotFound(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND';
@@ -198,6 +171,8 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin })
     throw error;
   }
   const AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
+  const axeEngine = createAxeEngine(async (page: import('playwright').Page) =>
+    await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike, userAgent);
   let browser: import('playwright').Browser;
   try {
     browser = await playwright.chromium.launch({ headless: true });
@@ -220,8 +195,9 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin })
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
         const links = collectLinks ? await page.$$eval('a[href]', (anchors) => anchors.map((a) => (a as HTMLAnchorElement).href)) : [];
-        const axe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
-        return { status, finalUrl, contentType, links, result: toAxeResults(url, axe as unknown as AxeLike, userAgent) };
+        const execution = await runEngine(axeEngine, page, url);
+        if (execution.status === 'errored') throw new Error(execution.error);
+        return { status, finalUrl, contentType, links, result: execution.native };
       } catch (error) {
         const detail = error instanceof Error ? error.message.split('\n')[0] : 'Navigation failed.';
         return { status: null, finalUrl: url, links: [], error: detail };
