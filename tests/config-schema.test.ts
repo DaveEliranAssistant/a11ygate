@@ -141,6 +141,9 @@ describe('(c) schema covers every CLI option', () => {
     '--manual-evidence': 'ci gate: per-run evidence input',
     '--from': 'baseline/evidence: per-run input', '--output': 'baseline create: per-run output', '--out': 'evidence pack: per-run output',
     '--commit': 'evidence pack: per-run commit SHA',
+    '--list': 'review: per-run listing switch', '--group': 'review: per-run group selection',
+    '--decision': 'review: per-run reviewer decision', '--reason': 'review: per-run reviewer reason',
+    '--expires': 'review: per-run decision expiry',
     '--verify': 'not a CLI option: argument to git rev-parse in evidence.ts',
   };
 

@@ -20,7 +20,7 @@ import { impactRank } from '@/lib/gate';
 import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { findingGuidance } from '@/lib/guidance';
 import { understandingUrl } from '@/lib/mapping';
-import { groupByCriterion, scanHtml, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
+import { groupByCriterion, reviewDecisionsHtml, scanHtml, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 import type { Finding, Impact } from '@/lib/types';
 
 export const REPORT_VERSIONS = [1, 2] as const;
@@ -199,6 +199,14 @@ ${groups.length ? groups.map((g) => `<section><h3>${esc(g.ruleId)} — likely sh
 </section>`;
 }
 
+function reviewSection(report: ScanReport): string {
+  const body = reviewDecisionsHtml(report);
+  if (!body) return '';
+  return `<section id="review-decisions" aria-labelledby="review-decisions-h">
+${body.replace('<h2>', '<h2 id="review-decisions-h">')}</section>
+`;
+}
+
 function byWcagSection(report: ScanReport, rules: RuleSummary[]): string {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules.map((r, i) => [r.ruleId, ruleAnchor(i)]));
@@ -325,7 +333,7 @@ ${STYLE}
 <li><a href="#summary">Executive summary</a></li>
 <li><a href="#top-fixes">Top ${TOP_FIXES_LIMIT} fixes</a></li>
 <li><a href="#shared-components">Likely shared components</a></li>
-<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
+${report.findings.some((f) => f.reviewDecision) ? '<li><a href="#review-decisions">Review decisions</a></li>\n' : ''}<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
 <li><a href="#by-page">Findings by page</a></li>
 <li><a href="#how-to-fix">How to fix, by rule</a></li>
 <li><a href="#limits">What automated testing does not cover</a></li>
@@ -335,7 +343,7 @@ ${STYLE}
 ${summarySection(report)}
 ${topFixesSection(rules)}
 ${sharedComponentsSection(report)}
-${byWcagSection(report, rules)}
+${reviewSection(report)}${byWcagSection(report, rules)}
 ${byPageSection(report)}
 ${howToFixSection(rules)}
 ${limitsSection(report)}

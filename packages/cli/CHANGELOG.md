@@ -10,6 +10,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ### Added
 
+- `a11ygate review <scan> --baseline <file>` records one reviewer decision per likely shared component group: `to-fix`, `accepted-risk` (reason required, optional `--expires YYYY-MM-DD`) or `false-positive` (reason required). Non-interactive flags (`--list`, `--group`, `--decision`, `--reason`, `--expires`) or an interactive TTY prompt. Decisions are stored under `groupDecisions` in the fingerprint baseline with the reviewer from `git config user.name` and the date. Matching findings on new pages inherit the decision; expired accepted-risk decisions gate again. Decided findings stay listed and get a "Review decisions" report section. Baselines without decisions produce unchanged output (A11Y-R39).
+
 - `schema/a11ygate.schema.json` describes `.a11ygate.yml` (url, crawl, failOn, engines, modelFixes, baseline, formats, outDir, delayMs, reportVersion, auth). `a11ygate config validate [file]` and a new `doctor` config check report plain-English errors such as "unknown key 'engine' — did you mean 'engines'?". `a11ygate init` adds a `# yaml-language-server: $schema=` line for editor autocomplete (A11Y-R31).
 
 ### Changed

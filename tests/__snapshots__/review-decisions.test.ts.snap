@@ -1,0 +1,20 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`R39 group review decisions > (c)(d) reports decisions with reason, reviewer and date, and keeps decided findings listed 1`] = `
+"## Review decisions (likely shared components)
+
+Groups are heuristic likely shared components \\(matching rule, normalized selector path and similar HTML\\); review examples before deciding. A decision records a reviewer judgement; it does not establish a root cause, a fix or conformance. Decided findings remain listed. Accepted-risk and false-positive decisions exclude matching findings from the gate; to-fix and expired accepted-risk decisions gate as usual.
+
+### \`g-d6b160e428fcf13a\` — link-name — 2 findings on 2 page(s)
+
+Normalized selector: \`nav > a.nav-link\`
+
+Decision: accepted-risk by Reviewer From Git on 2026-11-14; expires 2026-12-31; reason: Third-party nav widget. Gate: excluded from the gate by this decision; still listed for review.
+
+- [new] [review: accepted-risk] **link-name** (serious) on \`http://localhost/\` — \`nav > a.nav-link\` — Links must have discernible text — [rule guidance](https://example.test/link-name)
+- [new] [review: accepted-risk] **link-name** (serious) on \`http://localhost/about\` — \`nav > a.nav-link\` — Links must have discernible text — [rule guidance](https://example.test/link-name)
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+"
+`;

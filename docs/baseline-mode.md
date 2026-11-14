@@ -68,3 +68,38 @@ current results. These meanings follow [SARIF 2.1.0 §3.27.24 (baselineState) an
 §3.35 (suppression)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html).
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Review decisions for likely shared component groups
+
+When one likely shared component (for example a navigation link) produces the
+same finding on many pages, a reviewer can record one decision for the group
+instead of one per finding. Groups are heuristic: review the examples first.
+
+```sh
+# List likely shared component groups and any current decisions.
+a11ygate review next-scan --baseline .a11ygate-baseline.json --list
+
+# Record a decision for one group (ids come from --list).
+a11ygate review next-scan --baseline .a11ygate-baseline.json \
+  --group g-0123456789abcdef --decision accepted-risk \
+  --reason "Vendor widget; tracked in TICKET-12" --expires 2027-03-31
+
+# In a terminal, omit --list/--group to step through groups interactively.
+a11ygate review next-scan --baseline .a11ygate-baseline.json
+```
+
+- `to-fix` records intent only; findings still gate.
+- `accepted-risk` needs `--reason`; `--expires` is optional and inclusive.
+  After that day the decision is shown as expired and findings gate again.
+- `false-positive` needs `--reason`.
+
+Decisions are stored under `groupDecisions` in the fingerprint baseline, keyed by
+the component group key, with the reviewer taken from `git config user.name` (the
+command refuses to run without one) and the date. Membership is recomputed on
+every `scan --baseline` / `report --baseline`, so a new page that matches the
+group inherits its decision. No decision hides a finding: decided findings stay
+in the standard sections, are marked `[review: …]`, and are listed again under
+"Review decisions" with the reason, reviewer and date. A decision is a reviewer
+judgement, not a root cause, a fix or conformance evidence. JUnit, SARIF and
+GitLab exports are unchanged and continue to report decided new findings.
+Baselines without `groupDecisions` produce unchanged output.
