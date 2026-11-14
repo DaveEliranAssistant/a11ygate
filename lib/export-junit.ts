@@ -1,3 +1,4 @@
+import { attribution } from '@/lib/scan/engines/dedupe';
 import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport } from '@/lib/report-formats';
 
 /** XML 1.0 forbids most C0 controls; strip them so the document stays well-formed. */
@@ -55,6 +56,7 @@ function failureBody(group: JunitCase): string {
     lines.push(
       `- ${finding.pageUrl} — ${finding.selector} — ${wcag}`,
       `  element: ${finding.html}`,
+      attribution(finding),
       finding.helpUrl ? `  guidance: ${finding.helpUrl}` : '',
       finding.status ? `  status: ${finding.status}` : '',
     );
@@ -91,6 +93,7 @@ export function toJunit(report: FormatReport): string {
     property('reason', report.reason),
     property('command', report.command),
   ];
+  if (report.engines) properties.push(property('engines-used', report.engines.used.join(', ')), property('engines-errored', JSON.stringify(report.engines.errored)));
   if (report.startUrl) properties.push(property('startUrl', report.startUrl));
   if (report.projectName) properties.push(property('projectName', report.projectName));
 

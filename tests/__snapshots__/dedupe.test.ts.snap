@@ -1,0 +1,268 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`cross-engine deduplication > shows merged attribution, engine status and disclaimer in all extended formats 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate site scan — https://site.test/</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fff}
+code{background:#f2f2f2;padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid #767676;padding:.25rem .5rem;text-align:left}
+li{margin:.5rem 0}.impact{font-weight:600}.critical,.serious{color:#a00000}.moderate{color:#6b4e00}
+.verdict{font-size:1.25rem;font-weight:700}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+a{color:#0b57d0}
+</style>
+</head>
+<body>
+<main>
+<h1>A11yGate site scan</h1>
+<p>Start URL: <code>https://site.test/</code></p>
+<p class="verdict">Verdict: ERROR (fail on: serious)</p>
+<p>1 engine execution(s) errored; coverage is incomplete.</p>
+<p>Scanned 2026-11-14T00:00:00.000Z. Pages analysed: 1; failed: 0. axe-core n/a; A11yGate 0.1.0.</p>
+<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody><tr><th scope="row">critical</th><td>0</td></tr><tr><th scope="row">serious</th><td>1</td></tr><tr><th scope="row">moderate</th><td>0</td></tr><tr><th scope="row">minor</th><td>0</td></tr><tr><th scope="row">unknown</th><td>0</td></tr></tbody></table>
+<h2>Pages</h2>
+<table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody><tr><td><code>https://site.test/</code></td><td>200</td><td>complete</td><td>1</td></tr></tbody></table>
+<h2>Findings by WCAG criterion</h2><section><h3>WCAG 1.1.1 Non-text Content (A); EN 301 549 9.1.1.1 (1)</h3><ul><li><strong>image-alt</strong> <span class="impact serious">serious</span><br>Page: <code>https://site.test/</code><br>Selector: <code>main &gt; img</code><br>image-alt<br>detected by: axe, ibm; confirmed by 2 of 2 engines — <a href="https://site.test/rule">Rule guidance<span class="sr"> for image-alt</span></a></li></ul></section>
+<h2>Findings by severity</h2><section><h3>serious (1)</h3><ul><li><strong>image-alt</strong> <span class="impact serious">serious</span><br>Page: <code>https://site.test/</code><br>Selector: <code>main &gt; img</code><br>image-alt<br>detected by: axe, ibm; confirmed by 2 of 2 engines — <a href="https://site.test/rule">Rule guidance<span class="sr"> for image-alt</span></a></li></ul></section>
+<h2>Engines used / engines errored</h2><p>Engines used: axe, ibm.</p><p>Engines errored: htmlcs — https://site.test/ — &lt;fixture failure&gt;.</p><p>Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+<h2>Scope and boundaries</h2>
+<ul><li>Only scan sites you own or are explicitly authorized to test.</li><li>Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.</li><li>Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.</li><li>Only same-origin pages reachable through a[href] links (at most 20) were visited; robots.txt Disallow rules were honoured.</li></ul>
+<p>Automated checks cover only part of WCAG; this is evidence, not certification.</p>
+<p>Informational only. Not legal advice. Not a certification of EAA compliance.</p>
+</main>
+</body>
+</html>
+",
+  "junit": "<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="A11yGate" tests="1" failures="1" errors="0" skipped="0" time="0" timestamp="2026-11-14T00:00:00.000Z" hostname="a11ygate">
+  <properties>
+    <property name="disclaimer" value="Automated testing only. Not a WCAG audit, certification or legal advice."/>
+    <property name="tool" value="A11yGate"/>
+    <property name="version" value="0.1.0"/>
+    <property name="verdict" value="ERROR"/>
+    <property name="reason" value="1 engine execution(s) errored; coverage is incomplete."/>
+    <property name="command" value="scan"/>
+    <property name="engines-used" value="axe, ibm"/>
+    <property name="engines-errored" value="[{&quot;engine&quot;:&quot;htmlcs&quot;,&quot;url&quot;:&quot;https://site.test/&quot;,&quot;error&quot;:&quot;&lt;fixture failure&gt;&quot;}]"/>
+    <property name="startUrl" value="https://site.test/"/>
+  </properties>
+    <testcase classname="https://site.test/" name="image-alt" time="0">
+      <failure message="image-alt: image-alt (serious)" type="image-alt">Automated testing only. Not a WCAG audit, certification or legal advice.
+image-alt: image-alt (serious)
+- https://site.test/ — main &gt; img — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img src=&quot;fixture.png&quot;&gt;
+detected by: axe, ibm; confirmed by 2 of 2 engines
+  guidance: https://site.test/rule</failure>
+    </testcase>
+</testsuite>
+",
+  "markdown": "# A11yGate site scan — https://site.test/
+
+**Verdict: ERROR** (fail on: serious)
+
+1 engine execution\\(s\\) errored; coverage is incomplete.
+
+| Severity | Findings |
+| --- | --- |
+| critical | 0 |
+| serious | 1 |
+| moderate | 0 |
+| minor | 0 |
+| unknown | 0 |
+
+Scanned: 2026-11-14T00:00:00.000Z. Pages analysed: 1; failed: 0. axe-core n/a; A11yGate 0.1.0.
+
+## Pages
+
+| Page | HTTP | Status | Findings |
+| --- | --- | --- | --- |
+| https://site.test/ | 200 | complete | 1 |
+
+## Findings by WCAG criterion
+
+### WCAG 1.1.1 Non-text Content (A); EN 301 549 9.1.1.1
+
+- **image-alt** (serious) on \`https://site.test/\` — \`main > img\` — image-alt — detected by: axe, ibm; confirmed by 2 of 2 engines — [rule guidance](https://site.test/rule)
+
+## Findings by severity
+
+### serious (1)
+
+- **image-alt** (serious) on \`https://site.test/\` — \`main > img\` — image-alt — detected by: axe, ibm; confirmed by 2 of 2 engines — [rule guidance](https://site.test/rule)
+
+## Engines used / engines errored
+
+Engines used: axe, ibm.
+Engines errored: htmlcs — \`https://site.test/\` — &lt;fixture failure&gt;.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Scope and boundaries
+
+- Only scan sites you own or are explicitly authorized to test.
+- Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.
+- Read-only: pages were loaded without logging in, filling forms or clicking. Authenticated areas, interactions and dynamic states are unassessed.
+- Only same-origin pages reachable through a\\[href\\] links \\(at most 20\\) were visited; robots.txt Disallow rules were honoured.
+
+Automated checks cover only part of WCAG; this is evidence, not certification.
+Informational only. Not legal advice. Not a certification of EAA compliance.
+",
+  "sarif": "{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "A11yGate",
+          "version": "0.1.0",
+          "informationUri": "https://a11ygate.vercel.app",
+          "rules": [
+            {
+              "id": "image-alt",
+              "name": "image-alt",
+              "shortDescription": {
+                "text": "image-alt"
+              },
+              "fullDescription": {
+                "text": "image-alt"
+              },
+              "helpUri": "https://site.test/rule",
+              "help": {
+                "text": "image-alt"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag111",
+                  "WCAG 1.1.1"
+                ],
+                "impact": "serious"
+              },
+              "relationships": [
+                {
+                  "target": {
+                    "id": "1.1.1",
+                    "index": 0,
+                    "toolComponent": {
+                      "name": "WCAG",
+                      "index": 0
+                    }
+                  },
+                  "kinds": [
+                    "relevant"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "taxonomies": [
+        {
+          "name": "WCAG",
+          "informationUri": "https://www.w3.org/WAI/standards-guidelines/wcag/",
+          "taxa": [
+            {
+              "id": "1.1.1",
+              "name": "Non-text Content",
+              "shortDescription": {
+                "text": "WCAG 2.1 1.1.1 Non-text Content (A)"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "image-alt (serious) at main > img on https://site.test/; detected by: axe, ibm; confirmed by 2 of 2 engines"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "https://site.test/"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img src=\\"fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: main > img"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "main > img",
+                  "kind": "element",
+                  "name": "main > img"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
+          },
+          "partialFingerprints": {
+            "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
+          },
+          "properties": {
+            "engines": [
+              "axe",
+              "ibm"
+            ],
+            "confidence": {
+              "confirmedBy": 2,
+              "enginesRan": 2,
+              "agreement": 1
+            },
+            "selector": "main > img",
+            "impact": "serious",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "https://site.test/"
+          }
+        }
+      ],
+      "properties": {
+        "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "enginesUsed": [
+          "axe",
+          "ibm"
+        ],
+        "enginesErrored": [
+          {
+            "engine": "htmlcs",
+            "url": "https://site.test/",
+            "error": "<fixture failure>"
+          }
+        ],
+        "verdict": "ERROR",
+        "reason": "1 engine execution(s) errored; coverage is incomplete.",
+        "command": "scan",
+        "startUrl": "https://site.test/"
+      }
+    }
+  ]
+}
+",
+}
+`;

@@ -1,3 +1,4 @@
+import { attribution } from '@/lib/scan/engines/dedupe';
 import { SITE_URL } from '@/lib/copy';
 import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport, type FormatWcag } from '@/lib/report-formats';
 import { impactRank } from '@/lib/gate';
@@ -116,7 +117,7 @@ export function toSarif(report: FormatReport): string {
         ...(index !== undefined ? { ruleIndex: index } : {}),
         level: sarifLevel(finding.impact),
         message: {
-          text: `${finding.help} (${finding.impact ?? 'unspecified'}) at ${finding.selector} on ${finding.pageUrl}`,
+          text: `${finding.help} (${finding.impact ?? 'unspecified'}) at ${finding.selector} on ${finding.pageUrl}${finding.engines ? "; " + attribution(finding) : ""}`,
         },
         locations: [
           {
@@ -135,6 +136,7 @@ export function toSarif(report: FormatReport): string {
         ],
         ...(finding.fingerprint ? { fingerprints: { a11ygate: finding.fingerprint }, partialFingerprints: { a11ygate: finding.fingerprint } } : {}),
         properties: {
+          ...(finding.engines ? { engines: finding.engines, confidence: finding.confidence } : {}),
           selector: finding.selector,
           impact: finding.impact ?? 'unspecified',
           tags: finding.tags,
@@ -172,6 +174,7 @@ export function toSarif(report: FormatReport): string {
         results,
         properties: {
           disclaimer: FORMAT_DISCLAIMER,
+          ...(report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {}),
           verdict: report.verdict,
           reason: report.reason,
           command: report.command,

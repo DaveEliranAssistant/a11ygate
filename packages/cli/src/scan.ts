@@ -1,3 +1,4 @@
+import { resolveElementKeys } from '@/lib/scan/engines/locators';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:net';
@@ -156,6 +157,8 @@ Exit codes:
 }
 
 export type ScanEngine = {
+  /** Native adapter outputs, archived independently of public report serialization. */
+  rawEngineResults?: { engine: string; url: string; status: string; native?: unknown; error?: string }[];
   axeVersion?: string;
   engineResults?: EnginePageResult[];
   visit: (url: string, collectLinks: boolean) => Promise<VisitOutcome>;
@@ -198,15 +201,18 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
+  let nativeAxe: AxeLike | undefined;
   const axeEngine = engines.includes('axe') ? createAxeEngine(async (page: import('playwright').Page) => {
     if (!axeModule) {
       try { axeModule = await import('@axe-core/playwright'); }
       catch { throw new Error('Missing @axe-core/playwright. Install with: npm install --save-dev @axe-core/playwright'); }
     }
     const AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
-    return await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike;
+    nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike;
+    return nativeAxe;
   }, userAgent) : undefined;
   const engineResults: EnginePageResult[] = [];
+  const rawEngineResults: NonNullable<ScanEngine['rawEngineResults']> = [];
   // Bind debugging to loopback only and enable it only for Lighthouse. Chromium and
   // all adapters share the same browser and targets.
   let debugPort: number | undefined;
@@ -227,6 +233,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
   }
   const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: 'block', javaScriptEnabled: true });
   return {
+    rawEngineResults,
     ...(extended ? { engineResults } : {}),
     visit: async (url, collectLinks) => {
       const page = await context.newPage();
@@ -244,7 +251,10 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         let result: import('@/lib/types').AxeResults | undefined;
         for (const id of engines) {
           if (id === 'axe' && axeEngine) {
+            nativeAxe = undefined;
             const execution = await runEngine(axeEngine, page, url);
+            rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeAxe } : {}), url });
+            if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
             if (!extended && execution.status === 'errored') throw new Error(execution.error);
             if (execution.status === 'complete') result = execution.native;
             if (extended) engineResults.push(execution.status === 'complete'
@@ -252,6 +262,8 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
               : { url, engine: id, status: 'errored', error: execution.error });
           } else if (id !== 'axe') {
             const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
+            rawEngineResults.push({ ...execution, url });
+            if (execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
             engineResults.push(execution.status === 'complete'
               ? { url, engine: id, status: 'complete', findings: execution.findings }
               : { url, engine: id, status: 'errored', error: execution.error });
@@ -370,6 +382,15 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
       ];
   try {
     if (options.outDir) await mkdir(path.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) {
+      const evidenceDir = path.resolve(cwd, options.outDir, 'engines');
+      await mkdir(evidenceDir, { recursive: true });
+      for (const id of options.engines) {
+        const native = engine.rawEngineResults?.filter((e) => e.engine === id);
+        const evidence = native?.length ? native : id === 'axe' ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
+        await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+      }
+    }
     for (const [file, content] of targets) {
       if (file) await writeFile(path.resolve(cwd, file), content, 'utf8');
     }

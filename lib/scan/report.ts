@@ -1,9 +1,11 @@
+import { normalizeUrl } from '@/lib/scan/url';
+import { attribution, dedupeFindings, engineSummary, type Agreement } from '@/lib/scan/engines/dedupe';
 import type { EnginePageResult } from '@/lib/scan/engines/types';
-import { DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
+import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
 import { groupFindings } from '@/lib/group';
-import { lookupStandards, type Criterion } from '@/lib/mapping';
+import { CRITERIA, lookupStandards, type Criterion } from '@/lib/mapping';
 import { normalizeAxeResults, toLegacyFinding } from '@/lib/scan/engines/normalized';
 import type { CrawlResult, SkippedLink } from '@/lib/scan/crawl';
 import { IMPACTS, type AxeResults, type Finding, type Impact } from '@/lib/types';
@@ -27,7 +29,7 @@ export const SCAN_BOUNDARIES = [
 
 export type ScanCriterion = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag' | 'en301549'>;
 
-export type ScanFinding = {
+export type ScanFinding = Partial<Agreement> & {
   pageUrl: string;
   ruleId: string;
   impact: Impact | null;
@@ -55,6 +57,8 @@ export type ScanPageSummary = {
 
 export type ScanReport = {
   engineResults?: EnginePageResult[];
+  engines?: ReturnType<typeof engineSummary>;
+  disclaimer?: string;
   tool: 'a11ygate';
   kind: 'site-scan';
   schemaVersion: 1;
@@ -155,11 +159,33 @@ export function buildScanReport(input: {
       byImpact,
     });
   }
+  const extended = input.engineResults?.some((e) => e.engine !== 'axe') ?? false;
+  if (extended) {
+    const merged = dedupeFindings(input.engineResults ?? []);
+    findings.splice(0, findings.length, ...merged.map((f): ScanFinding => {
+      const wcag = CRITERIA.filter((c) => f.wcagSc.includes(c.number));
+      return {
+        pageUrl: f.url, ruleId: f.ruleId, impact: f.impact, selector: f.selector,
+        selectors: [f.selector], html: f.snippet, help: f.compatibility?.help ?? f.ruleId,
+        helpUrl: f.helpUrl, tags: wcag.map((c) => c.tag), wcag,
+        bestPractice: f.wcagSc.length === 0,
+        fingerprint: JSON.stringify([f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? '' : `${f.engine}:${f.ruleId}`]),
+        engines: f.engines, confidence: f.confidence,
+      };
+    }));
+    for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] = 0;
+    for (const f of findings) totals[f.impact ?? 'unknown'] += 1;
+    for (const page of pages) {
+      const pageFindings = findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
+      page.findings = pageFindings.length;
+      page.violations = new Set(pageFindings.map((f) => f.ruleId)).size;
+      page.byImpact = emptyCounts();
+      for (const f of pageFindings) page.byImpact[f.impact ?? 'unknown'] += 1;
+    }
+  }
   const gating = gatingScanFindings(findings, input.failOn);
-  const extraGating = input.failOn === 'none' ? [] : (input.engineResults ?? []).flatMap((e) =>
-    e.engine !== 'axe' && e.status === 'complete' ? e.findings.filter((f) => meetsThreshold(f.impact, input.failOn as Impact)) : []);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
-  const verdict = engineErrors ? 'ERROR' : gating.length + extraGating.length > 0 ? 'FAIL' : 'PASS';
+  const verdict = engineErrors ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
   const reason =
     input.failOn === 'none'
       ? 'Reporting only (--fail-on none).'
@@ -177,8 +203,8 @@ export function buildScanReport(input: {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : extraGating.length ? `${gating.length + extraGating.length} findings at or above ${input.failOn} across selected engines (not deduplicated).` : reason,
-    ...(input.engineResults ? { engineResults: input.engineResults } : {}),
+    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === 'complete').length,
@@ -260,7 +286,7 @@ function heading(value: string): string {
 }
 
 function mdFinding(f: ScanFinding): string {
-  return `- **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `- **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 
 export function scanMarkdown(report: ScanReport): string {
@@ -301,10 +327,10 @@ export function scanMarkdown(report: ScanReport): string {
   if (robotsSkipped.length > 0) {
     lines.push('## Not scanned', '', ...robotsSkipped.map((s) => `- ${cell(s.url)} — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}`), '');
   }
-  if (report.engineResults) lines.push('## Engine results (separate, not deduplicated)', '', ...report.engineResults.flatMap((e) => [
-    `### ${cell(e.engine)} — ${cell(e.url)} — ${e.status}`, '',
-    ...(e.status === 'errored' ? [cell(e.error)] : e.findings.map((f) => `- **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) — ${code(f.selector)} — ${code(f.snippet)}`)), '',
-  ]));
+  if (report.engines) lines.push('## Engines used / engines errored', '',
+    `Engines used: ${report.engines.used.join(', ') || 'none'}.`,
+    `Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} — ${code(e.url)} — ${cell(e.error)}`).join('; ') : 'none'}.`,
+    '', AUTOMATED_TESTING_DISCLAIMER, '');
   lines.push('## Scope and boundaries', '', ...report.boundaries.map((b) => `- ${cell(b)}`), '', DISCLAIMER, LEGAL_DISCLAIMER, '');
   return lines.join('\n');
 }
@@ -318,7 +344,7 @@ function safeHref(url: string): string {
 }
 
 function htmlFinding(f: ScanFinding): string {
-  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 
 function htmlGroups(title: string, groups: ScanGroup[]): string {
@@ -360,7 +386,7 @@ a{color:#0b57d0}
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups('Findings by WCAG criterion', groupByCriterion(report.findings))}
 ${htmlGroups('Findings by severity', groupBySeverity(report.findings))}
-${report.engineResults ? '<h2>Engine results (separate, not deduplicated)</h2>' + report.engineResults.map((e) => `<section><h3>${esc(e.engine)} — ${esc(e.url)} — ${esc(e.status)}</h3>${e.status === 'errored' ? `<p>${esc(e.error)}</p>` : `<ul>${e.findings.map((f) => `<li><strong>${esc(f.ruleId)}</strong> (${esc(f.impact ?? 'unspecified')}) — <code>${esc(f.selector)}</code> — <code>${esc(f.snippet)}</code></li>`).join('')}</ul>`}</section>`).join('') + '\n' : ''}<h2>Scope and boundaries</h2>
+${report.engines ? '<h2>Engines used / engines errored</h2><p>Engines used: ' + esc(report.engines.used.join(', ') || 'none') + '.</p><p>Engines errored: ' + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : 'none') + '.</p><p>' + esc(AUTOMATED_TESTING_DISCLAIMER) + '</p>\n' : ''}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>

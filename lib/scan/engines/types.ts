@@ -27,7 +27,7 @@ export async function runEngine<Context, NativeResults>(engine: Engine<Context, 
   }
 }
 
-/** Public opt-in results are separate from historical axe output; never deduplicated. */
+/** Per-engine evidence remains separate from merged report findings. */
 export type EnginePageResult = { url: string } & (
   | { engine: string; status: 'complete'; findings: NormalizedFinding[] }
   | { engine: string; status: 'errored'; error: string }

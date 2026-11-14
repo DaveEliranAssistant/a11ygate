@@ -208,7 +208,8 @@ npx a11ygate scan http://127.0.0.1:8080 --engines axe,htmlcs,ibm,lighthouse --ou
 Install only the optional peers you select: `html_codesniffer` for `htmlcs`,
 `accessibility-checker-engine` for `ibm`, and `lighthouse puppeteer-core` for
 `lighthouse`. All use the same browser session; IBM rules are installed locally.
-Opt-in results are listed separately without deduplication. Missing peers or engine
+Opt-in reports merge matching page/element/WCAG findings with engine attribution
+and agreement counts; native outputs are archived under `--out-dir/engines/`. Missing peers or engine
 failures are reported as `errored` while remaining engines continue (exit 2).
 See [engine documentation](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/engines.md)
 for offline behavior, licensing and the opt-in report fields.

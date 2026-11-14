@@ -11,7 +11,9 @@ Opt-in scans record each engine independently, including errors.
 
 Normalized fields are `engine`, `ruleId` (the engine's own rule ID), `wcagSc`
 (success-criterion IDs), `impact` (nullable), `url`, `selector`, `snippet`, and
-`helpUrl`. No cross-engine deduplication is performed. The axe adapter also retains
+`helpUrl`. Normalization preserves individual engine occurrences; `dedupe.ts` merges
+page/element/criterion matches only for extended reports. `locators.ts` resolves
+unique CSS/XPath locators to optional canonical `elementKey` values. The axe adapter also retains
 `compatibility`, the historical public `Finding`; `toLegacyFinding` explicitly emits
 that shape. Default scan reporters use this mapper and keep native per-page axe
 results unchanged, without exposing engine metadata in public JSON.
