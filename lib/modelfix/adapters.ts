@@ -116,3 +116,16 @@ export function stubAdapter(id = 'stub'): ModelAdapter {
     },
   };
 }
+
+/**
+ * Adapters for a CLI/Action run. Always the built-in free-tier adapters. The
+ * offline `stubAdapter` is added only when `A11YGATE_MODEL_PROVIDERS`
+ * explicitly lists `stub` (demo/dev only, never a silent default). The
+ * provider allowlist still decides which adapters may run.
+ */
+export function adaptersForEnv(env: Readonly<Record<string, string | undefined>> = {}): readonly ModelAdapter[] {
+  const listed = String(env.A11YGATE_MODEL_PROVIDERS ?? '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase());
+  return listed.includes('stub') ? [...BUILTIN_ADAPTERS, stubAdapter('stub')] : BUILTIN_ADAPTERS;
+}

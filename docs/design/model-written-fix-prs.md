@@ -129,7 +129,7 @@ Use narrowly scoped publishing permissions in a trusted job. Keep provider crede
 5. Dedupe by a `<!-- a11ygate-model-draft:<commit>:<fingerprint> -->` marker. An open draft with the marker is left alone or updated in place (body only); one a person marked ready is not touched; a leftover branch (for example a closed draft) blocks a new PR.
 6. The publisher never marks ready, approves, merges, requests reviewers or sends `draft: false`. 401/403 stops publishing and falls back to report-only with a sanitized warning; 429 stops with `quota`. The exit code is unchanged. Status lines (`buildPublishStatus`) carry reason codes and fingerprints only, never patch, replacement or rationale text.
 
-The Action wires this behind the default-off `model-fixes` input (`model-fixes-publish`: `draft-pr` or `review-suggestion`). No verifier is wired into the Action yet, so in this phase it publishes nothing.
+The Action wires this behind the default-off `model-fixes` input (`model-fixes-publish`: `draft-pr` or `review-suggestion`). Since R6 the Action builds the verifier from `action/dist/modelfix-verify.mjs` (a separate bundle; Playwright and @axe-core/playwright stay external and are resolved from the consumer checkout) when the model path is enabled. Routes and axe tags come from the current axe inputs. A checkout that is not the PR head commit, missing routes, or a missing browser fail closed: nothing verifies, nothing is published, the gate exit code is unchanged. `A11YGATE_MODEL_PROVIDERS=stub` registers the offline stub for demos only; `BUILTIN_ADAPTERS` stays the three free-tier adapters.
 
 ## 7. Alt-text and generated-content policy
 

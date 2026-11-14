@@ -720,6 +720,10 @@ function stubAdapter(id = "stub") {
     }
   };
 }
+function adaptersForEnv(env = {}) {
+  const listed = String(env.A11YGATE_MODEL_PROVIDERS ?? "").split(",").map((item) => item.trim().toLowerCase());
+  return listed.includes("stub") ? [...BUILTIN_ADAPTERS, stubAdapter("stub")] : BUILTIN_ADAPTERS;
+}
 
 // lib/modelfix/config.ts
 var ON = /* @__PURE__ */ new Set(["on", "true", "1", "yes"]);
@@ -2015,6 +2019,7 @@ export {
   ProviderError,
   REPO_CONFIG_FILE,
   RETRY_POLICY,
+  adaptersForEnv,
   applyDrafts,
   buildDraftPullBody,
   buildModelSuggestionBody,
