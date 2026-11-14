@@ -1,4 +1,4 @@
-import { lookupStandards } from '@/lib/mapping';
+import { en301549Inline, lookupStandards } from '@/lib/mapping';
 
 export function StandardsList({ tags }: { tags: readonly string[] }) {
   const hits = lookupStandards(tags);
@@ -12,7 +12,7 @@ export function StandardsList({ tags }: { tags: readonly string[] }) {
         hit.kind === 'criterion' ? (
           <li key={hit.number}>
             WCAG {hit.wcag} {hit.number} {hit.name} ({hit.level})
-            <span className="en">EN 301 549 {hit.en301549}</span>
+            <span className="en">{en301549Inline(hit.number)}</span>
           </li>
         ) : null,
       )}

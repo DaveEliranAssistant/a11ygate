@@ -2,6 +2,7 @@
 
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
 import { findingsToCsv } from '@/lib/export-csv';
+import { EN301549_COLUMN, EN301549_LABEL } from '@/lib/mapping';
 import { prSummaryMarkdown } from '@/lib/export-markdown';
 import { downloadText } from '@/lib/download';
 import type { ManualCheck } from '@/lib/manual-evidence';
@@ -71,7 +72,16 @@ export function Exports({
         >
           Download CSV of findings
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            downloadText('a11ygate-findings-en301549-ref.csv', findingsToCsv(diff.all, { en301549Ref: true }), 'text/csv')
+          }
+        >
+          Download CSV with EN 301 549 ref.
+        </button>
       </div>
+      <p>{EN301549_COLUMN}: {EN301549_LABEL}</p>
     </section>
   );
 }

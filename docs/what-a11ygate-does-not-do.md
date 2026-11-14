@@ -29,7 +29,7 @@ A11yGate does not issue certificates, conformance claims, badges or seals, and n
 - **Coverage.** A scan covers only the pages it loaded (`--crawl` stops at 20 same-origin pages) in the states it reached. Content behind interactions, logins it was not given, or other viewports is not checked.
 - **Fingerprints.** Findings are matched by `rule id + normalised selector + page path`. A fingerprint can miss an element that moved to a different stable selector, and can merge two elements if normalisation removes the only difference between them.
 - **No baseline.** With no baseline, every current finding is new.
-- **Mapping.** `wcag*` tags are mapped to WCAG 2.1/2.2 criteria and EN 301 549 clause 9 numbers in [`lib/mapping.ts`](../lib/mapping.ts). Tags that do not map are reported as best practice. A specialist needs to confirm the edition, especially for WCAG 2.2 additions.
+- **Mapping.** `wcag*` tags are mapped to WCAG 2.1/2.2 criteria and EN 301 549 clause 9 numbers in [`lib/mapping.ts`](../lib/mapping.ts). Tags that do not map are reported as best practice. Clause numbers cite ETSI EN 301 549 V3.2.1 clause 9, which mirrors WCAG 2.1; WCAG 2.2 additions show "not in EN 301 549 V3.2.1". The opt-in "EN 301 549 ref." column is a reference mapping only; it does not indicate conformance. A specialist still needs to review it.
 - **Suggested changes.** Rule-based suggestions cover a few rules. Text containing `TODO(a11ygate)` is a placeholder that can make the automated check pass while the page is still not accessible.
 - **Authorization.** Only scan sites you own or are authorized to test.
 - **CI support.** Each CI integration is tested only as far as the [CI matrix](../README.md#ci-matrix) states.

@@ -236,7 +236,7 @@ Fingerprints are `rule id + normalised selector + page path`. Normalisation stri
 
 With no baseline, every current finding is new.
 
-axe `wcag*` success-criterion tags are looked up in `lib/mapping.ts` to a WCAG 2.1/2.2 criterion and an EN 301 549 clause (`9.x.x.x`). Tags that do not map are **best practice**. Clause numbers follow the usual clause 9 mirror. A specialist needs to confirm the edition, especially for WCAG 2.2 additions.
+axe `wcag*` success-criterion tags are looked up in `lib/mapping.ts` to a WCAG 2.1/2.2 criterion and an EN 301 549 clause (`9.x.x.x`). Tags that do not map are **best practice**. The clause column cites [ETSI EN 301 549 V3.2.1](https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf), whose clause 9 mirrors the WCAG 2.1 A/AA success criteria. Criteria added in WCAG 2.2 are not in that edition and show "not in EN 301 549 V3.2.1" instead of a clause. `a11ygate scan --en301549-ref` adds an opt-in "EN 301 549 ref." column to HTML report v2 and SARIF rule properties; the web app offers a CSV export with the same column. Reference mapping only; does not indicate conformance. A specialist still needs to review the mapping.
 
 ## Security headers
 

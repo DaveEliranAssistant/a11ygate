@@ -6,7 +6,7 @@ import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/li
 import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
 import { SHARED_COMPONENT_DISCLAIMER, groupSharedComponents, type SharedComponentGroup, groupFindings } from '@/lib/group';
-import { CRITERIA, lookupStandards, type Criterion } from '@/lib/mapping';
+import { CRITERIA, en301549Inline, lookupStandards, type Criterion } from '@/lib/mapping';
 import { normalizeAxeResults, toLegacyFinding } from '@/lib/scan/engines/normalized';
 import { decisionLabel, decisionSummary, REVIEW_DECISION_NOTICE, reviewedGroups, type AppliedReviewDecision } from '@/lib/scan/review';
 import type { CrawlResult, SkippedLink } from '@/lib/scan/crawl';
@@ -300,7 +300,7 @@ export function groupByCriterion(findings: readonly ScanFinding[]): ScanGroup[] 
   for (const finding of findings) {
     const keys = finding.bestPractice
       ? [{ key: 'best-practice', label: 'Best practice (no WCAG success criterion mapped)' }]
-      : finding.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); EN 301 549 ${c.en301549}` }));
+      : finding.wcag.map((c) => ({ key: c.number, label: `WCAG ${c.number} ${c.name} (${c.level}); ${en301549Inline(c.number)}` }));
     for (const { key, label } of keys) {
       const group = groups.get(key) ?? { key, label, findings: [] };
       group.findings.push(finding);
