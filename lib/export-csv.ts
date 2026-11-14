@@ -1,4 +1,5 @@
 import { EN301549_COLUMN, EN301549_LABEL, en301549Ref, formatStandards, lookupStandards } from '@/lib/mapping';
+import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import type { DiffedFinding } from '@/lib/types';
 
 const COLUMNS = [
@@ -53,5 +54,10 @@ export function findingsToCsv(findings: readonly DiffedFinding[], options: CsvOp
       .map((value) => csvField(value))
       .join(','),
   );
-  return `\uFEFF${[header, ...rows].join('\n')}\n`;
+  // The opt-in variant ends with a disclaimer row (text in the first column, the rest empty so the
+  // column count stays constant for importers). The default export stays byte-identical.
+  const footer = options.en301549Ref
+    ? [[AUTOMATED_TESTING_DISCLAIMER, ...columns.slice(1).map(() => '')].map((value) => csvField(value)).join(',')]
+    : [];
+  return `\uFEFF${[header, ...rows, ...footer].join('\n')}\n`;
 }

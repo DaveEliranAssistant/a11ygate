@@ -5,6 +5,7 @@ exports[`EN 301 549 ref. column with the label everywhere it appears > CSV ticke
 "new","color-contrast","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","WCAG 2.1 1.4.3 Contrast (Minimum) (AA); EN 301 549 9.1.4.3","contrast|p|/","1.4.3: 9.1.4.3"
 "new","region","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","best practice","region|div|/",""
 "new","target-size","serious","/products",".price-tag","<span class=""price-tag"">€12</span>","Elements must have sufficient color contrast","https://dequeuniversity.com/rules/axe/4.10/color-contrast","WCAG 2.2 2.5.8 Target Size (Minimum) (AA); not in EN 301 549 V3.2.1","target|b|/","2.5.8: not in EN 301 549 V3.2.1"
+"Automated testing only. Not a WCAG audit, certification or legal advice.","","","","","","","","","",""
 "
 `;
 

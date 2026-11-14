@@ -52,6 +52,7 @@ describe('EN 301 549 reference column is opt-in (default output unchanged)', () 
     expect(toSarif(fr)).not.toContain('en301549Ref');
     const diff = diffScans([makeFinding({ fingerprint: 'a', ruleId: 'color-contrast' })], []);
     expect(findingsToCsv(diff.all)).not.toContain(EN301549_COLUMN);
+    expect(findingsToCsv(diff.all)).not.toContain(DISCLAIMER_VERBATIM);
   });
 
   it('report v1 ignores the option', () => {
@@ -104,7 +105,12 @@ describe('EN 301 549 ref. column with the label everywhere it appears', () => {
     );
     const csv = findingsToCsv(diff.all, { en301549Ref: true });
     expect(csv).toMatchSnapshot();
-    const [header, ...rows] = csv.replace(/^﻿/, '').trim().split('\n');
+    const [header, ...rest] = csv.replace(/^﻿/, '').trim().split('\n');
+    const footer = rest.at(-1)!;
+    const rows = rest.slice(0, -1);
+    expect(footer.startsWith(`"${DISCLAIMER_VERBATIM}"`)).toBe(true);
+    expect(footer.split('","').length).toBe(header!.split('","').length);
+    expect(rows.some((r) => r.includes(DISCLAIMER_VERBATIM))).toBe(false);
     expect(CSV_EN301549_HEADER).toBe(`${EN301549_COLUMN} (${EN301549_LABEL})`);
     expect(header!.endsWith(`"${CSV_EN301549_HEADER}"`)).toBe(true);
     expect(rows.find((r) => r.includes('color-contrast'))!.endsWith('"1.4.3: 9.1.4.3"')).toBe(true);
