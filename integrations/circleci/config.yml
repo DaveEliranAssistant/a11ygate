@@ -1,0 +1,112 @@
+# A11yGate example CircleCI config (version 2.1). Copy a reviewed version to .circleci/config.yml in a repository you own.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+#
+# Scan only a local or explicitly authorized application. The default start-command
+# serves the app on loopback inside the job; adapt it (or leave it empty and start
+# the app in an earlier step of your own). No orb is published: this is a plain config.
+#
+# References:
+#   https://circleci.com/docs/reference/configuration-reference/
+#   https://circleci.com/developer/images/image/cimg/node
+version: 2.1
+
+jobs:
+  a11ygate-scan:
+    parameters:
+      url:
+        type: string
+        default: 'http://127.0.0.1:3000'
+        description: Start URL. Local or authorized targets only.
+      fail-on:
+        type: enum
+        enum: [minor, moderate, serious, critical, none]
+        default: serious
+        description: Fail the job on findings at or above this impact. none = report only.
+      crawl:
+        type: integer
+        default: 1
+        description: Maximum pages to crawl (same origin, robots.txt respected).
+      out-dir:
+        type: string
+        default: a11y
+        description: Output directory, relative to the working directory.
+      baseline:
+        type: string
+        default: ''
+        description: Optional fingerprint baseline (from a11ygate baseline create). Gate only new findings.
+      install-command:
+        type: string
+        default: npm ci
+      start-command:
+        type: string
+        default: 'npm run build && npm run start -- --hostname 127.0.0.1 --port 3000'
+        description: Starts the app under test in the background. Empty = the app is already running.
+    docker:
+      # Node.js plus browser system libraries. Keep the tag on a maintained Node LTS line.
+      - image: cimg/node:22.23-browsers
+    resource_class: medium
+    steps:
+      - checkout
+
+      - run:
+          name: 'A11yGate: install dependencies'
+          command: << parameters.install-command >>
+
+      - run:
+          name: 'A11yGate: install Chromium'
+          command: npx --no-install playwright install --with-deps chromium
+
+      - when:
+          condition: << parameters.start-command >>
+          steps:
+            - run:
+                name: 'A11yGate: start the application under test'
+                background: true
+                command: << parameters.start-command >>
+            - run:
+                name: 'A11yGate: wait for the application'
+                command: |
+                  for i in $(seq 1 120); do
+                    if curl -fsS -o /dev/null "<< parameters.url >>"; then exit 0; fi
+                    sleep 1
+                  done
+                  echo "Application did not respond at << parameters.url >>" >&2
+                  exit 1
+
+      # Exit 1 = findings at or above fail-on; exit 2 = setup/scan error. Either fails the job.
+      - run:
+          name: 'A11yGate: scan (fail-on << parameters.fail-on >>)'
+          command: |
+            set -- scan "<< parameters.url >>" --crawl << parameters.crawl >> --fail-on << parameters.fail-on >> --format junit,sarif --out-dir "<< parameters.out-dir >>"
+            baseline="<< parameters.baseline >>"
+            if [ -n "$baseline" ]; then
+              if [ ! -f "$baseline" ]; then
+                echo "Baseline file not found: $baseline" >&2
+                exit 2
+              fi
+              set -- "$@" --baseline "$baseline"
+            fi
+            npx --no-install a11ygate "$@"
+
+      - run:
+          name: 'A11yGate: evidence pack'
+          when: always
+          command: npx --no-install a11ygate evidence pack --from "<< parameters.out-dir >>" --out "<< parameters.out-dir >>/a11ygate-evidence.zip" --commit "$CIRCLE_SHA1"
+
+      # store_test_results and store_artifacts run even when an earlier step failed (not on cancel/timeout).
+      # JUnit results for the Tests tab and test insights.
+      - store_test_results:
+          path: << parameters.out-dir >>/a11ygate-scan.junit.xml
+
+      # HTML/Markdown/JSON reports, SARIF, engine evidence and the evidence pack zip.
+      - store_artifacts:
+          path: << parameters.out-dir >>
+          destination: a11ygate
+
+workflows:
+  accessibility:
+    jobs:
+      - a11ygate-scan:
+          url: 'http://127.0.0.1:3000'
+          fail-on: serious
+          # baseline: .a11ygate-baseline.json
