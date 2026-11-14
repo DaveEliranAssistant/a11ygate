@@ -45,6 +45,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
+    "fast-check": "^4.10.2",
     "html_codesniffer": "^2.5.1",
     "js-yaml": "^4.3.2",
     "lighthouse": "^12.8.2",

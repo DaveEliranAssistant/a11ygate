@@ -522,15 +522,27 @@ function adaptersForEnv(env = {}) {
 
 // lib/scan/interactions.ts
 function parseInteractionStates(value) {
-  if (!Array.isArray(value) || value.length > 100) throw new Error("Interactions must be a list of at most 100 states.");
+  if (!Array.isArray(value) || value.length > 100) throw new Error("interactions (top level): must be a list of at most 100 states.");
   const names = /* @__PURE__ */ new Set();
-  for (const state of value) {
-    if (!state || typeof state !== "object" || Object.keys(state).some((k) => !["route", "name", "steps"].includes(k)) || typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route) || typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-") || !Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error("Each interaction needs route (/path), unique name (letters, numbers, _ or -; auto- is reserved), and 1\u2013100 steps.");
+  for (const [index, state] of value.entries()) {
+    const at = `interactions[${index}]`;
+    if (!state || typeof state !== "object" || Array.isArray(state)) throw new Error(`${at}: each interaction must be an object with route, name and steps.`);
+    const extra = Object.keys(state).find((k) => !["route", "name", "steps"].includes(k));
+    if (extra !== void 0) throw new Error(`${at}: unknown field ${JSON.stringify(extra.slice(0, 40))}; allowed fields are route, name and steps.`);
+    if (typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route)) throw new Error(`${at}.route: must be a same-site path starting with / (no #, spaces or //).`);
+    if (typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-")) throw new Error(`${at}.name: must be 1\u201380 letters, numbers, _ or - (auto- is reserved).`);
+    if (!Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error(`${at}.steps: must be a list of 1\u2013100 steps.`);
     const label = state.route + "#" + state.name;
-    if (names.has(label)) throw new Error("Interaction state labels must be unique.");
+    if (names.has(label)) throw new Error(`${at}.name: interaction state labels (route + name) must be unique.`);
     names.add(label);
-    for (const step of state.steps) {
-      if (!step || typeof step !== "object" || Object.keys(step).some((k) => !["action", "selector", "key"].includes(k)) || !["click", "press", "wait"].includes(step.action) || typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512 || (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0)) throw new Error("Interaction steps need action click/press/wait and a selector; press also needs a key.");
+    for (const [stepIndex, step] of state.steps.entries()) {
+      const stepAt = `${at}.steps[${stepIndex}]`;
+      if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error(`${stepAt}: each step must be an object with action and selector.`);
+      const stepExtra = Object.keys(step).find((k) => !["action", "selector", "key"].includes(k));
+      if (stepExtra !== void 0) throw new Error(`${stepAt}: unknown field ${JSON.stringify(stepExtra.slice(0, 40))}; allowed fields are action, selector and key.`);
+      if (!["click", "press", "wait"].includes(step.action)) throw new Error(`${stepAt}.action: must be click, press or wait.`);
+      if (typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512) throw new Error(`${stepAt}.selector: must be a non-empty selector of at most 512 characters.`);
+      if (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0) throw new Error(`${stepAt}.key: ${step.action === "press" ? "press needs a key of at most 80 characters" : "only press steps take a key"}.`);
     }
   }
   return value;
@@ -975,6 +987,7 @@ function parseBlock(lines, start, indent) {
     const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
     if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
     const key = match[1].replace(/^(['"])(.*)\1$/, "$2");
+    if (key === "__proto__") throw new YamlError(`line ${number}: the key '__proto__' is not allowed.`);
     if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
     const rest = (match[2] ?? "").trim();
     i++;
@@ -1187,8 +1200,15 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     }
   }
   const parsed = parseConfigYaml(repoConfig ?? "");
-  if (!parsed.ok || validateConfig(parsed.value).length) throw new Error("Invalid .a11ygate.yml. Run a11ygate config validate to check its schema.");
-  const yaml = parsed.value;
+  const problems = parsed.ok ? validateConfig(parsed.value) : parsed.errors;
+  if (problems.length) {
+    const first = problems[0];
+    const line = /^line \d+/.exec(first)?.[0];
+    const key = /'([^']+)'/.exec(first)?.[1];
+    const at = [line, key && `field '${key}'`].filter(Boolean).join(", ");
+    throw new Error(`Invalid .a11ygate.yml${at ? ` (${at})` : ""}. Run a11ygate config validate to check its schema.`);
+  }
+  const yaml = parsed.ok ? parsed.value : {};
   const values = {};
   const sources = {};
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
@@ -1208,7 +1228,11 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       sources[key] = `env:${name}`;
     }
   }
-  parseInteractionStates(values.interactions);
+  try {
+    parseInteractionStates(values.interactions);
+  } catch (error) {
+    throw new Error(`${sources.interactions ?? CONFIG_FILE}: ${error.message}`, { cause: error });
+  }
   const remaining = [];
   const supplied = /* @__PURE__ */ new Set();
   let hasPositionalUrl = false;
@@ -1240,10 +1264,27 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (text === void 0) throw new Error(`${name} needs a value.`);
     if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
+      const inline = text.trim().startsWith("[");
+      const source = inline ? "--interactions" : text;
+      let raw;
+      if (inline) raw = text;
+      else {
+        try {
+          raw = readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8");
+        } catch (error) {
+          throw new Error(`Invalid --interactions (${source}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}); provide a readable local JSON file containing route states.`, { cause: error });
+        }
+      }
+      let json;
       try {
-        return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8")));
+        json = JSON.parse(raw.replace(/^\uFEFF/, ""));
       } catch {
-        throw new Error("Invalid --interactions; provide a readable local JSON file containing route states.");
+        throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`);
+      }
+      try {
+        return parseInteractionStates(json);
+      } catch (error) {
+        throw new Error(`Invalid --interactions (${source}: ${error.message.replace(/\.$/, "")}).`, { cause: error });
       }
     })() : schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
     if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];

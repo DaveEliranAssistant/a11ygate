@@ -28,6 +28,7 @@ import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
 import { loadEffectiveConfig } from './effective-config';
+import { debugDetail } from './fatal';
 
 export type RunIo = {
   cwd?: string;
@@ -173,7 +174,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   let gateArgv: readonly string[] = argv[0] === 'ci' ? argv.slice(1) : argv;
   try {
     if (!gateArgv.some(arg => ['--help', '-h', '--version'].includes(arg))) gateArgv = loadEffectiveConfig('ci', gateArgv, io).argv;
-  } catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
+  } catch (error) { stderr(`${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
     stderr(`${parsed.error}\n`);

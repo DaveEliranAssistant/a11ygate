@@ -101,6 +101,8 @@ function parseBlock(lines: Line[], start: number, indent: number): [Yaml, number
     const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
     if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
     const key = match[1]!.replace(/^(['"])(.*)\1$/, '$2');
+    // A plain-object assignment to __proto__ would replace the prototype and hide the key from validation.
+    if (key === '__proto__') throw new YamlError(`line ${number}: the key '__proto__' is not allowed.`);
     if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
     const rest = (match[2] ?? '').trim();
     i++;

@@ -44,33 +44,56 @@ export function createFingerprintBaseline(report: ScanReport): FingerprintBaseli
 }
 
 export function parseFingerprintBaseline(value: unknown): FingerprintBaseline {
-  const b = value as Partial<FingerprintBaseline> | null;
-  if (!b || b.kind !== 'a11ygate-fingerprint-baseline' || b.schemaVersion !== 1 || !Array.isArray(b.findings) ||
-      b.findings.some((f) => !f || ['fingerprint', 'pageUrl', 'ruleId', 'selector'].some((k) => typeof f[k as keyof BaselineEntry] !== 'string'))) {
-    throw new Error('Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1). Axe JSON baselines belong to a11ygate [ci] --baseline.');
+  const raw = value as Partial<FingerprintBaseline> | null;
+  const field = !raw || typeof raw !== 'object' || Array.isArray(raw) ? '(top level)' : raw.kind !== 'a11ygate-fingerprint-baseline' ? 'kind' : raw.schemaVersion !== 1 ? 'schemaVersion' : !Array.isArray(raw.findings) ? 'findings' : null;
+  if (field) {
+    throw new Error(`Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1, findings list); invalid field ${field}. Axe JSON baselines belong to a11ygate [ci] --baseline.`);
   }
-  if (b.engines !== undefined && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== 'string'))) throw new Error('Invalid baseline engine coverage.');
-  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error('Duplicate baseline fingerprints.');
+  const b = raw as FingerprintBaseline;
+  b.findings.forEach((f, index) => {
+    if (!f || typeof f !== 'object') throw new Error(`Invalid baseline field findings[${index}]: expected an object.`);
+    const key = (['fingerprint', 'pageUrl', 'ruleId', 'selector'] as const).find((k) => typeof f[k] !== 'string');
+    if (key) throw new Error(`Invalid baseline field findings[${index}].${key}: expected a string.`);
+  });
+  if (b.engines !== undefined && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== 'string'))) throw new Error('Invalid baseline engine coverage (field engines): expected a list of engine names.');
+  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error('Duplicate baseline fingerprints (field findings[].fingerprint).');
   if (b.groupDecisions !== undefined) {
-    if (!Array.isArray(b.groupDecisions)) throw new Error('Invalid baseline group decisions.');
-    b.groupDecisions.forEach(validateGroupDecision);
-    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error('Duplicate group decisions.');
+    if (!Array.isArray(b.groupDecisions)) throw new Error('Invalid baseline group decisions (field groupDecisions).');
+    b.groupDecisions.forEach((decision, index) => {
+      try { validateGroupDecision(decision); } catch (error) { throw new Error(`${(error as Error).message.replace(/\.$/, '')} (field groupDecisions[${index}]).`); }
+    });
+    if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error('Duplicate group decisions (field groupDecisions[].groupKey).');
   }
   return b as FingerprintBaseline;
 }
 
+/** Multi-engine fingerprints are JSON tuples [page, locator, sc[], rule]; reject anything else before baselineFingerprint parses them. */
+function validEngineFingerprint(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { return false; }
+  return Array.isArray(parsed) && parsed.length === 4 && typeof parsed[0] === 'string' && typeof parsed[1] === 'string'
+    && Array.isArray(parsed[2]) && parsed[2].every((sc) => typeof sc === 'string') && typeof parsed[3] === 'string';
+}
+
 export function parseScanReport(value: unknown): ScanReport {
   const report = value as ScanReport | null;
-  if (!report || report.kind !== 'site-scan' || report.schemaVersion !== 1 || !Array.isArray(report.findings) || !Array.isArray(report.pages) || !Array.isArray(report.results)) {
-    throw new Error('Expected an A11yGate site-scan JSON report.');
-  }
+  const field = !report || typeof report !== 'object' || Array.isArray(report) ? '(top level)' : report.kind !== 'site-scan' ? 'kind' : report.schemaVersion !== 1 ? 'schemaVersion'
+    : !Array.isArray(report.findings) ? 'findings' : !Array.isArray(report.pages) ? 'pages' : !Array.isArray(report.results) ? 'results' : null;
+  if (field) throw new Error(`Expected an A11yGate site-scan JSON report; invalid field ${field}.`);
   // Validate identity fields before consuming untrusted JSON.
-  for (const f of report.findings) {
-    if (typeof f.pageUrl !== 'string' || typeof f.ruleId !== 'string' || typeof f.selector !== 'string' ||
-        !Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== 'string') || !Array.isArray(f.wcag)) throw new Error('Invalid scan finding.');
+  report!.findings.forEach((f, index) => {
+    if (!f || typeof f !== 'object') throw new Error(`Invalid scan finding (field findings[${index}]).`);
+    const key = (['pageUrl', 'ruleId', 'selector'] as const).find((k) => typeof f[k] !== 'string')
+      ?? (!Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== 'string') ? 'selectors' : !Array.isArray(f.wcag) || f.wcag.some((c) => !c || typeof c !== 'object' || typeof c.number !== 'string') ? 'wcag' : undefined);
+    if (key) throw new Error(`Invalid scan finding (field findings[${index}].${key}).`);
+    if (f.engines !== undefined) {
+      if (!Array.isArray(f.engines) || f.engines.some((e) => typeof e !== 'string')) throw new Error(`Invalid scan finding (field findings[${index}].engines).`);
+      if (!validEngineFingerprint(f.fingerprint)) throw new Error(`Invalid scan finding (field findings[${index}].fingerprint).`);
+    }
     baselineFingerprint(f);
-  }
-  return report;
+  });
+  return report!;
 }
 
 export function applyFingerprintBaseline(report: ScanReport, baseline: FingerprintBaseline, now: Date = new Date()): ScanReport {

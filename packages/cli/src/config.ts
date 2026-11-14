@@ -1,3 +1,4 @@
+import { debugDetail } from './fatal';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
@@ -42,7 +43,7 @@ export async function runConfig(argv: readonly string[], io: { cwd?: string; std
       } else if (!config.argv.every((arg, i) => ['--strict', '--engines', '--model-fixes'].includes(arg) || ['--engines', '--model-fixes'].includes(config.argv[i - 1] ?? ''))) throw invalid();
       stdout(JSON.stringify({ command, config: printableConfig(config, io.env), disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + '\n');
       return 0;
-    } catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
+    } catch (error) { stderr(`${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   }
   if (argv[0] !== 'validate' || argv.length > 2 || argv[1]?.startsWith('-')) {
     stderr('Usage: a11ygate config validate [file]. Run a11ygate config --help.\n');

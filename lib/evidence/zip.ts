@@ -94,30 +94,102 @@ export function createZip(entries: readonly ZipEntry[]): Buffer {
   return Buffer.concat([...local, centralBuffer, end]);
 }
 
-/** Reads archives produced by createZip (and other simple non-ZIP64 archives). */
-export function readZip(zip: Uint8Array): ZipEntry[] {
-  const buf = Buffer.from(zip);
-  const endAt = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  if (endAt < 0) throw new Error('Not a zip archive.');
+export type ReadZipLimits = {
+  /** Largest declared or actual uncompressed size of one entry. Default 64 MB (the evidence-pack per-file cap). */
+  maxEntryBytes?: number;
+  /** Largest sum of uncompressed sizes. Default 256 MB (the evidence-pack total cap). */
+  maxTotalBytes?: number;
+  /** Most entries in one archive. Default 10 000. */
+  maxEntries?: number;
+};
+
+/** Thrown for any archive A11yGate refuses to read. Messages are plain English and never include a stack by default. */
+export class ZipError extends Error {}
+
+/**
+ * Entry names that would escape an extraction directory (zip-slip) or are ambiguous across platforms:
+ * absolute paths, drive letters, backslashes, NUL, empty segments and `.`/`..` segments.
+ */
+export function unsafeZipEntryName(name: string): boolean {
+  if (!name || name.length > 1024 || name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[A-Za-z]:/.test(name)) return true;
+  const segments = (name.endsWith('/') ? name.slice(0, -1) : name).split('/');
+  return segments.some((segment) => segment === '' || segment === '.' || segment === '..');
+}
+
+/**
+ * Reads archives produced by createZip (and other simple non-ZIP64 archives) fully in memory.
+ * Nothing is extracted to disk. Every offset is bounds-checked; unsafe names, encrypted or
+ * ZIP64 entries, unsupported compression and entries whose declared size exceeds the limits are
+ * rejected before any data is inflated. Directory entries are skipped.
+ */
+export function readZip(zip: Uint8Array, limits: ReadZipLimits = {}): ZipEntry[] {
+  const maxEntryBytes = limits.maxEntryBytes ?? 64 * 1024 * 1024;
+  const maxTotalBytes = limits.maxTotalBytes ?? 256 * 1024 * 1024;
+  const maxEntries = limits.maxEntries ?? 10_000;
+  const buf = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength);
+  const need = (at: number, length: number, what: string) => {
+    if (!Number.isInteger(at) || at < 0 || at + length > buf.length) throw new ZipError(`Corrupt zip: ${what} is outside the file.`);
+  };
+  // The end-of-central-directory record sits in the last 22 + 65535 bytes (comment length is 16-bit).
+  const signature = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+  let endAt = buf.lastIndexOf(signature);
+  while (endAt >= 0 && endAt + 22 > buf.length) endAt = endAt > 0 ? buf.lastIndexOf(signature, endAt - 1) : -1;
+  if (endAt < 0 || buf.length - endAt > 22 + 0xffff) throw new ZipError('Not a zip archive.');
   const count = buf.readUInt16LE(endAt + 10);
+  const centralSize = buf.readUInt32LE(endAt + 12);
   let at = buf.readUInt32LE(endAt + 16);
+  if (count === 0xffff || at === 0xffffffff || centralSize === 0xffffffff) throw new ZipError('ZIP64 archives are not supported.');
+  if (count > maxEntries) throw new ZipError(`Zip has ${count} entries; at most ${maxEntries} are allowed.`);
+  need(at, centralSize, 'central directory');
   const entries: ZipEntry[] = [];
+  const seen = new Set<string>();
+  let total = 0;
   for (let i = 0; i < count; i += 1) {
-    if (buf.readUInt32LE(at) !== 0x02014b50) throw new Error('Corrupt central directory.');
+    need(at, 46, `central directory record ${i + 1}`);
+    if (buf.readUInt32LE(at) !== 0x02014b50) throw new ZipError('Corrupt central directory.');
+    const flags = buf.readUInt16LE(at + 8);
     const method = buf.readUInt16LE(at + 10);
     const crc = buf.readUInt32LE(at + 16);
     const compressed = buf.readUInt32LE(at + 20);
+    const declared = buf.readUInt32LE(at + 24);
     const nameLength = buf.readUInt16LE(at + 28);
     const extraLength = buf.readUInt16LE(at + 30);
     const commentLength = buf.readUInt16LE(at + 32);
     const localAt = buf.readUInt32LE(at + 42);
+    need(at + 46, nameLength, `name of entry ${i + 1}`);
     const name = buf.subarray(at + 46, at + 46 + nameLength).toString('utf8');
-    const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
-    const body = buf.subarray(dataAt, dataAt + compressed);
-    const data = method === 0 ? Buffer.from(body) : inflateRawSync(body);
-    if (crc32(data) !== crc) throw new Error(`CRC mismatch for ${name}.`);
-    entries.push({ path: name, data });
+    const label = JSON.stringify(name.slice(0, 200));
+    if (unsafeZipEntryName(name)) throw new ZipError(`Unsafe zip entry name ${label}: absolute paths, drive letters, backslashes and ".." are refused.`);
+    if (seen.has(name)) throw new ZipError(`Duplicate zip entry ${label}.`);
+    seen.add(name);
+    if (flags & 0x1) throw new ZipError(`Zip entry ${label} is encrypted; encrypted archives are not supported.`);
+    if (compressed === 0xffffffff || declared === 0xffffffff) throw new ZipError(`Zip entry ${label} uses ZIP64; ZIP64 archives are not supported.`);
+    if (method !== 0 && method !== 8) throw new ZipError(`Zip entry ${label} uses unsupported compression method ${method}.`);
+    if (declared > maxEntryBytes) throw new ZipError(`Zip entry ${label} declares ${declared} bytes; the limit is ${maxEntryBytes} bytes per entry.`);
+    total += declared;
+    if (total > maxTotalBytes) throw new ZipError(`Zip entries declare more than ${maxTotalBytes} bytes in total.`);
     at += 46 + nameLength + extraLength + commentLength;
+    if (name.endsWith('/')) {
+      if (declared !== 0) throw new ZipError(`Zip directory entry ${label} has data.`);
+      continue;
+    }
+    need(localAt, 30, `local header of ${label}`);
+    if (buf.readUInt32LE(localAt) !== 0x04034b50) throw new ZipError(`Corrupt local header for ${label}.`);
+    const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
+    need(dataAt, compressed, `data of ${label}`);
+    const body = buf.subarray(dataAt, dataAt + compressed);
+    let data: Buffer;
+    if (method === 0) {
+      if (compressed !== declared) throw new ZipError(`Size mismatch for ${label}.`);
+      data = Buffer.from(body);
+    } else {
+      // Cap inflation at the declared size + 1 so a lying header cannot expand into a zip bomb.
+      try { data = inflateRawSync(body, { maxOutputLength: Math.max(1, declared + 1) }); }
+      catch { throw new ZipError(`Corrupt compressed data for ${label}.`); }
+      if (data.length !== declared) throw new ZipError(`Size mismatch for ${label}.`);
+    }
+    if (crc32(data) !== crc) throw new ZipError(`CRC mismatch for ${label}.`);
+    entries.push({ path: name, data });
   }
   return entries;
 }
