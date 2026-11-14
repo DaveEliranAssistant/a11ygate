@@ -3,8 +3,10 @@ import { lineOf } from '@/lib/fix/element';
 import { mapFinding } from '@/lib/fix/mapper';
 import type { FixFinding, FixOptions, PlanResult, SkipReason, SourceFile } from '@/lib/fix/types';
 import { BUILTIN_ADAPTERS } from '@/lib/modelfix/adapters';
+import { gitBlobHash, validateDraft } from '@/lib/modelfix/validate';
 import {
   MODEL_ELIGIBLE_RULES,
+  type DraftRejectionCode,
   type ModelAdapter,
   type ModelDraftRequest,
   type ModelFixConfig,
@@ -30,6 +32,8 @@ export type OrchestrateInput = {
   adapters?: readonly ModelAdapter[];
   env?: Env;
   sourceCommit?: string | null;
+  /** Repository root on disk. When set, the validator also rejects symlink escapes. */
+  repoRoot?: string;
 };
 
 export type OrchestrateResult = {
@@ -87,6 +91,7 @@ function draftRequest(route: RouteRecord, files: readonly SourceFile[]): ModelDr
     startLine: route.startLine,
     endLine: route.endLine,
     original: file.content.split('\n').slice(route.startLine - 1, route.endLine).map((line) => line.replace(/\r$/, '')),
+    sourceBlobHash: gitBlobHash(file.content),
   };
 }
 
@@ -119,7 +124,7 @@ const MESSAGES: Record<ModelRunStatus, string> = {
 
 function finish(status: ModelRunStatus, routes: RouteRecord[], modelRequests: number, outcome?: ModelOutcome): ModelFixRun {
   if (outcome) {
-    for (const route of routes) if (route.model && route.model.provider === null) route.model.outcome = outcome;
+    for (const route of routes) if (route.model && route.model.provider === null && route.model.outcome !== 'draft-rejected') route.model.outcome = outcome;
   }
   return { status, routes, modelRequests, message: MESSAGES[status] };
 }
@@ -149,6 +154,8 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
   for (const route of eligible) {
     const request = draftRequest(route, input.files);
     if (!request || !route.model) continue;
+    const content = input.files.find((item) => item.path === request.path)?.content ?? '';
+    const rejections: DraftRejectionCode[] = [];
     for (const adapter of adapters) {
       if (failed.has(adapter.id)) continue;
       if (requests >= config.maxRequests) {
@@ -157,8 +164,15 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
       }
       requests += 1;
       try {
-        await withDeadline(config.timeoutMs, (signal) => adapter.draft(request, signal));
-        // No validator, isolated apply or re-scan exists yet: discard, never publish.
+        const draft: unknown = await withDeadline(config.timeoutMs, (signal) => adapter.draft({ ...request, original: [...request.original] }, signal));
+        // Untrusted output: validate before anything else may look at it.
+        const result = validateDraft(draft, { request, content, repoRoot: input.repoRoot });
+        if (!result.ok) {
+          // Never applied, published or logged; only the rejection code is kept. Try the next provider.
+          rejections.push(result.rejection.code);
+          continue;
+        }
+        // No isolated apply or re-scan exists yet: discard, never publish.
         route.model = { outcome: 'unverified-discarded', provider: adapter.id };
         break;
       } catch {
@@ -167,7 +181,8 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
       }
     }
     if (route.model.provider === null) {
-      route.model.outcome = overBudget ? 'over-budget' : 'adapters-failed';
+      if (rejections.length > 0) route.model = { outcome: 'draft-rejected', provider: null, rejections };
+      else route.model.outcome = overBudget ? 'over-budget' : 'adapters-failed';
     }
   }
   if (failed.size === adapters.length) return finish('adapters-failed', routes, requests, 'adapters-failed');
