@@ -1,4 +1,5 @@
 import type { FixFinding, PlanResult, SourceFile, Suggestion } from '../lib/fix/types';
+import type { ModelAdapter, ModelFixConfig, ModelFixRun } from '../lib/modelfix/types';
 
 export const MAX_SUGGESTIONS: number;
 
@@ -32,6 +33,8 @@ export type SuggestionSummary = {
   unchanged: number;
   failed: number;
   skipped: PlanResult['skipped'];
+  /** Present only when a model-fix config was passed. Routing metadata; never published output. */
+  model?: ModelFixRun;
 };
 
 export function postSuggestions(options: {
@@ -45,4 +48,9 @@ export function postSuggestions(options: {
   warn: (message: string) => void;
   info?: (message: string) => void;
   readFile?: (relative: string) => string | null;
+  /** Resolved model-fix config. Omit for the plain rule-based path. */
+  modelFixes?: ModelFixConfig;
+  /** Adapters for the model path. Defaults to the built-in list, which is empty in this phase. */
+  modelAdapters?: readonly ModelAdapter[];
+  env?: Readonly<Record<string, string | undefined>>;
 }): Promise<SuggestionSummary>;

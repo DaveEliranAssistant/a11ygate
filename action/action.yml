@@ -41,6 +41,10 @@ inputs:
     description: Language code used by the html-has-lang suggestion. A TODO(a11ygate) comment asks a human to confirm it.
     required: false
     default: en
+  model-fixes:
+    description: Optional model-drafted fixes (experimental, not implemented beyond routing). on or off. Needs modelFixes true in the repository's .a11ygate.yml; cannot override a repository denial. Falls back to rule-based suggestions.
+    required: false
+    default: 'off'
   token:
     description: Token used to post the pull request comment. Defaults to the job token.
     required: false
@@ -78,6 +82,7 @@ runs:
         A11Y_COMMENT: ${{ inputs.comment }}
         A11Y_SUGGEST_FIXES: ${{ inputs.suggest-fixes }}
         A11Y_SUGGEST_LANG: ${{ inputs.suggest-lang }}
+        A11Y_MODEL_FIXES: ${{ inputs.model-fixes }}
         A11Y_TOKEN: ${{ inputs.token }}
         A11Y_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         A11Y_PR_NUMBER: ${{ github.event.pull_request.number }}

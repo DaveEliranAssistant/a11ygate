@@ -7,6 +7,7 @@ import {
   planSuggestions,
   sourceKind,
 } from './dist/fix.mjs';
+import { planWithModelFixes } from './dist/modelfix.mjs';
 
 export const MAX_SUGGESTIONS = 25;
 const MAX_FILE_BYTES = 1_000_000;
@@ -86,7 +87,7 @@ async function paginate(github, pathname, maxPages) {
  *
  * `github(pathname, { method, body })` returns parsed JSON or throws.
  */
-export async function postSuggestions({ report, github, repo, pr, headSha, workspace, lang, warn, info, readFile }) {
+export async function postSuggestions({ report, github, repo, pr, headSha, workspace, lang, warn, info, readFile, modelFixes, modelAdapters, env }) {
   const summary = { planned: 0, created: 0, updated: 0, unchanged: 0, failed: 0, skipped: [] };
   const log = info ?? (() => {});
   try {
@@ -105,6 +106,12 @@ export async function postSuggestions({ report, github, repo, pr, headSha, works
     const files = sourceFilesFromPullFiles(pullFiles, reader);
     const plan = planSuggestions(findings, files, { lang });
     summary.skipped = plan.skipped;
+    if (modelFixes) {
+      // Optional model path (off by default). It only records routing; the F1 plan is posted unchanged.
+      const routed = await planWithModelFixes({ findings, files, options: { lang }, config: modelFixes, f1Plan: plan, adapters: modelAdapters, env, sourceCommit: commitId });
+      summary.model = routed.model;
+      if (modelFixes.enabled) log(routed.model.message);
+    }
     const suggestions = plan.suggestions.slice(0, MAX_SUGGESTIONS);
     summary.planned = suggestions.length;
     if (suggestions.length === 0) {

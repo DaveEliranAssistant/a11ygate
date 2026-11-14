@@ -29,6 +29,7 @@ Or from a checkout of this repository:
 | `comment` | `false` | Post or update a single pull request comment. |
 | `suggest-fixes` | `true` | With `comment: true`, also post rule-based suggested changes on lines in the pull request diff. |
 | `suggest-lang` | `en` | Language code for the `html-has-lang` suggestion. |
+| `model-fixes` | `off` | Experimental model-assisted fix routing. Needs repository opt-in; see [Model-assisted fixes](#model-assisted-fixes-experimental-default-off). |
 | `token` | `github.token` | Token for the comment and the suggested changes. |
 
 The comment is marked with `<!-- a11ygate -->` and updated in place on later runs. The job summary receives the same Markdown. The step exits with the CLI code: **0** pass, **1** new violations at or above the threshold, **2** unreadable input.
@@ -55,6 +56,23 @@ When `comment` and `suggest-fixes` are both true, the action also posts pull req
 - Each review comment contains `<!-- a11ygate-suggestion:<fingerprint> -->`. Later runs update or skip it instead of posting a duplicate.
 - Suggested changes need `pull-requests: write`. If posting one fails, the step logs a warning and keeps the gate's exit code.
 - This is an automated check of a few rules. It is not a full accessibility review and not a compliance certification.
+
+## Model-assisted fixes (experimental, default off)
+
+This is an early skeleton of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). Today it only records how findings would be routed. It ships no provider adapter, makes no model or network request, and never publishes model output.
+
+- **Default off.** It stays off unless the `model-fixes` input (or `A11YGATE_MODEL_FIXES`) is `on` **and** the repository opts in with this exact line in `.a11ygate.yml` at the repository root:
+
+  ```yaml
+  modelFixes: true
+  ```
+
+- A missing file, a missing key, `modelFixes: false`, or any other value is a repository denial. The input and env cannot override it. An explicit `off` in either the input or env always wins.
+- Only `color-contrast`, `image-alt` and ARIA accessible-name findings that map to exactly one place, with no rule-based suggestion, are eligible. A rule-based suggestion always takes precedence.
+- When models are off, no provider is configured, every provider fails, or the budget is used up, the action posts exactly the rule-based suggestions described above. The gate result and exit code do not change.
+- Rule-based suggestions keep their `TODO(a11ygate)` placeholders. A11yGate does not invent alt, label or accessible-name text.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Copy-paste workflow
 
