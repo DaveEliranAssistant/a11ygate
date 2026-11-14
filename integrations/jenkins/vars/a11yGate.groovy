@@ -34,7 +34,7 @@ def call(Map args = [:]) {
 
   def formats = args.formats ?: ['junit', 'sarif', 'json', 'md']
   if (formats instanceof CharSequence) {
-    formats = formats.toString().split(',')*.trim().findAll { it }
+    formats = formats.toString().split(',').collect { it.trim() }.findAll { it }
   }
   def allowedFormats = ['junit', 'sarif', 'json', 'md']
   formats.each { format ->
