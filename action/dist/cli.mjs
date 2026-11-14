@@ -731,7 +731,7 @@ Examples:
   npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
 
 A file larger than 8 MB is refused. The same diff and gate as the web app are used.
-This source build is unreleased; published 0.1.0 does not include these coverage/manual features.
+Coverage and manual-evidence flags are included in 0.2.0.
 PASS is not legal advice or certification. Baseline updates never clear the current gate result.
 `;
 }
@@ -3029,7 +3029,7 @@ function buildEvidencePack(input) {
     tool: "a11ygate",
     kind: "evidence-pack",
     schemaVersion: 1,
-    releaseStatus: "unreleased-source-build",
+    releaseStatus: "released",
     toolVersion: input.toolVersion,
     scanToolVersion: report.version,
     commit: input.commit,
@@ -4417,7 +4417,7 @@ function reportJson(input) {
     {
       tool: "a11ygate",
       schemaVersion: 2,
-      releaseStatus: "unreleased-source-build",
+      releaseStatus: "released",
       synthetic: input.synthetic,
       version: input.version,
       projectName: input.projectName,

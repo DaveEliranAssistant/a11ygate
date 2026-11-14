@@ -4,7 +4,7 @@ Command-line accessibility regression gate for [axe-core](https://github.com/deq
 
 Licensed under the [MIT License](LICENSE).
 
-See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-upgrade-notes.md) for the proposed 0.2.0 (not published; `package.json` version is still 0.1.0).
+See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-upgrade-notes.md) for 0.2.0. The npm `latest` tag remains 0.1.0 until a separate approval; 0.2.0 is intended for the `next` tag only.
 
 ## Usage
 

@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +12,7 @@ const current = path.join(repoRoot, 'fixtures/demo-shop-current.json');
 const baseline = path.join(repoRoot, 'fixtures/demo-shop-baseline.json');
 const cliBin = path.join(repoRoot, 'packages/cli/dist/cli.mjs');
 const actionBin = path.join(repoRoot, 'action/dist/cli.mjs');
+const cliVersion = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 async function capture(args: string[], cwd = repoRoot) {
   let stdout = '';
@@ -113,7 +115,7 @@ describe('a11ygate CLI', () => {
 
     const version = await capture(['--version']);
     expect(version.code).toBe(0);
-    expect(version.stdout.trim()).toBe('0.1.0');
+    expect(version.stdout.trim()).toBe(cliVersion);
 
     const unknown = await capture(['--nope']);
     expect(unknown.code).toBe(2);

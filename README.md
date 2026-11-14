@@ -4,7 +4,7 @@ A11yGate turns axe-core JSON (for example from `@axe-core/playwright` in CI) int
 
 The gate fails only on **new** violations compared with a baseline. Fixed and still-open findings are reported. The default impact threshold is `serious`, so `serious` and `critical` fail the gate. `moderate` and `minor` do not.
 
-The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. The CLI is published on npm as `@qe-atlas/a11ygate@0.1.0`. The Action is published as `DaveEliranAssistant/a11ygate-action@v1`. The waitlist does not gate the CLI, the Action, or the browser demo.
+The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11ygate.vercel.app). There is no account, no payment, and scan files are not uploaded. The waitlist is the only form that sends data to the server, and only after consent. The same diff and gate power the CLI and the GitHub Action in this repository. The CLI is published on npm as `@qe-atlas/a11ygate@0.2.0` (the `next` tag: `npx @qe-atlas/a11ygate@next`). The `latest` tag remains 0.1.0 until a separate approval. The Action is published as `DaveEliranAssistant/a11ygate-action@v1`. The waitlist does not gate the CLI, the Action, or the browser demo.
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
@@ -66,7 +66,7 @@ Write one file per page. Parallel tests will not collide, and the CLI accepts re
 
 ## CLI
 
-The npm package in `packages/cli` is `@qe-atlas/a11ygate`. The command name is still `a11ygate`. `@qe-atlas/a11ygate@0.1.0` is published on npm, so `npx` runs it with no install. Inside a checkout of this repo, after `npm install`, `npx` runs the local bin instead. The `fixtures/` paths below exist only in a checkout.
+The npm package in `packages/cli` is `@qe-atlas/a11ygate`. The command name is still `a11ygate`. `@qe-atlas/a11ygate@0.2.0` is on the npm `next` tag (`npx @qe-atlas/a11ygate@next`). The `latest` tag is still 0.1.0, so bare `npx @qe-atlas/a11ygate` currently runs 0.1.0. Inside a checkout of this repo, after `npm install`, `npx` runs the local bin instead. The `fixtures/` paths below exist only in a checkout.
 
 ```bash
 npx @qe-atlas/a11ygate --help
