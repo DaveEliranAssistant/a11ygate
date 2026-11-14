@@ -1,0 +1,321 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`JUnit output > groups one testcase per rule × page, puts the disclaimer in testsuite properties, and matches the snapshot 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="A11yGate" tests="2" failures="2" errors="0" skipped="0" time="0" timestamp="2026-10-31T12:00:00.000Z" hostname="a11ygate">
+  <properties>
+    <property name="disclaimer" value="Automated testing only. Not a WCAG audit, certification or legal advice."/>
+    <property name="tool" value="A11yGate"/>
+    <property name="version" value="0.1.0"/>
+    <property name="verdict" value="FAIL"/>
+    <property name="reason" value="2 findings at or above serious: image-alt, color-contrast."/>
+    <property name="command" value="scan"/>
+    <property name="startUrl" value="https://demo.shop/"/>
+  </properties>
+    <testcase classname="https://demo.shop/" name="image-alt" time="0">
+      <failure message="image-alt: Images must have alternate text (critical) (2 instances)" type="image-alt">Automated testing only. Not a WCAG audit, certification or legal advice.
+image-alt: Images must have alternate text (critical) (2 instances)
+- https://demo.shop/ — img.hero — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;hero&quot; src=&quot;/x.png&quot;&gt;
+  guidance: https://dequeuniversity.com/rules/axe/4.10/image-alt
+- https://demo.shop/ — img.footer — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;footer&quot;&gt;
+  guidance: https://dequeuniversity.com/rules/axe/4.10/image-alt</failure>
+    </testcase>
+    <testcase classname="https://demo.shop/about" name="color-contrast" time="0">
+      <failure message="color-contrast: Elements must have sufficient color contrast (serious)" type="color-contrast">Automated testing only. Not a WCAG audit, certification or legal advice.
+color-contrast: Elements must have sufficient color contrast (serious)
+- https://demo.shop/about — .price-tag — WCAG 1.4.3 Contrast (Minimum) (AA)
+  element: &lt;span class=&quot;price-tag&quot;&gt;€12&lt;/span&gt;
+  guidance: https://dequeuniversity.com/rules/axe/4.10/color-contrast</failure>
+    </testcase>
+</testsuite>
+"
+`;
+
+exports[`SARIF 2.1.0 output > validates against the official schema, has rule metadata, WCAG tags and URL+selector locations, and matches the snapshot 1`] = `
+"{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "A11yGate",
+          "version": "0.1.0",
+          "informationUri": "https://a11ygate.vercel.app",
+          "rules": [
+            {
+              "id": "color-contrast",
+              "name": "color-contrast",
+              "shortDescription": {
+                "text": "Elements must have sufficient color contrast"
+              },
+              "fullDescription": {
+                "text": "Elements must have sufficient color contrast"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.10/color-contrast",
+              "help": {
+                "text": "Elements must have sufficient color contrast"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag2aa",
+                  "wcag143",
+                  "WCAG 1.4.3"
+                ],
+                "impact": "serious"
+              },
+              "relationships": [
+                {
+                  "target": {
+                    "id": "1.4.3",
+                    "index": 1,
+                    "toolComponent": {
+                      "name": "WCAG",
+                      "index": 0
+                    }
+                  },
+                  "kinds": [
+                    "relevant"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "image-alt",
+              "name": "image-alt",
+              "shortDescription": {
+                "text": "Images must have alternate text"
+              },
+              "fullDescription": {
+                "text": "Images must have alternate text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.10/image-alt",
+              "help": {
+                "text": "Images must have alternate text"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag2a",
+                  "wcag111",
+                  "cat.text-alternatives",
+                  "WCAG 1.1.1"
+                ],
+                "impact": "critical"
+              },
+              "relationships": [
+                {
+                  "target": {
+                    "id": "1.1.1",
+                    "index": 0,
+                    "toolComponent": {
+                      "name": "WCAG",
+                      "index": 0
+                    }
+                  },
+                  "kinds": [
+                    "relevant"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "taxonomies": [
+        {
+          "name": "WCAG",
+          "informationUri": "https://www.w3.org/WAI/standards-guidelines/wcag/",
+          "taxa": [
+            {
+              "id": "1.1.1",
+              "name": "Non-text Content",
+              "shortDescription": {
+                "text": "WCAG 2.1 1.1.1 Non-text Content (A)"
+              }
+            },
+            {
+              "id": "1.4.3",
+              "name": "Contrast (Minimum)",
+              "shortDescription": {
+                "text": "WCAG 2.1 1.4.3 Contrast (Minimum) (AA)"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "Images must have alternate text (critical) at img.footer on https://demo.shop/"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "https://demo.shop/"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"footer\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.footer"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.footer",
+                  "kind": "element",
+                  "name": "img.footer"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.footer|/"
+          },
+          "partialFingerprints": {
+            "a11ygate": "image-alt|img.footer|/"
+          },
+          "properties": {
+            "selector": "img.footer",
+            "impact": "critical",
+            "tags": [
+              "wcag2a",
+              "wcag111",
+              "cat.text-alternatives"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "https://demo.shop/"
+          }
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "Images must have alternate text (critical) at img.hero on https://demo.shop/"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "https://demo.shop/"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"hero\\" src=\\"/x.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.hero"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.hero",
+                  "kind": "element",
+                  "name": "img.hero"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.hero|/"
+          },
+          "partialFingerprints": {
+            "a11ygate": "image-alt|img.hero|/"
+          },
+          "properties": {
+            "selector": "img.hero",
+            "impact": "critical",
+            "tags": [
+              "wcag2a",
+              "wcag111",
+              "cat.text-alternatives"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "https://demo.shop/"
+          }
+        },
+        {
+          "ruleId": "color-contrast",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Elements must have sufficient color contrast (serious) at .price-tag on https://demo.shop/about"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "https://demo.shop/about"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<span class=\\"price-tag\\">€12</span>"
+                  },
+                  "message": {
+                    "text": "selector: .price-tag"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": ".price-tag",
+                  "kind": "element",
+                  "name": ".price-tag"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "color-contrast|.price-tag|/about"
+          },
+          "partialFingerprints": {
+            "a11ygate": "color-contrast|.price-tag|/about"
+          },
+          "properties": {
+            "selector": ".price-tag",
+            "impact": "serious",
+            "tags": [
+              "wcag2aa",
+              "wcag143"
+            ],
+            "wcag": [
+              "1.4.3"
+            ],
+            "pageUrl": "https://demo.shop/about"
+          }
+        }
+      ],
+      "properties": {
+        "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "verdict": "FAIL",
+        "reason": "2 findings at or above serious: image-alt, color-contrast.",
+        "command": "scan",
+        "startUrl": "https://demo.shop/"
+      }
+    }
+  ]
+}
+"
+`;

@@ -7,6 +7,9 @@ import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url
 import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
 import { runEngine } from '@/lib/scan/engines/types';
 export { toAxeResults } from '@/lib/scan/engines/axe';
+import { toJunit } from '@/lib/export-junit';
+import { toSarif } from '@/lib/export-sarif';
+import { formatFileName, formatReportFromScan, mergeFormats, parseFormatList, type ReportFormat } from '@/lib/report-formats';
 
 export type ScanOptions = {
   help: boolean;
@@ -18,6 +21,7 @@ export type ScanOptions = {
   json?: string;
   markdown?: string;
   html?: string;
+  formats: ReportFormat[];
   warnings: string[];
   engines: ['axe'];
 };
@@ -27,10 +31,10 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines']);
+const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
-  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, warnings: [], engines: ['axe'] };
+  const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ['axe'] };
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? '';
@@ -81,7 +85,12 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     } else if (name === '--out-dir') options.outDir = value;
     else if (name === '--json') options.json = value;
     else if (name === '--markdown') options.markdown = value;
-    else options.html = value;
+    else if (name === '--html') options.html = value;
+    else {
+      const parsed = parseFormatList(value);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      options.formats = mergeFormats(options.formats, parsed.formats);
+    }
   }
   if (options.help) return { ok: true, options };
   if (positionals.length === 0) return { ok: false, error: 'Pass the URL to scan: a11ygate scan <url>.' };
@@ -92,6 +101,9 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   if (options.outDir && (options.json || options.markdown || options.html)) {
     return { ok: false, error: 'Use either --out-dir or --json/--markdown/--html, not both.' };
   }
+  if (options.formats.length > 0 && !options.outDir) {
+    return { ok: false, error: '--format requires --out-dir.' };
+  }
   return { ok: true, options };
 }
 
@@ -100,7 +112,8 @@ export function scanHelpText(): string {
 
 Usage:
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
-                      [--json <file>] [--markdown <file>] [--html <file>] [--delay-ms <ms>]
+                      [--format junit|sarif|json|md] [--json <file>] [--markdown <file>]
+                      [--html <file>] [--delay-ms <ms>]
 
 Options:
   --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
@@ -108,6 +121,8 @@ Options:
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
+  --format <fmt>       Also write junit, sarif, json, or md into --out-dir. Repeat or comma-separate.
+                       Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
   --html <file>        Write a self-contained HTML summary.
@@ -287,11 +302,20 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const markdown = scanMarkdown(report);
 
+  const formatReport = formatReportFromScan(report);
+  const extra: [string, string][] = [];
+  if (options.outDir && options.formats.includes('junit')) {
+    extra.push([path.join(options.outDir, formatFileName('scan', 'junit')), toJunit(formatReport)]);
+  }
+  if (options.outDir && options.formats.includes('sarif')) {
+    extra.push([path.join(options.outDir, formatFileName('scan', 'sarif')), toSarif(formatReport)]);
+  }
   const targets: [string | undefined, string][] = options.outDir
     ? [
         [path.join(options.outDir, 'a11ygate-scan.json'), json],
         [path.join(options.outDir, 'a11ygate-scan.md'), markdown],
         [path.join(options.outDir, 'a11ygate-scan.html'), scanHtml(report)],
+        ...extra,
       ]
     : [
         [options.json === '-' ? undefined : options.json, json],

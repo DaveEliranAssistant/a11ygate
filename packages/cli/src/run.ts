@@ -1,4 +1,4 @@
-import { readFile, realpath, stat, lstat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, stat, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './args';
@@ -14,6 +14,9 @@ import { axeJsonTooLargeMessage, MAX_AXE_JSON_BYTES } from '@/lib/limits';
 import { parseAxeDocuments } from '@/lib/parse';
 import { inferProjectName } from '@/lib/project';
 import type { AxeResults, DiffedFinding, Impact, Verdict } from '@/lib/types';
+import { toJunit } from '@/lib/export-junit';
+import { toSarif } from '@/lib/export-sarif';
+import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
 export type RunIo = {
   cwd?: string;
@@ -145,7 +148,8 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
 
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
 
-  const parsed = parseArgs(argv);
+  const gateArgv = argv[0] === 'ci' ? argv.slice(1) : argv;
+  const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
     stderr(`${parsed.error}\n`);
     stderr('Run a11ygate --help for usage.\n');
@@ -165,6 +169,10 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     stderr('Pass at least one current axe JSON file with --current.\n');
     return 2;
   }
+  if (options.formats.length > 0 && !options.outDir) {
+    stderr('--format requires --out-dir.\n');
+    return 2;
+  }
 
   // Resolve symlinks and inode aliases before any output can overwrite input evidence.
   try {
@@ -179,7 +187,14 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   };
   const inputs = await Promise.all([...options.current, ...options.baseline, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
   const baselineProtectedInputs = await Promise.all([...options.current, ...(options.manualEvidence ? [options.manualEvidence] : [])].map(identify));
-  const outputs = [options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined].filter((x): x is string => !!x);
+  const outDirFiles = options.outDir
+    ? [...new Set([
+        path.join(options.outDir, formatFileName('ci', 'json')),
+        path.join(options.outDir, formatFileName('ci', 'md')),
+        ...options.formats.map((format) => path.join(options.outDir as string, formatFileName('ci', format))),
+      ])]
+    : [];
+  const outputs = [options.markdown, options.json === '-' ? undefined : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + '.review.json' : undefined, ...outDirFiles].filter((x): x is string => !!x);
   const seen: Awaited<ReturnType<typeof identify>>[] = [];
   for (const output of outputs) {
     const id = await identify(output);
@@ -285,6 +300,34 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
       await writeFile(resolveInput(cwd, options.json), json, 'utf8');
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}\n`);
+      return 2;
+    }
+  }
+
+  if (options.outDir) {
+    const formatReport = formatReportFromGate({
+      version,
+      generatedAt,
+      projectName,
+      verdict,
+      reason,
+      currentResults: current.results,
+      findings: [...diff.newFindings, ...diff.stillOpen, ...diff.fixedFindings, ...(diff.unassessed ?? [])],
+    });
+    const files = new Map<string, string>([
+      [formatFileName('ci', 'json'), json],
+      [formatFileName('ci', 'md'), markdown],
+    ]);
+    if (options.formats.includes('junit')) files.set(formatFileName('ci', 'junit'), toJunit(formatReport));
+    if (options.formats.includes('sarif')) files.set(formatFileName('ci', 'sarif'), toSarif(formatReport));
+    try {
+      const dir = resolveInput(cwd, options.outDir);
+      await mkdir(dir, { recursive: true });
+      for (const [name, content] of files) {
+        await writeFile(path.join(dir, name), content, 'utf8');
+      }
+    } catch (error) {
+      stderr(`${writeFailure(options.outDir, error)}\n`);
       return 2;
     }
   }

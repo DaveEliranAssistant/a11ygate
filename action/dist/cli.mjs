@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { readFile, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdir as mkdir2, readFile, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
 import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,308 +11,11 @@ function isImpact(value) {
   return value === "minor" || value === "moderate" || value === "serious" || value === "critical";
 }
 
-// packages/cli/src/args.ts
-var VALUE_FLAGS = {
-  "--current": "current",
-  "-c": "current",
-  "--baseline": "baseline",
-  "-b": "baseline",
-  "--threshold": "threshold",
-  "-t": "threshold",
-  "--markdown": "markdown",
-  "-m": "markdown",
-  "--json": "json",
-  "-j": "json",
-  "--update-baseline": "updateBaseline",
-  "--manual-evidence": "manualEvidence"
-};
-function flagName(token) {
-  const eq = token.indexOf("=");
-  if (eq === -1) return { name: token };
-  return { name: token.slice(0, eq), inline: token.slice(eq + 1) };
-}
-function parseArgs(argv) {
-  if (argv.includes("--help") || argv.includes("-h")) {
-    return {
-      ok: true,
-      options: {
-        help: true,
-        version: false,
-        current: [],
-        baseline: [],
-        threshold: "serious"
-      }
-    };
-  }
-  const current = [];
-  const baseline = [];
-  let threshold = "serious";
-  let markdown;
-  let json;
-  let updateBaseline;
-  let manualEvidence;
-  let help = false;
-  let version = false;
-  let thresholdText;
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index] ?? "";
-    if (token === "--") {
-      return { ok: false, error: "Unexpected extra arguments." };
-    }
-    if (token === "--help" || token === "-h") {
-      help = true;
-      continue;
-    }
-    if (token === "--version") {
-      version = true;
-      continue;
-    }
-    const { name, inline } = flagName(token);
-    const field = VALUE_FLAGS[name];
-    if (!field) {
-      if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
-      return { ok: false, error: `Unexpected argument ${token}.` };
-    }
-    const value = inline !== void 0 ? inline : argv[index + 1];
-    if (inline === void 0) index += 1;
-    if (value === void 0 || value.length === 0) {
-      return { ok: false, error: `${name} needs a value.` };
-    }
-    const jsonFlag = name === "--json" || name === "-j";
-    if (value.startsWith("-") && !(jsonFlag && value === "-")) {
-      return { ok: false, error: `${name} needs a value.` };
-    }
-    if (field === "current") current.push(value);
-    else if (field === "baseline") baseline.push(value);
-    else if (field === "threshold") thresholdText = value;
-    else if (field === "markdown") markdown = value;
-    else if (field === "json") json = value;
-    else if (field === "updateBaseline") updateBaseline = value;
-    else manualEvidence = value;
-  }
-  if (!help && !version && thresholdText !== void 0) {
-    if (!isImpact(thresholdText)) {
-      return {
-        ok: false,
-        error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`
-      };
-    }
-    threshold = thresholdText;
-  }
-  return {
-    ok: true,
-    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence }
-  };
-}
-
-// packages/cli/src/help.ts
-function helpText() {
-  return `a11ygate \u2014 accessibility regression gate for axe-core JSON
-
-Usage:
-  a11ygate --current <file> [--current <file>] [--baseline <file>] [options]
-  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]   (see a11ygate scan --help)
-
-Options:
-  -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
-                               Each file is one result, an array of results, or { "results": ... }.
-  -b, --baseline <file>        Baseline axe-core JSON. Repeatable. Omit to treat every current finding as new.
-  -t, --threshold <impact>     minor, moderate, serious, or critical. Default: serious.
-                               Exit 1 only when a new finding is at or above this impact.
-  -m, --markdown <file>        Also write the Markdown summary to this file. It is always printed.
-  -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
-      --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
-      --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
-  -h, --help                   Show this help.
-      --version                Show the version.
-
-Exit codes:
-  0  No detected new finding is at or above the threshold; existing debt/unassessed scope remain.
-  1  At least one new finding is at or above the threshold.
-  2  Incomplete scan coverage, unsafe outputs, invalid evidence, or unreadable arguments/JSON.
-
-Examples:
-  npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
-  npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
-  npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
-
-A file larger than 8 MB is refused. The same diff and gate as the web app are used.
-This source build is unreleased; published 0.1.0 does not include these coverage/manual features.
-PASS is not legal advice or certification. Baseline updates never clear the current gate result.
-`;
-}
-
-// packages/cli/src/scan.ts
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-
-// lib/scan/robots.ts
-var ROBOTS_AGENT = "a11ygate";
-function parseRobots(text, agent = ROBOTS_AGENT) {
-  const groups = [];
-  let current = null;
-  let lastWasAgent = false;
-  for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = raw.replace(/#.*$/, "").trim();
-    if (!line) continue;
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim().toLowerCase();
-    const value = line.slice(colon + 1).trim();
-    if (key === "user-agent") {
-      if (!current || !lastWasAgent) {
-        current = { agents: [], rules: [] };
-        groups.push(current);
-      }
-      current.agents.push(value.toLowerCase());
-      lastWasAgent = true;
-      continue;
-    }
-    lastWasAgent = false;
-    if (!current) continue;
-    if (key === "disallow" || key === "allow") {
-      if (value === "") continue;
-      current.rules.push({ allow: key === "allow", pattern: value });
-    }
-  }
-  const name = agent.toLowerCase();
-  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
-  return { rules: rules2 };
-}
-function patternToRegExp(pattern) {
-  const anchored = pattern.endsWith("$");
-  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
-  return new RegExp("^" + body + (anchored ? "$" : ""));
-}
-function isAllowedByRobots(robots, pathAndQuery) {
-  if (!robots || robots.rules.length === 0) return true;
-  let best = null;
-  for (const rule of robots.rules) {
-    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
-    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
-      best = rule;
-    }
-  }
-  return best ? best.allow : true;
-}
-function robotsAllowsUrl(robots, url) {
-  const parsed = new URL(url);
-  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
-}
-async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
-    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
-    const text = (await response.text()).slice(0, 512 * 1024);
-    return { rules: parseRobots(text), note: "robots.txt honoured." };
-  } catch {
-    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// lib/scan/url.ts
-var MAX_CRAWL_PAGES = 20;
-var NON_HTML_EXTENSION = /\.(?:pdf|zip|gz|tgz|rar|7z|tar|dmg|exe|msi|apk|iso|png|jpe?g|gif|webp|avif|svg|ico|bmp|tiff?|mp3|wav|ogg|m4a|mp4|m4v|mov|avi|webm|mkv|css|js|mjs|json|xml|rss|atom|txt|csv|xlsx?|docx?|pptx?|odt|ods|woff2?|ttf|otf|eot)$/i;
-var LOGOUT_LIKE = /(?:^|[\/_\-.?=&])(?:log-?out|log-?off|sign-?out|sign-?off|logoff|signout|end-?session|destroy-?session)(?:$|[\/_\-.?=&])/i;
-function normalizeUrl(input, base) {
-  let url;
-  try {
-    url = base === void 0 ? new URL(input) : new URL(input, base);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  if (url.username || url.password) return null;
-  url.hash = "";
-  return url.toString();
-}
-function classifyLink(href, pageUrl, origin) {
-  const url = normalizeUrl(href, pageUrl);
-  if (!url) return { ok: false, reason: "not-http", url: href };
-  if (new URL(url).origin !== origin) return { ok: false, reason: "external", url };
-  const parsed = new URL(url);
-  if (NON_HTML_EXTENSION.test(parsed.pathname)) return { ok: false, reason: "non-html", url };
-  if (LOGOUT_LIKE.test(parsed.pathname + parsed.search)) return { ok: false, reason: "logout", url };
-  return { ok: true, url };
-}
-function isHtmlContentType(value) {
-  if (!value) return true;
-  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
-  return type === "" || type === "text/html" || type === "application/xhtml+xml";
-}
-
-// lib/scan/crawl.ts
-var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function clampPages(requested) {
-  if (!Number.isFinite(requested) || requested < 1) return 1;
-  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
-}
-async function crawl(options) {
-  const start = normalizeUrl(options.startUrl);
-  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
-  const origin = new URL(start).origin;
-  const maxPages = clampPages(options.maxPages);
-  const sleep = options.sleep ?? defaultSleep;
-  const crawling = maxPages > 1;
-  const queue = [start];
-  const seen = /* @__PURE__ */ new Set([start]);
-  const pages = [];
-  const skipped = [];
-  const skippedSeen = /* @__PURE__ */ new Set();
-  const skip = (entry) => {
-    const key = entry.reason + " " + entry.url;
-    if (skippedSeen.has(key)) return;
-    skippedSeen.add(key);
-    skipped.push(entry);
-  };
-  let visits = 0;
-  while (queue.length > 0) {
-    const url = queue.shift();
-    if (pages.length >= maxPages) {
-      skip({ url, reason: "cap" });
-      continue;
-    }
-    if (!robotsAllowsUrl(options.robots, url)) {
-      skip({ url, reason: "robots" });
-      continue;
-    }
-    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
-    visits += 1;
-    options.log?.(`Scanning ${url}`);
-    const outcome = await options.visit(url, crawling);
-    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
-      skip({ url, reason: "redirected-off-origin" });
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
-      continue;
-    }
-    if (outcome.result) {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
-    } else {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
-    }
-    if (!crawling) continue;
-    const base = outcome.finalUrl || url;
-    for (const href of outcome.links) {
-      const link = classifyLink(href, base, origin);
-      if (!link.ok) {
-        skip({ url: link.url, reason: link.reason, from: url });
-        continue;
-      }
-      if (seen.has(link.url)) continue;
-      seen.add(link.url);
-      queue.push(link.url);
-    }
-  }
-  return { pages, skipped };
-}
-
 // lib/copy.ts
 var DISCLAIMER = "Automated checks cover only part of WCAG; this is evidence, not certification.";
 var LEGAL_DISCLAIMER = "Informational only. Not legal advice. Not a certification of EAA compliance.";
+var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+var SITE_URL = "https://a11ygate.vercel.app";
 
 // lib/mapping.ts
 var SEEDS = [
@@ -414,133 +117,6 @@ function formatStandards(tags) {
   ).join(" | ");
 }
 
-// lib/guidance.ts
-var rules = {
-  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
-  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
-  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
-  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
-};
-function findingGuidance(f) {
-  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
-}
-
-// lib/export-markdown.ts
-function cell(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
-}
-function findingLine(finding) {
-  const selector = finding.selector.replace(/`/g, "'");
-  const impact = finding.impact ?? "unspecified";
-  const guidance = findingGuidance(finding);
-  return `- **${cell(finding.ruleId)}** (${impact}) on \`${cell(finding.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding.help)} \u2014 ${cell(formatStandards(finding.tags))}
-  - Affected element: \`${cell(finding.html)}\`; fingerprint: \`${cell(finding.fingerprint)}\`.
-  - User impact: ${cell(guidance.userImpact)}
-  - Remediation: ${cell(guidance.remediation)}
-  - Verification: ${guidance.verification.map(cell).join(" ")}${finding.assessmentReason ? "\n  - Assessment: " + cell(finding.assessmentReason) : ""}`;
-}
-function section(title, findings) {
-  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
-  return [`## ${title}`, "", ...findings.map(findingLine), ""];
-}
-function prSummaryMarkdown(input) {
-  const lines = [
-    `# A11yGate \u2014 ${cell(input.projectName)}`,
-    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
-    "",
-    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
-    "",
-    input.reason,
-    "",
-    "| Status | Count |",
-    "| --- | --- |",
-    `| New | ${input.diff.newFindings.length} |`,
-    `| Fixed | ${input.diff.fixedFindings.length} |`,
-    `| Still open | ${input.diff.stillOpen.length} |`,
-    "",
-    `Generated: ${input.generatedAt}`,
-    "",
-    "## Scan coverage and existing debt",
-    "",
-    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
-    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
-    "",
-    "### Unassessed scope",
-    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
-    "",
-    ...section("New", input.diff.newFindings),
-    ...section("Fixed", input.diff.fixedFindings),
-    ...section("Still open", input.diff.stillOpen),
-    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
-    "## Manual evidence \u2014 separate from automated checks",
-    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
-    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
-    "",
-    DISCLAIMER,
-    LEGAL_DISCLAIMER,
-    ""
-  ];
-  return lines.join("\n");
-}
-
-// lib/gate.ts
-var RANK = {
-  minor: 1,
-  moderate: 2,
-  serious: 3,
-  critical: 4
-};
-function impactRank(impact) {
-  if (!impact) return 0;
-  return RANK[impact];
-}
-function meetsThreshold(impact, threshold) {
-  return impactRank(impact) >= impactRank(threshold);
-}
-function gatingFindings(findings, threshold) {
-  return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
-}
-function gateVerdict(newFindings, threshold, coverage) {
-  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
-  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
-}
-function verdictReason(newFindings, threshold) {
-  const gating = gatingFindings(newFindings, threshold);
-  if (gating.length === 0) {
-    return `No new finding is at or above ${threshold}.`;
-  }
-  const rules2 = [...new Set(gating.map((finding) => finding.ruleId))];
-  const noun = gating.length === 1 ? "finding" : "findings";
-  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
-}
-
-// lib/group.ts
-function groupLabel(key, value) {
-  if (key === "impact" && value === "unknown") return "unknown impact";
-  return value;
-}
-function groupFindings(findings, by) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const finding of findings) {
-    const key = by === "rule" ? finding.ruleId : by === "page" ? finding.path : finding.impact ?? "unknown";
-    const existing = groups.get(key);
-    if (existing) existing.push(finding);
-    else groups.set(key, [finding]);
-  }
-  const grouped = [...groups.entries()].map(([key, items]) => ({
-    key,
-    label: groupLabel(by, key),
-    findings: items
-  }));
-  if (by === "impact") {
-    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
-    grouped.sort((a, b) => rank(b.key) - rank(a.key));
-  } else {
-    grouped.sort((a, b) => a.label.localeCompare(b.label));
-  }
-  return grouped;
-}
-
 // lib/fingerprint.ts
 function unescapeCss(value) {
   return value.replace(/\\(.)/g, "$1");
@@ -603,6 +179,37 @@ function pagePath(url) {
 }
 function fingerprint(ruleId, selector, url) {
   return `${ruleId}|${normaliseSelector(selector)}|${pagePath(url)}`;
+}
+
+// lib/gate.ts
+var RANK = {
+  minor: 1,
+  moderate: 2,
+  serious: 3,
+  critical: 4
+};
+function impactRank(impact) {
+  if (!impact) return 0;
+  return RANK[impact];
+}
+function meetsThreshold(impact, threshold) {
+  return impactRank(impact) >= impactRank(threshold);
+}
+function gatingFindings(findings, threshold) {
+  return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
+}
+function gateVerdict(newFindings, threshold, coverage) {
+  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
+  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
+}
+function verdictReason(newFindings, threshold) {
+  const gating = gatingFindings(newFindings, threshold);
+  if (gating.length === 0) {
+    return `No new finding is at or above ${threshold}.`;
+  }
+  const rules2 = [...new Set(gating.map((finding) => finding.ruleId))];
+  const noun = gating.length === 1 ? "finding" : "findings";
+  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
 }
 
 // lib/limits.ts
@@ -871,6 +478,515 @@ function findingsFromResults(results) {
   return [...byFingerprint.values()].sort(
     (a, b) => a.path.localeCompare(b.path) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
   );
+}
+
+// lib/report-formats.ts
+var REPORT_FORMATS = ["junit", "sarif", "json", "md"];
+function isReportFormat(value) {
+  return REPORT_FORMATS.includes(value);
+}
+function parseFormatList(value) {
+  const parts = value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+  if (parts.length === 0) return { ok: false, error: "--format needs a value. Use junit, sarif, json, or md." };
+  const formats = [];
+  for (const part of parts) {
+    if (!isReportFormat(part)) {
+      return { ok: false, error: `Unknown format "${part}". Use junit, sarif, json, or md.` };
+    }
+    if (!formats.includes(part)) formats.push(part);
+  }
+  return { ok: true, formats };
+}
+function mergeFormats(existing, incoming) {
+  const formats = [...existing];
+  for (const format of incoming) {
+    if (!formats.includes(format)) formats.push(format);
+  }
+  return formats;
+}
+function formatFileName(command, format) {
+  const prefix = command === "scan" ? "a11ygate-scan" : "a11ygate";
+  if (format === "junit") return `${prefix}.junit.xml`;
+  if (format === "sarif") return `${prefix}.sarif`;
+  if (format === "json") return `${prefix}.json`;
+  return `${prefix}.md`;
+}
+function wcagFromTags(tags) {
+  return lookupStandards(tags).flatMap(
+    (hit) => hit.kind === "criterion" ? [{ number: hit.number, name: hit.name, level: hit.level, wcag: hit.wcag }] : []
+  );
+}
+function formatFindingFromScan(finding) {
+  return {
+    ruleId: finding.ruleId,
+    impact: finding.impact,
+    help: finding.help,
+    helpUrl: finding.helpUrl,
+    tags: finding.tags,
+    wcag: finding.wcag.map((item) => ({ number: item.number, name: item.name, level: item.level, wcag: item.wcag })),
+    pageUrl: finding.pageUrl,
+    selector: finding.selector,
+    html: finding.html,
+    fingerprint: finding.fingerprint
+  };
+}
+function formatReportFromScan(report) {
+  return {
+    toolName: "A11yGate",
+    version: report.version,
+    generatedAt: report.scannedAt,
+    command: "scan",
+    verdict: report.verdict,
+    reason: report.reason,
+    startUrl: report.startUrl,
+    pages: report.pages.filter((page) => page.scanStatus === "complete").map((page) => page.url),
+    findings: report.findings.map(formatFindingFromScan)
+  };
+}
+function formatFindingFromDiffed(finding) {
+  return {
+    ruleId: finding.ruleId,
+    impact: finding.impact,
+    help: finding.help,
+    helpUrl: finding.helpUrl,
+    tags: finding.tags,
+    wcag: wcagFromTags(finding.tags),
+    pageUrl: finding.url,
+    selector: finding.selector,
+    html: finding.html,
+    fingerprint: finding.fingerprint,
+    status: finding.status
+  };
+}
+function formatReportFromGate(input) {
+  const pages = [...new Set(input.currentResults.map((result) => result.url))];
+  const statusByFingerprint = new Map(input.findings.map((finding) => [finding.fingerprint, finding.status]));
+  const findings = findingsFromResults(input.currentResults).map(
+    (finding) => formatFindingFromDiffed({ ...finding, status: statusByFingerprint.get(finding.fingerprint) ?? "new" })
+  );
+  return {
+    toolName: "A11yGate",
+    version: input.version,
+    generatedAt: input.generatedAt,
+    command: "ci",
+    verdict: input.verdict,
+    reason: input.reason,
+    projectName: input.projectName,
+    pages,
+    findings
+  };
+}
+var FORMAT_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
+
+// packages/cli/src/args.ts
+var VALUE_FLAGS = {
+  "--current": "current",
+  "-c": "current",
+  "--baseline": "baseline",
+  "-b": "baseline",
+  "--threshold": "threshold",
+  "-t": "threshold",
+  "--markdown": "markdown",
+  "-m": "markdown",
+  "--json": "json",
+  "-j": "json",
+  "--update-baseline": "updateBaseline",
+  "--manual-evidence": "manualEvidence",
+  "--format": "format",
+  "--out-dir": "outDir"
+};
+function flagName(token) {
+  const eq = token.indexOf("=");
+  if (eq === -1) return { name: token };
+  return { name: token.slice(0, eq), inline: token.slice(eq + 1) };
+}
+function parseArgs(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    return {
+      ok: true,
+      options: {
+        help: true,
+        version: false,
+        current: [],
+        baseline: [],
+        threshold: "serious",
+        formats: []
+      }
+    };
+  }
+  const current = [];
+  const baseline = [];
+  let threshold = "serious";
+  let markdown;
+  let json;
+  let updateBaseline;
+  let manualEvidence;
+  let formats = [];
+  let outDir;
+  let help = false;
+  let version = false;
+  let thresholdText;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index] ?? "";
+    if (token === "--") {
+      return { ok: false, error: "Unexpected extra arguments." };
+    }
+    if (token === "--help" || token === "-h") {
+      help = true;
+      continue;
+    }
+    if (token === "--version") {
+      version = true;
+      continue;
+    }
+    const { name, inline } = flagName(token);
+    const field = VALUE_FLAGS[name];
+    if (!field) {
+      if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
+      return { ok: false, error: `Unexpected argument ${token}.` };
+    }
+    const value = inline !== void 0 ? inline : argv[index + 1];
+    if (inline === void 0) index += 1;
+    if (value === void 0 || value.length === 0) {
+      return { ok: false, error: `${name} needs a value.` };
+    }
+    const jsonFlag = name === "--json" || name === "-j";
+    if (value.startsWith("-") && !(jsonFlag && value === "-")) {
+      return { ok: false, error: `${name} needs a value.` };
+    }
+    if (field === "current") current.push(value);
+    else if (field === "baseline") baseline.push(value);
+    else if (field === "threshold") thresholdText = value;
+    else if (field === "markdown") markdown = value;
+    else if (field === "json") json = value;
+    else if (field === "updateBaseline") updateBaseline = value;
+    else if (field === "manualEvidence") manualEvidence = value;
+    else if (field === "outDir") outDir = value;
+    else {
+      const parsed = parseFormatList(value);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      formats = mergeFormats(formats, parsed.formats);
+    }
+  }
+  if (!help && !version && thresholdText !== void 0) {
+    if (!isImpact(thresholdText)) {
+      return {
+        ok: false,
+        error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`
+      };
+    }
+    threshold = thresholdText;
+  }
+  return {
+    ok: true,
+    options: { help, version: version && !help, current, baseline, threshold, markdown, json, updateBaseline, manualEvidence, formats, outDir }
+  };
+}
+
+// packages/cli/src/help.ts
+function helpText() {
+  return `a11ygate \u2014 accessibility regression gate for axe-core JSON
+
+Usage:
+  a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
+                       (see a11ygate scan --help)
+
+Options:
+  -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
+                               Each file is one result, an array of results, or { "results": ... }.
+  -b, --baseline <file>        Baseline axe-core JSON. Repeatable. Omit to treat every current finding as new.
+  -t, --threshold <impact>     minor, moderate, serious, or critical. Default: serious.
+                               Exit 1 only when a new finding is at or above this impact.
+  -m, --markdown <file>        Also write the Markdown summary to this file. It is always printed.
+  -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
+      --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
+      --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
+      --format <fmt>           Output format: junit, sarif, json, or md. Repeat or comma-separate for several.
+                               Requires --out-dir. Exit codes are unchanged.
+      --out-dir <dir>          Write a11ygate.json and a11ygate.md here, plus any --format files
+                               (a11ygate.junit.xml, a11ygate.sarif).
+  -h, --help                   Show this help.
+      --version                Show the version.
+
+Exit codes:
+  0  No detected new finding is at or above the threshold; existing debt/unassessed scope remain.
+  1  At least one new finding is at or above the threshold.
+  2  Incomplete scan coverage, unsafe outputs, invalid evidence, or unreadable arguments/JSON.
+
+Examples:
+  npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
+  npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold critical --json result.json
+  npx @qe-atlas/a11ygate --current axe.json --update-baseline a11y/baseline.json
+
+A file larger than 8 MB is refused. The same diff and gate as the web app are used.
+This source build is unreleased; published 0.1.0 does not include these coverage/manual features.
+PASS is not legal advice or certification. Baseline updates never clear the current gate result.
+`;
+}
+
+// packages/cli/src/scan.ts
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+// lib/scan/robots.ts
+var ROBOTS_AGENT = "a11ygate";
+function parseRobots(text, agent = ROBOTS_AGENT) {
+  const groups = [];
+  let current = null;
+  let lastWasAgent = false;
+  for (const raw of text.split(/\r\n|\r|\n/)) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (key === "user-agent") {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (!current) continue;
+    if (key === "disallow" || key === "allow") {
+      if (value === "") continue;
+      current.rules.push({ allow: key === "allow", pattern: value });
+    }
+  }
+  const name = agent.toLowerCase();
+  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
+  return { rules: rules2 };
+}
+function patternToRegExp(pattern) {
+  const anchored = pattern.endsWith("$");
+  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}
+function isAllowedByRobots(robots, pathAndQuery) {
+  if (!robots || robots.rules.length === 0) return true;
+  let best = null;
+  for (const rule of robots.rules) {
+    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
+    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
+      best = rule;
+    }
+  }
+  return best ? best.allow : true;
+}
+function robotsAllowsUrl(robots, url) {
+  const parsed = new URL(url);
+  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
+}
+async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
+    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
+    const text = (await response.text()).slice(0, 512 * 1024);
+    return { rules: parseRobots(text), note: "robots.txt honoured." };
+  } catch {
+    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// lib/scan/url.ts
+var MAX_CRAWL_PAGES = 20;
+var NON_HTML_EXTENSION = /\.(?:pdf|zip|gz|tgz|rar|7z|tar|dmg|exe|msi|apk|iso|png|jpe?g|gif|webp|avif|svg|ico|bmp|tiff?|mp3|wav|ogg|m4a|mp4|m4v|mov|avi|webm|mkv|css|js|mjs|json|xml|rss|atom|txt|csv|xlsx?|docx?|pptx?|odt|ods|woff2?|ttf|otf|eot)$/i;
+var LOGOUT_LIKE = /(?:^|[\/_\-.?=&])(?:log-?out|log-?off|sign-?out|sign-?off|logoff|signout|end-?session|destroy-?session)(?:$|[\/_\-.?=&])/i;
+function normalizeUrl(input, base) {
+  let url;
+  try {
+    url = base === void 0 ? new URL(input) : new URL(input, base);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.username || url.password) return null;
+  url.hash = "";
+  return url.toString();
+}
+function classifyLink(href, pageUrl, origin) {
+  const url = normalizeUrl(href, pageUrl);
+  if (!url) return { ok: false, reason: "not-http", url: href };
+  if (new URL(url).origin !== origin) return { ok: false, reason: "external", url };
+  const parsed = new URL(url);
+  if (NON_HTML_EXTENSION.test(parsed.pathname)) return { ok: false, reason: "non-html", url };
+  if (LOGOUT_LIKE.test(parsed.pathname + parsed.search)) return { ok: false, reason: "logout", url };
+  return { ok: true, url };
+}
+function isHtmlContentType(value) {
+  if (!value) return true;
+  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
+  return type === "" || type === "text/html" || type === "application/xhtml+xml";
+}
+
+// lib/scan/crawl.ts
+var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function clampPages(requested) {
+  if (!Number.isFinite(requested) || requested < 1) return 1;
+  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
+}
+async function crawl(options) {
+  const start = normalizeUrl(options.startUrl);
+  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
+  const origin = new URL(start).origin;
+  const maxPages = clampPages(options.maxPages);
+  const sleep = options.sleep ?? defaultSleep;
+  const crawling = maxPages > 1;
+  const queue = [start];
+  const seen = /* @__PURE__ */ new Set([start]);
+  const pages = [];
+  const skipped = [];
+  const skippedSeen = /* @__PURE__ */ new Set();
+  const skip = (entry) => {
+    const key = entry.reason + " " + entry.url;
+    if (skippedSeen.has(key)) return;
+    skippedSeen.add(key);
+    skipped.push(entry);
+  };
+  let visits = 0;
+  while (queue.length > 0) {
+    const url = queue.shift();
+    if (pages.length >= maxPages) {
+      skip({ url, reason: "cap" });
+      continue;
+    }
+    if (!robotsAllowsUrl(options.robots, url)) {
+      skip({ url, reason: "robots" });
+      continue;
+    }
+    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
+    visits += 1;
+    options.log?.(`Scanning ${url}`);
+    const outcome = await options.visit(url, crawling);
+    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
+      skip({ url, reason: "redirected-off-origin" });
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
+      continue;
+    }
+    if (outcome.result) {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
+    } else {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
+    }
+    if (!crawling) continue;
+    const base = outcome.finalUrl || url;
+    for (const href of outcome.links) {
+      const link = classifyLink(href, base, origin);
+      if (!link.ok) {
+        skip({ url: link.url, reason: link.reason, from: url });
+        continue;
+      }
+      if (seen.has(link.url)) continue;
+      seen.add(link.url);
+      queue.push(link.url);
+    }
+  }
+  return { pages, skipped };
+}
+
+// lib/guidance.ts
+var rules = {
+  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
+  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
+  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
+  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
+};
+function findingGuidance(f) {
+  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
+}
+
+// lib/export-markdown.ts
+function cell(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
+}
+function findingLine(finding) {
+  const selector = finding.selector.replace(/`/g, "'");
+  const impact = finding.impact ?? "unspecified";
+  const guidance = findingGuidance(finding);
+  return `- **${cell(finding.ruleId)}** (${impact}) on \`${cell(finding.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding.help)} \u2014 ${cell(formatStandards(finding.tags))}
+  - Affected element: \`${cell(finding.html)}\`; fingerprint: \`${cell(finding.fingerprint)}\`.
+  - User impact: ${cell(guidance.userImpact)}
+  - Remediation: ${cell(guidance.remediation)}
+  - Verification: ${guidance.verification.map(cell).join(" ")}${finding.assessmentReason ? "\n  - Assessment: " + cell(finding.assessmentReason) : ""}`;
+}
+function section(title, findings) {
+  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
+  return [`## ${title}`, "", ...findings.map(findingLine), ""];
+}
+function prSummaryMarkdown(input) {
+  const lines = [
+    `# A11yGate \u2014 ${cell(input.projectName)}`,
+    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
+    "",
+    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
+    "",
+    input.reason,
+    "",
+    "| Status | Count |",
+    "| --- | --- |",
+    `| New | ${input.diff.newFindings.length} |`,
+    `| Fixed | ${input.diff.fixedFindings.length} |`,
+    `| Still open | ${input.diff.stillOpen.length} |`,
+    "",
+    `Generated: ${input.generatedAt}`,
+    "",
+    "## Scan coverage and existing debt",
+    "",
+    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
+    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
+    "",
+    "### Unassessed scope",
+    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
+    "",
+    ...section("New", input.diff.newFindings),
+    ...section("Fixed", input.diff.fixedFindings),
+    ...section("Still open", input.diff.stillOpen),
+    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
+    "## Manual evidence \u2014 separate from automated checks",
+    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
+    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
+    "",
+    DISCLAIMER,
+    LEGAL_DISCLAIMER,
+    ""
+  ];
+  return lines.join("\n");
+}
+
+// lib/group.ts
+function groupLabel(key, value) {
+  if (key === "impact" && value === "unknown") return "unknown impact";
+  return value;
+}
+function groupFindings(findings, by) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    const key = by === "rule" ? finding.ruleId : by === "page" ? finding.path : finding.impact ?? "unknown";
+    const existing = groups.get(key);
+    if (existing) existing.push(finding);
+    else groups.set(key, [finding]);
+  }
+  const grouped = [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: groupLabel(by, key),
+    findings: items
+  }));
+  if (by === "impact") {
+    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
+    grouped.sort((a, b) => rank(b.key) - rank(a.key));
+  } else {
+    grouped.sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return grouped;
 }
 
 // lib/scan/engines/wcag-map.ts
@@ -1221,12 +1337,255 @@ async function runEngine(engine, context, url) {
   }
 }
 
+// lib/export-junit.ts
+function xmlSafe(value) {
+  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+}
+function escapeXml(value) {
+  return xmlSafe(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function groupFindingsByRuleAndPage(findings) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    const key = `${finding.pageUrl}\0${finding.ruleId}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.findings.push(finding);
+      continue;
+    }
+    groups.set(key, { classname: finding.pageUrl, name: finding.ruleId, findings: [finding] });
+  }
+  return [...groups.values()].sort(
+    (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
+  );
+}
+function failureMessage(group2) {
+  const first = group2.findings[0];
+  const impact = first?.impact ?? "unspecified";
+  const help = first?.help ?? group2.name;
+  const count = group2.findings.length;
+  const extra = count > 1 ? ` (${count} instances)` : "";
+  return `${group2.name}: ${help} (${impact})${extra}`;
+}
+function failureBody(group2) {
+  const lines = [FORMAT_DISCLAIMER, failureMessage(group2)];
+  for (const finding of group2.findings) {
+    const wcag = finding.wcag.length > 0 ? finding.wcag.map((item) => `WCAG ${item.number} ${item.name} (${item.level})`).join("; ") : "best practice (no WCAG success criterion mapped)";
+    lines.push(
+      `- ${finding.pageUrl} \u2014 ${finding.selector} \u2014 ${wcag}`,
+      `  element: ${finding.html}`,
+      finding.helpUrl ? `  guidance: ${finding.helpUrl}` : "",
+      finding.status ? `  status: ${finding.status}` : ""
+    );
+  }
+  return lines.filter((line) => line.length > 0).join("\n");
+}
+function property(name, value) {
+  return `    <property name="${escapeXml(name)}" value="${escapeXml(value)}"/>`;
+}
+function toJunit(report) {
+  const failed = groupFindingsByRuleAndPage(report.findings);
+  const failedPages = new Set(failed.map((item) => item.classname));
+  const passing = report.pages.filter((page) => !failedPages.has(page)).map((page) => ({ classname: page, name: "no-violations", findings: [] }));
+  const cases = [...failed, ...passing].sort(
+    (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
+  );
+  const failures = failed.length;
+  const tests = cases.length;
+  const timestamp = escapeXml(report.generatedAt);
+  const properties = [
+    property("disclaimer", FORMAT_DISCLAIMER),
+    property("tool", report.toolName),
+    property("version", report.version),
+    property("verdict", report.verdict),
+    property("reason", report.reason),
+    property("command", report.command)
+  ];
+  if (report.startUrl) properties.push(property("startUrl", report.startUrl));
+  if (report.projectName) properties.push(property("projectName", report.projectName));
+  const testcases = cases.map((item) => {
+    const attrs = `classname="${escapeXml(item.classname)}" name="${escapeXml(item.name)}" time="0"`;
+    if (item.findings.length === 0) return `    <testcase ${attrs}/>`;
+    const type = escapeXml(item.name);
+    const message = escapeXml(failureMessage(item));
+    const body = escapeXml(failureBody(item));
+    return `    <testcase ${attrs}>
+      <failure message="${message}" type="${type}">${body}</failure>
+    </testcase>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="A11yGate" tests="${tests}" failures="${failures}" errors="0" skipped="0" time="0" timestamp="${timestamp}" hostname="a11ygate">
+  <properties>
+${properties.join("\n")}
+  </properties>
+${testcases.join("\n")}
+</testsuite>
+`;
+}
+
+// lib/export-sarif.ts
+var SARIF_SCHEMA_URL = "https://json.schemastore.org/sarif-2.1.0.json";
+var SARIF_VERSION = "2.1.0";
+function sarifLevel(impact) {
+  if (impact === "critical" || impact === "serious") return "error";
+  if (impact === "moderate") return "warning";
+  return "note";
+}
+function wcagTags(wcag, tags) {
+  const out = /* @__PURE__ */ new Set(["accessibility"]);
+  for (const tag of tags) out.add(tag);
+  for (const item of wcag) out.add(`WCAG ${item.number}`);
+  return [...out];
+}
+function uniqueRules(findings) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    const existing = byId.get(finding.ruleId);
+    if (!existing || impactRank(finding.impact) > impactRank(existing.impact)) {
+      byId.set(finding.ruleId, finding);
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
+}
+function artifactLocation(finding) {
+  if (finding.source?.file) {
+    const uri = finding.source.file.replace(/\\/g, "/");
+    return { uri };
+  }
+  return { uri: finding.pageUrl };
+}
+function region(finding) {
+  if (finding.source) {
+    return {
+      startLine: finding.source.startLine,
+      ...finding.source.startColumn !== void 0 ? { startColumn: finding.source.startColumn } : {},
+      ...finding.source.endLine !== void 0 ? { endLine: finding.source.endLine } : {},
+      ...finding.source.endColumn !== void 0 ? { endColumn: finding.source.endColumn } : {},
+      snippet: { text: finding.html },
+      message: { text: `selector: ${finding.selector}` }
+    };
+  }
+  return {
+    snippet: { text: finding.html },
+    message: { text: `selector: ${finding.selector}` }
+  };
+}
+function taxaFor(findings) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    for (const item of finding.wcag) {
+      if (!byId.has(item.number)) byId.set(item.number, item);
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.number.localeCompare(b.number, void 0, { numeric: true })).map((item) => ({
+    id: item.number,
+    name: item.name,
+    shortDescription: { text: `WCAG ${item.wcag} ${item.number} ${item.name} (${item.level})` }
+  }));
+}
+function toSarif(report) {
+  const rules2 = uniqueRules(report.findings);
+  const ruleIndex = new Map(rules2.map((rule, index) => [rule.ruleId, index]));
+  const taxa = taxaFor(report.findings);
+  const taxonIndex = new Map(taxa.map((taxon, index) => [taxon.id, index]));
+  const driverRules = rules2.map((rule) => {
+    const relationships = rule.wcag.map((item) => taxonIndex.get(item.number)).filter((index) => index !== void 0).map((index) => ({
+      target: { id: taxa[index].id, index, toolComponent: { name: "WCAG", index: 0 } },
+      kinds: ["relevant"]
+    }));
+    return {
+      id: rule.ruleId,
+      name: rule.ruleId,
+      shortDescription: { text: rule.help },
+      fullDescription: { text: rule.help },
+      helpUri: rule.helpUrl,
+      help: { text: rule.help },
+      defaultConfiguration: { level: sarifLevel(rule.impact) },
+      properties: { tags: wcagTags(rule.wcag, rule.tags), impact: rule.impact ?? "unspecified" },
+      ...relationships.length > 0 ? { relationships } : {}
+    };
+  });
+  const results = [...report.findings].sort(
+    (a, b) => a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId) || a.selector.localeCompare(b.selector)
+  ).map((finding) => {
+    const index = ruleIndex.get(finding.ruleId);
+    return {
+      ruleId: finding.ruleId,
+      ...index !== void 0 ? { ruleIndex: index } : {},
+      level: sarifLevel(finding.impact),
+      message: {
+        text: `${finding.help} (${finding.impact ?? "unspecified"}) at ${finding.selector} on ${finding.pageUrl}`
+      },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: artifactLocation(finding),
+            region: region(finding)
+          },
+          logicalLocations: [
+            {
+              fullyQualifiedName: finding.selector,
+              kind: "element",
+              name: finding.selector
+            }
+          ]
+        }
+      ],
+      ...finding.fingerprint ? { fingerprints: { a11ygate: finding.fingerprint }, partialFingerprints: { a11ygate: finding.fingerprint } } : {},
+      properties: {
+        selector: finding.selector,
+        impact: finding.impact ?? "unspecified",
+        tags: finding.tags,
+        wcag: finding.wcag.map((item) => item.number),
+        pageUrl: finding.pageUrl,
+        ...finding.status ? { status: finding.status } : {}
+      }
+    };
+  });
+  const log = {
+    $schema: SARIF_SCHEMA_URL,
+    version: SARIF_VERSION,
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: "A11yGate",
+            version: report.version,
+            informationUri: SITE_URL,
+            rules: driverRules
+          }
+        },
+        ...taxa.length > 0 ? {
+          taxonomies: [
+            {
+              name: "WCAG",
+              informationUri: "https://www.w3.org/WAI/standards-guidelines/wcag/",
+              taxa
+            }
+          ]
+        } : {},
+        results,
+        properties: {
+          disclaimer: FORMAT_DISCLAIMER,
+          verdict: report.verdict,
+          reason: report.reason,
+          command: report.command,
+          ...report.startUrl ? { startUrl: report.startUrl } : {},
+          ...report.projectName ? { projectName: report.projectName } : {}
+        }
+      }
+    ]
+  };
+  return `${JSON.stringify(log, null, 2)}
+`;
+}
+
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format"]);
 function parseScanArgs(argv) {
-  const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, warnings: [], engines: ["axe"] };
+  const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? "";
@@ -1275,7 +1634,12 @@ function parseScanArgs(argv) {
     } else if (name === "--out-dir") options.outDir = value;
     else if (name === "--json") options.json = value;
     else if (name === "--markdown") options.markdown = value;
-    else options.html = value;
+    else if (name === "--html") options.html = value;
+    else {
+      const parsed = parseFormatList(value);
+      if (!parsed.ok) return { ok: false, error: parsed.error };
+      options.formats = mergeFormats(options.formats, parsed.formats);
+    }
   }
   if (options.help) return { ok: true, options };
   if (positionals.length === 0) return { ok: false, error: "Pass the URL to scan: a11ygate scan <url>." };
@@ -1286,6 +1650,9 @@ function parseScanArgs(argv) {
   if (options.outDir && (options.json || options.markdown || options.html)) {
     return { ok: false, error: "Use either --out-dir or --json/--markdown/--html, not both." };
   }
+  if (options.formats.length > 0 && !options.outDir) {
+    return { ok: false, error: "--format requires --out-dir." };
+  }
   return { ok: true, options };
 }
 function scanHelpText() {
@@ -1293,7 +1660,8 @@ function scanHelpText() {
 
 Usage:
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>]
-                      [--json <file>] [--markdown <file>] [--html <file>] [--delay-ms <ms>]
+                      [--format junit|sarif|json|md] [--json <file>] [--markdown <file>]
+                      [--html <file>] [--delay-ms <ms>]
 
 Options:
   --engines <ids>      Default: axe. Only axe is enabled; other engines are not enabled yet.
@@ -1301,6 +1669,8 @@ Options:
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
+  --format <fmt>       Also write junit, sarif, json, or md into --out-dir. Repeat or comma-separate.
+                       Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
   --html <file>        Write a self-contained HTML summary.
@@ -1454,10 +1824,19 @@ Run a11ygate scan --help for usage.
   const json = `${JSON.stringify(report, null, 2)}
 `;
   const markdown = scanMarkdown(report);
+  const formatReport = formatReportFromScan(report);
+  const extra = [];
+  if (options.outDir && options.formats.includes("junit")) {
+    extra.push([path.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+  }
+  if (options.outDir && options.formats.includes("sarif")) {
+    extra.push([path.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
+  }
   const targets = options.outDir ? [
     [path.join(options.outDir, "a11ygate-scan.json"), json],
     [path.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)]
+    [path.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)],
+    ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
     [options.markdown, markdown],
@@ -1741,7 +2120,8 @@ async function run(argv, io = {}) {
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
-  const parsed = parseArgs(argv);
+  const gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
+  const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
     stderr(`${parsed.error}
 `);
@@ -1762,6 +2142,10 @@ async function run(argv, io = {}) {
     stderr("Pass at least one current axe JSON file with --current.\n");
     return 2;
   }
+  if (options.formats.length > 0 && !options.outDir) {
+    stderr("--format requires --out-dir.\n");
+    return 2;
+  }
   try {
     const identify = async (file) => {
       const absolute = resolveInput(cwd, file);
@@ -1774,7 +2158,12 @@ async function run(argv, io = {}) {
     };
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
-    const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0].filter((x) => !!x);
+    const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
+      path2.join(options.outDir, formatFileName("ci", "json")),
+      path2.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path2.join(options.outDir, formatFileName("ci", format)))
+    ])] : [];
+    const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
     for (const output of outputs) {
       const id = await identify(output);
@@ -1884,6 +2273,34 @@ async function run(argv, io = {}) {
       await writeFile2(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
+`);
+      return 2;
+    }
+  }
+  if (options.outDir) {
+    const formatReport = formatReportFromGate({
+      version,
+      generatedAt,
+      projectName,
+      verdict,
+      reason,
+      currentResults: current.results,
+      findings: [...diff.newFindings, ...diff.stillOpen, ...diff.fixedFindings, ...diff.unassessed ?? []]
+    });
+    const files = /* @__PURE__ */ new Map([
+      [formatFileName("ci", "json"), json],
+      [formatFileName("ci", "md"), markdown]
+    ]);
+    if (options.formats.includes("junit")) files.set(formatFileName("ci", "junit"), toJunit(formatReport));
+    if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
+    try {
+      const dir = resolveInput(cwd, options.outDir);
+      await mkdir2(dir, { recursive: true });
+      for (const [name, content] of files) {
+        await writeFile2(path2.join(dir, name), content, "utf8");
+      }
+    } catch (error) {
+      stderr(`${writeFailure(options.outDir, error)}
 `);
       return 2;
     }

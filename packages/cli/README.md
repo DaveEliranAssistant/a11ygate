@@ -8,7 +8,10 @@ Licensed under the [MIT License](LICENSE).
 
 ```bash
 npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
+npx @qe-atlas/a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y
 ```
+
+`a11ygate ci` is the same gate as the default command. `--format` writes machine-readable reports for CI systems (JUnit XML for Jenkins, SARIF 2.1.0 for GitHub code scanning). Every report includes this disclaimer: "Automated testing only. Not a WCAG audit, certification or legal advice."
 
 From a checkout of this repository, after `npm install`:
 
@@ -29,6 +32,8 @@ The Demo Shop fixtures exit **1** with **2 new, 3 fixed, 5 still open**, and ver
 | `-m, --markdown <file>` | Also write the Markdown summary to a file. It is always printed. |
 | `-j, --json <file>` | Write the JSON result. Use `-` to print JSON instead of Markdown. |
 | `--update-baseline <file>` | Write the current results as a baseline file. The exit code is still the gate. |
+| `--format <fmt>` | `junit`, `sarif`, `json`, or `md`. Repeat the flag or comma-separate to write several. Requires `--out-dir`. Does not change the exit code. |
+| `--out-dir <dir>` | Write `a11ygate.json` and `a11ygate.md` here, plus any `--format` files (`a11ygate.junit.xml`, `a11ygate.sarif`). |
 | `-h, --help` | Show help. |
 | `--version` | Show the version. |
 
@@ -49,6 +54,7 @@ Unreleased source build: published `0.1.0` does not include `scan`. It loads rea
 ```bash
 npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium
 node packages/cli/dist/cli.mjs scan https://staging.example.com/ --crawl 10 --out-dir a11y-scan
+node packages/cli/dist/cli.mjs scan https://staging.example.com/ --out-dir a11y-scan --format junit,sarif
 node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-on critical --json scan.json --html scan.html
 ```
 
@@ -57,6 +63,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 | `--crawl [n]` | Breadth-first crawl of same-origin `a[href]` links, at most `n` pages. Bare `--crawl` and any larger value mean 20, the hard maximum. Without it, only `<url>` is scanned. |
 | `--fail-on <impact>` | `minor`, `moderate`, `serious` (default), `critical`, or `none`. |
 | `--out-dir <dir>` | Write `a11ygate-scan.json`, `.md` and `.html` into `<dir>`. |
+| `--format <fmt>` | Also write `junit`, `sarif`, `json`, or `md` into `--out-dir` (`a11ygate-scan.junit.xml`, `a11ygate-scan.sarif`). Repeat or comma-separate. Exit codes are unchanged. |
 | `--json` / `--markdown` / `--html <file>` | Write individual reports instead. `--json -` prints JSON to stdout; otherwise Markdown is printed. |
 | `--delay-ms <ms>` | Pause between page loads. Default 1000. |
 
