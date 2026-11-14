@@ -49,15 +49,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path12 = parsed.pathname || "/";
-    if (path12.length > 1 && path12.endsWith("/")) path12 = path12.slice(0, -1);
-    return path12 || "/";
+    let path13 = parsed.pathname || "/";
+    if (path13.length > 1 && path13.endsWith("/")) path13 = path13.slice(0, -1);
+    return path13 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path12 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path12.length > 1 && path12.endsWith("/")) path12 = path12.slice(0, -1);
-    return path12;
+    let path13 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path13.length > 1 && path13.endsWith("/")) path13 = path13.slice(0, -1);
+    return path13;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -146,9 +146,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path12 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path13 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path12, html, !html || path12.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path13, html, !html || path13.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -179,8 +179,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir4, readFile as readFile8, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile6 } from "node:fs/promises";
-import path11 from "node:path";
+import { mkdir as mkdir5, readFile as readFile9, realpath as realpath3, stat as stat4, lstat as lstat5, writeFile as writeFile7 } from "node:fs/promises";
+import path12 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -599,21 +599,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path12) {
+function readImpact(value, path13) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path12} must be minor, moderate, serious, critical, or null`
+    error: `${path13} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path12) {
+function readTarget(value, path13) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path12}.target must be an array of strings`;
+    return `${path13}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path12}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path13}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -621,52 +621,52 @@ function readTarget(value, path12) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path12}.target must be an array of strings`;
+    return `${path13}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path12) {
-  if (!isRecord(value)) return `${path12} must be an object`;
-  const target = readTarget(value.target, path12);
+function validateNode(value, path13) {
+  if (!isRecord(value)) return `${path13} must be an object`;
+  const target = readTarget(value.target, path13);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path12}.html must be a string`;
+  if (typeof value.html !== "string") return `${path13}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path12}.impact`);
+    const impact = readImpact(value.impact, `${path13}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path12) {
-  if (!isRecord(value)) return `${path12} must be an object`;
+function validateViolation(value, path13) {
+  if (!isRecord(value)) return `${path13} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path12}.id must be a non-empty string`;
+    return `${path13}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path12}.impact is missing`;
+    return `${path13}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path12}.impact`);
+  const impact = readImpact(value.impact, `${path13}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path12}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path13}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path12}.tags must be an array of strings`;
+    return `${path13}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path12}.help must be a non-empty string`;
+    return `${path13}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path12}.helpUrl must be a non-empty string`;
+    return `${path13}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path12}.nodes must contain at least one node`;
+    return `${path13}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path12}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path13}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -682,37 +682,37 @@ function validateViolation(value, path12) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path12) {
-  if (!isRecord(value)) return `${path12} must be an axe result object`;
+function validateResult(value, path13) {
+  if (!isRecord(value)) return `${path13} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path12}.url must be a non-empty string`;
+    return `${path13}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path12}.timestamp must be an ISO date string`;
+    return `${path13}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path12}.testEngine.version must be a non-empty string`;
+    return `${path13}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path12}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path13}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path12}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path13}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path12}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path12}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path12}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path12}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path13}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path13}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path13}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path13}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path12}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path13}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path12}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path13}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path12}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path13}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -813,7 +813,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path12 = pagePath(result.url);
+    const path13 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -828,7 +828,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path12,
+          path: path13,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1663,6 +1663,8 @@ Usage:
                        (see a11ygate scan --help)
   a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
                        (see a11ygate evidence --help)
+  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>]
+                       (see a11ygate trend --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
@@ -5271,8 +5273,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path12) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path12);
+function shouldStore(path13) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path13);
 }
 function createZip(entries) {
   const local = [];
@@ -5330,6 +5332,32 @@ function createZip(entries) {
   end.writeUInt32LE(centralBuffer.length, 12);
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, centralBuffer, end]);
+}
+function readZip(zip) {
+  const buf = Buffer.from(zip);
+  const endAt = buf.lastIndexOf(Buffer.from([80, 75, 5, 6]));
+  if (endAt < 0) throw new Error("Not a zip archive.");
+  const count = buf.readUInt16LE(endAt + 10);
+  let at = buf.readUInt32LE(endAt + 16);
+  const entries = [];
+  for (let i = 0; i < count; i += 1) {
+    if (buf.readUInt32LE(at) !== 33639248) throw new Error("Corrupt central directory.");
+    const method = buf.readUInt16LE(at + 10);
+    const crc = buf.readUInt32LE(at + 16);
+    const compressed = buf.readUInt32LE(at + 20);
+    const nameLength = buf.readUInt16LE(at + 28);
+    const extraLength = buf.readUInt16LE(at + 30);
+    const commentLength = buf.readUInt16LE(at + 32);
+    const localAt = buf.readUInt32LE(at + 42);
+    const name = buf.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+    const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
+    const body = buf.subarray(dataAt, dataAt + compressed);
+    const data = method === 0 ? Buffer.from(body) : inflateRawSync(body);
+    if (crc32(data) !== crc) throw new Error(`CRC mismatch for ${name}.`);
+    entries.push({ path: name, data });
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
 }
 
 // lib/evidence/pack.ts
@@ -5395,8 +5423,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path12) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path12);
+function isTextPath(path13) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path13);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -5545,8 +5573,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path12, make] of generated) {
-    if (!files.has(path12)) files.set(path12, { path: path12, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path13, make] of generated) {
+    if (!files.has(path13)) files.set(path13, { path: path13, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -5759,11 +5787,327 @@ Run a11ygate evidence --help for usage.
   return 0;
 }
 
+// packages/cli/src/trend.ts
+import { lstat as lstat3, mkdir as mkdir3, readdir as readdir2, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
+import path8 from "node:path";
+
+// lib/trend.ts
+var TREND_TOP_LIMIT = 10;
+function runTimestamp(manifest) {
+  return manifest.timestamps.scannedAt ?? manifest.timestamps.packedAt;
+}
+function orderTrendInputs(inputs) {
+  const key = (input) => Date.parse(runTimestamp(input.manifest));
+  return [...inputs].sort((a, b) => key(a) - key(b) || Date.parse(a.manifest.timestamps.packedAt) - Date.parse(b.manifest.timestamps.packedAt) || (a.manifest.commit.sha ?? "").localeCompare(b.manifest.commit.sha ?? "") || a.source.localeCompare(b.source));
+}
+function pageKey(url) {
+  return normalizeUrl(url) ?? url;
+}
+function buildTrend(inputs) {
+  const ordered = orderTrendInputs(inputs);
+  const runs = [];
+  const ruleCounts = /* @__PURE__ */ new Map();
+  const pages = /* @__PURE__ */ new Map();
+  let previous = null;
+  ordered.forEach((input, index) => {
+    const baseline = createFingerprintBaseline(input.report);
+    const current = baseline.findings;
+    for (const entry of current) {
+      const counts = ruleCounts.get(entry.ruleId) ?? new Array(ordered.length).fill(0);
+      counts[index] += 1;
+      ruleCounts.set(entry.ruleId, counts);
+    }
+    let added = current.length;
+    let fixed = 0;
+    let unassessed = 0;
+    if (previous) {
+      const known = new Set(previous.baseline.findings.map((f) => f.fingerprint));
+      const fresh = current.filter((f) => !known.has(f.fingerprint));
+      added = fresh.length;
+      const summary = applyFingerprintBaseline(input.report, previous.baseline).baseline;
+      fixed = summary.fixed;
+      unassessed = summary.unassessed;
+      const perPage = /* @__PURE__ */ new Map();
+      for (const f of fresh) perPage.set(pageKey(f.pageUrl), (perPage.get(pageKey(f.pageUrl)) ?? 0) + 1);
+      for (const [url, count] of perPage) {
+        const page = pages.get(url) ?? { regressions: 0, runs: 0 };
+        page.regressions += count;
+        page.runs += 1;
+        pages.set(url, page);
+      }
+    }
+    runs.push({
+      source: input.source,
+      timestamp: runTimestamp(input.manifest),
+      commit: input.manifest.commit.sha,
+      startUrl: input.report.startUrl,
+      verdict: input.report.verdict,
+      pagesScanned: input.report.counts.pagesScanned,
+      total: current.length,
+      new: added,
+      existing: current.length - added,
+      fixed,
+      unassessed,
+      comparedWith: previous?.source ?? null
+    });
+    previous = { source: input.source, baseline };
+  });
+  const topRules = [...ruleCounts].map(([ruleId, perRun]) => ({ ruleId, total: perRun.reduce((a, b) => a + b, 0), perRun })).sort((a, b) => b.total - a.total || a.ruleId.localeCompare(b.ruleId)).slice(0, TREND_TOP_LIMIT);
+  const regressionPages = [...pages].map(([pageUrl, p]) => ({ pageUrl, regressions: p.regressions, runsWithRegressions: p.runs })).sort((a, b) => b.regressions - a.regressions || a.pageUrl.localeCompare(b.pageUrl)).slice(0, TREND_TOP_LIMIT);
+  const notes = [
+    "The first run has no earlier run to compare with, so every finding in it counts as new and none as fixed.",
+    "Regressions count findings that were new compared with the previous run; the first run is excluded."
+  ];
+  if (new Set(runs.map((r) => r.startUrl)).size > 1) notes.push("Runs have different start URLs; counts compare whatever each run scanned.");
+  return {
+    tool: "a11ygate",
+    kind: "trend-report",
+    schemaVersion: 1,
+    disclaimer: AUTOMATED_TESTING_DISCLAIMER,
+    orderedBy: "manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source",
+    runs,
+    topRules,
+    regressionPages,
+    notes
+  };
+}
+function esc4(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function shortSha(sha) {
+  return sha ? sha.slice(0, 7) : "no commit";
+}
+function runLabel(run2) {
+  return run2.timestamp.slice(0, 10);
+}
+function chartSvg(runs) {
+  const width = 640;
+  const height = 260;
+  const left = 44;
+  const right = 12;
+  const top = 16;
+  const bottom = 48;
+  const plotH = height - top - bottom;
+  const plotW = width - left - right;
+  const rawMax = Math.max(1, ...runs.map((r) => r.total));
+  const step = Math.max(1, Math.ceil(rawMax / 4));
+  const max = step * 4;
+  const slot = plotW / Math.max(1, runs.length);
+  const barW = Math.min(48, slot * 0.6);
+  const y = (v) => top + plotH - v / max * plotH;
+  const grid = [0, 1, 2, 3, 4].map((i) => {
+    const v = i * step;
+    return `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${left - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }).join("");
+  const bars = runs.map((run2, i) => {
+    const x = left + slot * i + (slot - barW) / 2;
+    const tip = `${runLabel(run2)} (${shortSha(run2.commit)}): ${run2.total} findings \u2014 ${run2.new} new, ${run2.existing} existing, ${run2.fixed} fixed`;
+    const existingH = run2.existing / max * plotH;
+    const newH = run2.new / max * plotH;
+    const gap = existingH > 0 && newH > 0 ? 2 : 0;
+    const existing = existingH > 0 ? `<rect class="s-existing" x="${x}" y="${y(run2.existing)}" width="${barW}" height="${existingH}"/>` : "";
+    const added = newH > 0 ? `<rect class="s-new" x="${x}" y="${y(run2.total)}" width="${barW}" height="${Math.max(0, newH - gap)}"/>` : "";
+    return `<g><title>${esc4(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/><text class="value" x="${x + barW / 2}" y="${y(run2.total) - 4}" text-anchor="middle">${run2.total}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc4(runLabel(run2))}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc4(shortSha(run2.commit))}</text></g>`;
+  }).join("");
+  return `<svg role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet"><title id="chart-title">Findings per run</title><desc id="chart-desc">Stacked bars of existing and new findings for each run, oldest first. The same numbers are in the table below.</desc>${grid}${bars}</svg>`;
+}
+function renderTrendHtml(trend) {
+  const runs = trend.runs;
+  const runRows = runs.map((r) => `<tr><th scope="row">${esc4(r.timestamp)}</th><td><code>${esc4(shortSha(r.commit))}</code></td><td>${esc4(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc4(r.verdict)}</td></tr>`).join("");
+  const ruleHead = runs.map((r) => `<th scope="col">${esc4(runLabel(r))} <span class="muted">${esc4(shortSha(r.commit))}</span></th>`).join("");
+  const ruleRows = trend.topRules.map((rule) => `<tr><th scope="row"><code>${esc4(rule.ruleId)}</code></th>${rule.perRun.map((n) => `<td>${n}</td>`).join("")}<td>${rule.total}</td></tr>`).join("");
+  const pageRows = trend.regressionPages.map((p) => `<tr><th scope="row"><code>${esc4(p.pageUrl)}</code></th><td>${p.regressions}</td><td>${p.runsWithRegressions}</td></tr>`).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate trend report</title>
+<style>
+:root{color-scheme:light;--surface:#fcfcfb;--text:#0b0b0b;--muted:#52514e;--grid:#e4e3df;--border:#767676;--existing:#2a78d6;--new:#eb6834;--code:#f0efec}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--surface:#1a1a19;--text:#f0efec;--muted:#c3c2b7;--grid:#3a3a37;--border:#8f8e88;--existing:#3987e5;--new:#d95926;--code:#2a2a28}}
+body{font:16px/1.5 system-ui,sans-serif;max-width:64rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--surface)}
+code{background:var(--code);padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
+caption{text-align:left;font-weight:600}
+.disclaimer{border:2px solid var(--text);padding:.5rem 1rem;font-weight:600}
+.muted{color:var(--muted);font-weight:400}
+.legend{display:flex;gap:1.5rem;list-style:none;padding:0;margin:.5rem 0}
+.sw-existing{background:var(--existing)}.sw-new{background:var(--new)}
+.swatch{display:inline-block;width:.9em;height:.9em;border-radius:2px;margin-right:.4em;vertical-align:-.1em}
+svg .grid{stroke:var(--grid);stroke-width:1}svg .axis{fill:var(--muted);font-size:11px}svg .value{fill:var(--text);font-size:12px}
+svg .s-existing{fill:var(--existing)}svg .s-new{fill:var(--new)}svg .hit{fill:transparent}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>A11yGate trend report</h1>
+<p class="disclaimer">${esc4(trend.disclaimer)}</p>
+<p>${runs.length} run${runs.length === 1 ? "" : "s"}, oldest first, ordered by the scan timestamp recorded in each evidence pack manifest (UTC).</p>
+<h2>Findings per run</h2>
+<ul class="legend"><li><span class="swatch sw-existing"></span>Existing (also in the previous run)</li><li><span class="swatch sw-new"></span>New since the previous run</li></ul>
+<figure>${chartSvg(runs)}</figure>
+<div class="scroll"><table><caption>Runs</caption><thead><tr><th scope="col">Scanned at (UTC)</th><th scope="col">Commit</th><th scope="col">Evidence pack</th><th scope="col">Findings</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th><th scope="col">Verdict</th></tr></thead><tbody>${runRows}</tbody></table></div>
+<h2>Top rules over time</h2>
+${trend.topRules.length ? `<div class="scroll"><table><caption>Findings per rule, per run (top ${TREND_TOP_LIMIT})</caption><thead><tr><th scope="col">Rule</th>${ruleHead}<th scope="col">All runs</th></tr></thead><tbody>${ruleRows}</tbody></table></div>` : "<p>No findings were recorded in any run.</p>"}
+<h2>Pages with the most regressions</h2>
+${trend.regressionPages.length ? `<div class="scroll"><table><caption>New findings compared with the previous run (top ${TREND_TOP_LIMIT})</caption><thead><tr><th scope="col">Page</th><th scope="col">New findings</th><th scope="col">Runs with new findings</th></tr></thead><tbody>${pageRows}</tbody></table></div>` : "<p>No page had new findings compared with its previous run.</p>"}
+<h2>How to read this</h2>
+<ul>${trend.notes.map((n) => `<li>${esc4(n)}</li>`).join("")}<li>Findings are deduplicated with the same fingerprints as <code>a11ygate baseline create</code>. Fixed means a finding from the previous run was not detected on a page this run scanned completely; it is not proof the issue is resolved.</li></ul>
+<p>${esc4(trend.disclaimer)}</p>
+</main>
+</body>
+</html>
+`;
+}
+
+// packages/cli/src/trend.ts
+var SCAN_PATH = "scan/a11ygate-scan.json";
+var TREND_JSON = "a11ygate-trend.json";
+var TREND_HTML = "a11ygate-trend.html";
+function trendHelpText() {
+  return `a11ygate trend \u2014 history across evidence packs
+
+Usage:
+  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>]
+
+Reads every evidence pack in <dir> (a11ygate-evidence zip files, or extracted pack
+directories containing manifest.json) and writes ${TREND_JSON} and ${TREND_HTML}:
+findings per run (new, existing, fixed), top rules over time, and pages with the
+most regressions. Runs are ordered by the scan timestamp in each manifest.
+
+Options:
+  --out-dir <dir>  Where to write the two files. Default: <dir>.
+
+Findings are deduplicated with the same fingerprints as a11ygate baseline create.
+Nothing is fetched; the HTML has no scripts and no external resources.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+`;
+}
+function parseTrendArgs(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) return { ok: true, options: { help: true } };
+  const options = { help: false };
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index] ?? "";
+    if (token === "--out-dir" || token.startsWith("--out-dir=")) {
+      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv[index += 1];
+      if (!value || value.startsWith("-")) return { ok: false, error: "--out-dir needs a value." };
+      options.outDir = value;
+    } else if (token.startsWith("-")) return { ok: false, error: `Unknown trend option ${token}.` };
+    else if (options.dir) return { ok: false, error: `Unexpected argument ${token}.` };
+    else options.dir = token;
+  }
+  if (!options.dir) return { ok: false, error: "Pass the directory of evidence packs: a11ygate trend <dir>." };
+  return { ok: true, options };
+}
+function parseManifest(text) {
+  try {
+    const m = JSON.parse(text);
+    if (m?.tool !== "a11ygate" || m.kind !== "evidence-pack" || m.schemaVersion !== 1 || !m.timestamps || !m.commit || !Array.isArray(m.files)) return null;
+    if (Number.isNaN(Date.parse(m.timestamps.scannedAt ?? m.timestamps.packedAt ?? ""))) return null;
+    return m;
+  } catch {
+    return null;
+  }
+}
+function readPack(source, files) {
+  const manifestData = files.get("manifest.json");
+  const scanData = files.get(SCAN_PATH);
+  if (!manifestData || !scanData) return `${source}: not an evidence pack (manifest.json or ${SCAN_PATH} missing).`;
+  const manifest = parseManifest(Buffer.from(manifestData).toString("utf8"));
+  if (!manifest) return `${source}: manifest.json is not an A11yGate evidence-pack manifest.`;
+  const recorded = manifest.files.find((f) => f.path === SCAN_PATH);
+  if (!recorded || recorded.sha256 !== sha256(scanData)) return `${source}: ${SCAN_PATH} does not match the SHA-256 in manifest.json.`;
+  const report = parseScanReport2(Buffer.from(scanData).toString("utf8"));
+  if (!report) return `${source}: ${SCAN_PATH} is not an A11yGate site-scan report.`;
+  return { source, manifest, report };
+}
+async function loadPacks(dir, warn) {
+  const inputs = [];
+  for (const name of (await readdir2(dir)).sort()) {
+    const full = path8.join(dir, name);
+    const info = await lstat3(full);
+    let files = null;
+    if (info.isFile() && name.toLowerCase().endsWith(".zip")) {
+      if (info.size > MAX_PACK_TOTAL_BYTES * 2) {
+        warn(`Skipped ${name}: larger than an evidence pack can be.`);
+        continue;
+      }
+      try {
+        files = new Map(readZip(await readFile7(full)).map((e) => [e.path, e.data]));
+      } catch (error) {
+        warn(`Skipped ${name}: ${error.message}`);
+        continue;
+      }
+    } else if (info.isDirectory()) {
+      const manifest = path8.join(full, "manifest.json");
+      const scan2 = path8.join(full, ...SCAN_PATH.split("/"));
+      const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
+      if (!await isFile(manifest) || !await isFile(scan2)) continue;
+      files = /* @__PURE__ */ new Map([["manifest.json", await readFile7(manifest)], [SCAN_PATH, await readFile7(scan2)]]);
+    } else continue;
+    const pack = readPack(name, files);
+    if (typeof pack === "string") warn(`Skipped ${pack}`);
+    else inputs.push(pack);
+  }
+  return inputs;
+}
+async function runTrend(argv, io = {}) {
+  const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
+  const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
+  const cwd = io.cwd ?? process.cwd();
+  const parsed = parseTrendArgs(argv);
+  if (!parsed.ok) {
+    stderr(`${parsed.error}
+Run a11ygate trend --help for usage.
+`);
+    return 2;
+  }
+  if (parsed.options.help) {
+    stdout(trendHelpText());
+    return 0;
+  }
+  const dir = path8.resolve(cwd, parsed.options.dir);
+  const info = await lstat3(dir).catch(() => null);
+  if (!info?.isDirectory()) {
+    stderr(`${parsed.options.dir}: not a directory.
+`);
+    return 2;
+  }
+  const inputs = await loadPacks(dir, (message) => stderr(`${message}
+`));
+  if (inputs.length === 0) {
+    stderr(`${parsed.options.dir}: no evidence packs found. Create them with a11ygate evidence pack.
+`);
+    return 2;
+  }
+  const trend = buildTrend(inputs);
+  const outDir = path8.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
+  try {
+    await mkdir3(outDir, { recursive: true });
+    await writeFile5(path8.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
+`, "utf8");
+    await writeFile5(path8.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
+  } catch (error) {
+    const code3 = error.code;
+    stderr(`Could not write the trend report${code3 ? ` (${code3})` : ""}.
+`);
+    return 2;
+  }
+  const rel = path8.relative(cwd, outDir) || ".";
+  stdout(`Wrote ${path8.join(rel, TREND_JSON)} and ${path8.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
+`);
+  return 0;
+}
+
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path8 from "node:path";
+import path9 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -5919,8 +6263,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path12) {
-  const match = /\.([a-z0-9]+)$/i.exec(path12);
+function fileKind(path13) {
+  const match = /\.([a-z0-9]+)$/i.exec(path13);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -6231,8 +6575,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path12, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path12) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path13, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path13) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -6289,7 +6633,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path8.join(cwd, "package.json"));
+  const require3 = createRequire3(path9.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -6301,7 +6645,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path8.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path9.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -6463,13 +6807,13 @@ async function runDoctor(argv, io = {}) {
 }
 
 // packages/cli/src/init.ts
-import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile5 } from "node:fs/promises";
-import path10 from "node:path";
+import { lstat as lstat4, mkdir as mkdir4, realpath as realpath2, writeFile as writeFile6 } from "node:fs/promises";
+import path11 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
-import { readFile as readFile7 } from "node:fs/promises";
-import path9 from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import path10 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -6520,7 +6864,7 @@ async function runConfig(argv, io = {}) {
   const file = argv[1] ?? CONFIG_FILE;
   let text;
   try {
-    text = await readFile7(path9.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile8(path10.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -6635,15 +6979,15 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path10.join(parent, part);
-    await mkdir3(parent).catch((error) => {
+    parent = path11.join(parent, part);
+    await mkdir4(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
-    const info2 = await lstat3(parent);
+    const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path10.join(parent, parts.at(-1));
-  const info = await lstat3(destination).catch((error) => {
+  const destination = path11.join(parent, parts.at(-1));
+  const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
   });
@@ -6654,7 +6998,7 @@ async function writeStarter(cwd, file, content, force, stdout) {
   }
   if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   try {
-    await writeFile5(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
+    await writeFile6(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
   } catch (error) {
     if (!force && error.code === "EEXIST") {
       stdout(`Skipped existing ${file}.
@@ -6718,7 +7062,7 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat3(path10.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path11.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -6911,7 +7255,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path11.resolve(cwd, file);
+  return path12.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -6924,7 +7268,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile8(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile9(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -6940,14 +7284,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path11.dirname(fileURLToPath(import.meta.url));
+  const here = path12.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path11.join(here, "..", "package.json"),
-    path11.join(here, "..", "..", "packages", "cli", "package.json")
+    path12.join(here, "..", "package.json"),
+    path12.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile8(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile9(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -7020,6 +7364,7 @@ async function run(argv, io = {}) {
   if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === "evidence") return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
+  if (argv[0] === "trend") return runTrend(argv.slice(1), io);
   let gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
   try {
     if (!gateArgv.some((arg) => ["--help", "-h", "--version"].includes(arg))) gateArgv = loadEffectiveConfig("ci", gateArgv, io).argv;
@@ -7057,8 +7402,8 @@ async function run(argv, io = {}) {
     const identify = async (file) => {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
-        if ((await lstat4(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path11.join(await realpath3(path11.dirname(absolute)).catch(() => path11.dirname(absolute)), path11.basename(absolute));
+        if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
+        return path12.join(await realpath3(path12.dirname(absolute)).catch(() => path12.dirname(absolute)), path12.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -7066,9 +7411,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path11.join(options.outDir, formatFileName("ci", "json")),
-      path11.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path11.join(options.outDir, formatFileName("ci", format)))
+      path12.join(options.outDir, formatFileName("ci", "json")),
+      path12.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path12.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -7156,8 +7501,8 @@ async function run(argv, io = {}) {
       return 2;
     }
     try {
-      await writeFile6(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile6(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile7(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile7(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -7168,7 +7513,7 @@ async function run(argv, io = {}) {
   }
   if (options.markdown) {
     try {
-      await writeFile6(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile7(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -7177,7 +7522,7 @@ async function run(argv, io = {}) {
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile6(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile7(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -7203,9 +7548,9 @@ async function run(argv, io = {}) {
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir4(dir, { recursive: true });
+      await mkdir5(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile6(path11.join(dir, name), content, "utf8");
+        await writeFile7(path12.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
