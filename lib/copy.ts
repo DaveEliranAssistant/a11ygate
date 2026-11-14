@@ -19,6 +19,27 @@ export const SITE_DESCRIPTION =
 
 export const CLI_PACKAGE = '@qe-atlas/a11ygate@0.2.0';
 
+export const RELEASE_STATUS =
+  'npm has @qe-atlas/a11ygate@0.1.0. The 0.2.0 features below are merged on main, not yet released on npm; there is no next tag. The published Action v1 predates these features.';
+
+export const MAIN_TODAY = [
+  'GitHub Actions: npm test checks the example workflow and runs its gate command; the example itself is not run as a workflow.',
+  'Jenkins: recorded acceptance run on Jenkins 2.580.2 LTS; other versions and agents are unverified.',
+  'GitLab (Code Quality), Azure DevOps, CircleCI and Bitbucket Pipelines: templates, not yet run on the real platform.',
+  'Live-site scans: a11ygate scan <url>, with optional same-origin crawl capped at 20 pages; only scan sites you own or are authorized to test.',
+  'Authenticated-page scans: opt-in storage state, login scripts or environment-referenced cookies/headers; test accounts only, review reports before sharing.',
+  'Multi-engine checks: axe by default; HTML_CodeSniffer, IBM and Lighthouse are opt-in and require their optional engine packages.',
+  'Baseline mode: only new findings at the selected impact threshold fail the finding gate; incomplete scans and engine errors still block a pass.',
+  'GitHub code-scanning SARIF export; uploads require code scanning availability and permissions (private repositories require GitHub Code Security).',
+  'HTML report v2, JUnit, trend report across saved runs, and evidence pack zip with a SHA-256 manifest.',
+  'Model-drafted fix PRs in the source Action: experimental, default off, repository opt-in and provider configuration required; draft PRs only, human review required.',
+  'Likely shared-component finding groups with accept/ignore review decisions; grouping is heuristic and decisions record accepted debt, not fixes.',
+  'Opt-in keyboard focus heuristics and opt-in SPA interaction states in authorized test environments; need human review and cover only probed states.',
+  'JSON Schema for .a11ygate.yml configuration validation; this validates configuration, not accessibility.',
+  'Tested local framework recipes: Next.js, Vite + React, Angular and Storybook; dedicated recipe checks are separate from npm test.',
+  'Opt-in “EN 301 549 ref.” column: reference mapping only, does not indicate conformance; specialist review required.',
+] as const;
+
 export const CI_INSTALL_COMMAND = 'npm install --save-dev @playwright/test @axe-core/playwright';
 
 export const CI_AXE_SNIPPET = `import { test } from '@playwright/test';

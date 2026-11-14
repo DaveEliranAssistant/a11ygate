@@ -36,7 +36,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Join the waitlist' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Founding pilots' })).toBeVisible();
   await expect(page.locator('.waitlist').getByRole('link', { name: 'Run it in CI now' })).toHaveAttribute(
     'href',
     '#ci-setup',
@@ -57,7 +57,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
 
   await page.getByLabel('Email').fill('bad@example.com');
   await consent.check();
-  await page.getByRole('button', { name: 'Join the waitlist' }).click();
+  await page.getByRole('button', { name: 'Join the pilot waitlist' }).click();
   const alert = page.locator('#waitlist-error');
   await expect(alert).toBeFocused();
   await expect(alert).toContainText('Check the form and try again.');
@@ -66,7 +66,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
 
   await page.getByLabel('Email').fill('person@example.com');
   await page.getByLabel('Role (optional)').fill('Engineer');
-  await page.getByRole('button', { name: 'Join the waitlist' }).click();
+  await page.getByRole('button', { name: 'Join the pilot waitlist' }).click();
   const success = page.locator('#waitlist-success');
   await expect(success).toContainText('You are on the waitlist.');
   await expect(success).toContainText('You do not need to wait.');
