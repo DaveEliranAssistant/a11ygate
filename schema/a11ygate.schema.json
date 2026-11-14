@@ -47,6 +47,13 @@
       "maximum": 8,
       "x-cli": ["--concurrency"]
     },
+    "recycleEvery": {
+      "description": "Open a fresh browser context every n pages to bound Chromium memory on long scans. Absent: one context for the whole scan. See docs/perf/.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "x-cli": ["--recycle-every"]
+    },
     "sitemap": {
       "description": "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
       "type": "string",

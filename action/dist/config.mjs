@@ -134,6 +134,13 @@ var a11ygate_schema_default = {
       maximum: 8,
       "x-cli": ["--concurrency"]
     },
+    recycleEvery: {
+      description: "Open a fresh browser context every n pages to bound Chromium memory on long scans. Absent: one context for the whole scan. See docs/perf/.",
+      type: "integer",
+      minimum: 1,
+      maximum: 1e3,
+      "x-cli": ["--recycle-every"]
+    },
     sitemap: {
       description: "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
       type: "string",
@@ -623,6 +630,7 @@ var CONFIG_WIRING = {
   maxDepth: { flag: "--max-depth", commands: scan, default: null },
   timeoutMs: { flag: "--timeout-ms", commands: scan, default: 3e4 },
   concurrency: { flag: "--concurrency", commands: scan, default: 1 },
+  recycleEvery: { flag: "--recycle-every", commands: scan, default: null },
   sitemap: { flag: "--sitemap", commands: scan, default: null },
   include: { flag: "--include", commands: scan, default: [] },
   exclude: { flag: "--exclude", commands: scan, default: [] },

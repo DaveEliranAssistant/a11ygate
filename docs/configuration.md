@@ -41,6 +41,7 @@ entire list; repeatable flags still collect within the CLI source.
 | `maxDepth` | scan link depth | `A11YGATE_MAX_DEPTH` | unlimited |
 | `timeoutMs` | scan whole-page deadline | `A11YGATE_TIMEOUT_MS` | 30000 |
 | `concurrency` | scan active-page limit | `A11YGATE_CONCURRENCY` | 1 |
+| `recycleEvery` | scan browser-context recycling every n pages ([sizing](perf/README.md)) | `A11YGATE_RECYCLE_EVERY` | absent: one context per scan |
 | `sitemap` | scan same-origin sitemap URL/path | `A11YGATE_SITEMAP` | absent; when set, 20 pages unless crawl/maxPages is explicit |
 | `include` | scan include globs | `A11YGATE_INCLUDE` | [] |
 | `exclude` | scan exclude globs | `A11YGATE_EXCLUDE` | [] |

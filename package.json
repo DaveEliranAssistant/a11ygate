@@ -22,7 +22,8 @@
     "test:jenkins": "cd integrations/jenkins && ./gradlew test",
     "licenses:check": "node scripts/check-engine-licenses.mjs",
     "prebuild": "npm run licenses:check",
-    "pretest": "npm run licenses:check"
+    "pretest": "npm run licenses:check",
+    "bench": "node scripts/bench-chromium.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
