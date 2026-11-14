@@ -1,0 +1,26 @@
+// Plain sh step without a shared library. Same CLI, JUnit, artifacts, and fail-on policy as a11yGate.
+// Automated testing only. Not a WCAG audit, certification or legal advice.
+
+pipeline {
+  agent any
+  stages {
+    stage('Accessibility scan') {
+      steps {
+        script {
+          def outDir = 'a11y-results'
+          def status = sh(
+            script: "node packages/cli/dist/cli.mjs scan 'http://127.0.0.1:4173/' --crawl 10 --fail-on serious --format junit,sarif,json,md --out-dir '${outDir}'",
+            returnStatus: true
+          )
+          junit allowEmptyResults: true, testResults: "${outDir}/*.junit.xml"
+          archiveArtifacts artifacts: "${outDir}/**", allowEmptyArchive: true
+          if (status == 1) {
+            unstable('A11yGate found issues at or above the fail-on level. Automated testing only. Not a WCAG audit, certification or legal advice.')
+          } else if (status != 0) {
+            error("A11yGate failed to run (exit ${status}).")
+          }
+        }
+      }
+    }
+  }
+}
