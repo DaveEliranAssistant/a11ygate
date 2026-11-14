@@ -6,7 +6,7 @@ export type CliOptions = {
   version: boolean;
   current: string[];
   baseline: string[];
-  threshold: Impact;
+  threshold: Impact | 'none';
   markdown?: string;
   json?: string;
   updateBaseline?: string;
@@ -57,7 +57,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   const current: string[] = [];
   const baseline: string[] = [];
-  let threshold: Impact = 'serious';
+  let threshold: Impact | 'none' = 'serious';
   let markdown: string | undefined;
   let json: string | undefined;
   let updateBaseline: string | undefined;
@@ -115,7 +115,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   }
 
   if (!help && !version && thresholdText !== undefined) {
-    if (!isImpact(thresholdText)) {
+    if (thresholdText !== 'none' && !isImpact(thresholdText)) {
       return {
         ok: false,
         error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`,

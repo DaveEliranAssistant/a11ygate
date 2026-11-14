@@ -267,3 +267,8 @@ totals, severity counts, baseline identities and gate decisions are unchanged.
 `--report-version 1` retains the frozen HTML layout.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+
+### Repository configuration
+
+`scan`, `ci`, `doctor`, and the GitHub Action share the [.a11ygate.yml resolver](../../docs/configuration.md): CLI flags (or explicit Action inputs) > environment > YAML > defaults. Run `a11ygate config print [scan|ci|doctor] [flags]` to see effective values, their sources and command scopes, with secrets redacted. Run `a11ygate config validate` for schema diagnostics. Missing configuration preserves the existing defaults.

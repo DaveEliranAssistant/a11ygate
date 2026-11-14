@@ -3,9 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { adaptersForEnv } from '@/lib/modelfix/adapters';
-import { resolveModelFixConfig } from '@/lib/modelfix/config';
+import { effectiveModelFixConfig, loadEffectiveConfig } from './effective-config';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
-import { configProblems, SCHEMA_PATH } from './config';
+import { configProblems, parseConfigYaml, SCHEMA_PATH } from './config-schema';
 type Env = Readonly<Record<string, string | undefined>>;
 export type DoctorFinding = {
   check: string;
@@ -31,11 +31,8 @@ const PEERS: Record<string, string[]> = { axe: ['@axe-core/playwright'], htmlcs:
 const yes = (value?: string) => /^(on|true|1|yes)$/i.test(value ?? '');
 // Only the small, documented engines list is read; no YAML tags, scripts or dependencies execute.
 export function configuredEngines(text: string): string[] | undefined {
-  text = text.replace(/[ \t]+#.*$/gm, '');
-  const flow = /^engines:\s*\[([^\]\n]*)\]/m.exec(text);
-  const block = /^engines:\s*\n((?:[ \t]+-[^\n]*\n?)+)/m.exec(text);
-  const value = flow?.[1] ?? block?.[1].replace(/^[ \t]+-\s*/gm, ',');
-  return value === undefined ? undefined : value.split(',').map(x => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+  const parsed = parseConfigYaml(text);
+  return parsed.ok && parsed.value && typeof parsed.value === 'object' ? (parsed.value as { engines?: string[] }).engines : undefined;
 }
 export async function doctorChecks(options: {
   engines?: string[];
@@ -61,12 +58,22 @@ export async function doctorChecks(options: {
       config = null;
     }
   }
-  const engines = options.engines ?? configuredEngines(config ?? '') ?? ['axe'];
-  const model = resolveModelFixConfig({ repoConfig: config, flag: options.modelFixes ?? env.A11Y_MODEL_FIXES, env });
+  const problems = config === null ? [] : configProblems(config);
+  let effective;
+  const flags = [...(options.engines ? ['--engines', options.engines.join(',')] : []), ...(options.modelFixes ? ['--model-fixes', options.modelFixes] : [])];
+  try {
+    effective = loadEffectiveConfig('doctor', flags, { cwd, env, repoConfig: config });
+  } catch (error) {
+    if (!problems.length) problems.push((error as Error).message);
+    // Keep independent preflight checks useful on a malformed file, while denying model consent.
+    try { effective = loadEffectiveConfig('doctor', flags, { repoConfig: null, env: {} }); }
+    catch { effective = loadEffectiveConfig('doctor', [], { repoConfig: null, env: {} }); }
+  }
+  const engines = effective.values.engines as string[];
+  const model = effectiveModelFixConfig(effective, env);
   const findings: DoctorFinding[] = [];
   const add = (check: string, status: DoctorFinding['status'], message: string) => findings.push({ check, status, message, link: GUIDE + sections[check] });
-  const problems = config === null ? [] : configProblems(config);
-  add('config', config === null ? 'skipped' : problems.length ? 'fail' : 'pass', config === null ? 'No .a11ygate.yml; defaults apply.' : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join(' ')} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  add('config', problems.length ? 'fail' : config === null ? 'skipped' : 'pass', config === null && !problems.length ? 'No .a11ygate.yml; defaults apply.' : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join(' ')} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
   let head: string | null = null;
   try {
     head = io.head ? io.head() : execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();

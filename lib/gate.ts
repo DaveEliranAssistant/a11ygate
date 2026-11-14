@@ -12,20 +12,21 @@ export function impactRank(impact: Impact | null): number {
   return RANK[impact];
 }
 
-export function meetsThreshold(impact: Impact | null, threshold: Impact): boolean {
-  return impactRank(impact) >= impactRank(threshold);
+export function meetsThreshold(impact: Impact | null, threshold: Impact | 'none'): boolean {
+  return threshold !== 'none' && impactRank(impact) >= impactRank(threshold);
 }
 
-export function gatingFindings<T extends Finding>(findings: readonly T[], threshold: Impact): T[] {
+export function gatingFindings<T extends Finding>(findings: readonly T[], threshold: Impact | 'none'): T[] {
   return findings.filter((finding) => meetsThreshold(finding.impact, threshold));
 }
 
-export function gateVerdict(newFindings: readonly Finding[], threshold: Impact, coverage?: CoverageComparison): Verdict {
+export function gateVerdict(newFindings: readonly Finding[], threshold: Impact | 'none', coverage?: CoverageComparison): Verdict {
   if (gatingFindings(newFindings, threshold).length > 0) return 'FAIL';
   return coverage?.status === 'incomplete' ? 'INCOMPLETE' : 'PASS';
 }
 
-export function verdictReason(newFindings: readonly Finding[], threshold: Impact): string {
+export function verdictReason(newFindings: readonly Finding[], threshold: Impact | 'none'): string {
+  if (threshold === 'none') return 'Finding threshold is disabled (failOn: none).';
   const gating = gatingFindings(newFindings, threshold);
   if (gating.length === 0) {
     return `No new finding is at or above ${threshold}.`;

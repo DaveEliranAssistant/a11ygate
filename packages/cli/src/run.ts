@@ -25,11 +25,14 @@ import { toGitlabCodeQuality } from '@/lib/export-gitlab-codequality';
 import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
+import { loadEffectiveConfig } from './effective-config';
+
 export type RunIo = {
   cwd?: string;
   stdout?: (chunk: string) => void;
   stderr?: (chunk: string) => void;
   now?: () => Date;
+  env?: NodeJS.ProcessEnv;
 };
 
 type ReadOk = { ok: true; documents: { name: string; text: string }[] };
@@ -106,7 +109,7 @@ function reportJson(input: {
   version: string;
   projectName: string;
   verdict: Verdict;
-  threshold: Impact;
+  threshold: Impact | 'none';
   reason: string;
   generatedAt: string;
   diff: ReturnType<typeof compareScans>;
@@ -163,7 +166,10 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === 'evidence') return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
 
-  const gateArgv = argv[0] === 'ci' ? argv.slice(1) : argv;
+  let gateArgv: readonly string[] = argv[0] === 'ci' ? argv.slice(1) : argv;
+  try {
+    if (!gateArgv.some(arg => ['--help', '-h', '--version'].includes(arg))) gateArgv = loadEffectiveConfig('ci', gateArgv, io).argv;
+  } catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
   const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
     stderr(`${parsed.error}\n`);

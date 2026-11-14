@@ -49,15 +49,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path10 = parsed.pathname || "/";
-    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
-    return path10 || "/";
+    let path11 = parsed.pathname || "/";
+    if (path11.length > 1 && path11.endsWith("/")) path11 = path11.slice(0, -1);
+    return path11 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path10 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
-    return path10;
+    let path11 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path11.length > 1 && path11.endsWith("/")) path11 = path11.slice(0, -1);
+    return path11;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -76,7 +76,7 @@ function impactRank(impact) {
   return RANK[impact];
 }
 function meetsThreshold(impact, threshold) {
-  return impactRank(impact) >= impactRank(threshold);
+  return threshold !== "none" && impactRank(impact) >= impactRank(threshold);
 }
 function gatingFindings(findings, threshold) {
   return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
@@ -86,6 +86,7 @@ function gateVerdict(newFindings, threshold, coverage) {
   return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
 }
 function verdictReason(newFindings, threshold) {
+  if (threshold === "none") return "Finding threshold is disabled (failOn: none).";
   const gating = gatingFindings(newFindings, threshold);
   if (gating.length === 0) {
     return `No new finding is at or above ${threshold}.`;
@@ -145,9 +146,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path10 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path11 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path10, html, !html || path10.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path11, html, !html || path11.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -179,7 +180,7 @@ function groupSharedComponents(findings) {
 
 // packages/cli/src/run.ts
 import { mkdir as mkdir4, readFile as readFile7, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
-import path9 from "node:path";
+import path10 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -505,21 +506,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path10) {
+function readImpact(value, path11) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path10} must be minor, moderate, serious, critical, or null`
+    error: `${path11} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path10) {
+function readTarget(value, path11) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path10}.target must be an array of strings`;
+    return `${path11}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path10}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path11}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -527,52 +528,52 @@ function readTarget(value, path10) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path10}.target must be an array of strings`;
+    return `${path11}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path10) {
-  if (!isRecord(value)) return `${path10} must be an object`;
-  const target = readTarget(value.target, path10);
+function validateNode(value, path11) {
+  if (!isRecord(value)) return `${path11} must be an object`;
+  const target = readTarget(value.target, path11);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path10}.html must be a string`;
+  if (typeof value.html !== "string") return `${path11}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path10}.impact`);
+    const impact = readImpact(value.impact, `${path11}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path10) {
-  if (!isRecord(value)) return `${path10} must be an object`;
+function validateViolation(value, path11) {
+  if (!isRecord(value)) return `${path11} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path10}.id must be a non-empty string`;
+    return `${path11}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path10}.impact is missing`;
+    return `${path11}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path10}.impact`);
+  const impact = readImpact(value.impact, `${path11}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path10}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path11}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path10}.tags must be an array of strings`;
+    return `${path11}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path10}.help must be a non-empty string`;
+    return `${path11}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path10}.helpUrl must be a non-empty string`;
+    return `${path11}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path10}.nodes must contain at least one node`;
+    return `${path11}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path10}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path11}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -588,37 +589,37 @@ function validateViolation(value, path10) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path10) {
-  if (!isRecord(value)) return `${path10} must be an axe result object`;
+function validateResult(value, path11) {
+  if (!isRecord(value)) return `${path11} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path10}.url must be a non-empty string`;
+    return `${path11}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path10}.timestamp must be an ISO date string`;
+    return `${path11}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path10}.testEngine.version must be a non-empty string`;
+    return `${path11}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path10}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path11}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path10}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path11}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path10}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path10}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path10}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path10}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path11}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path11}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path11}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path11}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path10}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path11}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path10}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path11}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path10}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path11}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -719,7 +720,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path10 = pagePath(result.url);
+    const path11 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -734,7 +735,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path10,
+          path: path11,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1372,7 +1373,7 @@ function parseArgs(argv) {
     }
   }
   if (!help && !version && thresholdText !== void 0) {
-    if (!isImpact(thresholdText)) {
+    if (thresholdText !== "none" && !isImpact(thresholdText)) {
       return {
         ok: false,
         error: `Unknown impact threshold "${thresholdText}". Use minor, moderate, serious, or critical.`
@@ -1708,7 +1709,7 @@ async function resolveElementKeys(page, findings) {
 
 // packages/cli/src/scan.ts
 import { mkdir, readFile as readFile4, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
-import path4 from "node:path";
+import path5 from "node:path";
 import { createServer } from "node:net";
 
 // lib/scan/engines/optional.ts
@@ -3099,6 +3100,624 @@ async function runBaseline(argv, io) {
   }
 }
 
+// lib/modelfix/config.ts
+var ON = /* @__PURE__ */ new Set(["on", "true", "1", "yes"]);
+var OFF = /* @__PURE__ */ new Set(["off", "false", "0", "no"]);
+var MAX_REQUEST_CAP = 100;
+var MAX_TIMEOUT_MS = 12e4;
+var MAX_COST_USD = 100;
+function parseSwitch(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return { value: null, invalid: false };
+  if (ON.has(text)) return { value: "on", invalid: false };
+  if (OFF.has(text)) return { value: "off", invalid: false };
+  return { value: "off", invalid: true };
+}
+function parseRepoConsent(text) {
+  if (typeof text !== "string") return "missing";
+  const values = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const match = /^modelFixes\s*:(.*)$/.exec(raw);
+    if (!match) continue;
+    values.push(match[1].replace(/\s+#.*$/, "").trim());
+  }
+  if (values.length === 0) return "missing";
+  if (values.length > 1) return "invalid";
+  const value = values[0].replace(/^(['"])(.*)\1$/, "$2");
+  if (value === "true") return "opted-in";
+  if (value === "false") return "denied";
+  return "invalid";
+}
+function boundedInt(value, max) {
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+  if (!/^\d+$/.test(text)) return null;
+  const parsed = Number(text);
+  return parsed <= max ? parsed : null;
+}
+function resolveModelFixConfig(input) {
+  const env = input.env ?? {};
+  const warnings = [];
+  const flag = parseSwitch(input.flag);
+  const fromEnv = parseSwitch(env.A11YGATE_MODEL_FIXES);
+  if (flag.invalid) warnings.push("Unknown --model-fixes value; treated as off.");
+  if (fromEnv.invalid) warnings.push("Unknown A11YGATE_MODEL_FIXES value; treated as off.");
+  const requested = flag.value === "off" || fromEnv.value === "off" ? "off" : flag.value ?? fromEnv.value;
+  const repo = parseRepoConsent(input.repoConfig);
+  const providers = String(env.A11YGATE_MODEL_PROVIDERS ?? "").split(",").map((item) => item.trim().toLowerCase()).filter((item, index, list) => /^[a-z0-9-]+$/.test(item) && list.indexOf(item) === index);
+  const maxRequests = boundedInt(env.A11YGATE_MODEL_MAX_REQUESTS, MAX_REQUEST_CAP);
+  const timeoutMs = boundedInt(env.A11YGATE_MODEL_TIMEOUT_MS, MAX_TIMEOUT_MS);
+  if (maxRequests === null) warnings.push(`A11YGATE_MODEL_MAX_REQUESTS must be an integer from 0 to ${MAX_REQUEST_CAP}; using 0.`);
+  if (timeoutMs === null) warnings.push(`A11YGATE_MODEL_TIMEOUT_MS must be an integer from 0 to ${MAX_TIMEOUT_MS}; using 0.`);
+  const allowPaid = parseSwitch(env.A11YGATE_MODEL_ALLOW_PAID).value === "on";
+  const costText = String(env.A11YGATE_MODEL_MAX_COST_USD ?? "").trim();
+  let maxCostUsd = 0;
+  if (costText) {
+    if (/^\d+(\.\d+)?$/.test(costText) && Number(costText) <= MAX_COST_USD) maxCostUsd = Number(costText);
+    else warnings.push(`A11YGATE_MODEL_MAX_COST_USD must be a number from 0 to ${MAX_COST_USD}; using 0.`);
+  }
+  const base = { repo, requested, providers, maxRequests: maxRequests ?? 0, timeoutMs: timeoutMs ?? 0, allowPaid, maxCostUsd, warnings };
+  if (requested === null) return { ...base, enabled: false, reason: "default-off" };
+  if (requested === "off") return { ...base, enabled: false, reason: "turned-off" };
+  if (repo === "missing") return { ...base, enabled: false, reason: "repo-missing" };
+  if (repo === "denied") return { ...base, enabled: false, reason: "repo-denied" };
+  if (repo === "invalid") return { ...base, enabled: false, reason: "repo-invalid" };
+  return { ...base, enabled: true, reason: "enabled" };
+}
+var MODEL_FIXES_OFF = resolveModelFixConfig({});
+
+// packages/cli/src/effective-config.ts
+import { readFileSync } from "node:fs";
+import path4 from "node:path";
+
+// schema/a11ygate.schema.json
+var a11ygate_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
+  title: "A11yGate repository config (.a11ygate.yml)",
+  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    url: {
+      description: "Start URL of a site you own or are authorized to test. HTTP(S) only, no credentials in the URL.",
+      type: "string",
+      pattern: "^https?://[^\\s@/]+(/\\S*)?$",
+      "x-cli": ["--url"]
+    },
+    crawl: {
+      description: "0 = start URL only; 1-20 = same-origin crawl page limit.",
+      type: "integer",
+      minimum: 0,
+      maximum: 20,
+      "x-cli": ["--crawl"]
+    },
+    maxPages: {
+      description: "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
+      type: "integer",
+      minimum: 1,
+      maximum: 1e3,
+      "x-cli": ["--max-pages"]
+    },
+    maxDepth: {
+      description: "Maximum link depth; start URL and sitemap seeds have depth zero.",
+      type: "integer",
+      minimum: 0,
+      maximum: 1e3,
+      "x-cli": ["--max-depth"]
+    },
+    timeoutMs: {
+      description: "Whole-page navigation and analysis deadline in milliseconds.",
+      type: "integer",
+      minimum: 1,
+      maximum: 3e5,
+      "x-cli": ["--timeout-ms"]
+    },
+    concurrency: {
+      description: "Maximum active browser pages; global delay still spaces starts and retries.",
+      type: "integer",
+      minimum: 1,
+      maximum: 8,
+      "x-cli": ["--concurrency"]
+    },
+    sitemap: {
+      description: "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--sitemap"]
+    },
+    include: {
+      description: "Include globs for live scans; CLI lists replace environment or YAML lists.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--include"]
+    },
+    exclude: {
+      description: "Exclude globs for live scans; exclusions win.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--exclude"]
+    },
+    ignoreRobots: {
+      description: "Opt out of robots.txt rules for an authorized live scan; default false.",
+      type: "boolean",
+      "x-cli": ["--ignore-robots"]
+    },
+    failOn: {
+      description: "Lowest impact that fails the scan; none never fails on findings.",
+      type: "string",
+      enum: ["minor", "moderate", "serious", "critical", "none"],
+      "x-cli": ["--fail-on"]
+    },
+    engines: {
+      description: "Scan engines. axe is bundled with the scan peers; htmlcs, ibm and lighthouse need their optional peer packages.",
+      type: "array",
+      minItems: 1,
+      uniqueItems: true,
+      items: { type: "string", enum: ["axe", "htmlcs", "ibm", "lighthouse"] },
+      "x-cli": ["--engines"]
+    },
+    modelFixes: {
+      description: "Repository opt-in for experimental model-assisted Action suggestions and doctor checks. Off unless exactly true; a flag or environment variable cannot override a missing or false repository consent. An explicit off disables it.",
+      type: "boolean",
+      "x-cli": ["--model-fixes"]
+    },
+    baseline: {
+      description: "Baseline file: fingerprint baseline for scan; axe JSON baseline for ci and the Action. Usually .a11ygate-baseline.json for scan.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--baseline", "-b"]
+    },
+    formats: {
+      description: "Extra report formats written to outDir.",
+      type: "array",
+      uniqueItems: true,
+      items: { type: "string", enum: ["junit", "sarif", "json", "md", "gitlab-codequality"] },
+      "x-cli": ["--format"]
+    },
+    outDir: {
+      description: "Directory for scan or ci reports.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--out-dir"]
+    },
+    delayMs: {
+      description: "Polite delay between crawled pages, in milliseconds.",
+      type: "integer",
+      minimum: 0,
+      maximum: 6e4,
+      "x-cli": ["--delay-ms"]
+    },
+    reportVersion: {
+      description: "HTML report layout version.",
+      type: "integer",
+      enum: [1, 2],
+      "x-cli": ["--report-version"]
+    },
+    auth: {
+      description: "Authenticated scans. Never put credentials here: name environment variables instead.",
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        storageState: {
+          description: "Playwright storage-state JSON file (keep it out of version control).",
+          type: "string",
+          minLength: 1,
+          "x-cli": ["--storage-state"]
+        },
+        loginScript: {
+          description: "Login script run in an isolated worker before scanning.",
+          type: "string",
+          minLength: 1,
+          "x-cli": ["--login-script"]
+        },
+        loginTimeoutMs: {
+          description: "Login script timeout in milliseconds.",
+          type: "integer",
+          minimum: 1,
+          maximum: 3e5,
+          "x-cli": ["--login-timeout-ms"]
+        },
+        cookieEnv: {
+          description: "Cookies as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          type: "array",
+          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--cookie-env"]
+        },
+        headerEnv: {
+          description: "Headers as NAME=ENV_VAR_NAME; the value is read from the environment.",
+          type: "array",
+          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
+          "x-cli": ["--header-env"]
+        }
+      }
+    }
+  }
+};
+
+// packages/cli/src/config-schema.ts
+var CONFIG_FILE = ".a11ygate.yml";
+var SCHEMA_PATH = "schema/a11ygate.schema.json";
+var SCHEMA_URL = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json";
+var SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
+var CONFIG_SCHEMA = a11ygate_schema_default;
+var YamlError = class extends Error {
+};
+function stripComment(text) {
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === quote && !(quote === '"' && text[i - 1] === "\\")) quote = null;
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "#" && (i === 0 || /\s/.test(text[i - 1]))) return text.slice(0, i).trimEnd();
+  }
+  return text.trimEnd();
+}
+function scalar(raw, line) {
+  const text = raw.trim();
+  if (/^[&*!|>{]/.test(text)) throw new YamlError(`line ${line}: anchors, aliases, tags, block scalars and {\u2026} mappings are not supported in .a11ygate.yml.`);
+  if (text.startsWith('"')) {
+    try {
+      const value = JSON.parse(text);
+      if (typeof value === "string") return value;
+    } catch {
+    }
+    throw new YamlError(`line ${line}: unterminated or invalid double-quoted string.`);
+  }
+  if (text.startsWith("'")) {
+    if (text.length < 2 || !text.endsWith("'")) throw new YamlError(`line ${line}: unterminated single-quoted string.`);
+    return text.slice(1, -1).replace(/''/g, "'");
+  }
+  if (text.startsWith("[")) {
+    if (!text.endsWith("]")) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
+    const inner = text.slice(1, -1).trim();
+    return inner ? inner.split(",").map((item) => scalar(item, line)) : [];
+  }
+  if (text === "" || text === "~" || text === "null") return null;
+  if (text === "true" || text === "false") return text === "true";
+  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}
+function parseBlock(lines, start, indent) {
+  const first = lines[start];
+  if (first.text.startsWith("- ") || first.text === "-") {
+    const list = [];
+    let i2 = start;
+    while (i2 < lines.length && lines[i2].indent === indent && (lines[i2].text.startsWith("- ") || lines[i2].text === "-")) {
+      const item = lines[i2].text.slice(1).trim();
+      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i2].number}: lists of mappings are not supported in .a11ygate.yml.`);
+      list.push(scalar(item, lines[i2].number));
+      i2++;
+    }
+    return [list, i2];
+  }
+  const map = {};
+  let i = start;
+  while (i < lines.length && lines[i].indent === indent) {
+    const { text, number } = lines[i];
+    const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
+    if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
+    const key = match[1].replace(/^(['"])(.*)\1$/, "$2");
+    if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
+    const rest = (match[2] ?? "").trim();
+    i++;
+    if (rest) {
+      map[key] = scalar(rest, number);
+      continue;
+    }
+    if (i < lines.length && lines[i].indent > indent) {
+      const [value, next] = parseBlock(lines, i, lines[i].indent);
+      map[key] = value;
+      i = next;
+    } else if (i < lines.length && lines[i].indent === indent && lines[i].text.startsWith("- ")) {
+      const [value, next] = parseBlock(lines, i, indent);
+      map[key] = value;
+      i = next;
+    } else map[key] = null;
+  }
+  return [map, i];
+}
+function parseConfigYaml(text) {
+  const lines = [];
+  const raw = text.replace(/^﻿/, "").split(/\r?\n/);
+  for (let index = 0; index < raw.length; index++) {
+    const source = raw[index];
+    if (/^\t/.test(source)) return { ok: false, errors: [`line ${index + 1}: use spaces, not tabs, for indentation.`] };
+    const content = stripComment(source);
+    if (!content.trim() || lines.length === 0 && content.trim() === "---") continue;
+    if (content.trim() === "---" || content.trim() === "...") return { ok: false, errors: [`line ${index + 1}: use a single YAML document.`] };
+    lines.push({ indent: content.length - content.trimStart().length, text: content.trim(), number: index + 1 });
+  }
+  if (lines.length === 0) return { ok: true, value: {} };
+  try {
+    const [value, next] = parseBlock(lines, 0, lines[0].indent);
+    if (next < lines.length) throw new YamlError(`line ${lines[next].number}: unexpected indentation.`);
+    return { ok: true, value };
+  } catch (error) {
+    if (error instanceof YamlError) return { ok: false, errors: [error.message] };
+    throw error;
+  }
+}
+function distance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+function suggestKey(key, known) {
+  const fold = (s) => s.toLowerCase().replace(/[-_\s]/g, "");
+  const exact = known.find((candidate) => fold(candidate) === fold(key));
+  if (exact) return exact;
+  let best;
+  let bestScore = Infinity;
+  for (const candidate of known) {
+    const score = distance(fold(key), fold(candidate));
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best && bestScore <= Math.max(2, Math.floor(fold(key).length / 3)) ? best : void 0;
+}
+var show = (value) => typeof value === "string" ? `'${value}'` : JSON.stringify(value);
+var typeName = (value) => value === null ? "nothing" : Array.isArray(value) ? "a list" : typeof value === "object" ? "a mapping" : typeof value === "number" ? Number.isInteger(value) ? "a whole number" : "a number" : typeof value === "boolean" ? "true/false" : "text";
+var expected = { string: "text", integer: "a whole number", number: "a number", boolean: "true or false", array: "a list, e.g. [a, b]", object: "a mapping of keys" };
+function matchesType(type, value) {
+  if (type === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (type === "array") return Array.isArray(value);
+  if (type === "object") return !!value && typeof value === "object" && !Array.isArray(value);
+  return typeof value === type;
+}
+function check(schema, value, where, errors) {
+  const label = where || "the config";
+  if (schema.type && !matchesType(schema.type, value)) {
+    const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
+    errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
+    return;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`'${label}' has invalid value ${show(value)} \u2014 use one of: ${schema.enum.join(", ")}.`);
+    return;
+  }
+  if (typeof value === "number") {
+    if (schema.minimum !== void 0 && value < schema.minimum) errors.push(`'${label}' must be at least ${schema.minimum}, but got ${value}.`);
+    if (schema.maximum !== void 0 && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
+  }
+  if (typeof value === "string") {
+    if (schema.minLength !== void 0 && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
+    else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ""}`.trimEnd());
+  }
+  if (Array.isArray(value)) {
+    if (schema.minItems !== void 0 && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? "" : "s"}.`);
+    if (schema.uniqueItems) {
+      const duplicate = value.find((item, index) => value.indexOf(item) !== index);
+      if (duplicate !== void 0) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
+    }
+    if (schema.items) value.forEach((item, index) => check(schema.items, item, `${label}[${index}]`, errors));
+  }
+  if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+    const properties = schema.properties ?? {};
+    const known = Object.keys(properties);
+    for (const [key, child] of Object.entries(value)) {
+      const childWhere = where ? `${where}.${key}` : key;
+      if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
+      else if (schema.additionalProperties === false) {
+        const suggestion = suggestKey(key, known);
+        errors.push(`unknown key '${childWhere}'${suggestion ? ` \u2014 did you mean '${where ? `${where}.` : ""}${suggestion}'?` : ` \u2014 known keys${where ? ` under '${where}'` : ""}: ${known.join(", ")}.`}`);
+      }
+    }
+  }
+}
+function validateConfig(value, schema = CONFIG_SCHEMA) {
+  if (value === null || value === void 0) return [];
+  const errors = [];
+  check(schema, value, "", errors);
+  return errors;
+}
+function configProblems(text) {
+  const parsed = parseConfigYaml(text);
+  return parsed.ok ? validateConfig(parsed.value) : parsed.errors;
+}
+
+// packages/cli/src/effective-config.ts
+var scan = ["scan"];
+var reports = ["scan", "ci"];
+var CONFIG_WIRING = {
+  url: { flag: "--url", commands: scan, default: "" },
+  crawl: { flag: "--crawl", commands: scan, default: 0 },
+  maxPages: { flag: "--max-pages", commands: scan, default: 1 },
+  maxDepth: { flag: "--max-depth", commands: scan, default: null },
+  timeoutMs: { flag: "--timeout-ms", commands: scan, default: 3e4 },
+  concurrency: { flag: "--concurrency", commands: scan, default: 1 },
+  sitemap: { flag: "--sitemap", commands: scan, default: null },
+  include: { flag: "--include", commands: scan, default: [] },
+  exclude: { flag: "--exclude", commands: scan, default: [] },
+  ignoreRobots: { flag: "--ignore-robots", commands: scan, default: false },
+  failOn: { flag: "--fail-on", commands: reports, aliases: ["--threshold", "-t"], default: "serious", env: ["A11Y_THRESHOLD"] },
+  engines: { flag: "--engines", commands: ["scan", "doctor"], default: ["axe"] },
+  modelFixes: { flag: "--model-fixes", commands: ["doctor"], default: false, env: ["A11Y_MODEL_FIXES"], reason: "Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions." },
+  baseline: { flag: "--baseline", aliases: ["-b"], commands: reports, default: null, env: ["A11Y_BASELINE"] },
+  formats: { flag: "--format", commands: reports, default: [] },
+  outDir: { flag: "--out-dir", commands: reports, default: null },
+  delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
+  reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  "auth.storageState": { flag: "--storage-state", commands: scan, default: null },
+  "auth.loginScript": { flag: "--login-script", commands: scan, default: null },
+  "auth.loginTimeoutMs": { flag: "--login-timeout-ms", commands: scan, default: 3e4 },
+  "auth.cookieEnv": { flag: "--cookie-env", commands: scan, default: [] },
+  "auth.headerEnv": { flag: "--header-env", commands: scan, default: [] }
+};
+function configEnvName(key) {
+  return "A11YGATE_" + key.replace(/([a-z])([A-Z])/g, "$1_$2").replace(/\./g, "_").toUpperCase();
+}
+function schemaAt(key) {
+  return key.split(".").reduce((node, part) => node.properties[part], CONFIG_SCHEMA);
+}
+function get(object, key) {
+  return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
+}
+function decode(text, schema) {
+  if (schema.type === "array") {
+    if (text.trim().startsWith("[")) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+    return text.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  }
+  if (schema.type === "integer") return /^\d+$/.test(text) ? Number(text) : text;
+  if (schema.type === "boolean") {
+    if (/^(true|on|1|yes)$/i.test(text)) return true;
+    if (/^(false|off|0|no)$/i.test(text)) return false;
+  }
+  return text;
+}
+function loadEffectiveConfig(command, argv = [], io = {}) {
+  const env = io.env ?? process.env;
+  let repoConfig = io.repoConfig;
+  if (repoConfig === void 0) {
+    try {
+      repoConfig = readFileSync(path4.join(io.cwd ?? process.cwd(), CONFIG_FILE), "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw new Error("Could not read .a11ygate.yml.");
+      repoConfig = null;
+    }
+  }
+  const parsed = parseConfigYaml(repoConfig ?? "");
+  if (!parsed.ok || validateConfig(parsed.value).length) throw new Error("Invalid .a11ygate.yml. Run a11ygate config validate to check its schema.");
+  const yaml = parsed.value;
+  const values = {};
+  const sources = {};
+  for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
+    values[key] = structuredClone(wiring.default);
+    sources[key] = "default";
+    const value = get(yaml, key);
+    if (value !== void 0) {
+      values[key] = value;
+      sources[key] = CONFIG_FILE;
+    }
+    for (const name of [...wiring.env ?? [], configEnvName(key)]) {
+      const text = env[name];
+      if (text === void 0 || text === "") continue;
+      const value2 = decode(text.trim(), schemaAt(key));
+      if (validateConfig(value2, schemaAt(key)).length) throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+      values[key] = value2;
+      sources[key] = `env:${name}`;
+    }
+  }
+  const remaining = [];
+  const supplied = /* @__PURE__ */ new Set();
+  let hasPositionalUrl = false;
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    const [name] = token.split("=");
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
+    if (!entry) {
+      if (command === "scan" && !token.startsWith("-")) {
+        if (supplied.has("url")) throw new Error("Pass one scan URL.");
+        values.url = token;
+        sources.url = "flag:positional";
+        supplied.add("url");
+        hasPositionalUrl = true;
+        remaining.push(token);
+      } else {
+        remaining.push(token);
+        if (token.startsWith("-") && !token.includes("=") && !["--help", "-h", "--version", "--strict"].includes(token) && argv[i + 1] && (!argv[i + 1].startsWith("-") || argv[i + 1] === "-")) remaining.push(argv[++i]);
+      }
+      continue;
+    }
+    const [key, wiring] = entry;
+    if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
+    const schema = schemaAt(key);
+    let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
+    if (key === "crawl" && text === void 0 && !/^\d+$/.test(argv[i + 1] ?? "")) text = "20";
+    else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
+    else if (text === void 0) text = argv[++i];
+    if (text === void 0) throw new Error(`${name} needs a value.`);
+    if (key === "ignoreRobots" && token.includes("=")) throw new Error("--ignore-robots takes no value.");
+    let value = schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
+    if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
+    if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+    if (schema.type === "array" && key !== "engines" && supplied.has(key)) {
+      const items = [...values[key], ...value];
+      values[key] = key === "formats" ? [...new Set(items)] : items;
+    } else values[key] = value;
+    sources[key] = `flag:${name}`;
+    supplied.add(key);
+    if (key === "url") continue;
+    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : wiring.flag);
+    if (schema.type !== "boolean" || key === "modelFixes") remaining.push(text);
+  }
+  if (values.modelFixes && get(yaml, "modelFixes") !== true) {
+    values.modelFixes = false;
+    sources.modelFixes = "repository-consent:denied";
+  }
+  const prefix = [];
+  for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
+    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
+    const value = values[key];
+    if (key === "url") continue;
+    if (key === "crawl" && value === 0) {
+      prefix.push("--crawl", "1");
+      continue;
+    }
+    const flag = command === "ci" && key === "failOn" ? "--threshold" : wiring.flag;
+    if (schemaAt(key).type === "boolean") {
+      if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
+      else if (value) prefix.push(flag);
+    } else if (Array.isArray(value)) {
+      if (["engines", "formats"].includes(key)) {
+        if (value.length) prefix.push(flag, value.join(","));
+      } else for (const item of value) prefix.push(flag, String(item));
+    } else prefix.push(flag, String(value));
+  }
+  if (command === "scan" && !hasPositionalUrl) {
+    if (values.url) prefix.push(String(values.url));
+  }
+  if (sources.maxPages === "default") {
+    if (sources.crawl !== "default") {
+      values.maxPages = Math.max(1, Math.min(20, Number(values.crawl)));
+      sources.maxPages = `${sources.crawl} (crawl)`;
+    } else if (values.sitemap) {
+      values.maxPages = 20;
+      sources.maxPages = `${sources.sitemap} (sitemap)`;
+    }
+  }
+  if (typeof values.crawl === "number") values.crawl = Math.min(20, values.crawl);
+  return { values, sources, argv: [...prefix, ...remaining], repoConfig };
+}
+function printableConfig(config2, env = process.env) {
+  const redactor = new AuthRedactor();
+  for (const value of secretEnvValues(env, 1)) redactor.add(value);
+  for (const key of ["auth.cookieEnv", "auth.headerEnv"]) {
+    for (const mapping of config2.values[key]) redactor.add(env[mapping.slice(mapping.indexOf("=") + 1)]);
+  }
+  const values = { ...config2.values };
+  for (const key of ["url", "sitemap"]) {
+    if (typeof values[key] !== "string" || !values[key]) continue;
+    const url = new URL(values[key], typeof values.url === "string" && values.url ? values.url : "https://config-print.invalid");
+    for (const parameter of [...url.searchParams.keys()]) url.searchParams.set(parameter, "[REDACTED]");
+    if (url.hash) url.hash = "[REDACTED]";
+    values[key] = url.href;
+  }
+  return redactor.object(Object.fromEntries(Object.keys(CONFIG_WIRING).map((key) => [key, { value: values[key], source: config2.sources[key], appliesTo: CONFIG_WIRING[key].commands, ...CONFIG_WIRING[key].reason ? { note: CONFIG_WIRING[key].reason } : {} }])));
+}
+function effectiveModelFixConfig(config2, env = process.env) {
+  const parsed = parseConfigYaml(config2.repoConfig ?? "");
+  const consent = parsed.ok && get(parsed.value, "modelFixes") === true;
+  return resolveModelFixConfig({ repoConfig: consent ? "modelFixes: true" : null, flag: config2.values.modelFixes ? "on" : "off", env: { ...env, A11YGATE_MODEL_FIXES: void 0 } });
+}
+
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
@@ -3456,6 +4075,13 @@ async function runScan(argv, io = {}) {
   const output = io.stdout ?? ((s) => process.stdout.write(s));
   const errors = io.stderr ?? ((s) => process.stderr.write(s));
   const safeIo = { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) };
+  try {
+    if (!argv.includes("--help") && !argv.includes("-h")) argv = loadEffectiveConfig("scan", argv, io).argv;
+  } catch (error) {
+    safeIo.stderr(`${error.message}
+`);
+    return 2;
+  }
   const parsed = parseScanArgs(argv);
   if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
   try {
@@ -3496,7 +4122,7 @@ Run a11ygate scan --help for usage.
 `);
   let baseline;
   try {
-    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile4(path4.resolve(cwd, options.baseline), "utf8")));
+    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile4(path5.resolve(cwd, options.baseline), "utf8")));
   } catch (error) {
     stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -3601,18 +4227,18 @@ async function writeScanReport(report, options, io, engine) {
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
-    extra.push([path4.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+    extra.push([path5.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
   if (options.outDir && options.formats.includes("gitlab-codequality")) {
-    extra.push([path4.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+    extra.push([path5.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path4.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
+    extra.push([path5.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
   }
   const targets = options.outDir ? [
-    [path4.join(options.outDir, "a11ygate-scan.json"), json],
-    [path4.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path4.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion)],
+    [path5.join(options.outDir, "a11ygate-scan.json"), json],
+    [path5.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path5.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion)],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -3626,23 +4252,23 @@ async function writeScanReport(report, options, io, engine) {
         [options.baseline, io.reportInput, options.storageState, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
-          ...options.outDir ? options.engines.map((id) => path4.join(options.outDir, "engines", `${id}.json`)) : []
+          ...options.outDir ? options.engines.map((id) => path5.join(options.outDir, "engines", `${id}.json`)) : []
         ]
       );
     }
-    if (options.outDir) await mkdir(path4.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) await mkdir(path5.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
-      const evidenceDir = path4.resolve(cwd, options.outDir, "engines");
+      const evidenceDir = path5.resolve(cwd, options.outDir, "engines");
       await mkdir(evidenceDir, { recursive: true });
       for (const id of options.engines) {
         const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile2(path4.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
+        await writeFile2(path5.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
 `, "utf8");
       }
     }
     for (const [file, content] of targets) {
-      if (file) await writeFile2(path4.resolve(cwd, file), content, "utf8");
+      if (file) await writeFile2(path5.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
     const code3 = error.code;
@@ -3687,9 +4313,9 @@ async function runReportInternal(argv, io) {
         reason: report.verdict === "ERROR" ? report.reason : `${failing ? "At least one finding is" : "No finding is"} at or above ${failOn}.`
       };
     }
-    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile4(path4.resolve(cwd, parsed.options.baseline), "utf8"))));
-    const source = path4.resolve(cwd, argv[0]);
-    const reportInput = (await stat3(source)).isDirectory() ? path4.join(source, "a11ygate-scan.json") : source;
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile4(path5.resolve(cwd, parsed.options.baseline), "utf8"))));
+    const source = path5.resolve(cwd, argv[0]);
+    const reportInput = (await stat3(source)).isDirectory() ? path5.join(source, "a11ygate-scan.json") : source;
     const engines = report.engines?.used ?? ["axe"];
     if (engines.some((id) => !ENGINE_IDS.includes(id))) throw new Error("Unknown engine in saved report.");
     return await writeScanReport(report, { ...parsed.options, engines }, { ...io, reportInput });
@@ -3703,7 +4329,7 @@ async function runReportInternal(argv, io) {
 // packages/cli/src/evidence.ts
 import { execFile } from "node:child_process";
 import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
-import path5 from "node:path";
+import path6 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -3727,8 +4353,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path10) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path10);
+function shouldStore(path11) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path11);
 }
 function createZip(entries) {
   const local = [];
@@ -3851,8 +4477,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path10) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path10);
+function isTextPath(path11) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path11);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -4001,8 +4627,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path10, make] of generated) {
-    if (!files.has(path10)) files.set(path10, { path: path10, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path11, make] of generated) {
+    if (!files.has(path11)) files.set(path11, { path: path11, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -4114,7 +4740,7 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path5.join(dir, name);
+    const file = path6.join(dir, name);
     if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
@@ -4128,10 +4754,10 @@ async function collectInputs(dir, warn) {
     }],
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
-    const names = await readdir(path5.join(dir, sub)).catch(() => []);
+    const names = await readdir(path6.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path5.join(dir, sub, name);
+      const file = path6.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
@@ -4170,8 +4796,8 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path5.resolve(cwd, options.from);
-  const scanJsonPath = path5.join(dir, "a11ygate-scan.json");
+  const dir = path6.resolve(cwd, options.from);
+  const scanJsonPath = path6.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
@@ -4199,9 +4825,9 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path5.resolve(cwd, options.out ?? path5.join(options.from, "a11ygate-evidence.zip"));
+  const out = path6.resolve(cwd, options.out ?? path6.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir2(path5.dirname(out), { recursive: true });
+    await mkdir2(path6.dirname(out), { recursive: true });
     await writeFile3(out, result.zip);
   } catch (error) {
     const code3 = error.code;
@@ -4210,14 +4836,14 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path5.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path6.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
 
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
 import path7 from "node:path";
 
@@ -4375,8 +5001,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path10) {
-  const match = /\.([a-z0-9]+)$/i.exec(path10);
+function fileKind(path11) {
+  const match = /\.([a-z0-9]+)$/i.exec(path11);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -4687,8 +5313,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path10, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path10) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path11, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path11) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -4737,484 +5363,11 @@ function adaptersForEnv(env = {}) {
   return listed.includes("stub") ? [...BUILTIN_ADAPTERS, stubAdapter("stub")] : BUILTIN_ADAPTERS;
 }
 
-// lib/modelfix/config.ts
-var ON = /* @__PURE__ */ new Set(["on", "true", "1", "yes"]);
-var OFF = /* @__PURE__ */ new Set(["off", "false", "0", "no"]);
-var MAX_REQUEST_CAP = 100;
-var MAX_TIMEOUT_MS = 12e4;
-var MAX_COST_USD = 100;
-function parseSwitch(value) {
-  const text = String(value ?? "").trim().toLowerCase();
-  if (!text) return { value: null, invalid: false };
-  if (ON.has(text)) return { value: "on", invalid: false };
-  if (OFF.has(text)) return { value: "off", invalid: false };
-  return { value: "off", invalid: true };
-}
-function parseRepoConsent(text) {
-  if (typeof text !== "string") return "missing";
-  const values = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const match = /^modelFixes\s*:(.*)$/.exec(raw);
-    if (!match) continue;
-    values.push(match[1].replace(/\s+#.*$/, "").trim());
-  }
-  if (values.length === 0) return "missing";
-  if (values.length > 1) return "invalid";
-  const value = values[0].replace(/^(['"])(.*)\1$/, "$2");
-  if (value === "true") return "opted-in";
-  if (value === "false") return "denied";
-  return "invalid";
-}
-function boundedInt(value, max) {
-  const text = String(value ?? "").trim();
-  if (!text) return 0;
-  if (!/^\d+$/.test(text)) return null;
-  const parsed = Number(text);
-  return parsed <= max ? parsed : null;
-}
-function resolveModelFixConfig(input) {
-  const env = input.env ?? {};
-  const warnings = [];
-  const flag = parseSwitch(input.flag);
-  const fromEnv = parseSwitch(env.A11YGATE_MODEL_FIXES);
-  if (flag.invalid) warnings.push("Unknown --model-fixes value; treated as off.");
-  if (fromEnv.invalid) warnings.push("Unknown A11YGATE_MODEL_FIXES value; treated as off.");
-  const requested = flag.value === "off" || fromEnv.value === "off" ? "off" : flag.value ?? fromEnv.value;
-  const repo = parseRepoConsent(input.repoConfig);
-  const providers = String(env.A11YGATE_MODEL_PROVIDERS ?? "").split(",").map((item) => item.trim().toLowerCase()).filter((item, index, list) => /^[a-z0-9-]+$/.test(item) && list.indexOf(item) === index);
-  const maxRequests = boundedInt(env.A11YGATE_MODEL_MAX_REQUESTS, MAX_REQUEST_CAP);
-  const timeoutMs = boundedInt(env.A11YGATE_MODEL_TIMEOUT_MS, MAX_TIMEOUT_MS);
-  if (maxRequests === null) warnings.push(`A11YGATE_MODEL_MAX_REQUESTS must be an integer from 0 to ${MAX_REQUEST_CAP}; using 0.`);
-  if (timeoutMs === null) warnings.push(`A11YGATE_MODEL_TIMEOUT_MS must be an integer from 0 to ${MAX_TIMEOUT_MS}; using 0.`);
-  const allowPaid = parseSwitch(env.A11YGATE_MODEL_ALLOW_PAID).value === "on";
-  const costText = String(env.A11YGATE_MODEL_MAX_COST_USD ?? "").trim();
-  let maxCostUsd = 0;
-  if (costText) {
-    if (/^\d+(\.\d+)?$/.test(costText) && Number(costText) <= MAX_COST_USD) maxCostUsd = Number(costText);
-    else warnings.push(`A11YGATE_MODEL_MAX_COST_USD must be a number from 0 to ${MAX_COST_USD}; using 0.`);
-  }
-  const base = { repo, requested, providers, maxRequests: maxRequests ?? 0, timeoutMs: timeoutMs ?? 0, allowPaid, maxCostUsd, warnings };
-  if (requested === null) return { ...base, enabled: false, reason: "default-off" };
-  if (requested === "off") return { ...base, enabled: false, reason: "turned-off" };
-  if (repo === "missing") return { ...base, enabled: false, reason: "repo-missing" };
-  if (repo === "denied") return { ...base, enabled: false, reason: "repo-denied" };
-  if (repo === "invalid") return { ...base, enabled: false, reason: "repo-invalid" };
-  return { ...base, enabled: true, reason: "enabled" };
-}
-var MODEL_FIXES_OFF = resolveModelFixConfig({});
-
-// packages/cli/src/config.ts
-import { readFile as readFile6 } from "node:fs/promises";
-import path6 from "node:path";
-
-// schema/a11ygate.schema.json
-var a11ygate_schema_default = {
-  $schema: "http://json-schema.org/draft-07/schema#",
-  $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
-  title: "A11yGate repository config (.a11ygate.yml)",
-  description: "Setup choices for A11yGate. `a11ygate doctor` reads `engines` and the model-fix opt-in reads `modelFixes`; the other keys record the choices that the explicit flags in your CI file apply (shown as x-cli). Automated testing only. Not a WCAG audit, certification or legal advice.",
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    url: {
-      description: "Start URL of a site you own or are authorized to test. HTTP(S) only, no credentials in the URL.",
-      type: "string",
-      pattern: "^https?://[^\\s@/]+(/\\S*)?$",
-      "x-cli": ["--url"]
-    },
-    crawl: {
-      description: "0 = start URL only; 1-20 = same-origin crawl page limit.",
-      type: "integer",
-      minimum: 0,
-      maximum: 20,
-      "x-cli": ["--crawl"]
-    },
-    maxPages: {
-      description: "Explicit crawl page budget overriding crawl; record alongside --max-pages in CI.",
-      type: "integer",
-      minimum: 1,
-      maximum: 1e3,
-      "x-cli": ["--max-pages"]
-    },
-    maxDepth: {
-      description: "Maximum link depth; start URL and sitemap seeds have depth zero.",
-      type: "integer",
-      minimum: 0,
-      maximum: 1e3,
-      "x-cli": ["--max-depth"]
-    },
-    timeoutMs: {
-      description: "Whole-page navigation and analysis deadline in milliseconds.",
-      type: "integer",
-      minimum: 1,
-      maximum: 3e5,
-      "x-cli": ["--timeout-ms"]
-    },
-    concurrency: {
-      description: "Maximum active browser pages; global delay still spaces starts and retries.",
-      type: "integer",
-      minimum: 1,
-      maximum: 8,
-      "x-cli": ["--concurrency"]
-    },
-    sitemap: {
-      description: "Same-origin sitemap URL or path supplied through --sitemap.",
-      type: "string",
-      minLength: 1,
-      "x-cli": ["--sitemap"]
-    },
-    include: {
-      description: "Include globs supplied through repeatable --include flags.",
-      type: "array",
-      items: { type: "string", minLength: 1 },
-      "x-cli": ["--include"]
-    },
-    exclude: {
-      description: "Exclude globs supplied through repeatable --exclude flags; exclusions win.",
-      type: "array",
-      items: { type: "string", minLength: 1 },
-      "x-cli": ["--exclude"]
-    },
-    ignoreRobots: {
-      description: "Record the explicit --ignore-robots opt-out for an authorized scan; default false.",
-      type: "boolean",
-      "x-cli": ["--ignore-robots"]
-    },
-    failOn: {
-      description: "Lowest impact that fails the scan; none never fails on findings.",
-      type: "string",
-      enum: ["minor", "moderate", "serious", "critical", "none"],
-      "x-cli": ["--fail-on"]
-    },
-    engines: {
-      description: "Scan engines. axe is bundled with the scan peers; htmlcs, ibm and lighthouse need their optional peer packages.",
-      type: "array",
-      minItems: 1,
-      uniqueItems: true,
-      items: { type: "string", enum: ["axe", "htmlcs", "ibm", "lighthouse"] },
-      "x-cli": ["--engines"]
-    },
-    modelFixes: {
-      description: "Repository opt-in for experimental model-assisted fixes. Off unless exactly true; a flag cannot override false.",
-      type: "boolean",
-      "x-cli": ["--model-fixes"]
-    },
-    baseline: {
-      description: "Fingerprint baseline file, usually .a11ygate-baseline.json.",
-      type: "string",
-      minLength: 1,
-      "x-cli": ["--baseline", "-b"]
-    },
-    formats: {
-      description: "Extra report formats written to outDir.",
-      type: "array",
-      uniqueItems: true,
-      items: { type: "string", enum: ["junit", "sarif", "json", "md", "gitlab-codequality"] },
-      "x-cli": ["--format"]
-    },
-    outDir: {
-      description: "Directory for scan reports.",
-      type: "string",
-      minLength: 1,
-      "x-cli": ["--out-dir"]
-    },
-    delayMs: {
-      description: "Polite delay between crawled pages, in milliseconds.",
-      type: "integer",
-      minimum: 0,
-      maximum: 6e4,
-      "x-cli": ["--delay-ms"]
-    },
-    reportVersion: {
-      description: "HTML report layout version.",
-      type: "integer",
-      enum: [1, 2],
-      "x-cli": ["--report-version"]
-    },
-    auth: {
-      description: "Authenticated scans. Never put credentials here: name environment variables instead.",
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        storageState: {
-          description: "Playwright storage-state JSON file (keep it out of version control).",
-          type: "string",
-          minLength: 1,
-          "x-cli": ["--storage-state"]
-        },
-        loginScript: {
-          description: "Login script run in an isolated worker before scanning.",
-          type: "string",
-          minLength: 1,
-          "x-cli": ["--login-script"]
-        },
-        loginTimeoutMs: {
-          description: "Login script timeout in milliseconds.",
-          type: "integer",
-          minimum: 1,
-          maximum: 3e5,
-          "x-cli": ["--login-timeout-ms"]
-        },
-        cookieEnv: {
-          description: "Cookies as NAME=ENV_VAR_NAME; the value is read from the environment.",
-          type: "array",
-          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
-          "x-cli": ["--cookie-env"]
-        },
-        headerEnv: {
-          description: "Headers as NAME=ENV_VAR_NAME; the value is read from the environment.",
-          type: "array",
-          items: { type: "string", pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[A-Za-z_][A-Za-z0-9_]*$" },
-          "x-cli": ["--header-env"]
-        }
-      }
-    }
-  }
-};
-
-// packages/cli/src/config.ts
-var CONFIG_FILE = ".a11ygate.yml";
-var SCHEMA_PATH = "schema/a11ygate.schema.json";
-var SCHEMA_URL = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json";
-var SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
-var CONFIG_SCHEMA = a11ygate_schema_default;
-var YamlError = class extends Error {
-};
-function stripComment(text) {
-  let quote = null;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quote) {
-      if (c === quote && !(quote === '"' && text[i - 1] === "\\")) quote = null;
-    } else if (c === '"' || c === "'") quote = c;
-    else if (c === "#" && (i === 0 || /\s/.test(text[i - 1]))) return text.slice(0, i).trimEnd();
-  }
-  return text.trimEnd();
-}
-function scalar(raw, line) {
-  const text = raw.trim();
-  if (/^[&*!|>{]/.test(text)) throw new YamlError(`line ${line}: anchors, aliases, tags, block scalars and {\u2026} mappings are not supported in .a11ygate.yml.`);
-  if (text.startsWith('"')) {
-    try {
-      const value = JSON.parse(text);
-      if (typeof value === "string") return value;
-    } catch {
-    }
-    throw new YamlError(`line ${line}: unterminated or invalid double-quoted string.`);
-  }
-  if (text.startsWith("'")) {
-    if (text.length < 2 || !text.endsWith("'")) throw new YamlError(`line ${line}: unterminated single-quoted string.`);
-    return text.slice(1, -1).replace(/''/g, "'");
-  }
-  if (text.startsWith("[")) {
-    if (!text.endsWith("]")) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
-    const inner = text.slice(1, -1).trim();
-    return inner ? inner.split(",").map((item) => scalar(item, line)) : [];
-  }
-  if (text === "" || text === "~" || text === "null") return null;
-  if (text === "true" || text === "false") return text === "true";
-  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
-  return text;
-}
-function parseBlock(lines, start, indent) {
-  const first = lines[start];
-  if (first.text.startsWith("- ") || first.text === "-") {
-    const list = [];
-    let i2 = start;
-    while (i2 < lines.length && lines[i2].indent === indent && (lines[i2].text.startsWith("- ") || lines[i2].text === "-")) {
-      const item = lines[i2].text.slice(1).trim();
-      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i2].number}: lists of mappings are not supported in .a11ygate.yml.`);
-      list.push(scalar(item, lines[i2].number));
-      i2++;
-    }
-    return [list, i2];
-  }
-  const map = {};
-  let i = start;
-  while (i < lines.length && lines[i].indent === indent) {
-    const { text, number } = lines[i];
-    const match = /^("[^"]*"|'[^']*'|[^\s:'"#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(text);
-    if (!match) throw new YamlError(`line ${number}: expected "key: value".`);
-    const key = match[1].replace(/^(['"])(.*)\1$/, "$2");
-    if (Object.hasOwn(map, key)) throw new YamlError(`line ${number}: duplicate key '${key}'.`);
-    const rest = (match[2] ?? "").trim();
-    i++;
-    if (rest) {
-      map[key] = scalar(rest, number);
-      continue;
-    }
-    if (i < lines.length && lines[i].indent > indent) {
-      const [value, next] = parseBlock(lines, i, lines[i].indent);
-      map[key] = value;
-      i = next;
-    } else if (i < lines.length && lines[i].indent === indent && lines[i].text.startsWith("- ")) {
-      const [value, next] = parseBlock(lines, i, indent);
-      map[key] = value;
-      i = next;
-    } else map[key] = null;
-  }
-  return [map, i];
-}
-function parseConfigYaml(text) {
-  const lines = [];
-  const raw = text.replace(/^﻿/, "").split(/\r?\n/);
-  for (let index = 0; index < raw.length; index++) {
-    const source = raw[index];
-    if (/^\t/.test(source)) return { ok: false, errors: [`line ${index + 1}: use spaces, not tabs, for indentation.`] };
-    const content = stripComment(source);
-    if (!content.trim() || lines.length === 0 && content.trim() === "---") continue;
-    if (content.trim() === "---" || content.trim() === "...") return { ok: false, errors: [`line ${index + 1}: use a single YAML document.`] };
-    lines.push({ indent: content.length - content.trimStart().length, text: content.trim(), number: index + 1 });
-  }
-  if (lines.length === 0) return { ok: true, value: {} };
-  try {
-    const [value, next] = parseBlock(lines, 0, lines[0].indent);
-    if (next < lines.length) throw new YamlError(`line ${lines[next].number}: unexpected indentation.`);
-    return { ok: true, value };
-  } catch (error) {
-    if (error instanceof YamlError) return { ok: false, errors: [error.message] };
-    throw error;
-  }
-}
-function distance(a, b) {
-  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    let previous = row[0];
-    row[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const current = row[j];
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
-      previous = current;
-    }
-  }
-  return row[b.length];
-}
-function suggestKey(key, known) {
-  const fold = (s) => s.toLowerCase().replace(/[-_\s]/g, "");
-  const exact = known.find((candidate) => fold(candidate) === fold(key));
-  if (exact) return exact;
-  let best;
-  let bestScore = Infinity;
-  for (const candidate of known) {
-    const score = distance(fold(key), fold(candidate));
-    if (score < bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  }
-  return best && bestScore <= Math.max(2, Math.floor(fold(key).length / 3)) ? best : void 0;
-}
-var show = (value) => typeof value === "string" ? `'${value}'` : JSON.stringify(value);
-var typeName = (value) => value === null ? "nothing" : Array.isArray(value) ? "a list" : typeof value === "object" ? "a mapping" : typeof value === "number" ? Number.isInteger(value) ? "a whole number" : "a number" : typeof value === "boolean" ? "true/false" : "text";
-var expected = { string: "text", integer: "a whole number", number: "a number", boolean: "true or false", array: "a list, e.g. [a, b]", object: "a mapping of keys" };
-function matchesType(type, value) {
-  if (type === "integer") return typeof value === "number" && Number.isInteger(value);
-  if (type === "array") return Array.isArray(value);
-  if (type === "object") return !!value && typeof value === "object" && !Array.isArray(value);
-  return typeof value === type;
-}
-function check(schema, value, where, errors) {
-  const label = where || "the config";
-  if (schema.type && !matchesType(schema.type, value)) {
-    const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
-    errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
-    return;
-  }
-  if (schema.enum && !schema.enum.includes(value)) {
-    errors.push(`'${label}' has invalid value ${show(value)} \u2014 use one of: ${schema.enum.join(", ")}.`);
-    return;
-  }
-  if (typeof value === "number") {
-    if (schema.minimum !== void 0 && value < schema.minimum) errors.push(`'${label}' must be at least ${schema.minimum}, but got ${value}.`);
-    if (schema.maximum !== void 0 && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
-  }
-  if (typeof value === "string") {
-    if (schema.minLength !== void 0 && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
-    else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ""}`.trimEnd());
-  }
-  if (Array.isArray(value)) {
-    if (schema.minItems !== void 0 && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? "" : "s"}.`);
-    if (schema.uniqueItems) {
-      const duplicate = value.find((item, index) => value.indexOf(item) !== index);
-      if (duplicate !== void 0) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
-    }
-    if (schema.items) value.forEach((item, index) => check(schema.items, item, `${label}[${index}]`, errors));
-  }
-  if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
-    const properties = schema.properties ?? {};
-    const known = Object.keys(properties);
-    for (const [key, child] of Object.entries(value)) {
-      const childWhere = where ? `${where}.${key}` : key;
-      if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
-      else if (schema.additionalProperties === false) {
-        const suggestion = suggestKey(key, known);
-        errors.push(`unknown key '${childWhere}'${suggestion ? ` \u2014 did you mean '${where ? `${where}.` : ""}${suggestion}'?` : ` \u2014 known keys${where ? ` under '${where}'` : ""}: ${known.join(", ")}.`}`);
-      }
-    }
-  }
-}
-function validateConfig(value, schema = CONFIG_SCHEMA) {
-  if (value === null || value === void 0) return [];
-  const errors = [];
-  check(schema, value, "", errors);
-  return errors;
-}
-function configProblems(text) {
-  const parsed = parseConfigYaml(text);
-  return parsed.ok ? validateConfig(parsed.value) : parsed.errors;
-}
-var CONFIG_HELP = `a11ygate config validate [file]
-  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
-  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
-  Editor autocomplete: add this first line to the file:
-  ${SCHEMA_COMMENT}
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-async function runConfig(argv, io = {}) {
-  const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
-  const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
-  if (argv.includes("--help") || argv.includes("-h")) {
-    stdout(CONFIG_HELP);
-    return 0;
-  }
-  if (argv[0] !== "validate" || argv.length > 2 || argv[1]?.startsWith("-")) {
-    stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
-    return 2;
-  }
-  const file = argv[1] ?? CONFIG_FILE;
-  let text;
-  try {
-    text = await readFile6(path6.resolve(io.cwd ?? process.cwd(), file), "utf8");
-  } catch (error) {
-    stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
-`);
-    return 2;
-  }
-  const problems = configProblems(text);
-  if (problems.length) {
-    stderr(`${file} has ${problems.length} problem${problems.length === 1 ? "" : "s"}:
-${problems.map((p) => `  - ${p}`).join("\n")}
-Schema: ${SCHEMA_PATH}
-`);
-    return 2;
-  }
-  stdout(`${file} is valid against ${SCHEMA_PATH}.
-`);
-  return 0;
-}
-
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
 var sections = { config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
 var PEERS = { axe: ["@axe-core/playwright"], htmlcs: ["html_codesniffer"], ibm: ["accessibility-checker-engine"], lighthouse: ["lighthouse", "puppeteer-core"] };
 var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
-function configuredEngines(text) {
-  text = text.replace(/[ \t]+#.*$/gm, "");
-  const flow = /^engines:\s*\[([^\]\n]*)\]/m.exec(text);
-  const block = /^engines:\s*\n((?:[ \t]+-[^\n]*\n?)+)/m.exec(text);
-  const value = flow?.[1] ?? block?.[1].replace(/^[ \t]+-\s*/gm, ",");
-  return value === void 0 ? void 0 : value.split(",").map((x) => x.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
-}
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
@@ -5230,17 +5383,29 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync(path7.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path7.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
   }
-  const engines = options.engines ?? configuredEngines(config2 ?? "") ?? ["axe"];
-  const model = resolveModelFixConfig({ repoConfig: config2, flag: options.modelFixes ?? env.A11Y_MODEL_FIXES, env });
+  const problems = config2 === null ? [] : configProblems(config2);
+  let effective;
+  const flags = [...options.engines ? ["--engines", options.engines.join(",")] : [], ...options.modelFixes ? ["--model-fixes", options.modelFixes] : []];
+  try {
+    effective = loadEffectiveConfig("doctor", flags, { cwd, env, repoConfig: config2 });
+  } catch (error) {
+    if (!problems.length) problems.push(error.message);
+    try {
+      effective = loadEffectiveConfig("doctor", flags, { repoConfig: null, env: {} });
+    } catch {
+      effective = loadEffectiveConfig("doctor", [], { repoConfig: null, env: {} });
+    }
+  }
+  const engines = effective.values.engines;
+  const model = effectiveModelFixConfig(effective, env);
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
-  const problems = config2 === null ? [] : configProblems(config2);
-  add("config", config2 === null ? "skipped" : problems.length ? "fail" : "pass", config2 === null ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  add("config", problems.length ? "fail" : config2 === null ? "skipped" : "pass", config2 === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
   let head = null;
   try {
     head = io.head ? io.head() : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -5249,7 +5414,7 @@ async function doctorChecks(options = {}, io = {}) {
   let event = {};
   try {
     if (env.GITHUB_EVENT_PATH)
-      event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+      event = JSON.parse(readFileSync2(env.GITHUB_EVENT_PATH, "utf8"));
   } catch {
   }
   const prHead = env.A11Y_HEAD_SHA || event.pull_request?.head?.sha;
@@ -5293,9 +5458,9 @@ async function doctorChecks(options = {}, io = {}) {
   let setting;
   let settingDetail = "The repository setting could not be verified without a token and current repository context.";
   if (repo && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) && !repo.split("/").some((part) => part === "." || part === "..") && token && (!env.GITHUB_API_URL || env.GITHUB_API_URL === "https://api.github.com")) {
-    const get = async (suffix) => (io.fetch ?? fetch)(`https://api.github.com/repos/${repo}${suffix}`, { method: "GET", redirect: "error", signal: AbortSignal.timeout(5e3), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" } });
+    const get2 = async (suffix) => (io.fetch ?? fetch)(`https://api.github.com/repos/${repo}${suffix}`, { method: "GET", redirect: "error", signal: AbortSignal.timeout(5e3), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" } });
     try {
-      const response = await get("");
+      const response = await get2("");
       if (response.status === 403 || response.status === 401) {
         permissionFinding.status = "fail";
         permissionFinding.message = "GitHub denied the read-only repository probe. Check the job token and workflow permissions; no write was attempted.";
@@ -5306,7 +5471,7 @@ async function doctorChecks(options = {}, io = {}) {
     }
     if (model.enabled && env.A11Y_MODEL_PUBLISH !== "review-suggestion") {
       try {
-        const response = await get("/actions/permissions/workflow");
+        const response = await get2("/actions/permissions/workflow");
         if (response.ok) {
           const data = await response.json();
           if (typeof data.can_approve_pull_request_reviews === "boolean")
@@ -5381,8 +5546,80 @@ async function runDoctor(argv, io = {}) {
 
 // packages/cli/src/init.ts
 import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 import { createInterface } from "node:readline/promises";
+
+// packages/cli/src/config.ts
+import { readFile as readFile6 } from "node:fs/promises";
+import path8 from "node:path";
+var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
+  Show effective settings and sources; credential values are redacted.
+a11ygate config validate [file]
+  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
+  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
+  Editor autocomplete: add this first line to the file:
+  ${SCHEMA_COMMENT}
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+async function runConfig(argv, io = {}) {
+  const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
+  const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout(CONFIG_HELP);
+    return 0;
+  }
+  if (argv[0] === "print") {
+    const command = ["scan", "ci", "doctor"].includes(argv[1] ?? "") ? argv[1] : "scan";
+    const flags = argv.slice(command === argv[1] ? 2 : 1);
+    try {
+      const config2 = loadEffectiveConfig(command, flags, io);
+      const invalid = () => new Error("Invalid options for config print; use scan/ci/doctor --help for supported arguments.");
+      if (command === "scan") {
+        const parsed = parseScanArgs(config2.values.url ? config2.argv : ["https://config-print.invalid/", ...config2.argv]);
+        if (!parsed.ok) throw invalid();
+        if (config2.values.url) config2.values.url = parsed.options.url;
+        config2.values.maxPages = parsed.options.maxPages;
+        if (parsed.options.sitemap) config2.values.sitemap = parsed.options.sitemap;
+        config2.values.formats = parsed.options.formats;
+      } else if (command === "ci") {
+        const parsed = parseArgs(config2.argv);
+        if (!parsed.ok) throw invalid();
+        config2.values.baseline = parsed.options.baseline;
+        config2.values.formats = parsed.options.formats;
+      } else if (!config2.argv.every((arg, i) => ["--strict", "--engines", "--model-fixes"].includes(arg) || ["--engines", "--model-fixes"].includes(config2.argv[i - 1] ?? ""))) throw invalid();
+      stdout(JSON.stringify({ command, config: printableConfig(config2, io.env), disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n");
+      return 0;
+    } catch (error) {
+      stderr(`${error.message}
+`);
+      return 2;
+    }
+  }
+  if (argv[0] !== "validate" || argv.length > 2 || argv[1]?.startsWith("-")) {
+    stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
+    return 2;
+  }
+  const file = argv[1] ?? CONFIG_FILE;
+  let text;
+  try {
+    text = await readFile6(path8.resolve(io.cwd ?? process.cwd(), file), "utf8");
+  } catch (error) {
+    stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
+`);
+    return 2;
+  }
+  const problems = configProblems(text);
+  if (problems.length) {
+    stderr(`${file} has ${problems.length} problem${problems.length === 1 ? "" : "s"}:
+${problems.map((p) => `  - ${p}`).join("\n")}
+Schema: ${SCHEMA_PATH}
+`);
+    return 2;
+  }
+  stdout(`${file} is valid against ${SCHEMA_PATH}.
+`);
+  return 0;
+}
 
 // packages/cli/src/init-templates.ts
 var JENKINS_TEMPLATE = "// Declarative example for A11yGate. This is the file the docs and CI tests include.\n// Load integrations/jenkins as a shared library (see docs/integrations/jenkins.md once published),\n// or copy vars/a11yGate.groovy into your own library.\n//\n// Agent: Node 20+ and, for `scan`, Playwright Chromium. Docker image alternative: image: 'node:22'.\n// Automated testing only. Not a WCAG audit, certification or legal advice.\n\n@Library('a11ygate') _\n\npipeline {\n  agent any\n  options {\n    timestamps()\n  }\n  parameters {\n    string(name: 'SITE_URL', defaultValue: 'http://127.0.0.1:4173/', description: 'Site you are authorized to test')\n    choice(name: 'FAIL_ON', choices: ['serious', 'critical', 'moderate', 'minor', 'none'], description: 'Minimum impact that makes the build UNSTABLE')\n  }\n  stages {\n    stage('Accessibility scan') {\n      steps {\n        a11yGate(\n          url: params.SITE_URL,\n          crawl: 10,\n          failOn: params.FAIL_ON,\n          formats: ['junit', 'sarif', 'json', 'md'],\n          cli: 'node packages/cli/dist/cli.mjs',\n          outDir: 'a11y-results'\n        )\n      }\n    }\n  }\n  post {\n    always {\n      echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'\n    }\n  }\n}\n";
@@ -5480,14 +5717,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path8.join(parent, part);
+    parent = path9.join(parent, part);
     await mkdir3(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat3(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path8.join(parent, parts.at(-1));
+  const destination = path9.join(parent, parts.at(-1));
   const info = await lstat3(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -5563,7 +5800,7 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat3(path8.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat3(path9.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -5756,7 +5993,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path9.resolve(cwd, file);
+  return path10.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -5785,10 +6022,10 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path9.dirname(fileURLToPath(import.meta.url));
+  const here = path10.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path9.join(here, "..", "package.json"),
-    path9.join(here, "..", "..", "packages", "cli", "package.json")
+    path10.join(here, "..", "package.json"),
+    path10.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
@@ -5864,7 +6101,14 @@ async function run(argv, io = {}) {
   if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === "evidence") return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
-  const gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
+  let gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
+  try {
+    if (!gateArgv.some((arg) => ["--help", "-h", "--version"].includes(arg))) gateArgv = loadEffectiveConfig("ci", gateArgv, io).argv;
+  } catch (error) {
+    stderr(`${error.message}
+`);
+    return 2;
+  }
   const parsed = parseArgs(gateArgv);
   if (!parsed.ok) {
     stderr(`${parsed.error}
@@ -5895,7 +6139,7 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat4(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path9.join(await realpath3(path9.dirname(absolute)).catch(() => path9.dirname(absolute)), path9.basename(absolute));
+        return path10.join(await realpath3(path10.dirname(absolute)).catch(() => path10.dirname(absolute)), path10.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -5903,9 +6147,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path9.join(options.outDir, formatFileName("ci", "json")),
-      path9.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path9.join(options.outDir, formatFileName("ci", format)))
+      path10.join(options.outDir, formatFileName("ci", "json")),
+      path10.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path10.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -6042,7 +6286,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir4(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile5(path9.join(dir, name), content, "utf8");
+        await writeFile5(path10.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

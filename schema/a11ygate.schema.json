@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   "title": "A11yGate repository config (.a11ygate.yml)",
-  "description": "Setup choices for A11yGate. `a11ygate doctor` reads `engines` and the model-fix opt-in reads `modelFixes`; the other keys record the choices that the explicit flags in your CI file apply (shown as x-cli). Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "description": "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -20,7 +20,7 @@
       "x-cli": ["--crawl"]
     },
     "maxPages": {
-      "description": "Explicit crawl page budget overriding crawl; record alongside --max-pages in CI.",
+      "description": "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
       "type": "integer",
       "minimum": 1,
       "maximum": 1000,
@@ -48,25 +48,25 @@
       "x-cli": ["--concurrency"]
     },
     "sitemap": {
-      "description": "Same-origin sitemap URL or path supplied through --sitemap.",
+      "description": "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
       "type": "string",
       "minLength": 1,
       "x-cli": ["--sitemap"]
     },
     "include": {
-      "description": "Include globs supplied through repeatable --include flags.",
+      "description": "Include globs for live scans; CLI lists replace environment or YAML lists.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "x-cli": ["--include"]
     },
     "exclude": {
-      "description": "Exclude globs supplied through repeatable --exclude flags; exclusions win.",
+      "description": "Exclude globs for live scans; exclusions win.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "x-cli": ["--exclude"]
     },
     "ignoreRobots": {
-      "description": "Record the explicit --ignore-robots opt-out for an authorized scan; default false.",
+      "description": "Opt out of robots.txt rules for an authorized live scan; default false.",
       "type": "boolean",
       "x-cli": ["--ignore-robots"]
     },
@@ -85,12 +85,12 @@
       "x-cli": ["--engines"]
     },
     "modelFixes": {
-      "description": "Repository opt-in for experimental model-assisted fixes. Off unless exactly true; a flag cannot override false.",
+      "description": "Repository opt-in for experimental model-assisted Action suggestions and doctor checks. Off unless exactly true; a flag or environment variable cannot override a missing or false repository consent. An explicit off disables it.",
       "type": "boolean",
       "x-cli": ["--model-fixes"]
     },
     "baseline": {
-      "description": "Fingerprint baseline file, usually .a11ygate-baseline.json.",
+      "description": "Baseline file: fingerprint baseline for scan; axe JSON baseline for ci and the Action. Usually .a11ygate-baseline.json for scan.",
       "type": "string",
       "minLength": 1,
       "x-cli": ["--baseline", "-b"]
@@ -103,7 +103,7 @@
       "x-cli": ["--format"]
     },
     "outDir": {
-      "description": "Directory for scan reports.",
+      "description": "Directory for scan or ci reports.",
       "type": "string",
       "minLength": 1,
       "x-cli": ["--out-dir"]
