@@ -1,17 +1,46 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 
 /** Trusted shell command, owned process group, bounded readiness and cleanup. */
 export async function withLocalServer<T>(options: { start?: string; waitOn?: string; timeoutMs?: number }, cwd: string, env: NodeJS.ProcessEnv, work: () => Promise<T>): Promise<T> {
   const child = options.start ? spawn(options.start, { cwd, env, shell: true, detached: process.platform !== 'win32', stdio: 'ignore' }) : undefined;
   let failure: Error | undefined;
   child?.once('error', (error) => { failure = error; });
-  const kill = (signal: NodeJS.Signals) => {
+  const killGroup = (signal: NodeJS.Signals) => {
     if (!child?.pid) return;
-    try { if (process.platform === 'win32') child.kill(signal); else process.kill(-child.pid, signal); }
+    try { process.kill(-child.pid, signal); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
   };
-  const interrupt = () => { kill('SIGKILL'); process.exit(130); };
-  if (child) { process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt); }
+  let cleanupPromise: Promise<void> | undefined;
+  const cleanup = () => cleanupPromise ??= (async () => {
+    if (!child?.pid) return;
+    if (process.platform === 'win32') {
+      // Await taskkill: exiting the CLI first can leave npm/Node grandchildren alive.
+      await new Promise<void>((resolve, reject) => {
+        execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, (error) => {
+          // taskkill returns 128 when the process has already disappeared.
+          if (error && error.code !== 128) reject(error);
+          else resolve();
+        });
+      });
+    } else {
+      killGroup('SIGTERM');
+      // The shell can exit before grandchildren; always escalate the whole group.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      killGroup('SIGKILL');
+    }
+    if (child.exitCode === null && child.signalCode === null) {
+      await new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    }
+  })();
+  const interrupt = (code: number) => {
+    void cleanup().then(() => process.exit(code), () => {
+      process.stderr.write('Failed to stop the local server process tree.\n');
+      process.exit(1);
+    });
+  };
+  const onInterrupt = () => interrupt(130);
+  const onTerminate = () => interrupt(143);
+  if (child) { process.on('SIGINT', onInterrupt); process.on('SIGTERM', onTerminate); }
   try {
     if (options.waitOn) {
       const deadline = Date.now() + (options.timeoutMs ?? 30_000);
@@ -33,12 +62,11 @@ export async function withLocalServer<T>(options: { start?: string; waitOn?: str
     return await work();
   } finally {
     if (child) {
-      kill('SIGTERM');
-      // The shell can exit before grandchildren; always kill the entire group after grace.
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      kill('SIGKILL');
-      if (child.pid && child.exitCode === null && child.signalCode === null) await new Promise<void>((resolve) => child.once('exit', () => resolve()));
-      process.removeListener('SIGINT', interrupt); process.removeListener('SIGTERM', interrupt);
+      try { await cleanup(); }
+      finally {
+        process.removeListener('SIGINT', onInterrupt);
+        process.removeListener('SIGTERM', onTerminate);
+      }
     }
   }
 }

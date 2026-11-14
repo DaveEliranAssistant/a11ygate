@@ -4136,29 +4136,51 @@ async function redactedScreenshot(page, selectors = []) {
 import { createHash as createHash3 } from "node:crypto";
 
 // packages/cli/src/local-server.ts
-import { spawn } from "node:child_process";
+import { execFile as execFile2, spawn } from "node:child_process";
 async function withLocalServer(options, cwd, env, work) {
   const child = options.start ? spawn(options.start, { cwd, env, shell: true, detached: process.platform !== "win32", stdio: "ignore" }) : void 0;
   let failure;
   child?.once("error", (error) => {
     failure = error;
   });
-  const kill = (signal) => {
+  const killGroup = (signal) => {
     if (!child?.pid) return;
     try {
-      if (process.platform === "win32") child.kill(signal);
-      else process.kill(-child.pid, signal);
+      process.kill(-child.pid, signal);
     } catch (error) {
       if (error.code !== "ESRCH") throw error;
     }
   };
-  const interrupt = () => {
-    kill("SIGKILL");
-    process.exit(130);
+  let cleanupPromise;
+  const cleanup = () => cleanupPromise ??= (async () => {
+    if (!child?.pid) return;
+    if (process.platform === "win32") {
+      await new Promise((resolve, reject) => {
+        execFile2("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, (error) => {
+          if (error && error.code !== 128) reject(error);
+          else resolve();
+        });
+      });
+    } else {
+      killGroup("SIGTERM");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      killGroup("SIGKILL");
+    }
+    if (child.exitCode === null && child.signalCode === null) {
+      await new Promise((resolve) => child.once("exit", () => resolve()));
+    }
+  })();
+  const interrupt = (code3) => {
+    void cleanup().then(() => process.exit(code3), () => {
+      process.stderr.write("Failed to stop the local server process tree.\n");
+      process.exit(1);
+    });
   };
+  const onInterrupt = () => interrupt(130);
+  const onTerminate = () => interrupt(143);
   if (child) {
-    process.once("SIGINT", interrupt);
-    process.once("SIGTERM", interrupt);
+    process.on("SIGINT", onInterrupt);
+    process.on("SIGTERM", onTerminate);
   }
   try {
     if (options.waitOn) {
@@ -4182,12 +4204,12 @@ async function withLocalServer(options, cwd, env, work) {
     return await work();
   } finally {
     if (child) {
-      kill("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      kill("SIGKILL");
-      if (child.pid && child.exitCode === null && child.signalCode === null) await new Promise((resolve) => child.once("exit", () => resolve()));
-      process.removeListener("SIGINT", interrupt);
-      process.removeListener("SIGTERM", interrupt);
+      try {
+        await cleanup();
+      } finally {
+        process.removeListener("SIGINT", onInterrupt);
+        process.removeListener("SIGTERM", onTerminate);
+      }
     }
   }
 }
@@ -6795,7 +6817,7 @@ function pdfFooterTemplate(lang = DEFAULT_REPORT_LANG) {
 var PDF_HEADER_TEMPLATE = "<span></span>";
 
 // packages/cli/src/evidence.ts
-import { execFile as execFile2 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { lstat as lstat2, mkdir as mkdir4, readdir as readdir2, readFile as readFile5, writeFile as writeFile5 } from "node:fs/promises";
 import path10 from "node:path";
 
@@ -7272,7 +7294,7 @@ function parseEvidenceArgs(argv2) {
 }
 function git(cwd, args) {
   return new Promise((resolve) => {
-    execFile2("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile3("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       resolve(error ? null : String(stdout ?? "").trim());
     });
   });
@@ -7291,7 +7313,7 @@ async function defaultGitCommitMeta(cwd, sha) {
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
-    execFile2("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile3("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       const sha = String(stdout ?? "").trim();
       resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
     });
@@ -7577,7 +7599,7 @@ import path13 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/review-manage.ts
-import { execFile as execFile3 } from "node:child_process";
+import { execFile as execFile4 } from "node:child_process";
 import { readFile as readFile6 } from "node:fs/promises";
 import path12 from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -7596,7 +7618,7 @@ Every change is written atomically (temp file + rename). Earlier decisions are k
 baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
 function gitUserName(cwd) {
   return new Promise((resolve) => {
-    execFile3("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+    execFile4("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
   });
 }
 async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {
