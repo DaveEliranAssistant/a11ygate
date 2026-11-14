@@ -1,3 +1,4 @@
+import { withLocalServer, storyUrls } from './local-server';
 import { prepareAuth, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
@@ -26,6 +27,9 @@ import type { FingerprintBaseline } from '@/lib/scan/baseline';
 import { readScanInput } from './baseline';
 
 export type ScanOptions = AuthOptions & {
+  start?: string;
+  waitOn?: string;
+  storybook?: string;
   help: boolean;
   url: string;
   maxPages: number;
@@ -55,7 +59,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
+const VALUE_FLAGS = new Set(['--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -101,7 +105,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--include' || name === '--exclude') {
+    if (name === '--start') options.start = value;
+    else if (name === '--wait-on') options.waitOn = value;
+    else if (name === '--storybook') options.storybook = value;
+    else if (name === '--include' || name === '--exclude') {
       if (value.length > 512 || (options[name === '--include' ? 'include' : 'exclude']?.length ?? 0) >= 32) return { ok: false, error: 'Use at most 32 globs, each up to 512 characters.' };
       (options[name === '--include' ? 'include' : 'exclude'] ??= []).push(value);
     } else if (name === '--sitemap') options.sitemap = value;
@@ -161,6 +168,14 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     options.sitemap = sitemap;
     if (options.pageLimit === undefined && !argv.some((arg) => arg === '--crawl' || arg.startsWith('--crawl='))) options.maxPages = MAX_CRAWL_PAGES;
   }
+  if (options.start && !options.waitOn) return { ok: false, error: '--start requires --wait-on.' };
+  for (const value of [options.waitOn, options.storybook]) {
+    if (value) {
+      const local = normalizeUrl(value);
+      if (!local || new URL(local).origin !== new URL(url).origin || !['localhost', '127.0.0.1', '[::1]'].includes(new URL(local).hostname)) return { ok: false, error: '--wait-on and --storybook require same-origin loopback HTTP(S) URLs.' };
+    }
+  }
+  if (options.storybook && (options.sitemap || options.pageLimit !== undefined || options.maxPages !== 1 || options.include || options.exclude)) return { ok: false, error: '--storybook scans every story; do not combine with crawl, sitemap, page limits or filters.' };
   if (options.outDir && (options.json || options.markdown || options.html)) {
     return { ok: false, error: 'Use either --out-dir or --json/--markdown/--html, not both.' };
   }
@@ -179,6 +194,9 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --start <cmd>         Run a trusted local shell command; requires --wait-on. Stops its process group after scanning.
+  --wait-on <url>       Wait for loopback HTTP 2xx (same origin); --timeout-ms sets readiness deadline (default 30000).
+  --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
   --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
   --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
@@ -430,7 +448,12 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
   const output = io.stdout ?? ((s: string) => process.stdout.write(s));
   const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
-  return runScanInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+  const safeIo = { ...io, redactor, stdout: (s: string) => output(redactor.text(s)), stderr: (s: string) => errors(redactor.text(s)) };
+  const parsed = parseScanArgs(argv);
+  if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
+  try {
+    return await withLocalServer(parsed.options, io.cwd ?? process.cwd(), io.env ?? process.env, () => runScanInternal(argv, safeIo));
+  } catch (error) { safeIo.stderr(`Scan failed: ${(error as Error).message}\n`); return 2; }
 }
 
 async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<number> {
@@ -474,8 +497,17 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
 
   let seedUrls: string[] = [];
   try {
+    if (options.storybook) {
+      const response = await fetch(options.storybook, { signal: AbortSignal.timeout(options.timeoutMs ?? 30_000), redirect: 'error' });
+      if (!response.ok) throw new Error(`Storybook index HTTP ${response.status}`);
+      seedUrls = storyUrls(await response.json(), options.storybook);
+      options.url = seedUrls[0]!;
+      options.maxPages = seedUrls.length;
+      options.pageLimit = seedUrls.length;
+      options.maxDepth = 0;
+    }
     if (options.sitemap) seedUrls = await fetchSitemap(options.sitemap, origin, userAgent, fetchImpl, options.timeoutMs);
-  } catch (error) { stderr(`Could not read sitemap: ${(error as Error).message}\n`); return 2; }
+  } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
     engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs });

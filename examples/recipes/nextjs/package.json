@@ -1,0 +1,15 @@
+{
+  "name": "a11ygate-recipe-nextjs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 4311"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {}
+}
