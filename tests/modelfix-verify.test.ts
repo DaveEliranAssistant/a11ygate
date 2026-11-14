@@ -2,7 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { chromium } from 'playwright';
 import type { FixFinding, SourceFile } from '@/lib/fix';
 import {
   gitBlobHash,
@@ -29,6 +31,9 @@ const FIXTURE = path.join(process.cwd(), 'fixtures', 'modelfix-site');
 const FILE = 'index.html';
 const ROUTES = ['index.html'];
 const TIMEOUT = 90_000;
+// CI runs `npm test` before `npx playwright install`. Browser-backed cases
+// also run in e2e/modelfix-verify.spec.ts after Chromium is available.
+const hasChromium = existsSync(chromium.executablePath());
 
 const NOTE_LINE = 10;
 const UPLOAD_LINE = 11;
@@ -120,7 +125,7 @@ afterEach(() => {
   }
 });
 
-describe('fixture baseline', () => {
+describe.skipIf(!hasChromium)('fixture baseline', () => {
   it('has the three seeded findings in the pre-patch scan', { timeout: TIMEOUT }, async () => {
     const scan = await rescanner.scan({ root: repo, routes: ROUTES });
     expect(scan.status[FILE]).toBe(200);
@@ -129,7 +134,7 @@ describe('fixture baseline', () => {
   });
 });
 
-describe('(a) apply in isolation and re-scan', () => {
+describe.skipIf(!hasChromium)('(a) apply in isolation and re-scan', () => {
   it('verifies a correct contrast patch: target cleared, no new findings', { timeout: TIMEOUT }, async () => {
     const result = await verifyCandidate(correctContrast(), options());
     expect(result).toMatchObject({ verified: true, outcome: 'verified', reason: 'verified', newFindings: 0, findingIds: ['fp-contrast'] });
@@ -196,7 +201,7 @@ describe('(b) stale head or source', () => {
   });
 });
 
-describe('(c) combined candidates are re-verified together', () => {
+describe.skipIf(!hasChromium)('(c) combined candidates are re-verified together', () => {
   const placeholderUpload = () => candidate(uploadReq(), stubDraft(uploadReq()), UPLOAD);
   const withAccessKey = (c: 'note' | 'upload') =>
     c === 'note'
