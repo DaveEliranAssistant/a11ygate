@@ -193,7 +193,7 @@ holds names of environment variables, never credentials.
 `a11ygate doctor --engines axe,htmlcs,ibm,lighthouse` checks only the requested
 engine packages. With no flag it reads a top-level `engines: [axe, ibm]` or a
 YAML dash list in `.a11ygate.yml`; the default is `axe`. This config list is
-for doctor; continue passing `--engines` to `scan` itself. Required packages are
+shared by doctor and scan. Flags override environment variables and YAML; see [configuration](../configuration.md). Required packages are
 `@axe-core/playwright` for axe, `html_codesniffer` for HTMLCS,
 `accessibility-checker-engine` for IBM, and both `lighthouse` and `puppeteer-core`
 for Lighthouse. Doctor checks resolution without importing those engines or

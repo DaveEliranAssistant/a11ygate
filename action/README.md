@@ -125,7 +125,7 @@ When `comment` and `suggest-fixes` are both true, the action also posts pull req
 
 This is an early slice of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). It can ask free-tier model providers (Groq, Gemini, Cloudflare Workers AI) for a draft when provider env vars are set. Every draft is treated as untrusted and validated. When the model path is on, the action runs the isolated verifier: each validated draft is applied in a disposable git worktree pinned to the pull request head commit, the pages that were scanned are re-scanned locally on 127.0.0.1 with headless Chromium and axe, and only a draft that clears its finding without new findings can be published. Logs show only the sanitized outcome (for example `unverified-discarded`, `verify-rejected`, `adapters-failed`).
 
-- **Default off.** It stays off unless the `model-fixes` input (or `A11YGATE_MODEL_FIXES`) is `on` **and** the repository opts in with this exact line in `.a11ygate.yml` at the repository root:
+- **Default off.** The repository must opt in with `modelFixes: true` in `.a11ygate.yml` at the repository root. The `model-fixes` input or `A11YGATE_MODEL_FIXES` can explicitly turn it off; neither can enable it without repository consent:
 
   ```yaml
   modelFixes: true
@@ -171,7 +171,7 @@ Providers are tried in this order: **Groq → Gemini → Cloudflare Workers AI �
 
 | Variable | Purpose |
 | --- | --- |
-| `A11YGATE_MODEL_FIXES` / `model-fixes` input | `on` to request model drafts. Default off. Still needs `modelFixes: true` in `.a11ygate.yml`. |
+| `A11YGATE_MODEL_FIXES` / `model-fixes` input | `on` to request model drafts, `off` to disable them. Omitted values use YAML; the default without YAML is off. Always needs `modelFixes: true` in `.a11ygate.yml`. |
 | `A11YGATE_MODEL_PROVIDERS` | Allowlist, for example `groq,gemini,cloudflare`. Order of trial is always the order above. Empty means no provider. |
 | `A11YGATE_MODEL_MAX_REQUESTS` | Request budget per run, 1–100. Default 0: no requests. Retries count against it. When it is used up, no further model call is made. |
 | `A11YGATE_MODEL_TIMEOUT_MS` | Per-request deadline, 1–120000. Default 0: no requests. A timed-out request still counts against the budget. |
@@ -287,3 +287,8 @@ test('cart', async ({ page }) => {
 `@axe-core/playwright` belongs in the project under test. It is not a runtime dependency of the A11yGate web app.
 
 To accept the current tree as the next baseline, run the action with `update-baseline: a11y/baseline.json` and commit the file. The gate still exits 1 when the current run has new violations, including on the run that writes the file.
+
+
+### Shared configuration
+
+Explicit Action inputs override environment variables, then `.a11ygate.yml`, then defaults. Empty `threshold` and `model-fixes` inputs allow YAML to apply. The Action reads saved axe JSON, so its gate uses `failOn`, `baseline`, `formats`, and `outDir`; live crawl/auth settings apply to the separate `scan` command. Doctor also reads `engines` and `modelFixes`, and model suggestions honor repository consent. See [all keys, environment names and command scopes](../docs/configuration.md). `a11ygate config print ci` explains the effective configuration without reading credential files.

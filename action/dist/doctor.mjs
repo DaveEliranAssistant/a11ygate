@@ -1,8 +1,8 @@
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire } from "node:module";
-import path from "node:path";
+import path2 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -158,8 +158,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path2) {
-  const match = /\.([a-z0-9]+)$/i.exec(path2);
+function fileKind(path3) {
+  const match = /\.([a-z0-9]+)$/i.exec(path3);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -470,8 +470,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path2, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path2) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path3, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path3) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -586,15 +586,16 @@ function resolveModelFixConfig(input) {
 }
 var MODEL_FIXES_OFF = resolveModelFixConfig({});
 
-// lib/copy.ts
-var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+// packages/cli/src/effective-config.ts
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 // schema/a11ygate.schema.json
 var a11ygate_schema_default = {
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   title: "A11yGate repository config (.a11ygate.yml)",
-  description: "Setup choices for A11yGate. `a11ygate doctor` reads `engines` and the model-fix opt-in reads `modelFixes`; the other keys record the choices that the explicit flags in your CI file apply (shown as x-cli). Automated testing only. Not a WCAG audit, certification or legal advice.",
+  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   type: "object",
   additionalProperties: false,
   properties: {
@@ -612,7 +613,7 @@ var a11ygate_schema_default = {
       "x-cli": ["--crawl"]
     },
     maxPages: {
-      description: "Explicit crawl page budget overriding crawl; record alongside --max-pages in CI.",
+      description: "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
       type: "integer",
       minimum: 1,
       maximum: 1e3,
@@ -640,25 +641,25 @@ var a11ygate_schema_default = {
       "x-cli": ["--concurrency"]
     },
     sitemap: {
-      description: "Same-origin sitemap URL or path supplied through --sitemap.",
+      description: "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
       type: "string",
       minLength: 1,
       "x-cli": ["--sitemap"]
     },
     include: {
-      description: "Include globs supplied through repeatable --include flags.",
+      description: "Include globs for live scans; CLI lists replace environment or YAML lists.",
       type: "array",
       items: { type: "string", minLength: 1 },
       "x-cli": ["--include"]
     },
     exclude: {
-      description: "Exclude globs supplied through repeatable --exclude flags; exclusions win.",
+      description: "Exclude globs for live scans; exclusions win.",
       type: "array",
       items: { type: "string", minLength: 1 },
       "x-cli": ["--exclude"]
     },
     ignoreRobots: {
-      description: "Record the explicit --ignore-robots opt-out for an authorized scan; default false.",
+      description: "Opt out of robots.txt rules for an authorized live scan; default false.",
       type: "boolean",
       "x-cli": ["--ignore-robots"]
     },
@@ -677,12 +678,12 @@ var a11ygate_schema_default = {
       "x-cli": ["--engines"]
     },
     modelFixes: {
-      description: "Repository opt-in for experimental model-assisted fixes. Off unless exactly true; a flag cannot override false.",
+      description: "Repository opt-in for experimental model-assisted Action suggestions and doctor checks. Off unless exactly true; a flag or environment variable cannot override a missing or false repository consent. An explicit off disables it.",
       type: "boolean",
       "x-cli": ["--model-fixes"]
     },
     baseline: {
-      description: "Fingerprint baseline file, usually .a11ygate-baseline.json.",
+      description: "Baseline file: fingerprint baseline for scan; axe JSON baseline for ci and the Action. Usually .a11ygate-baseline.json for scan.",
       type: "string",
       minLength: 1,
       "x-cli": ["--baseline", "-b"]
@@ -695,7 +696,7 @@ var a11ygate_schema_default = {
       "x-cli": ["--format"]
     },
     outDir: {
-      description: "Directory for scan reports.",
+      description: "Directory for scan or ci reports.",
       type: "string",
       minLength: 1,
       "x-cli": ["--out-dir"]
@@ -754,7 +755,8 @@ var a11ygate_schema_default = {
   }
 };
 
-// packages/cli/src/config.ts
+// packages/cli/src/config-schema.ts
+var CONFIG_FILE = ".a11ygate.yml";
 var SCHEMA_PATH = "schema/a11ygate.schema.json";
 var SCHEMA_URL = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json";
 var SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
@@ -944,13 +946,187 @@ function configProblems(text) {
   const parsed = parseConfigYaml(text);
   return parsed.ok ? validateConfig(parsed.value) : parsed.errors;
 }
-var CONFIG_HELP = `a11ygate config validate [file]
-  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
-  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
-  Editor autocomplete: add this first line to the file:
-  ${SCHEMA_COMMENT}
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
+
+// packages/cli/src/effective-config.ts
+var scan = ["scan"];
+var reports = ["scan", "ci"];
+var CONFIG_WIRING = {
+  url: { flag: "--url", commands: scan, default: "" },
+  crawl: { flag: "--crawl", commands: scan, default: 0 },
+  maxPages: { flag: "--max-pages", commands: scan, default: 1 },
+  maxDepth: { flag: "--max-depth", commands: scan, default: null },
+  timeoutMs: { flag: "--timeout-ms", commands: scan, default: 3e4 },
+  concurrency: { flag: "--concurrency", commands: scan, default: 1 },
+  sitemap: { flag: "--sitemap", commands: scan, default: null },
+  include: { flag: "--include", commands: scan, default: [] },
+  exclude: { flag: "--exclude", commands: scan, default: [] },
+  ignoreRobots: { flag: "--ignore-robots", commands: scan, default: false },
+  failOn: { flag: "--fail-on", commands: reports, aliases: ["--threshold", "-t"], default: "serious", env: ["A11Y_THRESHOLD"] },
+  engines: { flag: "--engines", commands: ["scan", "doctor"], default: ["axe"] },
+  modelFixes: { flag: "--model-fixes", commands: ["doctor"], default: false, env: ["A11Y_MODEL_FIXES"], reason: "Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions." },
+  baseline: { flag: "--baseline", aliases: ["-b"], commands: reports, default: null, env: ["A11Y_BASELINE"] },
+  formats: { flag: "--format", commands: reports, default: [] },
+  outDir: { flag: "--out-dir", commands: reports, default: null },
+  delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
+  reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  "auth.storageState": { flag: "--storage-state", commands: scan, default: null },
+  "auth.loginScript": { flag: "--login-script", commands: scan, default: null },
+  "auth.loginTimeoutMs": { flag: "--login-timeout-ms", commands: scan, default: 3e4 },
+  "auth.cookieEnv": { flag: "--cookie-env", commands: scan, default: [] },
+  "auth.headerEnv": { flag: "--header-env", commands: scan, default: [] }
+};
+function configEnvName(key) {
+  return "A11YGATE_" + key.replace(/([a-z])([A-Z])/g, "$1_$2").replace(/\./g, "_").toUpperCase();
+}
+function schemaAt(key) {
+  return key.split(".").reduce((node, part) => node.properties[part], CONFIG_SCHEMA);
+}
+function get(object, key) {
+  return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
+}
+function decode(text, schema) {
+  if (schema.type === "array") {
+    if (text.trim().startsWith("[")) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+    return text.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  }
+  if (schema.type === "integer") return /^\d+$/.test(text) ? Number(text) : text;
+  if (schema.type === "boolean") {
+    if (/^(true|on|1|yes)$/i.test(text)) return true;
+    if (/^(false|off|0|no)$/i.test(text)) return false;
+  }
+  return text;
+}
+function loadEffectiveConfig(command, argv = [], io = {}) {
+  const env = io.env ?? process.env;
+  let repoConfig = io.repoConfig;
+  if (repoConfig === void 0) {
+    try {
+      repoConfig = readFileSync(path.join(io.cwd ?? process.cwd(), CONFIG_FILE), "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw new Error("Could not read .a11ygate.yml.");
+      repoConfig = null;
+    }
+  }
+  const parsed = parseConfigYaml(repoConfig ?? "");
+  if (!parsed.ok || validateConfig(parsed.value).length) throw new Error("Invalid .a11ygate.yml. Run a11ygate config validate to check its schema.");
+  const yaml = parsed.value;
+  const values = {};
+  const sources = {};
+  for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
+    values[key] = structuredClone(wiring.default);
+    sources[key] = "default";
+    const value = get(yaml, key);
+    if (value !== void 0) {
+      values[key] = value;
+      sources[key] = CONFIG_FILE;
+    }
+    for (const name of [...wiring.env ?? [], configEnvName(key)]) {
+      const text = env[name];
+      if (text === void 0 || text === "") continue;
+      const value2 = decode(text.trim(), schemaAt(key));
+      if (validateConfig(value2, schemaAt(key)).length) throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+      values[key] = value2;
+      sources[key] = `env:${name}`;
+    }
+  }
+  const remaining = [];
+  const supplied = /* @__PURE__ */ new Set();
+  let hasPositionalUrl = false;
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    const [name] = token.split("=");
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
+    if (!entry) {
+      if (command === "scan" && !token.startsWith("-")) {
+        if (supplied.has("url")) throw new Error("Pass one scan URL.");
+        values.url = token;
+        sources.url = "flag:positional";
+        supplied.add("url");
+        hasPositionalUrl = true;
+        remaining.push(token);
+      } else {
+        remaining.push(token);
+        if (token.startsWith("-") && !token.includes("=") && !["--help", "-h", "--version", "--strict"].includes(token) && argv[i + 1] && (!argv[i + 1].startsWith("-") || argv[i + 1] === "-")) remaining.push(argv[++i]);
+      }
+      continue;
+    }
+    const [key, wiring] = entry;
+    if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
+    const schema = schemaAt(key);
+    let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
+    if (key === "crawl" && text === void 0 && !/^\d+$/.test(argv[i + 1] ?? "")) text = "20";
+    else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
+    else if (text === void 0) text = argv[++i];
+    if (text === void 0) throw new Error(`${name} needs a value.`);
+    if (key === "ignoreRobots" && token.includes("=")) throw new Error("--ignore-robots takes no value.");
+    let value = schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
+    if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
+    if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) {
+      if (key === "engines") throw new Error("Invalid --engines. Use a comma-separated list of axe,htmlcs,ibm,lighthouse.");
+      throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
+    }
+    if (schema.type === "array" && key !== "engines" && supplied.has(key)) {
+      const items = [...values[key], ...value];
+      values[key] = key === "formats" ? [...new Set(items)] : items;
+    } else values[key] = value;
+    sources[key] = `flag:${name}`;
+    supplied.add(key);
+    if (key === "url") continue;
+    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : wiring.flag);
+    if (schema.type !== "boolean" || key === "modelFixes") remaining.push(text);
+  }
+  if (values.modelFixes && get(yaml, "modelFixes") !== true) {
+    values.modelFixes = false;
+    sources.modelFixes = "repository-consent:denied";
+  }
+  const prefix = [];
+  for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
+    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
+    const value = values[key];
+    if (key === "url") continue;
+    if (key === "crawl" && value === 0) {
+      prefix.push("--crawl", "1");
+      continue;
+    }
+    const flag = command === "ci" && key === "failOn" ? "--threshold" : wiring.flag;
+    if (schemaAt(key).type === "boolean") {
+      if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
+      else if (value) prefix.push(flag);
+    } else if (Array.isArray(value)) {
+      if (["engines", "formats"].includes(key)) {
+        if (value.length) prefix.push(flag, value.join(","));
+      } else for (const item of value) prefix.push(flag, String(item));
+    } else prefix.push(flag, String(value));
+  }
+  if (command === "scan" && !hasPositionalUrl) {
+    if (values.url) prefix.push(String(values.url));
+  }
+  if (sources.maxPages === "default") {
+    if (sources.crawl !== "default") {
+      values.maxPages = Math.max(1, Math.min(20, Number(values.crawl)));
+      sources.maxPages = `${sources.crawl} (crawl)`;
+    } else if (values.sitemap) {
+      values.maxPages = 20;
+      sources.maxPages = `${sources.sitemap} (sitemap)`;
+    }
+  }
+  if (typeof values.crawl === "number") values.crawl = Math.min(20, values.crawl);
+  return { values, sources, argv: [...prefix, ...remaining], repoConfig };
+}
+function effectiveModelFixConfig(config, env = process.env) {
+  const parsed = parseConfigYaml(config.repoConfig ?? "");
+  const consent = parsed.ok && get(parsed.value, "modelFixes") === true;
+  return resolveModelFixConfig({ repoConfig: consent ? "modelFixes: true" : null, flag: config.values.modelFixes ? "on" : "off", env: { ...env, A11YGATE_MODEL_FIXES: void 0 } });
+}
+
+// lib/copy.ts
+var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
 
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
@@ -958,16 +1134,13 @@ var sections = { config: "doctor-config", checkout: "doctor-checkout", permissio
 var PEERS = { axe: ["@axe-core/playwright"], htmlcs: ["html_codesniffer"], ibm: ["accessibility-checker-engine"], lighthouse: ["lighthouse", "puppeteer-core"] };
 var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 function configuredEngines(text) {
-  text = text.replace(/[ \t]+#.*$/gm, "");
-  const flow = /^engines:\s*\[([^\]\n]*)\]/m.exec(text);
-  const block = /^engines:\s*\n((?:[ \t]+-[^\n]*\n?)+)/m.exec(text);
-  const value = flow?.[1] ?? block?.[1].replace(/^[ \t]+-\s*/gm, ",");
-  return value === void 0 ? void 0 : value.split(",").map((x) => x.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+  const parsed = parseConfigYaml(text);
+  return parsed.ok && parsed.value && typeof parsed.value === "object" ? parsed.value.engines : void 0;
 }
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require2 = createRequire(path.join(cwd, "package.json"));
+  const require2 = createRequire(path2.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require2.resolve(name);
@@ -979,17 +1152,29 @@ async function doctorChecks(options = {}, io = {}) {
   let config = io.repoConfig;
   if (config === void 0) {
     try {
-      config = readFileSync(path.join(cwd, ".a11ygate.yml"), "utf8");
+      config = readFileSync2(path2.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config = null;
     }
   }
-  const engines = options.engines ?? configuredEngines(config ?? "") ?? ["axe"];
-  const model = resolveModelFixConfig({ repoConfig: config, flag: options.modelFixes ?? env.A11Y_MODEL_FIXES, env });
+  const problems = config === null ? [] : configProblems(config);
+  let effective;
+  const flags = [...options.engines ? ["--engines", options.engines.join(",")] : [], ...options.modelFixes ? ["--model-fixes", options.modelFixes] : []];
+  try {
+    effective = loadEffectiveConfig("doctor", flags, { cwd, env, repoConfig: config });
+  } catch (error) {
+    if (!problems.length) problems.push(error.message);
+    try {
+      effective = loadEffectiveConfig("doctor", flags, { repoConfig: null, env: {} });
+    } catch {
+      effective = loadEffectiveConfig("doctor", [], { repoConfig: null, env: {} });
+    }
+  }
+  const engines = effective.values.engines;
+  const model = effectiveModelFixConfig(effective, env);
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
-  const problems = config === null ? [] : configProblems(config);
-  add("config", config === null ? "skipped" : problems.length ? "fail" : "pass", config === null ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  add("config", problems.length ? "fail" : config === null ? "skipped" : "pass", config === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
   let head = null;
   try {
     head = io.head ? io.head() : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -998,7 +1183,7 @@ async function doctorChecks(options = {}, io = {}) {
   let event = {};
   try {
     if (env.GITHUB_EVENT_PATH)
-      event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+      event = JSON.parse(readFileSync2(env.GITHUB_EVENT_PATH, "utf8"));
   } catch {
   }
   const prHead = env.A11Y_HEAD_SHA || event.pull_request?.head?.sha;
@@ -1042,9 +1227,9 @@ async function doctorChecks(options = {}, io = {}) {
   let setting;
   let settingDetail = "The repository setting could not be verified without a token and current repository context.";
   if (repo && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) && !repo.split("/").some((part) => part === "." || part === "..") && token && (!env.GITHUB_API_URL || env.GITHUB_API_URL === "https://api.github.com")) {
-    const get = async (suffix) => (io.fetch ?? fetch)(`https://api.github.com/repos/${repo}${suffix}`, { method: "GET", redirect: "error", signal: AbortSignal.timeout(5e3), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" } });
+    const get2 = async (suffix) => (io.fetch ?? fetch)(`https://api.github.com/repos/${repo}${suffix}`, { method: "GET", redirect: "error", signal: AbortSignal.timeout(5e3), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" } });
     try {
-      const response = await get("");
+      const response = await get2("");
       if (response.status === 403 || response.status === 401) {
         permissionFinding.status = "fail";
         permissionFinding.message = "GitHub denied the read-only repository probe. Check the job token and workflow permissions; no write was attempted.";
@@ -1055,7 +1240,7 @@ async function doctorChecks(options = {}, io = {}) {
     }
     if (model.enabled && env.A11Y_MODEL_PUBLISH !== "review-suggestion") {
       try {
-        const response = await get("/actions/permissions/workflow");
+        const response = await get2("/actions/permissions/workflow");
         if (response.ok) {
           const data = await response.json();
           if (typeof data.can_approve_pull_request_reviews === "boolean")

@@ -7,7 +7,7 @@ import type { DiffResult, Impact, Verdict } from '@/lib/types';
 export type SummaryInput = {
   projectName: string;
   verdict: Verdict;
-  threshold: Impact;
+  threshold: Impact | 'none';
   diff: DiffResult;
   generatedAt: string;
   reason: string;

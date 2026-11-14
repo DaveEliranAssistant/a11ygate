@@ -26,6 +26,8 @@ import { applyFingerprintBaseline, parseFingerprintBaseline } from '@/lib/scan/b
 import type { FingerprintBaseline } from '@/lib/scan/baseline';
 import { readScanInput } from './baseline';
 
+import { loadEffectiveConfig } from './effective-config';
+
 export type ScanOptions = AuthOptions & {
   start?: string;
   waitOn?: string;
@@ -449,6 +451,9 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   const output = io.stdout ?? ((s: string) => process.stdout.write(s));
   const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
   const safeIo = { ...io, redactor, stdout: (s: string) => output(redactor.text(s)), stderr: (s: string) => errors(redactor.text(s)) };
+  try {
+    if (!argv.includes('--help') && !argv.includes('-h')) argv = loadEffectiveConfig('scan', argv, io).argv;
+  } catch (error) { safeIo.stderr(`${(error as Error).message}\n`); return 2; }
   const parsed = parseScanArgs(argv);
   if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
   try {

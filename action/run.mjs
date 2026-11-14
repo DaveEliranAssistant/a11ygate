@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCommentBody, findA11yComment } from './comment.mjs';
-import { adaptersForEnv, REPO_CONFIG_FILE, resolveModelFixConfig } from './dist/modelfix.mjs';
+import { adaptersForEnv, REPO_CONFIG_FILE } from './dist/modelfix.mjs';
+import { loadEffectiveConfig, effectiveModelFixConfig } from './dist/config.mjs';
 import { doctorChecks, formatDoctor } from './dist/doctor.mjs';
 import { postSuggestions, readWorkspaceFile } from './suggestions.mjs';
 
@@ -119,6 +120,13 @@ function modelPublishOptions(repo) {
   return { mode, baseBranch };
 }
 
+/** Resolve an explicit Action input as a flag; omitted inputs use env/YAML/defaults. */
+function actionModelConfig(workspace, repoConfig) {
+  const input = (process.env.A11Y_MODEL_FIXES || '').trim();
+  const config = loadEffectiveConfig('doctor', input ? ['--model-fixes', input] : [], { cwd: workspace, repoConfig });
+  return effectiveModelFixConfig(config, process.env);
+}
+
 /** Rule-based suggested changes. Failures only warn; they never change the exit code. */
 async function suggestFixes(jsonPath) {
   const pr = (process.env.A11Y_PR_NUMBER || '').trim();
@@ -148,7 +156,7 @@ async function suggestFixes(jsonPath) {
   } catch {
     repoConfig = null;
   }
-  const modelFixes = resolveModelFixConfig({ repoConfig, flag: process.env.A11Y_MODEL_FIXES, env: process.env });
+  const modelFixes = actionModelConfig(workspace, repoConfig);
   for (const message of modelFixes.warnings) warning(`A11yGate: ${message}`);
   // The isolated verifier (git worktree + local 127.0.0.1 re-scan) is only loaded when the model path is
   // enabled. With model fixes off or denied, nothing below runs and F1 behaviour is unchanged.
@@ -231,12 +239,13 @@ function runCli(markdownPath, jsonPath) {
   const args = [cli];
   for (const file of current) args.push('--current', file);
   for (const file of splitPaths(process.env.A11Y_BASELINE)) args.push('--baseline', file);
-  args.push('--threshold', (process.env.A11Y_THRESHOLD || 'serious').trim() || 'serious');
+  // Explicit Action inputs are flags; empty inputs fall through to env/YAML/defaults.
+  if ((process.env.A11Y_THRESHOLD || '').trim()) args.push('--threshold', process.env.A11Y_THRESHOLD.trim());
   args.push('--markdown', markdownPath, '--json', jsonPath);
   const update = (process.env.A11Y_UPDATE_BASELINE || '').trim();
   if (update) args.push('--update-baseline', update);
 
-  const child = spawnSync(process.execPath, args, { encoding: 'utf8' });
+  const child = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: process.env.GITHUB_WORKSPACE || process.cwd() });
   if (child.stdout) process.stdout.write(child.stdout);
   if (child.stderr) process.stderr.write(child.stderr);
   if (child.error) {
@@ -277,8 +286,8 @@ try {
   const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
   let repoConfig = null;
   try { repoConfig = readWorkspaceFile(workspace, REPO_CONFIG_FILE); } catch { /* no consent */ }
-  const model = resolveModelFixConfig({ repoConfig, flag: process.env.A11Y_MODEL_FIXES, env: process.env });
-  const findings = await doctorChecks({ browser: model.enabled }, { cwd: workspace, repoConfig });
+  const model = actionModelConfig(workspace, repoConfig);
+  const findings = await doctorChecks({ browser: model.enabled, modelFixes: (process.env.A11Y_MODEL_FIXES || '').trim() || undefined }, { cwd: workspace, repoConfig });
   process.stdout.write(formatDoctor(findings));
   for (const finding of findings) {
     if (finding.status === 'fail' || finding.status === 'unknown') warning(`A11yGate doctor: ${finding.message} ${finding.link}`);
