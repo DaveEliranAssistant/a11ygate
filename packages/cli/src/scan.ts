@@ -1,3 +1,4 @@
+import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/scan/keyboard';
 import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
 import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
@@ -32,6 +33,8 @@ import { readScanInput } from './baseline';
 import { loadEffectiveConfig } from './effective-config';
 
 export type ScanOptions = AuthOptions & {
+  keyboard?: boolean;
+  keyboardBudget?: number;
   interactions?: string | InteractionState[];
   autoInteractions?: boolean;
   interactionBudget?: number;
@@ -68,7 +71,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
+const VALUE_FLAGS = new Set(['--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -87,6 +90,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? undefined : token.slice(eq + 1);
 
+    if (name === '--keyboard') {
+      if (inline !== undefined) return { ok: false, error: '--keyboard takes no value.' };
+      options.keyboard = true; continue;
+    }
     if (name === '--auto-interactions') {
       if (inline !== undefined) return { ok: false, error: '--auto-interactions takes no value.' };
       options.autoInteractions = true; continue;
@@ -118,7 +125,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--interactions') {
+    if (name === '--keyboard-budget') {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1000) return { ok: false, error: '--keyboard-budget must be from 1 to 1000.' };
+      options.keyboardBudget = Number(value);
+    } else if (name === '--interactions') {
       try { options.interactions = value.trim().startsWith('[') ? parseInteractionStates(JSON.parse(value)) : value; }
       catch { return { ok: false, error: 'Invalid interaction states.' }; }
     } else if (name === '--interaction-budget') {
@@ -217,6 +227,8 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
+  --keyboard-budget <n> Maximum Tab presses per page (1–1000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
   --auto-interactions Open collapsed/popup controls one at a time (default off).
   --interaction-budget <n> Maximum attempted steps per route (1–100, default 10).
@@ -281,6 +293,7 @@ Exit codes:
 export type ScanEngine = {
   /** Native adapter outputs, archived independently of public report serialization. */
   rawEngineResults?: { engine: string; url: string; status: string; native?: unknown; error?: string }[];
+  keyboardResults?: KeyboardResult[];
   interactionPages?: PageRecord[];
   axeVersion?: string;
   engineResults?: EnginePageResult[];
@@ -290,7 +303,7 @@ export type ScanEngine = {
   contexts?: () => { created: number; recycled: number };
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -319,7 +332,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -383,7 +396,9 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     throw new ScanSetupError(auth?.script ? (error as Error).message : 'Could not initialize authentication storage state.');
   }
   const interactionPages: PageRecord[] = [];
+  const keyboardResults: KeyboardResult[] = [];
   return {
+    ...(keyboard ? { keyboardResults } : {}),
     ...(interactions ? { interactionPages } : {}),
     rawEngineResults,
     ...(extended ? { engineResults } : {}),
@@ -397,9 +412,9 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
       signal?.addEventListener('abort', abort, { once: true });
       if (signal?.aborted) abort();
       // Native browser dialogs are always dismissed; DOM dialogs may be opened explicitly.
-      if (interactions) await installInteractionGuards(page);
+      if (interactions || keyboard) await installInteractionGuards(page);
       let interacting = false;
-      if (interactions) await page.route('**/*', route => {
+      if (interactions || keyboard) await page.route('**/*', route => {
         if (interacting && !['GET', 'HEAD', 'OPTIONS'].includes(route.request().method())) return route.abort('blockedbyclient');
         return route.continue();
       });
@@ -474,6 +489,11 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
           return result;
         };
         const result = await scanPage(url);
+        if (keyboard) {
+          interacting = true;
+          try { keyboardResults.push(await scanKeyboard(page, url, keyboard)); }
+          finally { interacting = false; }
+        }
         if (interactions) interactionPages.push(...await scanInteractionStates(page, url, interactions, scanPage, value => { interacting = value; }, timeoutMs));
         return { status, finalUrl, contentType, links, result, ...(extended ? { analysed: true } : {}) };
       } catch (error) {
@@ -574,7 +594,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
@@ -633,6 +653,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     },
     engineResults: engine.engineResults,
     interactions: !!interactions,
+    keyboardResults: engine.keyboardResults ? result.pages.flatMap(page => engine.keyboardResults!.filter(result => result.url === page.url)) : undefined,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);

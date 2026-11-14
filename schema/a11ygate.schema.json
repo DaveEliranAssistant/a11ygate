@@ -166,6 +166,8 @@
         }
       }
     },
+    "keyboard": { "type": "boolean", "description": "Opt-in keyboard focus heuristics; needs human review.", "x-cli": ["--keyboard"] },
+    "keyboardBudget": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Maximum Tab presses per page (default 100).", "x-cli": ["--keyboard-budget"] },
     "interactions": {
       "description": "Opt-in route states. --interactions reads this list from a local JSON file.",
       "type": "array",

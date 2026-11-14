@@ -416,6 +416,97 @@ function attribution(finding2) {
   return finding2.engines ? `detected by: ${finding2.engines.join(", ")}; confirmed by ${finding2.confidence.confirmedBy} of ${finding2.confidence.enginesRan} engines` : "";
 }
 
+// lib/scan/keyboard.ts
+var KEYBOARD_DISCLAIMER = "Keyboard checks are heuristics and need human review. Absence of findings does not confirm keyboard accessibility. Outline/box-shadow changes do not establish indicator visibility, contrast or conformance.";
+async function scanKeyboard(page, url, options) {
+  if (!Number.isInteger(options.budget) || options.budget < 1 || options.budget > 1e3) throw new Error("Keyboard budget must be from 1 to 1000.");
+  const candidates = await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
+    const elements = [...document.querySelectorAll('a[href],area[href],button,input:not([type="hidden"]),select,textarea,summary,[tabindex],[contenteditable="true"],[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"],[role="textbox"]')];
+    return elements.filter((el) => {
+      const style = getComputedStyle(el);
+      return !el.matches(":disabled") && !el.closest("[inert]") && el.getClientRects().length > 0 && style.visibility === "visible" && style.display !== "none";
+    }).map((el) => {
+      const parts = [];
+      for (let node = el; node; node = node.parentElement) {
+        const parent = node.parentElement;
+        parts.unshift(`${node.tagName.toLowerCase()}:nth-child(${parent ? [...parent.children].indexOf(node) + 1 : 1})`);
+      }
+      const style = getComputedStyle(el);
+      return { selector: parts.join(" > "), outline: `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`, shadow: style.boxShadow, html: el.outerHTML.slice(0, 1e3) };
+    });
+  });
+  const findings = [];
+  const keys = /* @__PURE__ */ new Set();
+  const add = (rule, sc, index, message) => {
+    const candidate = candidates[index];
+    if (!candidate || keys.has(rule + index)) return;
+    keys.add(rule + index);
+    const criterion = getCriterion(sc);
+    findings.push({
+      pageUrl: url,
+      ruleId: `keyboard-${rule}`,
+      impact: "moderate",
+      selector: candidate.selector,
+      selectors: [candidate.selector],
+      html: candidate.html,
+      help: `Needs human review: ${message}`,
+      helpUrl: understandingUrl(criterion),
+      tags: [sc],
+      wcag: [criterion],
+      bestPractice: false,
+      fingerprint: JSON.stringify([url, `keyboard-${rule}`, candidate.selector]),
+      reviewStatus: "needs human review"
+    });
+  };
+  const observations = [];
+  const reached = /* @__PURE__ */ new Set();
+  let previous = null;
+  let previousSelector = null;
+  let stuck = 0;
+  let stopReason = "budget";
+  for (let step = 1; step <= options.budget; step++) {
+    await page.keyboard.press("Tab");
+    const observed = await page.evaluate((items) => {
+      const el = document.activeElement;
+      if (!el || el === document.body || el === document.documentElement) return { selector: null, domIndex: null, indicatorChanged: null };
+      const index2 = items.findIndex((item) => document.querySelector(item.selector) === el);
+      const style = getComputedStyle(el);
+      const base = items[index2];
+      const outline = `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`;
+      const visibleOutline = style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)";
+      return {
+        selector: base?.selector ?? el.tagName.toLowerCase(),
+        domIndex: index2 < 0 ? null : index2,
+        indicatorChanged: base ? visibleOutline && outline !== base.outline || style.boxShadow !== "none" && style.boxShadow !== base.shadow : null
+      };
+    }, candidates);
+    observations.push({ step, ...observed });
+    const index = observed.domIndex;
+    if (observed.selector === null && reached.size > 0) {
+      stopReason = "cycle";
+      break;
+    }
+    if (index !== null) {
+      if (previous !== null && index < previous - 3 && !reached.has(index)) add("order-jump", "wcag243", index, "Focus jumped backward by more than three interactive DOM positions. Review whether the order preserves meaning.");
+      if (!reached.has(index) && observed.indicatorChanged === false) add("focus-indicator", "wcag247", index, "No computed outline or box-shadow change was observed on keyboard focus. Review the visible focus indicator.");
+      reached.add(index);
+    }
+    stuck = observed.selector !== null && observed.selector === previousSelector ? stuck + 1 : 0;
+    if (stuck >= 3 && index !== null) {
+      add("trap", "wcag212", index, "Focus stayed on the same element for three consecutive Tab presses. Review keyboard escape behavior.");
+      stopReason = "trap";
+      break;
+    }
+    previous = index;
+    previousSelector = observed.selector;
+  }
+  if (stopReason === "cycle") candidates.forEach((_, index) => {
+    if (!reached.has(index)) add("unreachable", "wcag211", index, "This visible interactive candidate was not reached during a forward Tab traversal. Review keyboard operation and composite-widget arrow keys.");
+  });
+  return { url, steps: observations.length, stopReason, observations, findings };
+}
+
 // lib/guidance.ts
 var rules = {
   "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
@@ -997,6 +1088,20 @@ function buildScanReport(input) {
     for (const key of Object.keys(totals)) totals[key] = 0;
     for (const finding2 of findings) totals[finding2.impact ?? "unknown"]++;
   }
+  if (input.keyboardResults) {
+    for (const result of input.keyboardResults) {
+      findings.push(...result.findings);
+      const page = pages.find((p) => p.url === result.url);
+      for (const finding2 of result.findings) {
+        totals[finding2.impact ?? "unknown"]++;
+        if (page) {
+          page.findings++;
+          page.byImpact[finding2.impact ?? "unknown"]++;
+        }
+      }
+      if (page) page.violations += new Set(result.findings.map((f) => f.ruleId)).size;
+    }
+  }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
   const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith("Not authenticated:"));
@@ -1005,6 +1110,7 @@ function buildScanReport(input) {
   const verdict = engineErrors || authenticationFailed || startFailed || stateFailed ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
   const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
   return {
+    ...input.keyboardResults ? { keyboard: input.keyboardResults, disclaimer: AUTOMATED_TESTING_DISCLAIMER + " " + KEYBOARD_DISCLAIMER } : {},
     tool: "a11ygate",
     kind: "site-scan",
     schemaVersion: 1,
@@ -1016,7 +1122,7 @@ function buildScanReport(input) {
     verdict,
     failOn: input.failOn,
     reason: stateFailed ? "One or more interaction states were skipped; coverage is incomplete." : authenticationFailed ? "Not authenticated: protected content was not scanned." : startFailed ? "Start page could not be scanned; coverage is incomplete." : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
-    ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {},
+    ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER + (input.keyboardResults ? " " + KEYBOARD_DISCLAIMER : "") } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
@@ -1031,6 +1137,7 @@ function buildScanReport(input) {
     sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
     sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.keyboardResults) return KEYBOARD_DISCLAIMER + " Opt-in Tab probes were bounded per page; unvisited states remain unassessed.";
       if (index === 2 && input.interactions) return "Opt-in interaction states were scanned with a per-route step budget. Forms, links and document navigation during steps were blocked. Unvisited states remain unassessed; use test accounts only.";
       if (index === 2 && input.authenticated) return "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.";
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== void 0))) {
@@ -3717,6 +3824,8 @@ var a11ygate_schema_default = {
         }
       }
     },
+    keyboard: { type: "boolean", description: "Opt-in keyboard focus heuristics; needs human review.", "x-cli": ["--keyboard"] },
+    keyboardBudget: { type: "integer", minimum: 1, maximum: 1e3, description: "Maximum Tab presses per page (default 100).", "x-cli": ["--keyboard-budget"] },
     interactions: {
       description: "Opt-in route states. --interactions reads this list from a local JSON file.",
       type: "array",
@@ -4043,6 +4152,8 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  keyboard: { flag: "--keyboard", commands: scan, default: false },
+  keyboardBudget: { flag: "--keyboard-budget", commands: scan, default: 100 },
   interactions: { flag: "--interactions", commands: scan, default: [] },
   autoInteractions: { flag: "--auto-interactions", commands: scan, default: false },
   interactionBudget: { flag: "--interaction-budget", commands: scan, default: 10 },
@@ -4161,7 +4272,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (["ignoreRobots", "autoInteractions"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
       try {
         return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path4.resolve(io.cwd ?? process.cwd(), text), "utf8")));
@@ -4248,7 +4359,7 @@ function effectiveModelFixConfig(config2, env = process.env) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -4265,6 +4376,11 @@ function parseScanArgs(argv) {
     const eq = token.indexOf("=");
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? void 0 : token.slice(eq + 1);
+    if (name === "--keyboard") {
+      if (inline !== void 0) return { ok: false, error: "--keyboard takes no value." };
+      options.keyboard = true;
+      continue;
+    }
     if (name === "--auto-interactions") {
       if (inline !== void 0) return { ok: false, error: "--auto-interactions takes no value." };
       options.autoInteractions = true;
@@ -4297,7 +4413,10 @@ function parseScanArgs(argv) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--interactions") {
+    if (name === "--keyboard-budget") {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1e3) return { ok: false, error: "--keyboard-budget must be from 1 to 1000." };
+      options.keyboardBudget = Number(value);
+    } else if (name === "--interactions") {
       try {
         options.interactions = value.trim().startsWith("[") ? parseInteractionStates(JSON.parse(value)) : value;
       } catch {
@@ -4398,6 +4517,8 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
+  --keyboard-budget <n> Maximum Tab presses per page (1\u20131000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
   --auto-interactions Open collapsed/popup controls one at a time (default off).
   --interaction-budget <n> Maximum attempted steps per route (1\u2013100, default 10).
@@ -4465,7 +4586,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -4535,7 +4656,9 @@ Install it with: npx playwright install chromium
     throw new ScanSetupError(auth?.script ? error.message : "Could not initialize authentication storage state.");
   }
   const interactionPages = [];
+  const keyboardResults = [];
   return {
+    ...keyboard ? { keyboardResults } : {},
     ...interactions ? { interactionPages } : {},
     rawEngineResults,
     ...extended ? { engineResults } : {},
@@ -4555,9 +4678,9 @@ Install it with: npx playwright install chromium
       };
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) abort();
-      if (interactions) await installInteractionGuards(page);
+      if (interactions || keyboard) await installInteractionGuards(page);
       let interacting = false;
-      if (interactions) await page.route("**/*", (route) => {
+      if (interactions || keyboard) await page.route("**/*", (route) => {
         if (interacting && !["GET", "HEAD", "OPTIONS"].includes(route.request().method())) return route.abort("blockedbyclient");
         return route.continue();
       });
@@ -4626,6 +4749,14 @@ Install it with: npx playwright install chromium
           return result2;
         };
         const result = await scanPage(url);
+        if (keyboard) {
+          interacting = true;
+          try {
+            keyboardResults.push(await scanKeyboard(page, url, keyboard));
+          } finally {
+            interacting = false;
+          }
+        }
         if (interactions) interactionPages.push(...await scanInteractionStates(page, url, interactions, scanPage, (value) => {
           interacting = value;
         }, timeoutMs));
@@ -4746,7 +4877,7 @@ Run a11ygate scan --help for usage.
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {} });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -4804,6 +4935,7 @@ Run a11ygate scan --help for usage.
     },
     engineResults: engine.engineResults,
     interactions: !!interactions,
+    keyboardResults: engine.keyboardResults ? result.pages.flatMap((page) => engine.keyboardResults.filter((result2) => result2.url === page.url)) : void 0,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
