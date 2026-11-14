@@ -15,6 +15,10 @@ const eslintConfig = [
       'blob-report/**',
       'packages/cli/dist/**',
       'action/dist/**',
+      'examples/recipes/*/.next/**',
+      'examples/recipes/*/dist/**',
+      'examples/recipes/*/storybook-static/**',
+      'examples/recipes/*/.angular/**',
     ],
   },
 ];

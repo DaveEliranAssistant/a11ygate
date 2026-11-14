@@ -14,3 +14,11 @@ playwright/.cache
 # Jenkins library Gradle output
 integrations/jenkins/.gradle
 integrations/jenkins/build
+
+# Isolated framework recipe build and evidence output
+examples/recipes/*/dist/
+examples/recipes/*/storybook-static/
+examples/recipes/*/.angular/
+examples/recipes/*/scan.json
+examples/recipes/*/.a11ygate.yml
+examples/recipes/*/.github/

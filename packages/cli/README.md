@@ -51,6 +51,8 @@ Accepted JSON shapes: one axe result object, an array of result objects, or `{ "
 
 ## Live-site scan (`a11ygate scan`)
 
+For tested localhost apps, see the [Next.js, Vite + React, Angular and Storybook recipes](../../docs/recipes/README.md). The source CLI supports `scan <loopback-url> --start "npm start" --wait-on <loopback-url>`: start a trusted command, wait for HTTP 2xx, then stop its process group after scanning (POSIX). `--timeout-ms` bounds readiness and each page. Use `--storybook <loopback-index.json-url>` to scan every story iframe; it cannot be combined with crawl budgets, sitemaps or filters.
+
 Unreleased source build: published `0.1.0` does not include `scan`. It loads real pages in headless Chromium and runs axe-core with the WCAG 2.0/2.1/2.2 A and AA tags plus `best-practice`.
 
 ```bash
