@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -6,7 +7,7 @@ import { AUTOMATED_LIMITS, buildEvidencePack, COMMIT_UNAVAILABLE_NOTE, EVIDENCE_
 import { createZip, readZip } from '@/lib/evidence/zip';
 import type { VisitOutcome } from '@/lib/scan/crawl';
 import type { AxeResults } from '@/lib/types';
-import { parseEvidenceArgs, runEvidence } from '@/packages/cli/src/evidence';
+import { defaultGitCommitMeta, parseEvidenceArgs, runEvidence } from '@/packages/cli/src/evidence';
 import { run } from '@/packages/cli/src/run';
 import { runScan, type ScanEngineFactory } from '@/packages/cli/src/scan';
 
@@ -217,6 +218,39 @@ describe('a11ygate evidence pack', () => {
     await scanFixture();
     expect(await runEvidence(['pack', '--from', 'out'], { ...quiet, cwd: dir, version: '0.1.0', gitHead: async () => SHA, env: {} })).toBe(0);
     expect(manifestOf(await entries()).commit).toEqual({ sha: SHA, source: 'git' });
+  });
+
+  it('(R48) records commit time and branch, still hash-checked, when git provides them', async () => {
+    await scanFixture();
+    const committedAt = '2026-11-10T16:08:28+02:00';
+    expect(await runEvidence(['pack', '--from', 'out'], { ...quiet, cwd: dir, version: '0.1.0', gitHead: async () => SHA, gitCommitMeta: async () => ({ committedAt, branch: 'feature/a11y' }), env: {} })).toBe(0);
+    const map = await entries();
+    const manifest = manifestOf(map);
+    expect(manifest.commit).toEqual({ sha: SHA, source: 'git', committedAt, branch: 'feature/a11y' });
+    for (const file of manifest.files) expect(file.sha256).toBe(sha256(map.get(file.path)!));
+  });
+
+  it('(R48) drops a malformed commit time instead of recording it', async () => {
+    await scanFixture();
+    expect(await runEvidence(['pack', '--from', 'out', '--commit', SHA], { ...quiet, cwd: dir, version: '0.1.0', gitHead: async () => null, gitCommitMeta: async () => ({ committedAt: 'yesterday' }), env: {} })).toBe(0);
+    expect(manifestOf(await entries()).commit).toEqual({ sha: SHA, source: 'flag' });
+  });
+
+  it('(R48) reads committedAt (git log %cI) and branch from a real git work tree', async () => {
+    const repo = path.join(dir, 'repo');
+    await mkdir(repo);
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_COMMITTER_DATE: '2026-11-10T16:08:28+02:00', GIT_AUTHOR_DATE: '2026-11-10T16:08:28+02:00' },
+    }).trim();
+    git('init', '-q', '-b', 'trend-main');
+    await writeFile(path.join(repo, 'a.txt'), 'a');
+    git('add', 'a.txt');
+    git('commit', '-q', '-m', 'one');
+    const head = git('rev-parse', 'HEAD');
+    expect(await defaultGitCommitMeta(repo, head)).toEqual({ committedAt: '2026-11-10T16:08:28+02:00', branch: 'trend-main' });
+    git('checkout', '-q', '--detach');
+    expect(await defaultGitCommitMeta(repo, head)).toEqual({ committedAt: '2026-11-10T16:08:28+02:00' });
+    expect(await defaultGitCommitMeta(path.join(dir, 'out-of-repo-missing'), head)).toEqual({});
   });
 
   it('validates arguments and missing scan output', async () => {

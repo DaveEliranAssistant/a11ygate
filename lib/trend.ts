@@ -16,9 +16,13 @@ export type TrendRunInput = { source: string; manifest: EvidenceManifest; report
 export type TrendRun = {
   /** File or directory name of the evidence pack, relative to the trend input directory. */
   source: string;
-  /** Ordering key: manifest.timestamps.scannedAt, falling back to packedAt (UTC). */
+  /** Scan time: manifest.timestamps.scannedAt, falling back to packedAt (UTC). */
   timestamp: string;
   commit: string | null;
+  /** manifest.commit.committedAt (git %cI), or null when the pack does not record it. */
+  committedAt: string | null;
+  /** manifest.commit.branch, or null when the pack does not record it. */
+  branch: string | null;
   startUrl: string;
   verdict: ScanReport['verdict'];
   pagesScanned: number;
@@ -38,12 +42,23 @@ export type TrendRun = {
 export type TrendRule = { ruleId: string; total: number; perRun: number[] };
 export type TrendPage = { pageUrl: string; regressions: number; runsWithRegressions: number };
 
+/** `auto` (default): commit time when every pack records it, otherwise scan time. */
+export type TrendOrderRequest = 'auto' | 'scan' | 'commit';
+export type TrendOrder = 'scan' | 'commit';
+
+export const TREND_ORDERED_BY: Record<TrendOrder, string> = {
+  scan: 'manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source',
+  commit: 'manifest.commit.committedAt, then manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source',
+};
+
 export type TrendReport = {
   tool: 'a11ygate';
   kind: 'trend-report';
   schemaVersion: 1;
   disclaimer: string;
-  orderedBy: 'manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source';
+  orderedBy: string;
+  /** What was asked for (--order, default auto) and what was used. */
+  ordering: { requested: TrendOrderRequest; used: TrendOrder; note?: string };
   runs: TrendRun[];
   topRules: TrendRule[];
   regressionPages: TrendPage[];
@@ -56,11 +71,28 @@ function runTimestamp(manifest: EvidenceManifest): string {
   return manifest.timestamps.scannedAt ?? manifest.timestamps.packedAt;
 }
 
-/** Stable ordering by manifest timestamp; ties broken by commit SHA then source name. */
-export function orderTrendInputs(inputs: readonly TrendRunInput[]): TrendRunInput[] {
+/** manifest.commit.committedAt when present and parseable; old packs (before R48) have none. */
+export function commitTime(manifest: EvidenceManifest): string | null {
+  const value = manifest.commit.sha ? manifest.commit.committedAt : undefined;
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+
+/** Commit order is used only when every pack records its commit time. */
+export function resolveTrendOrder(inputs: readonly TrendRunInput[], requested: TrendOrderRequest = 'auto'): { used: TrendOrder; missing: number } {
+  const missing = inputs.filter((input) => commitTime(input.manifest) === null).length;
+  return { used: requested !== 'scan' && missing === 0 ? 'commit' : 'scan', missing };
+}
+
+/**
+ * Stable ordering by scan time (or, with order 'commit', by commit time first);
+ * ties broken by scan time, pack time, commit SHA, then source name.
+ */
+export function orderTrendInputs(inputs: readonly TrendRunInput[], order: TrendOrder = 'scan'): TrendRunInput[] {
   const key = (input: TrendRunInput) => Date.parse(runTimestamp(input.manifest));
+  const commitKey = (input: TrendRunInput) => (order === 'commit' ? Date.parse(commitTime(input.manifest) ?? '') || 0 : 0);
   return [...inputs].sort((a, b) =>
-    key(a) - key(b)
+    commitKey(a) - commitKey(b)
+    || key(a) - key(b)
     || Date.parse(a.manifest.timestamps.packedAt) - Date.parse(b.manifest.timestamps.packedAt)
     || (a.manifest.commit.sha ?? '').localeCompare(b.manifest.commit.sha ?? '')
     || a.source.localeCompare(b.source));
@@ -70,8 +102,9 @@ function pageKey(url: string): string {
   return normalizeUrl(url) ?? url;
 }
 
-export function buildTrend(inputs: readonly TrendRunInput[]): TrendReport {
-  const ordered = orderTrendInputs(inputs);
+export function buildTrend(inputs: readonly TrendRunInput[], requested: TrendOrderRequest = 'auto'): TrendReport {
+  const { used, missing } = resolveTrendOrder(inputs, requested);
+  const ordered = orderTrendInputs(inputs, used);
   const runs: TrendRun[] = [];
   const ruleCounts = new Map<string, number[]>();
   const pages = new Map<string, { regressions: number; runs: number }>();
@@ -109,6 +142,8 @@ export function buildTrend(inputs: readonly TrendRunInput[]): TrendReport {
       source: input.source,
       timestamp: runTimestamp(input.manifest),
       commit: input.manifest.commit.sha,
+      committedAt: commitTime(input.manifest),
+      branch: (input.manifest.commit.sha && input.manifest.commit.branch) || null,
       startUrl: input.report.startUrl,
       verdict: input.report.verdict,
       pagesScanned: input.report.counts.pagesScanned,
@@ -131,13 +166,19 @@ export function buildTrend(inputs: readonly TrendRunInput[]): TrendReport {
     .sort((a, b) => b.regressions - a.regressions || a.pageUrl.localeCompare(b.pageUrl))
     .slice(0, TREND_TOP_LIMIT);
 
-  const notes = ['The first run has no earlier run to compare with, so every finding in it counts as new and none as fixed.',
-    'Regressions count findings that were new compared with the previous run; the first run is excluded.'];
+  const notes: string[] = [];
+  const orderNote = used === 'scan' && requested !== 'scan'
+    ? `Ordered by scan time, not commit time: ${missing} of ${inputs.length} evidence pack${inputs.length === 1 ? '' : 's'} do not record a commit time (commit.committedAt). Packs made inside a git work tree record it.`
+    : undefined;
+  if (orderNote) notes.push(orderNote);
+  notes.push('The first run has no earlier run to compare with, so every finding in it counts as new and none as fixed.',
+    'Regressions count findings that were new compared with the previous run; the first run is excluded.');
   if (new Set(runs.map((r) => r.startUrl)).size > 1) notes.push('Runs have different start URLs; counts compare whatever each run scanned.');
 
   return {
     tool: 'a11ygate', kind: 'trend-report', schemaVersion: 1, disclaimer: AUTOMATED_TESTING_DISCLAIMER,
-    orderedBy: 'manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source',
+    orderedBy: TREND_ORDERED_BY[used],
+    ordering: orderNote ? { requested, used, note: orderNote } : { requested, used },
     runs, topRules, regressionPages, notes,
   };
 }
@@ -152,12 +193,12 @@ function shortSha(sha: string | null): string {
   return sha ? sha.slice(0, 7) : 'no commit';
 }
 
-function runLabel(run: TrendRun): string {
-  return run.timestamp.slice(0, 10);
+function runLabel(run: TrendRun, order: TrendOrder = 'scan'): string {
+  return (order === 'commit' && run.committedAt ? new Date(run.committedAt).toISOString() : run.timestamp).slice(0, 10);
 }
 
 /** Stacked bars (existing + new) per run. Inline SVG, no scripts; native <title> tooltips. */
-function chartSvg(runs: readonly TrendRun[]): string {
+function chartSvg(runs: readonly TrendRun[], order: TrendOrder): string {
   const width = 640;
   const height = 260;
   const left = 44;
@@ -178,7 +219,7 @@ function chartSvg(runs: readonly TrendRun[]): string {
   }).join('');
   const bars = runs.map((run, i) => {
     const x = left + slot * i + (slot - barW) / 2;
-    const tip = `${runLabel(run)} (${shortSha(run.commit)}): ${run.total} findings — ${run.new} new, ${run.existing} existing, ${run.fixed} fixed`;
+    const tip = `${runLabel(run, order)} (${shortSha(run.commit)}): ${run.total} findings — ${run.new} new, ${run.existing} existing, ${run.fixed} fixed`;
     const existingH = (run.existing / max) * plotH;
     const newH = (run.new / max) * plotH;
     const gap = existingH > 0 && newH > 0 ? 2 : 0;
@@ -186,7 +227,7 @@ function chartSvg(runs: readonly TrendRun[]): string {
     const added = newH > 0 ? `<rect class="s-new" x="${x}" y="${y(run.total)}" width="${barW}" height="${Math.max(0, newH - gap)}"/>` : '';
     return `<g><title>${esc(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/>`
       + `<text class="value" x="${x + barW / 2}" y="${y(run.total) - 4}" text-anchor="middle">${run.total}</text>`
-      + `<text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc(runLabel(run))}</text>`
+      + `<text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc(runLabel(run, order))}</text>`
       + `<text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc(shortSha(run.commit))}</text></g>`;
   }).join('');
   return `<svg role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">`
@@ -196,8 +237,12 @@ function chartSvg(runs: readonly TrendRun[]): string {
 
 export function renderTrendHtml(trend: TrendReport): string {
   const runs = trend.runs;
-  const runRows = runs.map((r) => `<tr><th scope="row">${esc(r.timestamp)}</th><td><code>${esc(shortSha(r.commit))}</code></td><td>${esc(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc(r.verdict)}</td></tr>`).join('');
-  const ruleHead = runs.map((r) => `<th scope="col">${esc(runLabel(r))} <span class="muted">${esc(shortSha(r.commit))}</span></th>`).join('');
+  // Reports written before R48 have no `ordering`; they were ordered by scan time.
+  const order: TrendOrder = trend.ordering?.used ?? 'scan';
+  const byCommit = order === 'commit';
+  const commitCells = (r: TrendRun) => byCommit ? `<td>${esc(r.committedAt ?? '')}</td><td>${r.branch ? `<code>${esc(r.branch)}</code>` : 'not recorded'}</td>` : '';
+  const runRows = runs.map((r) => `<tr><th scope="row">${esc(r.timestamp)}</th><td><code>${esc(shortSha(r.commit))}</code></td>${commitCells(r)}<td>${esc(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc(r.verdict)}</td></tr>`).join('');
+  const ruleHead = runs.map((r) => `<th scope="col">${esc(runLabel(r, order))} <span class="muted">${esc(shortSha(r.commit))}</span></th>`).join('');
   const ruleRows = trend.topRules.map((rule) => `<tr><th scope="row"><code>${esc(rule.ruleId)}</code></th>${rule.perRun.map((n) => `<td>${n}</td>`).join('')}<td>${rule.total}</td></tr>`).join('');
   const pageRows = trend.regressionPages.map((p) => `<tr><th scope="row"><code>${esc(p.pageUrl)}</code></th><td>${p.regressions}</td><td>${p.runsWithRegressions}</td></tr>`).join('');
   return `<!doctype html>
@@ -215,6 +260,7 @@ code{background:var(--code);padding:0 .2em;word-break:break-all}
 table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
 caption{text-align:left;font-weight:600}
 .disclaimer{border:2px solid var(--text);padding:.5rem 1rem;font-weight:600}
+.note{border-left:4px solid var(--border);padding:.25rem .75rem}
 .muted{color:var(--muted);font-weight:400}
 .legend{display:flex;gap:1.5rem;list-style:none;padding:0;margin:.5rem 0}
 .sw-existing{background:var(--existing)}.sw-new{background:var(--new)}
@@ -228,11 +274,12 @@ svg .s-existing{fill:var(--existing)}svg .s-new{fill:var(--new)}svg .hit{fill:tr
 <main>
 <h1>A11yGate trend report</h1>
 <p class="disclaimer">${esc(trend.disclaimer)}</p>
-<p>${runs.length} run${runs.length === 1 ? '' : 's'}, oldest first, ordered by the scan timestamp recorded in each evidence pack manifest (UTC).</p>
+<p>${runs.length} run${runs.length === 1 ? '' : 's'}, oldest first, ordered by the ${byCommit ? 'commit time (git committer date)' : 'scan timestamp (UTC)'} recorded in each evidence pack manifest.</p>
+${trend.ordering?.note ? `<p class="note"><strong>Note:</strong> ${esc(trend.ordering.note)}</p>` : ''}
 <h2>Findings per run</h2>
 <ul class="legend"><li><span class="swatch sw-existing"></span>Existing (also in the previous run)</li><li><span class="swatch sw-new"></span>New since the previous run</li></ul>
-<figure>${chartSvg(runs)}</figure>
-<div class="scroll"><table><caption>Runs</caption><thead><tr><th scope="col">Scanned at (UTC)</th><th scope="col">Commit</th><th scope="col">Evidence pack</th><th scope="col">Findings</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th><th scope="col">Verdict</th></tr></thead><tbody>${runRows}</tbody></table></div>
+<figure>${chartSvg(runs, order)}</figure>
+<div class="scroll"><table><caption>Runs</caption><thead><tr><th scope="col">Scanned at (UTC)</th><th scope="col">Commit</th>${byCommit ? '<th scope="col">Committed at</th><th scope="col">Branch</th>' : ''}<th scope="col">Evidence pack</th><th scope="col">Findings</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th><th scope="col">Verdict</th></tr></thead><tbody>${runRows}</tbody></table></div>
 <h2>Top rules over time</h2>
 ${trend.topRules.length ? `<div class="scroll"><table><caption>Findings per rule, per run (top ${TREND_TOP_LIMIT})</caption><thead><tr><th scope="col">Rule</th>${ruleHead}<th scope="col">All runs</th></tr></thead><tbody>${ruleRows}</tbody></table></div>` : '<p>No findings were recorded in any run.</p>'}
 <h2>Pages with the most regressions</h2>

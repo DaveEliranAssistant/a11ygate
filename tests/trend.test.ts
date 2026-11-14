@@ -65,7 +65,7 @@ beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'a11ygate-trend
 afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
 
 /** Builds the three fixture evidence packs through the real scan + pack code, offline. */
-async function writeFixturePacks(): Promise<string> {
+async function writeFixturePacks(committedAt: readonly (string | undefined)[] = []): Promise<string> {
   const packs = path.join(dir, 'packs');
   await mkdir(packs, { recursive: true });
   for (const [index, fixture] of RUNS.entries()) {
@@ -78,7 +78,7 @@ async function writeFixturePacks(): Promise<string> {
     const result = buildEvidencePack({
       scanJson: await readFile(path.join(out, 'a11ygate-scan.json'), 'utf8'), files: [], toolVersion: '0.1.0',
       // Packed in reverse order, so packedAt alone would give the wrong order.
-      commit: { sha: fixture.sha, source: 'flag' }, packedAt: new Date(Date.UTC(2026, 10, 14, 12 - index)),
+      commit: committedAt[index] ? { sha: fixture.sha, source: 'git', committedAt: committedAt[index], branch: 'main' } : { sha: fixture.sha, source: 'flag' }, packedAt: new Date(Date.UTC(2026, 10, 14, 12 - index)),
     });
     if (!result.ok) throw new Error(result.error);
     await writeFile(path.join(packs, fixture.file), result.zip);
@@ -86,9 +86,9 @@ async function writeFixturePacks(): Promise<string> {
   return packs;
 }
 
-async function trendFor(packs: string): Promise<{ code: number; err: string; trend: TrendReport; html: string }> {
+async function trendFor(packs: string, extra: string[] = []): Promise<{ code: number; err: string; trend: TrendReport; html: string }> {
   let err = '';
-  const code = await run(['trend', packs], { cwd: dir, stdout: () => undefined, stderr: (c) => { err += c; } });
+  const code = await run(['trend', packs, ...extra], { cwd: dir, stdout: () => undefined, stderr: (c) => { err += c; } });
   const trend = JSON.parse(await readFile(path.join(packs, TREND_JSON), 'utf8')) as TrendReport;
   return { code, err, trend, html: await readFile(path.join(packs, TREND_HTML), 'utf8') };
 }
@@ -181,7 +181,77 @@ describe('a11ygate trend', () => {
     expect(trend.runs.map((r) => r.source)).toEqual(['c-september.zip', 'extracted-october', 'b-november.zip']);
   });
 
+  // A11Y-R48. Scan order is Sep (c), Oct (a), Nov (b); commit order is Nov (b), Sep (c), Oct (a).
+  // September's +05:00 offset puts it before October (05:00Z < 09:00Z) only when compared as instants, not as strings.
+  const COMMITTED_AT = ['2026-08-20T10:00:00+05:00', '2026-08-20T09:00:00Z', '2026-08-01T09:00:00-05:00'] as const;
+  const SCAN_ORDER = ['c-september.zip', 'a-october.zip', 'b-november.zip'];
+  const COMMIT_ORDER = ['b-november.zip', 'c-september.zip', 'a-october.zip'];
+
+  it('(R48) orders by commit time when every pack records it, and by scan time with --order scan', async () => {
+    const packs = await writeFixturePacks(COMMITTED_AT);
+    const auto = await trendFor(packs);
+    expect(auto.code).toBe(0);
+    expect(auto.err).toBe('');
+    expect(auto.trend.runs.map((r) => r.source)).toEqual(COMMIT_ORDER);
+    expect(auto.trend.ordering).toEqual({ requested: 'auto', used: 'commit' });
+    expect(auto.trend.orderedBy).toMatch(/^manifest\.commit\.committedAt/);
+    expect(auto.trend.runs.map((r) => r.committedAt)).toEqual([COMMITTED_AT[2], COMMITTED_AT[0], COMMITTED_AT[1]]);
+    expect(auto.trend.runs.map((r) => r.branch)).toEqual(['main', 'main', 'main']);
+    expect(auto.trend.runs.map((r) => r.comparedWith)).toEqual([null, 'b-november.zip', 'c-september.zip']);
+    expect(auto.trend.notes.join(' ')).not.toContain('Ordered by scan time');
+    expect(auto.html).toContain('ordered by the commit time (git committer date)');
+    expect(auto.html).toContain('<th scope="col">Committed at</th>');
+
+    const commit = await trendFor(packs, ['--order', 'commit']);
+    expect(commit.err).toBe('');
+    expect(commit.trend.runs.map((r) => r.source)).toEqual(COMMIT_ORDER);
+    expect(commit.trend.ordering).toEqual({ requested: 'commit', used: 'commit' });
+
+    const scan = await trendFor(packs, ['--order=scan']);
+    expect(scan.err).toBe('');
+    expect(scan.trend.runs.map((r) => r.source)).toEqual(SCAN_ORDER);
+    expect(scan.trend.ordering).toEqual({ requested: 'scan', used: 'scan' });
+    expect(scan.trend.notes.join(' ')).not.toContain('Ordered by scan time');
+    expect(scan.html).toContain('ordered by the scan timestamp (UTC)');
+    expect(scan.html).not.toContain('class="note"');
+  });
+
+  it('(R48) falls back to scan time with a visible note when a pack has no commit time', async () => {
+    const packs = await writeFixturePacks([COMMITTED_AT[0], undefined, COMMITTED_AT[2]]);
+    for (const extra of [[], ['--order', 'commit']]) {
+      const { code, err, trend, html } = await trendFor(packs, extra);
+      expect(code).toBe(0);
+      expect(trend.runs.map((r) => r.source)).toEqual(SCAN_ORDER);
+      expect(trend.ordering.used).toBe('scan');
+      expect(trend.ordering.note).toBe('Ordered by scan time, not commit time: 1 of 3 evidence packs do not record a commit time (commit.committedAt). Packs made inside a git work tree record it.');
+      expect(trend.notes).toContain(trend.ordering.note);
+      expect(html).toContain(`<p class="note"><strong>Note:</strong> ${trend.ordering.note}</p>`);
+      expect(trend.runs.find((r) => r.source === 'a-october.zip')).toMatchObject({ committedAt: null, branch: null });
+      // Only an explicit --order commit also warns on stderr.
+      expect(err).toBe(extra.length ? `Note: ${trend.ordering.note}\n` : '');
+    }
+  });
+
+  it('(R48) loads packs made before R48 (no committedAt or branch in the manifest)', async () => {
+    const packs = await writeFixturePacks();
+    for (const name of SCAN_ORDER) {
+      const manifest = JSON.parse(Buffer.from(readZip(await readFile(path.join(packs, name))).find((e) => e.path === 'manifest.json')!.data).toString('utf8'));
+      expect(Object.keys(manifest.commit).sort()).toEqual(['sha', 'source']);
+    }
+    const { code, trend } = await trendFor(packs);
+    expect(code).toBe(0);
+    expect(trend.runs.map((r) => r.source)).toEqual(SCAN_ORDER);
+    expect(trend.ordering.used).toBe('scan');
+    // A trend JSON written before R48 (no ordering field) still renders.
+    const legacy = { ...trend } as Partial<TrendReport>;
+    delete legacy.ordering;
+    expect(renderTrendHtml(legacy as TrendReport)).toContain('ordered by the scan timestamp (UTC)');
+  });
+
   it('rejects bad arguments and empty directories', async () => {
+    expect(parseTrendArgs(['a', '--order', 'date'])).toEqual({ ok: false, error: '--order must be scan or commit.' });
+    expect(parseTrendArgs(['a', '--order'])).toEqual({ ok: false, error: '--order must be scan or commit.' });
+    expect(parseTrendArgs(['a', '--order', 'commit'])).toEqual({ ok: true, options: { help: false, dir: 'a', order: 'commit' } });
     expect(parseTrendArgs([])).toEqual({ ok: false, error: 'Pass the directory of evidence packs: a11ygate trend <dir>.' });
     expect(parseTrendArgs(['a', 'b'])).toEqual({ ok: false, error: 'Unexpected argument b.' });
     expect(parseTrendArgs(['a', '--nope'])).toEqual({ ok: false, error: 'Unknown trend option --nope.' });

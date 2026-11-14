@@ -5784,6 +5784,8 @@ Options:
   --out <file>     Zip to write. Default: <dir>/a11ygate-evidence.zip.
   --commit <sha>   Commit SHA to record. Default: git HEAD of the current directory;
                    if neither is available the manifest records it as unavailable.
+                   Inside a git work tree the commit time (git log -1 --format=%cI) and,
+                   for the checked-out HEAD, the branch are recorded too.
 
 The pack contains report.md and report.html (scope, what automated testing cannot cover,
 disclaimer), scan/ (JSON, Markdown, HTML, SARIF, JUnit), engines/<id>.json and screenshots/
@@ -5815,6 +5817,25 @@ function parseEvidenceArgs(argv) {
   if (options.out && !options.out.toLowerCase().endsWith(".zip")) return { ok: false, error: "--out must end in .zip." };
   if (options.commit && !/^[0-9a-f]{7,64}$/i.test(options.commit)) return { ok: false, error: "--commit must be a hexadecimal commit SHA (7 to 64 characters)." };
   return { ok: true, options };
+}
+function git(cwd, args) {
+  return new Promise((resolve) => {
+    execFile2("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+      resolve(error ? null : String(stdout ?? "").trim());
+    });
+  });
+}
+var COMMITTED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+async function defaultGitCommitMeta(cwd, sha) {
+  const meta = {};
+  const committedAt = await git(cwd, ["log", "-1", "--format=%cI", sha, "--"]);
+  if (committedAt && COMMITTED_AT_PATTERN.test(committedAt) && !Number.isNaN(Date.parse(committedAt))) meta.committedAt = committedAt;
+  const [head, resolved] = await Promise.all([git(cwd, ["rev-parse", "--verify", "HEAD"]), git(cwd, ["rev-parse", "--verify", `${sha}^{commit}`])]);
+  if (head && resolved && head === resolved) {
+    const branch = await git(cwd, ["symbolic-ref", "--short", "-q", "HEAD"]);
+    if (branch && branch.length <= 255 && !/[\s\0]/.test(branch)) meta.branch = branch;
+  }
+  return meta;
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
@@ -5907,6 +5928,11 @@ Run a11ygate evidence --help for usage.
     const head = await (io.gitHead ?? defaultGitHead)(cwd);
     commit = head ? { sha: head, source: "git" } : { sha: null, source: "unavailable", note: COMMIT_UNAVAILABLE_NOTE };
   }
+  if (commit.sha) {
+    const meta = await (io.gitCommitMeta ?? defaultGitCommitMeta)(cwd, commit.sha).catch(() => ({}));
+    if (meta.committedAt && COMMITTED_AT_PATTERN.test(meta.committedAt) && !Number.isNaN(Date.parse(meta.committedAt))) commit.committedAt = meta.committedAt;
+    if (meta.branch) commit.branch = meta.branch;
+  }
   const result = buildEvidencePack({
     scanJson,
     files,
@@ -5941,19 +5967,33 @@ import { lstat as lstat3, mkdir as mkdir3, readdir as readdir2, readFile as read
 import path8 from "node:path";
 
 // lib/trend.ts
+var TREND_ORDERED_BY = {
+  scan: "manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source",
+  commit: "manifest.commit.committedAt, then manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source"
+};
 var TREND_TOP_LIMIT = 10;
 function runTimestamp(manifest) {
   return manifest.timestamps.scannedAt ?? manifest.timestamps.packedAt;
 }
-function orderTrendInputs(inputs) {
+function commitTime(manifest) {
+  const value = manifest.commit.sha ? manifest.commit.committedAt : void 0;
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+function resolveTrendOrder(inputs, requested = "auto") {
+  const missing = inputs.filter((input) => commitTime(input.manifest) === null).length;
+  return { used: requested !== "scan" && missing === 0 ? "commit" : "scan", missing };
+}
+function orderTrendInputs(inputs, order = "scan") {
   const key = (input) => Date.parse(runTimestamp(input.manifest));
-  return [...inputs].sort((a, b) => key(a) - key(b) || Date.parse(a.manifest.timestamps.packedAt) - Date.parse(b.manifest.timestamps.packedAt) || (a.manifest.commit.sha ?? "").localeCompare(b.manifest.commit.sha ?? "") || a.source.localeCompare(b.source));
+  const commitKey = (input) => order === "commit" ? Date.parse(commitTime(input.manifest) ?? "") || 0 : 0;
+  return [...inputs].sort((a, b) => commitKey(a) - commitKey(b) || key(a) - key(b) || Date.parse(a.manifest.timestamps.packedAt) - Date.parse(b.manifest.timestamps.packedAt) || (a.manifest.commit.sha ?? "").localeCompare(b.manifest.commit.sha ?? "") || a.source.localeCompare(b.source));
 }
 function pageKey(url) {
   return normalizeUrl(url) ?? url;
 }
-function buildTrend(inputs) {
-  const ordered = orderTrendInputs(inputs);
+function buildTrend(inputs, requested = "auto") {
+  const { used, missing } = resolveTrendOrder(inputs, requested);
+  const ordered = orderTrendInputs(inputs, used);
   const runs = [];
   const ruleCounts = /* @__PURE__ */ new Map();
   const pages = /* @__PURE__ */ new Map();
@@ -5989,6 +6029,8 @@ function buildTrend(inputs) {
       source: input.source,
       timestamp: runTimestamp(input.manifest),
       commit: input.manifest.commit.sha,
+      committedAt: commitTime(input.manifest),
+      branch: input.manifest.commit.sha && input.manifest.commit.branch || null,
       startUrl: input.report.startUrl,
       verdict: input.report.verdict,
       pagesScanned: input.report.counts.pagesScanned,
@@ -6003,17 +6045,21 @@ function buildTrend(inputs) {
   });
   const topRules = [...ruleCounts].map(([ruleId, perRun]) => ({ ruleId, total: perRun.reduce((a, b) => a + b, 0), perRun })).sort((a, b) => b.total - a.total || a.ruleId.localeCompare(b.ruleId)).slice(0, TREND_TOP_LIMIT);
   const regressionPages = [...pages].map(([pageUrl, p]) => ({ pageUrl, regressions: p.regressions, runsWithRegressions: p.runs })).sort((a, b) => b.regressions - a.regressions || a.pageUrl.localeCompare(b.pageUrl)).slice(0, TREND_TOP_LIMIT);
-  const notes = [
+  const notes = [];
+  const orderNote = used === "scan" && requested !== "scan" ? `Ordered by scan time, not commit time: ${missing} of ${inputs.length} evidence pack${inputs.length === 1 ? "" : "s"} do not record a commit time (commit.committedAt). Packs made inside a git work tree record it.` : void 0;
+  if (orderNote) notes.push(orderNote);
+  notes.push(
     "The first run has no earlier run to compare with, so every finding in it counts as new and none as fixed.",
     "Regressions count findings that were new compared with the previous run; the first run is excluded."
-  ];
+  );
   if (new Set(runs.map((r) => r.startUrl)).size > 1) notes.push("Runs have different start URLs; counts compare whatever each run scanned.");
   return {
     tool: "a11ygate",
     kind: "trend-report",
     schemaVersion: 1,
     disclaimer: AUTOMATED_TESTING_DISCLAIMER,
-    orderedBy: "manifest.timestamps.scannedAt (fallback packedAt), then commit SHA, then source",
+    orderedBy: TREND_ORDERED_BY[used],
+    ordering: orderNote ? { requested, used, note: orderNote } : { requested, used },
     runs,
     topRules,
     regressionPages,
@@ -6026,10 +6072,10 @@ function esc4(value) {
 function shortSha(sha) {
   return sha ? sha.slice(0, 7) : "no commit";
 }
-function runLabel(run2) {
-  return run2.timestamp.slice(0, 10);
+function runLabel(run2, order = "scan") {
+  return (order === "commit" && run2.committedAt ? new Date(run2.committedAt).toISOString() : run2.timestamp).slice(0, 10);
 }
-function chartSvg(runs) {
+function chartSvg(runs, order) {
   const width = 640;
   const height = 260;
   const left = 44;
@@ -6050,20 +6096,23 @@ function chartSvg(runs) {
   }).join("");
   const bars = runs.map((run2, i) => {
     const x = left + slot * i + (slot - barW) / 2;
-    const tip = `${runLabel(run2)} (${shortSha(run2.commit)}): ${run2.total} findings \u2014 ${run2.new} new, ${run2.existing} existing, ${run2.fixed} fixed`;
+    const tip = `${runLabel(run2, order)} (${shortSha(run2.commit)}): ${run2.total} findings \u2014 ${run2.new} new, ${run2.existing} existing, ${run2.fixed} fixed`;
     const existingH = run2.existing / max * plotH;
     const newH = run2.new / max * plotH;
     const gap = existingH > 0 && newH > 0 ? 2 : 0;
     const existing = existingH > 0 ? `<rect class="s-existing" x="${x}" y="${y(run2.existing)}" width="${barW}" height="${existingH}"/>` : "";
     const added = newH > 0 ? `<rect class="s-new" x="${x}" y="${y(run2.total)}" width="${barW}" height="${Math.max(0, newH - gap)}"/>` : "";
-    return `<g><title>${esc4(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/><text class="value" x="${x + barW / 2}" y="${y(run2.total) - 4}" text-anchor="middle">${run2.total}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc4(runLabel(run2))}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc4(shortSha(run2.commit))}</text></g>`;
+    return `<g><title>${esc4(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/><text class="value" x="${x + barW / 2}" y="${y(run2.total) - 4}" text-anchor="middle">${run2.total}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc4(runLabel(run2, order))}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc4(shortSha(run2.commit))}</text></g>`;
   }).join("");
   return `<svg role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet"><title id="chart-title">Findings per run</title><desc id="chart-desc">Stacked bars of existing and new findings for each run, oldest first. The same numbers are in the table below.</desc>${grid}${bars}</svg>`;
 }
 function renderTrendHtml(trend) {
   const runs = trend.runs;
-  const runRows = runs.map((r) => `<tr><th scope="row">${esc4(r.timestamp)}</th><td><code>${esc4(shortSha(r.commit))}</code></td><td>${esc4(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc4(r.verdict)}</td></tr>`).join("");
-  const ruleHead = runs.map((r) => `<th scope="col">${esc4(runLabel(r))} <span class="muted">${esc4(shortSha(r.commit))}</span></th>`).join("");
+  const order = trend.ordering?.used ?? "scan";
+  const byCommit = order === "commit";
+  const commitCells = (r) => byCommit ? `<td>${esc4(r.committedAt ?? "")}</td><td>${r.branch ? `<code>${esc4(r.branch)}</code>` : "not recorded"}</td>` : "";
+  const runRows = runs.map((r) => `<tr><th scope="row">${esc4(r.timestamp)}</th><td><code>${esc4(shortSha(r.commit))}</code></td>${commitCells(r)}<td>${esc4(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc4(r.verdict)}</td></tr>`).join("");
+  const ruleHead = runs.map((r) => `<th scope="col">${esc4(runLabel(r, order))} <span class="muted">${esc4(shortSha(r.commit))}</span></th>`).join("");
   const ruleRows = trend.topRules.map((rule) => `<tr><th scope="row"><code>${esc4(rule.ruleId)}</code></th>${rule.perRun.map((n) => `<td>${n}</td>`).join("")}<td>${rule.total}</td></tr>`).join("");
   const pageRows = trend.regressionPages.map((p) => `<tr><th scope="row"><code>${esc4(p.pageUrl)}</code></th><td>${p.regressions}</td><td>${p.runsWithRegressions}</td></tr>`).join("");
   return `<!doctype html>
@@ -6081,6 +6130,7 @@ code{background:var(--code);padding:0 .2em;word-break:break-all}
 table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
 caption{text-align:left;font-weight:600}
 .disclaimer{border:2px solid var(--text);padding:.5rem 1rem;font-weight:600}
+.note{border-left:4px solid var(--border);padding:.25rem .75rem}
 .muted{color:var(--muted);font-weight:400}
 .legend{display:flex;gap:1.5rem;list-style:none;padding:0;margin:.5rem 0}
 .sw-existing{background:var(--existing)}.sw-new{background:var(--new)}
@@ -6094,11 +6144,12 @@ svg .s-existing{fill:var(--existing)}svg .s-new{fill:var(--new)}svg .hit{fill:tr
 <main>
 <h1>A11yGate trend report</h1>
 <p class="disclaimer">${esc4(trend.disclaimer)}</p>
-<p>${runs.length} run${runs.length === 1 ? "" : "s"}, oldest first, ordered by the scan timestamp recorded in each evidence pack manifest (UTC).</p>
+<p>${runs.length} run${runs.length === 1 ? "" : "s"}, oldest first, ordered by the ${byCommit ? "commit time (git committer date)" : "scan timestamp (UTC)"} recorded in each evidence pack manifest.</p>
+${trend.ordering?.note ? `<p class="note"><strong>Note:</strong> ${esc4(trend.ordering.note)}</p>` : ""}
 <h2>Findings per run</h2>
 <ul class="legend"><li><span class="swatch sw-existing"></span>Existing (also in the previous run)</li><li><span class="swatch sw-new"></span>New since the previous run</li></ul>
-<figure>${chartSvg(runs)}</figure>
-<div class="scroll"><table><caption>Runs</caption><thead><tr><th scope="col">Scanned at (UTC)</th><th scope="col">Commit</th><th scope="col">Evidence pack</th><th scope="col">Findings</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th><th scope="col">Verdict</th></tr></thead><tbody>${runRows}</tbody></table></div>
+<figure>${chartSvg(runs, order)}</figure>
+<div class="scroll"><table><caption>Runs</caption><thead><tr><th scope="col">Scanned at (UTC)</th><th scope="col">Commit</th>${byCommit ? '<th scope="col">Committed at</th><th scope="col">Branch</th>' : ""}<th scope="col">Evidence pack</th><th scope="col">Findings</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th><th scope="col">Verdict</th></tr></thead><tbody>${runRows}</tbody></table></div>
 <h2>Top rules over time</h2>
 ${trend.topRules.length ? `<div class="scroll"><table><caption>Findings per rule, per run (top ${TREND_TOP_LIMIT})</caption><thead><tr><th scope="col">Rule</th>${ruleHead}<th scope="col">All runs</th></tr></thead><tbody>${ruleRows}</tbody></table></div>` : "<p>No findings were recorded in any run.</p>"}
 <h2>Pages with the most regressions</h2>
@@ -6120,15 +6171,18 @@ function trendHelpText() {
   return `a11ygate trend \u2014 history across evidence packs
 
 Usage:
-  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>]
+  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>] [--order scan|commit]
 
 Reads every evidence pack in <dir> (a11ygate-evidence zip files, or extracted pack
 directories containing manifest.json) and writes ${TREND_JSON} and ${TREND_HTML}:
 findings per run (new, existing, fixed), top rules over time, and pages with the
-most regressions. Runs are ordered by the scan timestamp in each manifest.
+most regressions. Runs are ordered by the commit time recorded in each manifest
+when every pack has one, otherwise by scan time with a note in the report.
 
 Options:
-  --out-dir <dir>  Where to write the two files. Default: <dir>.
+  --out-dir <dir>         Where to write the two files. Default: <dir>.
+  --order scan|commit     scan: order by scan time. commit: order by commit time
+                          (falls back to scan time, with a note, if any pack lacks it).
 
 Findings are deduplicated with the same fingerprints as a11ygate baseline create.
 Nothing is fetched; the HTML has no scripts and no external resources.
@@ -6145,6 +6199,10 @@ function parseTrendArgs(argv) {
       const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv[index += 1];
       if (!value || value.startsWith("-")) return { ok: false, error: "--out-dir needs a value." };
       options.outDir = value;
+    } else if (token === "--order" || token.startsWith("--order=")) {
+      const value = token.includes("=") ? token.slice(token.indexOf("=") + 1) : argv[index += 1];
+      if (value !== "scan" && value !== "commit") return { ok: false, error: "--order must be scan or commit." };
+      options.order = value;
     } else if (token.startsWith("-")) return { ok: false, error: `Unknown trend option ${token}.` };
     else if (options.dir) return { ok: false, error: `Unexpected argument ${token}.` };
     else options.dir = token;
@@ -6157,6 +6215,9 @@ function parseManifest(text) {
     const m = JSON.parse(text);
     if (m?.tool !== "a11ygate" || m.kind !== "evidence-pack" || m.schemaVersion !== 1 || !m.timestamps || !m.commit || !Array.isArray(m.files)) return null;
     if (Number.isNaN(Date.parse(m.timestamps.scannedAt ?? m.timestamps.packedAt ?? ""))) return null;
+    const commit = m.commit;
+    if (commit.committedAt !== void 0 && (typeof commit.committedAt !== "string" || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
+    if (commit.branch !== void 0 && typeof commit.branch !== "string") delete commit.branch;
     return m;
   } catch {
     return null;
@@ -6233,7 +6294,9 @@ Run a11ygate trend --help for usage.
 `);
     return 2;
   }
-  const trend = buildTrend(inputs);
+  const trend = buildTrend(inputs, parsed.options.order ?? "auto");
+  if (parsed.options.order === "commit" && trend.ordering.note) stderr(`Note: ${trend.ordering.note}
+`);
   const outDir = path8.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
   try {
     await mkdir3(outDir, { recursive: true });

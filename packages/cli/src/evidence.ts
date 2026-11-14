@@ -12,6 +12,8 @@ export type EvidenceIo = {
   version?: string;
   /** Resolves HEAD for the manifest; tests inject this to avoid spawning git. */
   gitHead?: (cwd: string) => Promise<string | null>;
+  /** Reads the commit time and branch of `sha` for the manifest; tests inject this to avoid spawning git. */
+  gitCommitMeta?: (cwd: string, sha: string) => Promise<GitCommitMeta>;
   env?: EnvLike;
 };
 
@@ -33,6 +35,8 @@ Options:
   --out <file>     Zip to write. Default: <dir>/a11ygate-evidence.zip.
   --commit <sha>   Commit SHA to record. Default: git HEAD of the current directory;
                    if neither is available the manifest records it as unavailable.
+                   Inside a git work tree the commit time (git log -1 --format=%cI) and,
+                   for the checked-out HEAD, the branch are recorded too.
 
 The pack contains report.md and report.html (scope, what automated testing cannot cover,
 disclaimer), scan/ (JSON, Markdown, HTML, SARIF, JUnit), engines/<id>.json and screenshots/
@@ -65,6 +69,35 @@ export function parseEvidenceArgs(argv: readonly string[]): { ok: true; options:
   if (options.out && !options.out.toLowerCase().endsWith('.zip')) return { ok: false, error: '--out must end in .zip.' };
   if (options.commit && !/^[0-9a-f]{7,64}$/i.test(options.commit)) return { ok: false, error: '--commit must be a hexadecimal commit SHA (7 to 64 characters).' };
   return { ok: true, options };
+}
+
+export type GitCommitMeta = { committedAt?: string; branch?: string };
+
+function git(cwd: string, args: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 5000, windowsHide: true }, (error, stdout) => {
+      resolve(error ? null : String(stdout ?? '').trim());
+    });
+  });
+}
+
+/** Strict ISO 8601 as printed by `git log --format=%cI`, e.g. 2026-11-14T16:08:28+02:00. */
+export const COMMITTED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Commit time from `git log -1 --format=%cI <sha>` and, when <sha> is the checked-out
+ * HEAD on a branch, the branch name. Anything git cannot answer is left out; nothing is invented.
+ */
+export async function defaultGitCommitMeta(cwd: string, sha: string): Promise<GitCommitMeta> {
+  const meta: GitCommitMeta = {};
+  const committedAt = await git(cwd, ['log', '-1', '--format=%cI', sha, '--']);
+  if (committedAt && COMMITTED_AT_PATTERN.test(committedAt) && !Number.isNaN(Date.parse(committedAt))) meta.committedAt = committedAt;
+  const [head, resolved] = await Promise.all([git(cwd, ['rev-parse', '--verify', 'HEAD']), git(cwd, ['rev-parse', '--verify', `${sha}^{commit}`])]);
+  if (head && resolved && head === resolved) {
+    const branch = await git(cwd, ['symbolic-ref', '--short', '-q', 'HEAD']);
+    if (branch && branch.length <= 255 && !/[\s\0]/.test(branch)) meta.branch = branch;
+  }
+  return meta;
 }
 
 export function defaultGitHead(cwd: string): Promise<string | null> {
@@ -151,6 +184,11 @@ async function runEvidenceInternal(argv: readonly string[], io: EvidenceIo): Pro
   else {
     const head = await (io.gitHead ?? defaultGitHead)(cwd);
     commit = head ? { sha: head, source: 'git' } : { sha: null, source: 'unavailable', note: COMMIT_UNAVAILABLE_NOTE };
+  }
+  if (commit.sha) {
+    const meta = await (io.gitCommitMeta ?? defaultGitCommitMeta)(cwd, commit.sha).catch((): GitCommitMeta => ({}));
+    if (meta.committedAt && COMMITTED_AT_PATTERN.test(meta.committedAt) && !Number.isNaN(Date.parse(meta.committedAt))) commit.committedAt = meta.committedAt;
+    if (meta.branch) commit.branch = meta.branch;
   }
 
   const result = buildEvidencePack({

@@ -2,10 +2,10 @@ import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_PACK_TOTAL_BYTES, parseScanReport, sha256, type EvidenceManifest } from '@/lib/evidence/pack';
 import { readZip } from '@/lib/evidence/zip';
-import { buildTrend, renderTrendHtml, type TrendRunInput } from '@/lib/trend';
+import { buildTrend, renderTrendHtml, type TrendOrder, type TrendRunInput } from '@/lib/trend';
 
 export type TrendIo = { cwd?: string; stdout?: (chunk: string) => void; stderr?: (chunk: string) => void };
-export type TrendOptions = { help: boolean; dir?: string; outDir?: string };
+export type TrendOptions = { help: boolean; dir?: string; outDir?: string; order?: TrendOrder };
 
 const SCAN_PATH = 'scan/a11ygate-scan.json';
 export const TREND_JSON = 'a11ygate-trend.json';
@@ -15,15 +15,18 @@ export function trendHelpText(): string {
   return `a11ygate trend — history across evidence packs
 
 Usage:
-  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>]
+  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>] [--order scan|commit]
 
 Reads every evidence pack in <dir> (a11ygate-evidence zip files, or extracted pack
 directories containing manifest.json) and writes ${TREND_JSON} and ${TREND_HTML}:
 findings per run (new, existing, fixed), top rules over time, and pages with the
-most regressions. Runs are ordered by the scan timestamp in each manifest.
+most regressions. Runs are ordered by the commit time recorded in each manifest
+when every pack has one, otherwise by scan time with a note in the report.
 
 Options:
-  --out-dir <dir>  Where to write the two files. Default: <dir>.
+  --out-dir <dir>         Where to write the two files. Default: <dir>.
+  --order scan|commit     scan: order by scan time. commit: order by commit time
+                          (falls back to scan time, with a note, if any pack lacks it).
 
 Findings are deduplicated with the same fingerprints as a11ygate baseline create.
 Nothing is fetched; the HTML has no scripts and no external resources.
@@ -41,6 +44,10 @@ export function parseTrendArgs(argv: readonly string[]): { ok: true; options: Tr
       const value = token.includes('=') ? token.slice(token.indexOf('=') + 1) : argv[(index += 1)];
       if (!value || value.startsWith('-')) return { ok: false, error: '--out-dir needs a value.' };
       options.outDir = value;
+    } else if (token === '--order' || token.startsWith('--order=')) {
+      const value = token.includes('=') ? token.slice(token.indexOf('=') + 1) : argv[(index += 1)];
+      if (value !== 'scan' && value !== 'commit') return { ok: false, error: '--order must be scan or commit.' };
+      options.order = value;
     } else if (token.startsWith('-')) return { ok: false, error: `Unknown trend option ${token}.` };
     else if (options.dir) return { ok: false, error: `Unexpected argument ${token}.` };
     else options.dir = token;
@@ -54,6 +61,11 @@ function parseManifest(text: string): EvidenceManifest | null {
     const m = JSON.parse(text) as Partial<EvidenceManifest>;
     if (m?.tool !== 'a11ygate' || m.kind !== 'evidence-pack' || m.schemaVersion !== 1 || !m.timestamps || !m.commit || !Array.isArray(m.files)) return null;
     if (Number.isNaN(Date.parse(m.timestamps.scannedAt ?? m.timestamps.packedAt ?? ''))) return null;
+    // committedAt and branch are optional (A11Y-R48); packs made earlier have neither.
+    // Drop malformed values rather than rejecting the pack.
+    const commit = m.commit as Record<string, unknown>;
+    if (commit.committedAt !== undefined && (typeof commit.committedAt !== 'string' || Number.isNaN(Date.parse(commit.committedAt)))) delete commit.committedAt;
+    if (commit.branch !== undefined && typeof commit.branch !== 'string') delete commit.branch;
     return m as EvidenceManifest;
   } catch {
     return null;
@@ -126,7 +138,9 @@ export async function runTrend(argv: readonly string[], io: TrendIo = {}): Promi
     stderr(`${parsed.options.dir}: no evidence packs found. Create them with a11ygate evidence pack.\n`);
     return 2;
   }
-  const trend = buildTrend(inputs);
+  const trend = buildTrend(inputs, parsed.options.order ?? 'auto');
+  // Asked for commit order explicitly but did not get it: say so on stderr too.
+  if (parsed.options.order === 'commit' && trend.ordering.note) stderr(`Note: ${trend.ordering.note}\n`);
   const outDir = path.resolve(cwd, parsed.options.outDir ?? (parsed.options.dir as string));
   try {
     await mkdir(outDir, { recursive: true });

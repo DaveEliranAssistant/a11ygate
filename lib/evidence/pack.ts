@@ -16,8 +16,12 @@ export type PackFileSource = 'copied' | 'generated';
 
 export type PackInputFile = { path: string; data: Uint8Array; source: PackFileSource };
 
+/**
+ * `committedAt` (from `git log -1 --format=%cI`) and `branch` are recorded only when
+ * read from a git work tree (A11Y-R48). Packs made before R48 do not have them.
+ */
 export type CommitInfo =
-  | { sha: string; source: 'flag' | 'git' }
+  | { sha: string; source: 'flag' | 'git'; committedAt?: string; branch?: string }
   | { sha: null; source: 'unavailable'; note: string };
 
 export const COMMIT_UNAVAILABLE_NOTE =
