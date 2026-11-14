@@ -134,6 +134,7 @@ export function buildScanReport(input: {
   userAgent: string;
   robotsNote: string;
   engineResults?: EnginePageResult[];
+  authenticated?: boolean;
 }): ScanReport {
   const pages: ScanPageSummary[] = [];
   const findings: ScanFinding[] = [];
@@ -188,7 +189,9 @@ export function buildScanReport(input: {
   }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
-  const verdict = engineErrors ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
+  const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith('Not authenticated:'));
+  const startFailed = input.crawl.pages[0]?.scanStatus !== 'complete';
+  const verdict = (engineErrors || authenticationFailed || startFailed) ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
   const reason =
     input.failOn === 'none'
       ? 'Reporting only (--fail-on none).'
@@ -206,7 +209,7 @@ export function buildScanReport(input: {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    reason: authenticationFailed ? 'Not authenticated: protected content was not scanned.' : startFailed ? 'Start page could not be scanned; coverage is incomplete.' : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
@@ -219,7 +222,9 @@ export function buildScanReport(input: {
     pages,
     skipped: input.crawl.skipped,
     findings,
-    boundaries: SCAN_BOUNDARIES,
+    boundaries: input.authenticated ? SCAN_BOUNDARIES.map((boundary, index) => index === 2
+      ? 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.'
+      : boundary) : SCAN_BOUNDARIES,
     results,
   };
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir4, readFile as readFile5, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
-import path7 from "node:path";
+import { mkdir as mkdir4, readFile as readFile6, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
+import path8 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/types.ts
@@ -399,15 +399,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path8 = parsed.pathname || "/";
-    if (path8.length > 1 && path8.endsWith("/")) path8 = path8.slice(0, -1);
-    return path8 || "/";
+    let path9 = parsed.pathname || "/";
+    if (path9.length > 1 && path9.endsWith("/")) path9 = path9.slice(0, -1);
+    return path9 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path8 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path8.length > 1 && path8.endsWith("/")) path8 = path8.slice(0, -1);
-    return path8;
+    let path9 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path9.length > 1 && path9.endsWith("/")) path9 = path9.slice(0, -1);
+    return path9;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -437,21 +437,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path8) {
+function readImpact(value, path9) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path8} must be minor, moderate, serious, critical, or null`
+    error: `${path9} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path8) {
+function readTarget(value, path9) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path8}.target must be an array of strings`;
+    return `${path9}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path8}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path9}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -459,52 +459,52 @@ function readTarget(value, path8) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path8}.target must be an array of strings`;
+    return `${path9}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path8) {
-  if (!isRecord(value)) return `${path8} must be an object`;
-  const target = readTarget(value.target, path8);
+function validateNode(value, path9) {
+  if (!isRecord(value)) return `${path9} must be an object`;
+  const target = readTarget(value.target, path9);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path8}.html must be a string`;
+  if (typeof value.html !== "string") return `${path9}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path8}.impact`);
+    const impact = readImpact(value.impact, `${path9}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path8) {
-  if (!isRecord(value)) return `${path8} must be an object`;
+function validateViolation(value, path9) {
+  if (!isRecord(value)) return `${path9} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path8}.id must be a non-empty string`;
+    return `${path9}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path8}.impact is missing`;
+    return `${path9}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path8}.impact`);
+  const impact = readImpact(value.impact, `${path9}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path8}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path9}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path8}.tags must be an array of strings`;
+    return `${path9}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path8}.help must be a non-empty string`;
+    return `${path9}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path8}.helpUrl must be a non-empty string`;
+    return `${path9}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path8}.nodes must contain at least one node`;
+    return `${path9}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path8}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path9}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -520,37 +520,37 @@ function validateViolation(value, path8) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path8) {
-  if (!isRecord(value)) return `${path8} must be an axe result object`;
+function validateResult(value, path9) {
+  if (!isRecord(value)) return `${path9} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path8}.url must be a non-empty string`;
+    return `${path9}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path8}.timestamp must be an ISO date string`;
+    return `${path9}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path8}.testEngine.version must be a non-empty string`;
+    return `${path9}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path8}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path9}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path8}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path9}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path8}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path8}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path8}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path8}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path9}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path9}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path9}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path9}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path8}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path9}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path8}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path9}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path8}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path9}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -651,7 +651,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path8 = pagePath(result.url);
+    const path9 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -666,7 +666,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path8,
+          path: path9,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -827,7 +827,9 @@ function buildScanReport(input) {
   }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
-  const verdict = engineErrors ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
+  const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith("Not authenticated:"));
+  const startFailed = input.crawl.pages[0]?.scanStatus !== "complete";
+  const verdict = engineErrors || authenticationFailed || startFailed ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
   const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
   return {
     tool: "a11ygate",
@@ -840,7 +842,7 @@ function buildScanReport(input) {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    reason: authenticationFailed ? "Not authenticated: protected content was not scanned." : startFailed ? "Start page could not be scanned; coverage is incomplete." : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
@@ -853,7 +855,7 @@ function buildScanReport(input) {
     pages,
     skipped: input.crawl.skipped,
     findings,
-    boundaries: SCAN_BOUNDARIES,
+    boundaries: input.authenticated ? SCAN_BOUNDARIES.map((boundary, index) => index === 2 ? "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only." : boundary) : SCAN_BOUNDARIES,
     results
   };
 }
@@ -1355,6 +1357,179 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 `;
 }
 
+// packages/cli/src/auth.ts
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
+import path from "node:path";
+
+// lib/scan/redact.ts
+var AuthRedactor = class {
+  values = /* @__PURE__ */ new Set();
+  add(value) {
+    if (typeof value !== "string" || !value) return;
+    this.values.add(value);
+    this.values.add(encodeURIComponent(value));
+    this.values.add(Buffer.from(value).toString("base64"));
+    try {
+      this.values.add(decodeURIComponent(value));
+    } catch {
+    }
+    this.values.add(JSON.stringify(value).slice(1, -1));
+    this.values.add(value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"));
+  }
+  storage(state) {
+    for (const cookie of state.cookies ?? []) this.add(cookie.value);
+    for (const origin of state.origins ?? []) for (const entry of origin.localStorage ?? []) this.add(entry.value);
+  }
+  text(input) {
+    let output = input;
+    for (const value of [...this.values].filter(Boolean).sort((a, b) => b.length - a.length)) {
+      output = output.split(/(\[REDACTED\])/).map((part) => part === "[REDACTED]" ? part : part.split(value).join("[REDACTED]")).join("");
+    }
+    return output.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [REDACTED]").replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]").replace(/([?&](?:access_token|id_token|token|api_key|apikey|password|secret|client_secret)=)[^&\s"'<>]+/gi, "$1[REDACTED]").replace(/((?:authorization|proxy-authorization|set-cookie|cookie)\s*:\s*)[^\r\n<>]+/gi, "$1[REDACTED]");
+  }
+  /** Redact before rendering, so escaping cannot hide credentials from the filter. */
+  object(input) {
+    const visit = (value) => {
+      if (typeof value === "string") return this.text(value);
+      if (Array.isArray(value)) return value.map(visit);
+      if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+        this.text(key),
+        /^(?:cookies?|set-cookie|authorization|proxy-authorization|.*token|password|secret|client_secret)$/i.test(key) ? "[REDACTED]" : visit(item)
+      ]));
+      return value;
+    };
+    return visit(input);
+  }
+};
+
+// lib/evidence/secrets.ts
+var SECRET_ENV_NAME = /(COOKIE|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|API_?KEY|ACCESS_?KEY|AUTH)/i;
+function secretEnvValues(env = process.env, minimumLength = 8) {
+  return Object.entries(env).filter(([name, value]) => SECRET_ENV_NAME.test(name) && typeof value === "string" && value.length >= minimumLength).map(([, value]) => value);
+}
+
+// packages/cli/src/auth.ts
+function envMapping(value) {
+  const match = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
+  return match ? { name: match[1], env: match[2] } : null;
+}
+async function prepareAuth(options, cwd, origin, env = process.env, redactor = new AuthRedactor()) {
+  for (const value of secretEnvValues(env, 1)) redactor.add(value);
+  const auth = { timeout: options.loginTimeoutMs ?? 3e4, env: { ...env }, cookies: [], headers: {}, redactor };
+  for (const [kind, mappings] of [["cookie", options.cookieEnv], ["header", options.headerEnv]]) {
+    for (const input of mappings ?? []) {
+      const mapping = envMapping(input);
+      if (!mapping) throw new Error(`Invalid ${kind} mapping; use NAME=ENV_VAR_NAME.`);
+      const value = env[mapping.env];
+      if (!value) throw new Error(`Missing environment variable for ${kind} injection.`);
+      redactor.add(value);
+      const credential = /^(Bearer|Basic)\s+(.+)$/i.exec(value);
+      if (kind === "header" && credential) {
+        redactor.add(credential[2]);
+        if (credential[1].toLowerCase() === "basic") {
+          const decoded = Buffer.from(credential[2], "base64").toString("utf8");
+          redactor.add(decoded);
+          const colon = decoded.indexOf(":");
+          if (colon !== -1) redactor.add(decoded.slice(colon + 1));
+        }
+      }
+      if (kind === "cookie") auth.cookies.push({ name: mapping.name, value, url: origin });
+      else {
+        if (/^(cookie|set-cookie|host|content-length|connection|proxy-authorization)$/i.test(mapping.name)) throw new Error("Unsupported injected header; use --cookie-env for cookies.");
+        if (/[\r\n]/.test(value)) throw new Error("Injected headers must not contain newlines.");
+        auth.headers[mapping.name.toLowerCase()] = value;
+      }
+    }
+  }
+  if (options.storageState) {
+    try {
+      const state = JSON.parse(await readFile(path.resolve(cwd, options.storageState), "utf8"));
+      redactor.storage(state);
+      auth.state = state;
+    } catch {
+      throw new Error("Could not read --storage-state: expected a Playwright storageState JSON file.");
+    }
+  }
+  if (options.loginScript) auth.script = pathToFileURL(path.resolve(cwd, options.loginScript)).href;
+  return auth;
+}
+async function installAuth(context, origin, auth) {
+  await context.addCookies(auth.cookies);
+  if (Object.keys(auth.headers).length === 0) return;
+  await context.route("**/*", async (route) => {
+    if (new URL(route.request().url()).origin === origin) await route.fulfill({ response: await route.fetch({ maxRedirects: 0, headers: { ...route.request().headers(), ...auth.headers } }) });
+    else await route.continue();
+  });
+}
+var LOGIN_WORKER = String.raw`
+const { parentPort, workerData } = require('node:worker_threads');
+(async () => {
+  const { chromium } = require(workerData.playwright);
+  const browser = await chromium.connect(workerData.endpoint);
+  try {
+    const context = await browser.newContext({ ...workerData.contextOptions, storageState: workerData.state });
+    await context.addCookies(workerData.cookies);
+    if (Object.keys(workerData.headers).length) await context.route('**/*', async route => {
+      if (new URL(route.request().url()).origin === workerData.origin) await route.fulfill({ response: await route.fetch({ maxRedirects: 0, headers: { ...route.request().headers(), ...workerData.headers } }) });
+      else await route.continue();
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(workerData.timeout);
+    page.setDefaultNavigationTimeout(workerData.timeout);
+    page.on('dialog', dialog => void dialog.dismiss().catch(() => {}));
+    const mod = await import(workerData.script);
+    if (typeof mod.default !== 'function') throw new Error('export');
+    await mod.default(page, workerData.env);
+    parentPort.postMessage({ state: await context.storageState() });
+    await context.close();
+  } finally { await browser.close(); }
+})().catch(() => parentPort.postMessage({ failed: true }));
+`;
+async function runLoginScript(endpoint, origin, auth, contextOptions) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(LOGIN_WORKER, { eval: true, stdout: true, stderr: true, workerData: {
+      endpoint,
+      origin,
+      script: auth.script,
+      timeout: auth.timeout,
+      env: auth.env,
+      state: auth.state,
+      cookies: auth.cookies,
+      headers: auth.headers,
+      contextOptions,
+      playwright: createRequire(import.meta.url).resolve("playwright")
+    } });
+    worker.stdout.resume();
+    worker.stderr.resume();
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      reject(new Error(`Login script timed out after ${auth.timeout} ms.`));
+    }, auth.timeout);
+    const fail = () => {
+      clearTimeout(timer);
+      void worker.terminate();
+      reject(new Error("Login script failed. Check its default export and login steps; script output is suppressed to protect credentials."));
+    };
+    worker.once("error", fail);
+    worker.once("exit", (code3) => {
+      if (code3 !== 0) fail();
+    });
+    worker.once("message", (message) => {
+      clearTimeout(timer);
+      if (message.failed) {
+        fail();
+        return;
+      }
+      auth.redactor.storage(message.state);
+      void worker.terminate();
+      resolve(message.state);
+    });
+  });
+}
+
 // lib/scan/engines/locators.ts
 async function resolveElementKeys(page, findings) {
   const keys = await page.evaluate((selectors) => selectors.map((selector) => {
@@ -1389,19 +1564,19 @@ async function resolveElementKeys(page, findings) {
 }
 
 // packages/cli/src/scan.ts
-import { mkdir, readFile as readFile3, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
-import path3 from "node:path";
+import { mkdir, readFile as readFile4, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
+import path4 from "node:path";
 import { createServer } from "node:net";
 
 // lib/scan/engines/optional.ts
-import { createRequire } from "node:module";
-import { readFile } from "node:fs/promises";
+import { createRequire as createRequire2 } from "node:module";
+import { readFile as readFile2 } from "node:fs/promises";
 var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
-var require2 = createRequire(import.meta.url);
+var require2 = createRequire2(import.meta.url);
 var normalize = (results) => results.findings;
 async function localScript(packageName, script) {
   try {
-    return await readFile(require2.resolve(`${packageName}/${script}`), "utf8");
+    return await readFile2(require2.resolve(`${packageName}/${script}`), "utf8");
   } catch {
     throw new Error(`Missing ${packageName} engine files. Install with: npm install --save-dev ${packageName}`);
   }
@@ -1641,6 +1816,10 @@ async function crawl(options) {
     visits += 1;
     options.log?.(`Scanning ${url}`);
     const outcome = await options.visit(url, crawling);
+    if (outcome.error?.startsWith("Not authenticated:")) {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error });
+      continue;
+    }
     if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
       skip({ url, reason: "redirected-off-origin" });
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
@@ -2240,13 +2419,13 @@ function toGitlabCodeQuality(report) {
 
 // packages/cli/src/output-paths.ts
 import { lstat, realpath, stat } from "node:fs/promises";
-import path from "node:path";
+import path2 from "node:path";
 async function assertSafeOutputs(cwd, inputs, outputs) {
   const identify = async (file) => {
-    const absolute = path.resolve(cwd, file);
+    const absolute = path2.resolve(cwd, file);
     const canonical2 = await realpath(absolute).catch(async () => {
       if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling output symlink.");
-      return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+      return path2.join(await realpath(path2.dirname(absolute)).catch(() => path2.dirname(absolute)), path2.basename(absolute));
     });
     const info = await stat(absolute).catch(() => null);
     return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : void 0 };
@@ -2262,8 +2441,8 @@ async function assertSafeOutputs(cwd, inputs, outputs) {
 }
 
 // packages/cli/src/baseline.ts
-import { readFile as readFile2, stat as stat2, writeFile } from "node:fs/promises";
-import path2 from "node:path";
+import { readFile as readFile3, stat as stat2, writeFile } from "node:fs/promises";
+import path3 from "node:path";
 var BASELINE_HELP = `a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   --from <scan.json>   Read a saved site-scan report (also accepts an out-dir).
   --out-dir <dir>     Read a11ygate-scan.json from this directory.
@@ -2274,9 +2453,9 @@ The separate a11ygate [ci] --baseline continues to accept axe JSON only.
 Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 async function readScanInput(file, cwd) {
-  let absolute = path2.resolve(cwd, file);
-  if ((await stat2(absolute)).isDirectory()) absolute = path2.join(absolute, "a11ygate-scan.json");
-  return parseScanReport(JSON.parse(await readFile2(absolute, "utf8")));
+  let absolute = path3.resolve(cwd, file);
+  if ((await stat2(absolute)).isDirectory()) absolute = path3.join(absolute, "a11ygate-scan.json");
+  return parseScanReport(JSON.parse(await readFile3(absolute, "utf8")));
 }
 async function runBaseline(argv, io) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
@@ -2308,7 +2487,7 @@ async function runBaseline(argv, io) {
     const cwd = io.cwd ?? process.cwd();
     const report = await readScanInput(source ?? "a11ygate-scan.json", cwd);
     if (report.counts.pagesFailed || report.engines?.errored.length || report.verdict === "ERROR") throw new Error("Cannot create a baseline from incomplete scan coverage.");
-    await writeFile(path2.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    await writeFile(path3.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
     stdout(`Wrote fingerprint baseline ${output}
 `);
     return 0;
@@ -2322,7 +2501,7 @@ async function runBaseline(argv, io) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -2361,7 +2540,16 @@ function parseScanArgs(argv) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--engines") {
+    if (name === "--storage-state") options.storageState = value;
+    else if (name === "--login-script") options.loginScript = value;
+    else if (name === "--login-timeout-ms") {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 3e5) return { ok: false, error: "--login-timeout-ms must be from 1 to 300000." };
+      options.loginTimeoutMs = Number(value);
+    } else if (name === "--cookie-env" || name === "--header-env") {
+      if (!envMapping(value)) return { ok: false, error: `${name} needs NAME=ENV_VAR_NAME (never a literal credential).` };
+      const key = name === "--cookie-env" ? "cookieEnv" : "headerEnv";
+      (options[key] ??= []).push(value);
+    } else if (name === "--engines") {
       const ids = value.split(",");
       if (ids.some((id) => !ENGINE_IDS.includes(id)) || new Set(ids).size !== ids.length) {
         return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
@@ -2407,6 +2595,12 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --storage-state <file>  Read a Playwright storageState JSON file (never written back).
+  --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
+  --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
+  --cookie-env <name=ENV> Inject a cookie using an environment variable name. Repeatable.
+  --header-env <name=ENV> Inject a header using an environment variable name. Repeatable.
+  Use test accounts only. Login scripts execute trusted code and may submit forms.
   --baseline <file>    Fingerprint baseline from baseline create; gate only new findings.
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
@@ -2428,8 +2622,8 @@ Opt-in engine peers (install only those selected):
 IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
 See docs/engines.md for licenses and engine result/error reporting.
 
-Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
-login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
+Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only; explicit login scripts may
+interact with the login form. Same-origin crawling only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
@@ -2447,7 +2641,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -2486,15 +2680,31 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
   const browserURL = debugPort ? `http://127.0.0.1:${debugPort}` : void 0;
   const optionalEngines = { htmlcs: createHtmlcsEngine(), ibm: createIbmEngine(), lighthouse: createLighthouseEngine() };
   let browser;
+  let browserServer;
   try {
-    browser = await playwright.chromium.launch({ headless: true, ...debugPort ? { args: [`--remote-debugging-port=${debugPort}`, "--remote-debugging-address=127.0.0.1"] } : {} });
+    const launchOptions = { headless: true, ...debugPort ? { args: [`--remote-debugging-port=${debugPort}`, "--remote-debugging-address=127.0.0.1"] } : {} };
+    if (auth?.script) {
+      browserServer = await playwright.chromium.launchServer({ ...launchOptions, host: "127.0.0.1" });
+      browser = await playwright.chromium.connect(browserServer.wsEndpoint());
+    } else browser = await playwright.chromium.launch(launchOptions);
   } catch (error) {
+    await browserServer?.close().catch(() => void 0);
     const detail = error instanceof Error ? error.message.split("\n")[0] : "unknown error";
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).
 Install it with: npx playwright install chromium
 `);
   }
-  const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true });
+  const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true };
+  let context;
+  try {
+    const storageState = auth?.script ? await runLoginScript(browserServer.wsEndpoint(), origin, auth, contextOptions) : auth?.state;
+    context = await browser.newContext({ ...contextOptions, storageState });
+    if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+  } catch (error) {
+    await browser.close().catch(() => void 0);
+    await browserServer?.close().catch(() => void 0);
+    throw new ScanSetupError(auth?.script ? error.message : "Could not initialize authentication storage state.");
+  }
   return {
     rawEngineResults,
     ...extended ? { engineResults } : {},
@@ -2506,6 +2716,12 @@ Install it with: npx playwright install chromium
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()["content-type"] ?? null;
+        if (auth) auth.redactor.storage(await context.storageState());
+        const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
+        const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
+        if (status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
+          return { status, finalUrl, contentType, links: [], error: "Not authenticated: login page or access denied; protected content was not scanned." };
+        }
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
@@ -2538,6 +2754,7 @@ Install it with: npx playwright install chromium
     close: async () => {
       await context.close().catch(() => void 0);
       await browser.close().catch(() => void 0);
+      await browserServer?.close().catch(() => void 0);
     }
   };
 };
@@ -2545,6 +2762,13 @@ function scanUserAgent(version) {
   return `Mozilla/5.0 (compatible; A11yGate/${version}; +https://a11ygate.vercel.app) read-only accessibility scan`;
 }
 async function runScan(argv, io = {}) {
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s) => process.stderr.write(s));
+  return runScanInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+async function runScanInternal(argv, io) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
@@ -2562,11 +2786,19 @@ Run a11ygate scan --help for usage.
     stdout(scanHelpText());
     return 0;
   }
+  let auth;
+  try {
+    auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor);
+  } catch (error) {
+    stderr(`${error.message}
+`);
+    return 2;
+  }
   for (const warning of options.warnings) stderr(`${warning}
 `);
   let baseline;
   try {
-    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile3(path3.resolve(cwd, options.baseline), "utf8")));
+    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile4(path4.resolve(cwd, options.baseline), "utf8")));
   } catch (error) {
     stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -2583,7 +2815,7 @@ Run a11ygate scan --help for usage.
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -2608,7 +2840,6 @@ Run a11ygate scan --help for usage.
   if (!first || first.scanStatus !== "complete") {
     stderr(`Start page could not be scanned: ${first?.error ?? "unreachable"}
 `);
-    return 2;
   }
   let report = buildScanReport({
     crawl: result,
@@ -2620,7 +2851,8 @@ Run a11ygate scan --help for usage.
     delayMs: options.delayMs,
     userAgent,
     robotsNote: robots.note,
-    engineResults: engine.engineResults
+    engineResults: engine.engineResults,
+    authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
@@ -2629,24 +2861,27 @@ async function writeScanReport(report, options, io, engine) {
   const cwd = io.cwd ?? process.cwd();
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  report = redactor.object(report);
   const json = `${JSON.stringify(report, null, 2)}
 `;
   const markdown = scanMarkdown(report);
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
-    extra.push([path3.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+    extra.push([path4.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
   if (options.outDir && options.formats.includes("gitlab-codequality")) {
-    extra.push([path3.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+    extra.push([path4.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path3.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
+    extra.push([path4.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
   }
   const targets = options.outDir ? [
-    [path3.join(options.outDir, "a11ygate-scan.json"), json],
-    [path3.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path3.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)],
+    [path4.join(options.outDir, "a11ygate-scan.json"), json],
+    [path4.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path4.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -2654,29 +2889,29 @@ async function writeScanReport(report, options, io, engine) {
     [options.html, options.html ? scanHtml(report) : ""]
   ];
   try {
-    if (options.baseline || io.reportInput) {
+    if (options.baseline || io.reportInput || options.storageState || options.loginScript) {
       await assertSafeOutputs(
         cwd,
-        [options.baseline, io.reportInput].filter((f) => !!f),
+        [options.baseline, io.reportInput, options.storageState, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
-          ...options.outDir ? options.engines.map((id) => path3.join(options.outDir, "engines", `${id}.json`)) : []
+          ...options.outDir ? options.engines.map((id) => path4.join(options.outDir, "engines", `${id}.json`)) : []
         ]
       );
     }
-    if (options.outDir) await mkdir(path3.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) await mkdir(path4.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
-      const evidenceDir = path3.resolve(cwd, options.outDir, "engines");
+      const evidenceDir = path4.resolve(cwd, options.outDir, "engines");
       await mkdir(evidenceDir, { recursive: true });
       for (const id of options.engines) {
         const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile2(path3.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}
+        await writeFile2(path4.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
 `, "utf8");
       }
     }
     for (const [file, content] of targets) {
-      if (file) await writeFile2(path3.resolve(cwd, file), content, "utf8");
+      if (file) await writeFile2(path4.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
     const code3 = error.code;
@@ -2689,6 +2924,13 @@ async function writeScanReport(report, options, io, engine) {
   return report.verdict === "FAIL" ? 1 : scanExitCode(report.findings, report.failOn);
 }
 async function runReport(argv, io = {}) {
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s) => process.stderr.write(s));
+  return runReportInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+async function runReportInternal(argv, io) {
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
   if (!argv[0] || argv[0].startsWith("-") || argv.includes("--help") || argv.includes("-h")) {
     (argv.includes("--help") || argv.includes("-h") ? io.stdout ?? ((s) => process.stdout.write(s)) : stderr)(
@@ -2714,9 +2956,9 @@ async function runReport(argv, io = {}) {
         reason: report.verdict === "ERROR" ? report.reason : `${failing ? "At least one finding is" : "No finding is"} at or above ${failOn}.`
       };
     }
-    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile3(path3.resolve(cwd, parsed.options.baseline), "utf8"))));
-    const source = path3.resolve(cwd, argv[0]);
-    const reportInput = (await stat3(source)).isDirectory() ? path3.join(source, "a11ygate-scan.json") : source;
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile4(path4.resolve(cwd, parsed.options.baseline), "utf8"))));
+    const source = path4.resolve(cwd, argv[0]);
+    const reportInput = (await stat3(source)).isDirectory() ? path4.join(source, "a11ygate-scan.json") : source;
     const engines = report.engines?.used ?? ["axe"];
     if (engines.some((id) => !ENGINE_IDS.includes(id))) throw new Error("Unknown engine in saved report.");
     return await writeScanReport(report, { ...parsed.options, engines }, { ...io, reportInput });
@@ -2729,8 +2971,8 @@ async function runReport(argv, io = {}) {
 
 // packages/cli/src/evidence.ts
 import { execFile } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
-import path4 from "node:path";
+import { lstat as lstat2, mkdir as mkdir2, readdir, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
+import path5 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -2754,8 +2996,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path8) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path8);
+function shouldStore(path9) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path9);
 }
 function createZip(entries) {
   const local = [];
@@ -2822,7 +3064,7 @@ var AUTOMATED_LIMITS = [
   "Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.",
   "Keyboard operability across complete user journeys, logical focus order, visible focus in context and keyboard traps that appear after interaction.",
   "The experience with screen readers, magnifiers, voice control and other assistive technology.",
-  "Content behind login, forms, multi-step flows, error states, menus, dialogs and other states that a read-only page load does not trigger.",
+  "Login journeys, forms, multi-step flows, error states, menus, dialogs and other interactions beyond the pages explicitly scanned.",
   "Pages that were not reached: not linked through same-origin a[href] links, beyond the crawl cap, disallowed by robots.txt, or failed to load.",
   "Captions, transcripts and audio description for time-based media, and whether they are correct.",
   "Cognitive and learning accessibility: plain language, consistent navigation, timing, and error prevention and recovery.",
@@ -2887,20 +3129,17 @@ var SECRET_PATTERNS = [
   ["npm token", /\bnpm_[A-Za-z0-9]{36}\b/],
   ["URL credentials", /\bhttps?:\/\/[^\s/:@"'<>]+:[^\s/@"'<>]+@/i],
   ["credential query parameter", /[?&](?:access_token|id_token|token|api_key|apikey|password|passwd|secret|client_secret)=[^&\s"'<>]+/i],
+  ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-var SECRET_ENV_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|API_?KEY|ACCESS_?KEY|AUTH)/i;
-function secretEnvValues(env = process.env) {
-  return Object.entries(env).filter(([name, value]) => SECRET_ENV_NAME.test(name) && typeof value === "string" && value.length >= 8).map(([, value]) => value);
-}
-function isTextPath(path8) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path8);
+function isTextPath(path9) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path9);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
     const text = Buffer.from(file.data).toString(isTextPath(file.path) ? "utf8" : "latin1");
     if (isTextPath(file.path)) {
-      for (const [kind, pattern] of SECRET_PATTERNS) if (pattern.test(text)) return `${file.path}: ${kind}`;
+      for (const [kind, pattern] of SECRET_PATTERNS) if (pattern.test(text.replace(/\[REDACTED\]/g, ""))) return `${file.path}: ${kind}`;
     }
     if (envValues.some((value) => text.includes(value))) return `${file.path}: value of a secret environment variable`;
   }
@@ -3043,8 +3282,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path8, make] of generated) {
-    if (!files.has(path8)) files.set(path8, { path: path8, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path9, make] of generated) {
+    if (!files.has(path9)) files.set(path9, { path: path9, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -3156,8 +3395,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path4.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile4(file), source: "copied" });
+    const file = path5.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
   for (const [sub, pattern, check] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -3170,15 +3409,15 @@ async function collectInputs(dir, warn) {
     }],
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
-    const names = await readdir(path4.join(dir, sub)).catch(() => []);
+    const names = await readdir(path5.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path4.join(dir, sub, name);
+      const file = path5.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile4(file);
+      const data = await readFile5(file);
       if (!check(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -3189,6 +3428,13 @@ async function collectInputs(dir, warn) {
   return files;
 }
 async function runEvidence(argv, io = {}) {
+  const redactor = new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s) => process.stderr.write(s));
+  return runEvidenceInternal(argv, { ...io, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+async function runEvidenceInternal(argv, io) {
   const stdout = io.stdout ?? ((chunk) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
@@ -3205,14 +3451,14 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path4.resolve(cwd, options.from);
-  const scanJsonPath = path4.join(dir, "a11ygate-scan.json");
+  const dir = path5.resolve(cwd, options.from);
+  const scanJsonPath = path5.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile4(scanJsonPath, "utf8");
+  const scanJson = await readFile5(scanJsonPath, "utf8");
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `));
   let commit;
@@ -3234,9 +3480,9 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path4.resolve(cwd, options.out ?? path4.join(options.from, "a11ygate-evidence.zip"));
+  const out = path5.resolve(cwd, options.out ?? path5.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir2(path4.dirname(out), { recursive: true });
+    await mkdir2(path5.dirname(out), { recursive: true });
     await writeFile3(out, result.zip);
   } catch (error) {
     const code3 = error.code;
@@ -3245,7 +3491,7 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path4.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path5.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
@@ -3253,8 +3499,8 @@ Run a11ygate evidence --help for usage.
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire as createRequire2 } from "node:module";
-import path5 from "node:path";
+import { createRequire as createRequire3 } from "node:module";
+import path6 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -3410,8 +3656,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path8) {
-  const match = /\.([a-z0-9]+)$/i.exec(path8);
+function fileKind(path9) {
+  const match = /\.([a-z0-9]+)$/i.exec(path9);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -3722,8 +3968,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path8, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path8) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path9, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path9) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -3853,7 +4099,7 @@ function configuredEngines(text) {
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire2(path5.join(cwd, "package.json"));
+  const require3 = createRequire3(path6.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -3865,7 +4111,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync(path5.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync(path6.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -4014,7 +4260,7 @@ async function runDoctor(argv, io = {}) {
 
 // packages/cli/src/init.ts
 import { lstat as lstat3, mkdir as mkdir3, realpath as realpath2, writeFile as writeFile4 } from "node:fs/promises";
-import path6 from "node:path";
+import path7 from "node:path";
 import { createInterface } from "node:readline/promises";
 
 // packages/cli/src/init-templates.ts
@@ -4113,14 +4359,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path6.join(parent, part);
+    parent = path7.join(parent, part);
     await mkdir3(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat3(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path6.join(parent, parts.at(-1));
+  const destination = path7.join(parent, parts.at(-1));
   const info = await lstat3(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -4196,7 +4442,7 @@ async function runInit(argv, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat3(path6.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat3(path7.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -4388,7 +4634,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path7.resolve(cwd, file);
+  return path8.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -4401,7 +4647,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile5(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile6(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -4417,14 +4663,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path7.dirname(fileURLToPath(import.meta.url));
+  const here = path8.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path7.join(here, "..", "package.json"),
-    path7.join(here, "..", "..", "packages", "cli", "package.json")
+    path8.join(here, "..", "package.json"),
+    path8.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile5(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile6(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -4524,7 +4770,7 @@ async function run(argv, io = {}) {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat4(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path7.join(await realpath3(path7.dirname(absolute)).catch(() => path7.dirname(absolute)), path7.basename(absolute));
+        return path8.join(await realpath3(path8.dirname(absolute)).catch(() => path8.dirname(absolute)), path8.basename(absolute));
       });
       const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -4532,9 +4778,9 @@ async function run(argv, io = {}) {
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path7.join(options.outDir, formatFileName("ci", "json")),
-      path7.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path7.join(options.outDir, formatFileName("ci", format)))
+      path8.join(options.outDir, formatFileName("ci", "json")),
+      path8.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path8.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -4671,7 +4917,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir4(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile5(path7.join(dir, name), content, "utf8");
+        await writeFile5(path8.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

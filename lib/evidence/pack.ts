@@ -15,7 +15,7 @@ export const AUTOMATED_LIMITS = [
   'Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.',
   'Keyboard operability across complete user journeys, logical focus order, visible focus in context and keyboard traps that appear after interaction.',
   'The experience with screen readers, magnifiers, voice control and other assistive technology.',
-  'Content behind login, forms, multi-step flows, error states, menus, dialogs and other states that a read-only page load does not trigger.',
+  'Login journeys, forms, multi-step flows, error states, menus, dialogs and other interactions beyond the pages explicitly scanned.',
   'Pages that were not reached: not linked through same-origin a[href] links, beyond the crawl cap, disallowed by robots.txt, or failed to load.',
   'Captions, transcripts and audio description for time-based media, and whether they are correct.',
   'Cognitive and learning accessibility: plain language, consistent navigation, timing, and error prevention and recovery.',
@@ -130,19 +130,11 @@ const SECRET_PATTERNS: [string, RegExp][] = [
   ['npm token', /\bnpm_[A-Za-z0-9]{36}\b/],
   ['URL credentials', /\bhttps?:\/\/[^\s/:@"'<>]+:[^\s/@"'<>]+@/i],
   ['credential query parameter', /[?&](?:access_token|id_token|token|api_key|apikey|password|passwd|secret|client_secret)=[^&\s"'<>]+/i],
+  ['authentication header or cookie', /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ['bearer token', /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/],
 ];
 
-const SECRET_ENV_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|API_?KEY|ACCESS_?KEY|AUTH)/i;
-
-export type EnvLike = Record<string, string | undefined>;
-
-/** Values of secret-looking environment variables. Used only for comparison, never written. */
-export function secretEnvValues(env: EnvLike = process.env): string[] {
-  return Object.entries(env)
-    .filter(([name, value]) => SECRET_ENV_NAME.test(name) && typeof value === 'string' && value.length >= 8)
-    .map(([, value]) => value as string);
-}
+export { secretEnvValues, type EnvLike } from './secrets';
 
 function isTextPath(path: string): boolean {
   return /\.(json|md|html|xml|sarif|txt)$/i.test(path);
@@ -153,7 +145,7 @@ export function findSecret(files: readonly { path: string; data: Uint8Array }[],
   for (const file of files) {
     const text = Buffer.from(file.data).toString(isTextPath(file.path) ? 'utf8' : 'latin1');
     if (isTextPath(file.path)) {
-      for (const [kind, pattern] of SECRET_PATTERNS) if (pattern.test(text)) return `${file.path}: ${kind}`;
+      for (const [kind, pattern] of SECRET_PATTERNS) if (pattern.test(text.replace(/\[REDACTED\]/g, ''))) return `${file.path}: ${kind}`;
     }
     if (envValues.some((value) => text.includes(value))) return `${file.path}: value of a secret environment variable`;
   }

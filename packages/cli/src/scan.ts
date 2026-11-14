@@ -1,3 +1,6 @@
+import { prepareAuth, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
+import { AuthRedactor } from '@/lib/scan/redact';
+import { secretEnvValues } from '@/lib/evidence/secrets';
 import { resolveElementKeys } from '@/lib/scan/engines/locators';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -20,7 +23,7 @@ import { applyFingerprintBaseline, parseFingerprintBaseline } from '@/lib/scan/b
 import type { FingerprintBaseline } from '@/lib/scan/baseline';
 import { readScanInput } from './baseline';
 
-export type ScanOptions = {
+export type ScanOptions = AuthOptions & {
   help: boolean;
   url: string;
   maxPages: number;
@@ -41,7 +44,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline']);
+const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ['axe'] };
@@ -83,7 +86,16 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--engines') {
+    if (name === '--storage-state') options.storageState = value;
+    else if (name === '--login-script') options.loginScript = value;
+    else if (name === '--login-timeout-ms') {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 300_000) return { ok: false, error: '--login-timeout-ms must be from 1 to 300000.' };
+      options.loginTimeoutMs = Number(value);
+    } else if (name === '--cookie-env' || name === '--header-env') {
+      if (!envMapping(value)) return { ok: false, error: `${name} needs NAME=ENV_VAR_NAME (never a literal credential).` };
+      const key = name === '--cookie-env' ? 'cookieEnv' : 'headerEnv';
+      (options[key] ??= []).push(value);
+    } else if (name === '--engines') {
       const ids = value.split(',');
       if (ids.some((id) => !(ENGINE_IDS as readonly string[]).includes(id)) || new Set(ids).size !== ids.length) {
         return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
@@ -130,6 +142,12 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --storage-state <file>  Read a Playwright storageState JSON file (never written back).
+  --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
+  --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
+  --cookie-env <name=ENV> Inject a cookie using an environment variable name. Repeatable.
+  --header-env <name=ENV> Inject a header using an environment variable name. Repeatable.
+  Use test accounts only. Login scripts execute trusted code and may submit forms.
   --baseline <file>    Fingerprint baseline from baseline create; gate only new findings.
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
@@ -151,8 +169,8 @@ Opt-in engine peers (install only those selected):
 IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
 See docs/engines.md for licenses and engine result/error reporting.
 
-Boundaries: only scan sites you own or are authorized to test. Read-only (no clicks, forms or
-login), same-origin only, honours robots.txt, identifies itself as A11yGate. Automated testing
+Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only; explicit login scripts may
+interact with the login form. Same-origin crawling only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
@@ -173,12 +191,14 @@ export type ScanEngine = {
   close: () => Promise<void>;
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[] }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
 export type ScanIo = {
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  redactor?: AuthRedactor;
   stdout?: (chunk: string) => void;
   stderr?: (chunk: string) => void;
   now?: () => Date;
@@ -200,7 +220,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'] }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -235,13 +255,29 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
   const browserURL = debugPort ? `http://127.0.0.1:${debugPort}` : undefined;
   const optionalEngines = { htmlcs: createHtmlcsEngine(), ibm: createIbmEngine(), lighthouse: createLighthouseEngine() };
   let browser: import('playwright').Browser;
+  let browserServer: import('playwright').BrowserServer | undefined;
   try {
-    browser = await playwright.chromium.launch({ headless: true, ...(debugPort ? { args: [`--remote-debugging-port=${debugPort}`, '--remote-debugging-address=127.0.0.1'] } : {}) });
+    const launchOptions = { headless: true, ...(debugPort ? { args: [`--remote-debugging-port=${debugPort}`, '--remote-debugging-address=127.0.0.1'] } : {}) };
+    if (auth?.script) {
+      browserServer = await playwright.chromium.launchServer({ ...launchOptions, host: '127.0.0.1' });
+      browser = await playwright.chromium.connect(browserServer.wsEndpoint());
+    } else browser = await playwright.chromium.launch(launchOptions);
   } catch (error) {
+    await browserServer?.close().catch(() => undefined);
     const detail = error instanceof Error ? error.message.split('\n')[0] : 'unknown error';
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).\nInstall it with: npx playwright install chromium\n`);
   }
-  const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: 'block', javaScriptEnabled: true });
+  const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: 'block' as const, javaScriptEnabled: true };
+  let context: import('playwright').BrowserContext;
+  try {
+    const storageState = auth?.script ? await runLoginScript(browserServer!.wsEndpoint(), origin, auth, contextOptions) : auth?.state;
+    context = await browser.newContext({ ...contextOptions, storageState });
+    if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+  } catch (error) {
+    await browser.close().catch(() => undefined);
+    await browserServer?.close().catch(() => undefined);
+    throw new ScanSetupError(auth?.script ? (error as Error).message : 'Could not initialize authentication storage state.');
+  }
   return {
     rawEngineResults,
     ...(extended ? { engineResults } : {}),
@@ -254,6 +290,12 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()['content-type'] ?? null;
+        if (auth) auth.redactor.storage(await context.storageState());
+        const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
+        const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
+        if (status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
+          return { status, finalUrl, contentType, links: [], error: 'Not authenticated: login page or access denied; protected content was not scanned.' };
+        }
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
@@ -290,6 +332,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     close: async () => {
       await context.close().catch(() => undefined);
       await browser.close().catch(() => undefined);
+      await browserServer?.close().catch(() => undefined);
     },
   };
 };
@@ -299,6 +342,14 @@ export function scanUserAgent(version: string): string {
 }
 
 export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise<number> {
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s: string) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
+  return runScanInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+
+async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<number> {
   const stdout = io.stdout ?? ((chunk: string) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk: string) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
@@ -315,6 +366,9 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     stdout(scanHelpText());
     return 0;
   }
+  let auth: PreparedAuth;
+  try { auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor); }
+  catch (error) { stderr(`${(error as Error).message}\n`); return 2; }
   for (const warning of options.warnings) stderr(`${warning}\n`);
 
   let baseline: FingerprintBaseline | undefined;
@@ -336,7 +390,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
 
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
@@ -360,7 +414,6 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   const first = result.pages[0];
   if (!first || first.scanStatus !== 'complete') {
     stderr(`Start page could not be scanned: ${first?.error ?? 'unreachable'}\n`);
-    return 2;
   }
 
   let report = buildScanReport({
@@ -374,6 +427,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
     userAgent,
     robotsNote: robots.note,
     engineResults: engine.engineResults,
+    authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
@@ -383,6 +437,9 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
   const cwd = io.cwd ?? process.cwd();
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  report = redactor.object(report);
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const markdown = scanMarkdown(report);
 
@@ -410,8 +467,8 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
         [options.html, options.html ? scanHtml(report) : ''],
       ];
   try {
-    if (options.baseline || io.reportInput) {
-      await assertSafeOutputs(cwd, [options.baseline, io.reportInput].filter((f): f is string => !!f),
+    if (options.baseline || io.reportInput || options.storageState || options.loginScript) {
+      await assertSafeOutputs(cwd, [options.baseline, io.reportInput, options.storageState, options.loginScript].filter((f): f is string => !!f),
         [...targets.map(([file]) => file).filter((f): f is string => !!f),
           ...(options.outDir ? options.engines.map((id) => path.join(options.outDir!, 'engines', `${id}.json`)) : [])]);
     }
@@ -422,7 +479,7 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
       for (const id of options.engines) {
         const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === 'axe' ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+        await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}\n`, 'utf8');
       }
     }
     for (const [file, content] of targets) {
@@ -441,6 +498,14 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
 
 /** Re-export a saved scan without launching a browser or touching the network. */
 export async function runReport(argv: readonly string[], io: ScanIo = {}): Promise<number> {
+  const redactor = io.redactor ?? new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s: string) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
+  return runReportInternal(argv, { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+
+async function runReportInternal(argv: readonly string[], io: ScanIo): Promise<number> {
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (!argv[0] || argv[0].startsWith('-') || argv.includes('--help') || argv.includes('-h')) {
     ((argv.includes('--help') || argv.includes('-h')) ? io.stdout ?? ((s: string) => process.stdout.write(s)) : stderr)(
