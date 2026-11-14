@@ -13,7 +13,7 @@ The step runs the CLI (`scan`), publishes JUnit, archives HTML/SARIF/JSON/Markdo
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
-Full install, parameters, agent requirements and troubleshooting: `docs/integrations/jenkins.md` (added in the follow-up docs task). Until a release includes `scan` and `--format`, pass `cli: 'node packages/cli/dist/cli.mjs'` (or another source build). Published `@qe-atlas/a11ygate@0.1.0` does not include those flags.
+Full install, parameters, agent requirements and troubleshooting: [docs/integrations/jenkins.md](../../docs/integrations/jenkins.md). Until a release includes `scan` and `--format`, pass `cli: 'node packages/cli/dist/cli.mjs'` (or another source build). Published `@qe-atlas/a11ygate@0.1.0` does not include those flags.
 
 ## Tests
 

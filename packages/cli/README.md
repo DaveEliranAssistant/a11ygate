@@ -75,6 +75,10 @@ The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` 
 
 **Boundaries.** Only scan sites you own or are explicitly authorized to test. The scanner is read-only: it does not log in, fill forms or click. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
 
+## Jenkins
+
+See [Jenkins integration](../../docs/integrations/jenkins.md) for the shared library step, example `Jenkinsfile`s, JUnit/SARIF publishing, and agent requirements.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
