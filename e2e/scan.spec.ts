@@ -86,7 +86,7 @@ test.describe('a11ygate scan against a local fixture site', () => {
     const markdown = await readFile(path.join(out, 'a11ygate-scan.md'), 'utf8');
     expect(markdown).toContain('### WCAG 1.1.1 Non-text Content (A)');
     const html = await readFile(path.join(out, 'a11ygate-scan.html'), 'utf8');
-    expect(html).toContain('Findings by WCAG criterion');
+    expect(html).toContain('Findings by WCAG success criterion');
     expect(html).not.toContain('<script');
 
     // The JSON is valid --current input for the gate.
@@ -149,7 +149,8 @@ test.describe('a11ygate scan against a local fixture site', () => {
     expect(server.requests.filter((r) => r.path === '/')).toHaveLength(1);
     expect(result.stdout).toContain('Engines used / engines errored');
     const html = await readFile(path.join(out, 'a11ygate-scan.html'), 'utf8');
-    expect(html).toContain('Engines used / engines errored');
+    expect(html).toContain('Engines used:');
+    expect(html).toContain('Engines errored:');
     expect(html).not.toContain('<script');
     const only = await runCli(['scan', `${server.origin}/`, '--engines', 'ibm', '--json', '-']);
     expect(only.code, only.stderr).toBe(1);

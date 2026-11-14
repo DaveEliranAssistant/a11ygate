@@ -67,6 +67,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 | `--out-dir <dir>` | Write `a11ygate-scan.json`, `.md` and `.html` into `<dir>`. |
 | `--format <fmt>` | Also write `junit`, `sarif`, `json`, `md`, or `gitlab-codequality` into `--out-dir` (`a11ygate-scan.junit.xml`, `a11ygate-scan.sarif`). Repeat or comma-separate. Exit codes are unchanged. |
 | `--json` / `--markdown` / `--html <file>` | Write individual reports instead. `--json -` prints JSON to stdout; otherwise Markdown is printed. |
+| `--report-version 1\|2` | HTML layout. `2` (default): executive summary, top 10 fixes, WCAG and page grouping, how-to-fix links, limits of automated testing, print and dark-mode CSS. `1`: the previous HTML, byte-for-byte. |
 | `--delay-ms <ms>` | Pause between page loads. Default 1000. |
 
 `playwright` and `@axe-core/playwright` are optional peer dependencies, loaded only by `scan`. If they are missing, `scan` prints an install hint and exits 2. The gate mode stays dependency-free.

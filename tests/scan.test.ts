@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseAxeJson } from '@/lib/parse';
 import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
+import { renderScanHtml } from '@/lib/scan/report-html-v2';
 import { buildScanReport, groupByCriterion, groupBySeverity, scanExitCode, scanHtml, scanMarkdown, type ScanFinding } from '@/lib/scan/report';
 import { fetchRobots, isAllowedByRobots, parseRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
 import { classifyLink, isHtmlContentType, normalizeUrl, sameOrigin } from '@/lib/scan/url';
@@ -229,6 +230,17 @@ describe('scan report', () => {
     expect(JSON.stringify(r, null, 2) + '\n').toMatchSnapshot('axe-only JSON');
     expect(scanMarkdown(r)).toMatchSnapshot('axe-only Markdown');
     expect(scanHtml(r)).toMatchSnapshot('axe-only HTML');
+  });
+
+  it('--report-version 1 HTML is byte-identical to the frozen pre-v2 golden', async () => {
+    // tests/fixtures/report-v1/axe-only.html was extracted from the 'axe-only HTML'
+    // snapshot as it stood on main before report v2. It is a plain file, so
+    // `vitest -u` cannot silently rewrite it.
+    const golden = await readFile(path.join(__dirname, 'fixtures/report-v1/axe-only.html'), 'utf8');
+    const r = report();
+    expect(renderScanHtml(r, 1)).toBe(golden);
+    expect(scanHtml(r)).toBe(golden);
+    expect(renderScanHtml(r)).not.toBe(golden);
   });
 
   it('builds the machine-readable JSON with mapped WCAG criteria', () => {

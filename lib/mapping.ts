@@ -141,3 +141,19 @@ export function formatStandards(tags: readonly string[]): string {
     )
     .join(' | ');
 }
+
+/**
+ * Official W3C "Understanding WCAG 2.2" documents. This base URL is the single
+ * source of external "how to fix" links for success criteria; report writers
+ * must link through {@link understandingUrl} instead of hardcoding URLs.
+ * The page slug is the criterion name, lowercased, punctuation dropped and
+ * spaces hyphenated (e.g. 1.4.3 Contrast (Minimum) → contrast-minimum).
+ */
+export const W3C_UNDERSTANDING_BASE = 'https://www.w3.org/WAI/WCAG22/Understanding/';
+
+export function understandingUrl(criterion: Pick<Criterion, 'number'>): string | null {
+  const known = CRITERIA.find((c) => c.number === criterion.number);
+  if (!known) return null;
+  const slug = known.name.toLowerCase().replace(/[(),]/g, '').trim().replace(/\s+/g, '-');
+  return `${W3C_UNDERSTANDING_BASE}${slug}.html`;
+}
