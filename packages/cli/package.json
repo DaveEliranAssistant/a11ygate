@@ -10,7 +10,8 @@
   "files": [
     "dist/cli.mjs",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "peerDependencies": {
     "@axe-core/playwright": ">=4.8.0",
