@@ -100,6 +100,12 @@ every `scan --baseline` / `report --baseline`, so a new page that matches the
 group inherits its decision. No decision hides a finding: decided findings stay
 in the standard sections, are marked `[review: …]`, and are listed again under
 "Review decisions" with the reason, reviewer and date. A decision is a reviewer
-judgement, not a root cause, a fix or conformance evidence. JUnit, SARIF and
-GitLab exports are unchanged and continue to report decided new findings.
+judgement, not a root cause, a fix or conformance evidence. SARIF retains accepted-risk and false-positive findings with an accepted external
+suppression whose justification is the review reason. JUnit exports them as skipped
+cases with `message="<decision>: <reason>"`; mixed rule/page groups are split so
+undecided failures remain visible. GitLab excludes those findings from the main
+Code Quality report and records their finding and decision metadata in
+`codequality-decided.json` alongside it (created only when active exclusions exist).
+To-fix and expired decisions remain normal findings in all three formats.
+Existing fingerprint-baseline behavior is unchanged.
 Baselines without `groupDecisions` produce unchanged output.

@@ -22,7 +22,7 @@ import { runEngine } from '@/lib/scan/engines/types';
 import { ContextPool } from '@/lib/scan/context-pool';
 export { toAxeResults } from '@/lib/scan/engines/axe';
 import { toJunit } from '@/lib/export-junit';
-import { toGitlabCodeQuality } from '@/lib/export-gitlab-codequality';
+import { toGitlabCodeQuality, toGitlabDecided } from '@/lib/export-gitlab-codequality';
 import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromScan, mergeFormats, parseFormatList, type ReportFormat } from '@/lib/report-formats';
 import { assertSafeOutputs } from './output-paths';
@@ -677,6 +677,8 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
   }
   if (options.outDir && options.formats.includes('gitlab-codequality')) {
     extra.push([path.join(options.outDir, formatFileName('scan', 'gitlab-codequality')), toGitlabCodeQuality(formatReport)]);
+    const decided = toGitlabDecided(formatReport);
+    if (decided) extra.push([path.join(options.outDir, 'codequality-decided.json'), decided]);
   }
   if (options.outDir && options.formats.includes('sarif')) {
     extra.push([path.join(options.outDir, formatFileName('scan', 'sarif')), toSarif(formatReport)]);

@@ -1,0 +1,775 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keeps all three exports byte identical to the no-decisions goldens 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="A11yGate" tests="2" failures="2" errors="0" skipped="0" time="0" timestamp="2026-11-14T12:00:00.000Z" hostname="a11ygate">
+  <properties>
+    <property name="disclaimer" value="Automated testing only. Not a WCAG audit, certification or legal advice."/>
+    <property name="tool" value="A11yGate"/>
+    <property name="version" value="0.2.0"/>
+    <property name="verdict" value="FAIL"/>
+    <property name="reason" value="6 findings at or above serious: image-alt."/>
+    <property name="command" value="scan"/>
+    <property name="startUrl" value="http://localhost/"/>
+  </properties>
+    <testcase classname="http://localhost/" name="image-alt" time="0">
+      <failure message="image-alt: Image alternative required (critical) (3 instances)" type="image-alt">Automated testing only. Not a WCAG audit, certification or legal advice.
+image-alt: Image alternative required (critical) (3 instances)
+- http://localhost/ — img.group-0 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-0&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt
+- http://localhost/ — img.group-1 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-1&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt
+- http://localhost/ — img.group-2 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-2&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt</failure>
+    </testcase>
+    <testcase classname="http://localhost/about" name="image-alt" time="0">
+      <failure message="image-alt: Image alternative required (critical) (3 instances)" type="image-alt">Automated testing only. Not a WCAG audit, certification or legal advice.
+image-alt: Image alternative required (critical) (3 instances)
+- http://localhost/about — img.group-0 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-0&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt
+- http://localhost/about — img.group-1 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-1&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt
+- http://localhost/about — img.group-2 — WCAG 1.1.1 Non-text Content (A)
+  element: &lt;img class=&quot;group-2&quot; src=&quot;/fixture.png&quot;&gt;
+  guidance: https://example.test/image-alt</failure>
+    </testcase>
+</testsuite>
+"
+`;
+
+exports[`keeps all three exports byte identical to the no-decisions goldens 2`] = `
+"{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "A11yGate",
+          "version": "0.2.0",
+          "informationUri": "https://a11ygate.vercel.app",
+          "rules": [
+            {
+              "id": "image-alt",
+              "name": "image-alt",
+              "shortDescription": {
+                "text": "Image alternative required"
+              },
+              "fullDescription": {
+                "text": "Image alternative required"
+              },
+              "helpUri": "https://example.test/image-alt",
+              "help": {
+                "text": "Image alternative required"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "WCAG 1.1.1",
+                  "wcag111"
+                ],
+                "impact": "critical"
+              },
+              "relationships": [
+                {
+                  "target": {
+                    "id": "1.1.1",
+                    "index": 0,
+                    "toolComponent": {
+                      "name": "WCAG",
+                      "index": 0
+                    }
+                  },
+                  "kinds": [
+                    "relevant"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "automationDetails": {
+        "id": "a11ygate/axe/"
+      },
+      "taxonomies": [
+        {
+          "name": "WCAG",
+          "informationUri": "https://www.w3.org/WAI/standards-guidelines/wcag/",
+          "taxa": [
+            {
+              "id": "1.1.1",
+              "name": "Non-text Content",
+              "shortDescription": {
+                "text": "WCAG 2.1 1.1.1 Non-text Content (A)"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-0 on http://localhost/"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-0\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-0"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-0",
+                  "kind": "element",
+                  "name": "img.group-0"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-0|/"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "6d288f44bf24121e:1",
+            "a11ygate": "image-alt|img.group-0|/"
+          },
+          "properties": {
+            "selector": "img.group-0",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-0\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-0\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-0\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-0"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-0",
+                  "kind": "element",
+                  "name": "img.group-0"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/about; selector: img.group-0"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-1 on http://localhost/"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-1\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-1"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-1",
+                  "kind": "element",
+                  "name": "img.group-1"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-1|/"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "4cff72027a0fdc6d:1",
+            "a11ygate": "image-alt|img.group-1|/"
+          },
+          "properties": {
+            "selector": "img.group-1",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-1\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-1\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-1\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-1"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-1",
+                  "kind": "element",
+                  "name": "img.group-1"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/about; selector: img.group-1"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-2 on http://localhost/"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-2\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-2"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-2",
+                  "kind": "element",
+                  "name": "img.group-2"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-2|/"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "d7e5e76195491148:1",
+            "a11ygate": "image-alt|img.group-2|/"
+          },
+          "properties": {
+            "selector": "img.group-2",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-2\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-2\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-2\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-2"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-2",
+                  "kind": "element",
+                  "name": "img.group-2"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/about; selector: img.group-2"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-0 on http://localhost/about"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-0\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-0"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-0",
+                  "kind": "element",
+                  "name": "img.group-0"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-0|/about"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "45bcf1bbadeef87b:1",
+            "a11ygate": "image-alt|img.group-0|/about"
+          },
+          "properties": {
+            "selector": "img.group-0",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/about",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-0\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-0\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-0\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-0"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-0",
+                  "kind": "element",
+                  "name": "img.group-0"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/; selector: img.group-0"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-1 on http://localhost/about"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-1\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-1"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-1",
+                  "kind": "element",
+                  "name": "img.group-1"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-1|/about"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "ac05b3502664b67b:1",
+            "a11ygate": "image-alt|img.group-1|/about"
+          },
+          "properties": {
+            "selector": "img.group-1",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/about",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-1\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-1\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-1\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-1"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-1",
+                  "kind": "element",
+                  "name": "img.group-1"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/; selector: img.group-1"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Image alternative required (critical) at img.group-2 on http://localhost/about"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/about/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-2\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-2"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-2",
+                  "kind": "element",
+                  "name": "img.group-2"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/about",
+                  "kind": "url",
+                  "name": "http://localhost/about"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "image-alt|img.group-2|/about"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "2bcd98828038c85c:1",
+            "a11ygate": "image-alt|img.group-2|/about"
+          },
+          "properties": {
+            "selector": "img.group-2",
+            "impact": "critical",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "http://localhost/about",
+            "likelySharedComponent": {
+              "key": "[\\"image-alt\\",[\\"img.group-2\\"],\\"<img [[\\\\\\"class\\\\\\",\\\\\\".group-2\\\\\\"],[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+              "pageCount": 2,
+              "findingCount": 2,
+              "relatedLocationsTruncated": 0
+            }
+          },
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/localhost/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img class=\\"group-2\\" src=\\"/fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: img.group-2"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "img.group-2",
+                  "kind": "element",
+                  "name": "img.group-2"
+                },
+                {
+                  "fullyQualifiedName": "http://localhost/",
+                  "kind": "url",
+                  "name": "http://localhost/"
+                }
+              ],
+              "id": 1,
+              "message": {
+                "text": "Likely shared component: image-alt on http://localhost/; selector: img.group-2"
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "sharedComponentDisclaimer": "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.",
+        "verdict": "FAIL",
+        "reason": "6 findings at or above serious: image-alt.",
+        "command": "scan",
+        "engine": "axe",
+        "startUrl": "http://localhost/"
+      }
+    }
+  ]
+}
+"
+`;
+
+exports[`keeps all three exports byte identical to the no-decisions goldens 3`] = `
+"[
+  {
+    "description": "Image alternative required — URL: http://localhost/ — selector: img.group-0 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/\\",[\\"img.group-0\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Image alternative required — URL: http://localhost/ — selector: img.group-1 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/\\",[\\"img.group-1\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Image alternative required — URL: http://localhost/ — selector: img.group-2 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/\\",[\\"img.group-2\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Image alternative required — URL: http://localhost/about — selector: img.group-0 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/about\\",[\\"img.group-0\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/about/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Image alternative required — URL: http://localhost/about — selector: img.group-1 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/about\\",[\\"img.group-1\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/about/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Image alternative required — URL: http://localhost/about — selector: img.group-2 — Automated testing only. Not a WCAG audit, certification or legal advice.",
+    "check_name": "image-alt",
+    "fingerprint": "[\\"http://localhost/about\\",[\\"img.group-2\\"],\\"image-alt\\",[\\"1.1.1\\"]]",
+    "severity": "critical",
+    "location": {
+      "path": "a11ygate-pages/localhost/about/index.html",
+      "lines": {
+        "begin": 1
+      }
+    }
+  }
+]
+"
+`;

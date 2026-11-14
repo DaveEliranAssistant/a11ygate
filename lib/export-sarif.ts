@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { attribution } from '@/lib/scan/engines/dedupe';
 import { SITE_URL } from '@/lib/copy';
-import { FORMAT_DISCLAIMER, type FormatFinding, type FormatReport, type FormatWcag } from '@/lib/report-formats';
+import { FORMAT_DISCLAIMER, isDecidedFinding, type FormatFinding, type FormatReport, type FormatWcag } from '@/lib/report-formats';
 import { impactRank } from '@/lib/gate';
 import { componentGroupKey, groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import type { Impact as ImpactName } from '@/lib/types';
@@ -306,7 +306,7 @@ function toSarifResult(finding: FormatFinding, ruleIndex: Map<string, number>): 
     level: sarifLevel(finding.impact),
     // SARIF 2.1.0 §3.27.24: https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html
     ...(finding.baselineStatus ? { baselineState: finding.baselineStatus === 'existing' ? 'unchanged' as const : 'new' as const } : {}),
-    ...(finding.baselineStatus ? { suppressions: finding.baselineStatus === 'existing'
+    ...(isDecidedFinding(finding) ? { suppressions: [{ kind: 'external' as const, status: 'accepted' as const, justification: finding.reviewDecision!.reason! }] } : finding.baselineStatus ? { suppressions: finding.baselineStatus === 'existing'
       ? [{ kind: 'external' as const, status: 'accepted' as const, justification: 'Existing finding accepted in the fingerprint baseline; remains accessibility debt.' }] : [] } : {}),
     message: {
       text: `${finding.help} (${finding.impact ?? 'unspecified'}) at ${finding.selector} on ${finding.pageUrl}${finding.engines ? '; ' + attribution(finding) : ''}`,

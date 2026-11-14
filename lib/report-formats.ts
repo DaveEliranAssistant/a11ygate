@@ -23,6 +23,7 @@ export type SourceLocation = {
 export type FormatWcag = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag'>;
 
 export type FormatFinding = Partial<Agreement> & {
+  reviewDecision?: ScanFinding['reviewDecision'];
   baselineStatus?: 'new' | 'existing';
   ruleId: string;
   impact: Impact | null;
@@ -115,6 +116,7 @@ export function formatFindingFromScan(finding: ScanFinding, occurrence = 0): For
     html: finding.html,
     fingerprint: finding.baselineFingerprint ?? finding.fingerprint,
     baselineIdentity: baselineFingerprint(finding, occurrence),
+    ...(finding.reviewDecision ? { reviewDecision: finding.reviewDecision } : {}),
     ...(finding.baselineStatus ? { baselineStatus: finding.baselineStatus } : {}),
     ...(finding.engines ? { engines: finding.engines, confidence: finding.confidence } : {}),
   };
@@ -186,3 +188,9 @@ export function formatReportFromGate(input: {
 }
 
 export const FORMAT_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
+
+/** Only active reviewer exclusions suppress exported findings. */
+export function isDecidedFinding(finding: FormatFinding): boolean {
+  const d = finding.reviewDecision;
+  return !!d && !d.expired && d.suppressesGate && (d.decision === 'accepted-risk' || d.decision === 'false-positive');
+}

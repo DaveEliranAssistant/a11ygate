@@ -57,7 +57,16 @@
         </xs:complexType>
     </xs:element>
 
-    <xs:element name="skipped" type="xs:string"/>
+    <!-- JUnit skipped-message extension used by review-decision exports (A11Y-R43). -->
+    <xs:element name="skipped">
+        <xs:complexType>
+            <xs:simpleContent>
+                <xs:extension base="xs:string">
+                    <xs:attribute name="message" type="xs:string" use="optional"/>
+                </xs:extension>
+            </xs:simpleContent>
+        </xs:complexType>
+    </xs:element>
     <xs:element name="system-err" type="xs:string"/>
     <xs:element name="system-out" type="xs:string"/>
 

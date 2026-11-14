@@ -1481,6 +1481,7 @@ function formatFindingFromScan(finding2, occurrence = 0) {
     html: finding2.html,
     fingerprint: finding2.baselineFingerprint ?? finding2.fingerprint,
     baselineIdentity: baselineFingerprint(finding2, occurrence),
+    ...finding2.reviewDecision ? { reviewDecision: finding2.reviewDecision } : {},
     ...finding2.baselineStatus ? { baselineStatus: finding2.baselineStatus } : {},
     ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {}
   };
@@ -1539,6 +1540,10 @@ function formatReportFromGate(input) {
   };
 }
 var FORMAT_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
+function isDecidedFinding(finding2) {
+  const d = finding2.reviewDecision;
+  return !!d && !d.expired && d.suppressesGate && (d.decision === "accepted-risk" || d.decision === "false-positive");
+}
 
 // packages/cli/src/args.ts
 var VALUE_FLAGS = {
@@ -2966,13 +2971,14 @@ function escapeXml(value) {
 function groupFindingsByRuleAndPage(findings) {
   const groups = /* @__PURE__ */ new Map();
   for (const finding2 of findings) {
-    const key = `${finding2.pageUrl}\0${finding2.ruleId}`;
+    const decision = isDecidedFinding(finding2) ? finding2.reviewDecision : void 0;
+    const key = `${finding2.pageUrl}\0${finding2.ruleId}\0${decision ? JSON.stringify([decision.group, decision.decision, decision.reason]) : ""}`;
     const existing = groups.get(key);
     if (existing) {
       existing.findings.push(finding2);
       continue;
     }
-    groups.set(key, { classname: finding2.pageUrl, name: finding2.ruleId, findings: [finding2] });
+    groups.set(key, { classname: finding2.pageUrl, name: decision ? `${finding2.ruleId} [${decision.decision}: ${decision.group}]` : finding2.ruleId, findings: [finding2] });
   }
   return [...groups.values()].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
@@ -3010,7 +3016,8 @@ function toJunit(report) {
   const cases = [...failed, ...passing].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
   );
-  const failures = failed.filter((g) => g.findings.some((f) => f.baselineStatus !== "existing")).length;
+  const failures = failed.filter((g) => g.findings.some((f) => !isDecidedFinding(f) && f.baselineStatus !== "existing")).length;
+  const skipped = cases.filter((g) => g.findings.length > 0 && g.findings.every(isDecidedFinding)).length;
   const tests = cases.length;
   const timestamp = escapeXml(report.generatedAt);
   const properties = [
@@ -3027,6 +3034,12 @@ function toJunit(report) {
   if (report.projectName) properties.push(property("projectName", report.projectName));
   const testcases = cases.map((item) => {
     const attrs = `classname="${escapeXml(item.classname)}" name="${escapeXml(item.name)}" time="0"`;
+    if (item.findings.length > 0 && item.findings.every(isDecidedFinding)) {
+      const d = item.findings[0].reviewDecision;
+      return `    <testcase ${attrs}>
+      <skipped message="${escapeXml(`${d.decision}: ${d.reason}`)}"/>
+    </testcase>`;
+    }
     if (item.findings.length === 0 || item.findings.every((f) => f.baselineStatus === "existing")) return `    <testcase ${attrs}/>`;
     const failingItem = { ...item, findings: item.findings.filter((f) => f.baselineStatus !== "existing") };
     const type = escapeXml(item.name);
@@ -3037,7 +3050,7 @@ function toJunit(report) {
     </testcase>`;
   });
   return `<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="A11yGate" tests="${tests}" failures="${failures}" errors="0" skipped="0" time="0" timestamp="${timestamp}" hostname="a11ygate">
+<testsuite name="A11yGate" tests="${tests}" failures="${failures}" errors="0" skipped="${skipped}" time="0" timestamp="${timestamp}" hostname="a11ygate">
   <properties>
 ${properties.join("\n")}
   </properties>
@@ -3223,7 +3236,7 @@ function toSarifResult(finding2, ruleIndex) {
     level: sarifLevel(finding2.impact),
     // SARIF 2.1.0 §3.27.24: https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html
     ...finding2.baselineStatus ? { baselineState: finding2.baselineStatus === "existing" ? "unchanged" : "new" } : {},
-    ...finding2.baselineStatus ? { suppressions: finding2.baselineStatus === "existing" ? [{ kind: "external", status: "accepted", justification: "Existing finding accepted in the fingerprint baseline; remains accessibility debt." }] : [] } : {},
+    ...isDecidedFinding(finding2) ? { suppressions: [{ kind: "external", status: "accepted", justification: finding2.reviewDecision.reason }] } : finding2.baselineStatus ? { suppressions: finding2.baselineStatus === "existing" ? [{ kind: "external", status: "accepted", justification: "Existing finding accepted in the fingerprint baseline; remains accessibility debt." }] : [] } : {},
     message: {
       text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}${finding2.engines ? "; " + attribution(finding2) : ""}`
     },
@@ -3501,8 +3514,15 @@ function toGitlabCodeQuality(report) {
       location: { path: mapped ? file : pageUrlToRepoRelativePath(finding2.pageUrl), lines: { begin, ...end !== void 0 ? { end } : {} } }
     };
   });
-  issues.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
-  return `${JSON.stringify(issues, null, 2)}
+  const active = issues.filter((_, index) => !isDecidedFinding(report.findings[index]));
+  active.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  return `${JSON.stringify(active, null, 2)}
+`;
+}
+function toGitlabDecided(report) {
+  const findings = report.findings.filter(isDecidedFinding);
+  if (!findings.length) return void 0;
+  return `${JSON.stringify({ disclaimer: FORMAT_DISCLAIMER, findings }, null, 2)}
 `;
 }
 
@@ -4960,6 +4980,8 @@ async function writeScanReport(report, options, io, engine) {
   }
   if (options.outDir && options.formats.includes("gitlab-codequality")) {
     extra.push([path5.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+    const decided = toGitlabDecided(formatReport);
+    if (decided) extra.push([path5.join(options.outDir, "codequality-decided.json"), decided]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
     extra.push([path5.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
