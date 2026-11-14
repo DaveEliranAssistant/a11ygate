@@ -99,6 +99,8 @@ describe('a11ygate review remove', () => {
       expect(stored.groupDecisions).toEqual([hero()]);
       expect(stored.history).toEqual([{ action: 'remove', by: 'Carol', at: NOW.toISOString(), group: nav().group, previous: nav() }]);
       expect(stored.findings).toEqual(createFingerprintBaseline(report([])).findings);
+      expect(c.text()).toContain('Removed 1 decision(s)');
+      expect(c.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
 
       const missing = capture();
       expect(await runReview(['remove', 'g-ffffffffffffffff', '--baseline', 'baseline.json', '--yes'], { ...missing.io, cwd })).toBe(2);
@@ -110,6 +112,8 @@ describe('a11ygate review remove', () => {
       const before = await readFile(file, 'utf8');
       const no = capture();
       expect(await runReview(['remove', nav().group, '--baseline', 'baseline.json'], { ...no.io, cwd, interactive: true, prompt: async () => 'n' })).toBe(0);
+      expect(no.text()).toContain('Nothing removed.');
+      expect(no.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(await readFile(file, 'utf8')).toBe(before);
       const yes = capture();
       expect(await runReview(['remove', nav().group, '--baseline', 'baseline.json'], { ...yes.io, cwd, interactive: true, prompt: async () => 'y', gitUserName: async () => 'Dee' })).toBe(0);
@@ -129,6 +133,8 @@ describe('a11ygate review remove', () => {
       const bytes = await readFile(file, 'utf8');
       expect(await runReview(['remove', '--all-expired', '--baseline', 'baseline.json', '--yes'], { ...again.io, cwd })).toBe(0);
       expect(again.text()).toContain('No expired decisions');
+      expect(again.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(c.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(await readFile(file, 'utf8')).toBe(bytes);
     });
   });
@@ -143,6 +149,8 @@ describe('a11ygate review prune', () => {
       expect(c.text()).toContain('1 decision(s) match no finding in this scan and would be removed');
       expect(c.text()).toContain(hero().group);
       expect(c.text()).not.toContain(nav().group);
+      expect(c.text()).toContain('Dry run: nothing written.');
+      expect(c.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(await readFile(file, 'utf8')).toBe(before);
     });
   });
@@ -157,6 +165,9 @@ describe('a11ygate review prune', () => {
       const again = capture();
       expect(await runReview(['prune', 'scan.json', '--baseline', 'baseline.json'], { ...again.io, cwd })).toBe(0);
       expect(again.text()).toContain('Nothing to prune');
+      expect(again.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(c.text()).toContain('Pruned 1 decision(s)');
+      expect(c.text()).toContain(AUTOMATED_TESTING_DISCLAIMER);
     });
   });
 });

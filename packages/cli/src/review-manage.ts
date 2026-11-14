@@ -144,19 +144,19 @@ export async function runReviewRemove(argv: readonly string[], io: ReviewIo = {}
     const target = flags.positional[0];
     const removed = allExpired ? decisions.filter((d) => isExpired(d, now)) : decisions.filter((d) => d.group === target || d.groupKey === target);
     if (!removed.length) {
-      if (allExpired) { stdout(`No expired decisions in ${flags.values.get('--baseline')}. Nothing written.\n`); return 0; }
+      if (allExpired) { stdout(`No expired decisions in ${flags.values.get('--baseline')}. Nothing written.\n${AUTOMATED_TESTING_DISCLAIMER}\n`); return 0; }
       throw new Error(`No decision for group ${target} in the baseline. Run a11ygate review list --baseline <file>.`);
     }
     stdout(removed.map((d) => describe(d, now)).join(''));
     if (!flags.switches.has('--yes') && !flags.switches.has('-y') && !(await confirm(io, `Remove ${removed.length} decision(s)? [y/N] `))) {
       const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
       if (!interactive) throw new Error('Removing decisions needs --yes outside a terminal.');
-      stdout('Nothing removed.\n');
+      stdout(`Nothing removed.\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
       return 0;
     }
     const keep = decisions.filter((d) => !removed.includes(d));
     await saveReviewBaseline(file, baseline, keep, entries('remove', removed, await who(io, cwd), now), io);
-    stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.\n`);
+    stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
     return 0;
   } catch (error) {
     stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);
@@ -177,11 +177,11 @@ export async function runReviewPrune(argv: readonly string[], io: ReviewIo = {})
     const dry = flags.switches.has('--dry-run');
     const incomplete = report.pages.filter((p) => p.scanStatus !== 'complete').length;
     if (incomplete) stdout(`Warning: ${incomplete} page(s) in this scan did not complete; decisions for components only on those pages may be pruned. Use --dry-run to check.\n`);
-    if (!stale.length) { stdout('Every decision still matches a finding in this scan. Nothing to prune.\n'); return 0; }
+    if (!stale.length) { stdout(`Every decision still matches a finding in this scan. Nothing to prune.\n${AUTOMATED_TESTING_DISCLAIMER}\n`); return 0; }
     stdout(`${stale.length} decision(s) match no finding in this scan${dry ? ' and would be removed' : ''}:\n` + stale.map((d) => describe(d, now)).join(''));
-    if (dry) { stdout('Dry run: nothing written.\n'); return 0; }
+    if (dry) { stdout(`Dry run: nothing written.\n${AUTOMATED_TESTING_DISCLAIMER}\n`); return 0; }
     await saveReviewBaseline(file, baseline, decisions.filter((d) => present.has(d.groupKey)), entries('prune', stale, await who(io, cwd), now), io);
-    stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].\n`);
+    stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
     return 0;
   } catch (error) {
     stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}\n${debugDetail(error)}`);

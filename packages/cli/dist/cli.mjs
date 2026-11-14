@@ -6036,6 +6036,7 @@ async function runReviewRemove(argv2, io = {}) {
     if (!removed.length) {
       if (allExpired) {
         stdout(`No expired decisions in ${flags.values.get("--baseline")}. Nothing written.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
         return 0;
       }
@@ -6045,12 +6046,15 @@ async function runReviewRemove(argv2, io = {}) {
     if (!flags.switches.has("--yes") && !flags.switches.has("-y") && !await confirm(io, `Remove ${removed.length} decision(s)? [y/N] `)) {
       const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
       if (!interactive) throw new Error("Removing decisions needs --yes outside a terminal.");
-      stdout("Nothing removed.\n");
+      stdout(`Nothing removed.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
       return 0;
     }
     const keep = decisions.filter((d) => !removed.includes(d));
     await saveReviewBaseline(file, baseline, keep, entries("remove", removed, await who(io, cwd), now), io);
     stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
     return 0;
   } catch (error) {
@@ -6074,17 +6078,22 @@ async function runReviewPrune(argv2, io = {}) {
     if (incomplete) stdout(`Warning: ${incomplete} page(s) in this scan did not complete; decisions for components only on those pages may be pruned. Use --dry-run to check.
 `);
     if (!stale.length) {
-      stdout("Every decision still matches a finding in this scan. Nothing to prune.\n");
+      stdout(`Every decision still matches a finding in this scan. Nothing to prune.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
       return 0;
     }
     stdout(`${stale.length} decision(s) match no finding in this scan${dry ? " and would be removed" : ""}:
 ` + stale.map((d) => describe(d, now)).join(""));
     if (dry) {
-      stdout("Dry run: nothing written.\n");
+      stdout(`Dry run: nothing written.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
       return 0;
     }
     await saveReviewBaseline(file, baseline, decisions.filter((d) => present2.has(d.groupKey)), entries("prune", stale, await who(io, cwd), now), io);
     stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
     return 0;
   } catch (error) {
