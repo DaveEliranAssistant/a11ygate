@@ -60,7 +60,7 @@ When `comment` and `suggest-fixes` are both true, the action also posts pull req
 
 ## Model-assisted fixes (experimental, default off)
 
-This is an early skeleton of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). Today it records how findings would be routed. It ships no provider adapter and makes no model request. A draft-only publisher exists for drafts that an isolated re-scan verified, but the action does not run that verifier yet, so it publishes no model output.
+This is an early slice of the design in [docs/design/model-written-fix-prs.md](../docs/design/model-written-fix-prs.md). It can ask free-tier model providers (Groq, Gemini, Cloudflare Workers AI) for a draft when provider env vars are set. Every draft is treated as untrusted and validated. A draft-only publisher exists for drafts that an isolated re-scan verified, but the action does not run that verifier yet, so it publishes no model output. Only the sanitized outcome (for example `unverified-discarded`, `adapters-failed`) appears in the run summary.
 
 - **Default off.** It stays off unless the `model-fixes` input (or `A11YGATE_MODEL_FIXES`) is `on` **and** the repository opts in with this exact line in `.a11ygate.yml` at the repository root:
 
@@ -73,6 +73,47 @@ This is an early skeleton of the design in [docs/design/model-written-fix-prs.md
 - When models are off, no provider is configured, every provider fails, or the budget is used up, the action posts exactly the rule-based suggestions described above. The gate result and exit code do not change.
 - Verified drafts are only ever published as a **draft** pull request (`model-fixes-publish: draft-pr`, the default) or a review comment labelled "model-drafted, needs human review" (`review-suggestion`), with provider, model, finding fingerprint, source commit and re-scan evidence. A11yGate never marks them ready, approves or merges them, and dedupes by commit and finding. Without `pull-requests: write` and `contents: write` it warns and reports only; the exit code does not change.
 - Rule-based suggestions keep their `TODO(a11ygate)` placeholders. A11yGate does not invent alt, label or accessible-name text.
+
+### Providers, order and environment variables
+
+Providers are tried in this order: **Groq → Gemini → Cloudflare Workers AI → rule-based (F1) suggestions**. A provider is skipped when it is not in the allowlist, its credentials or model ID are missing, the model ID is not in the expected format, or it already failed in this run. Nothing is called unless every item below is set.
+
+| Variable | Purpose |
+| --- | --- |
+| `A11YGATE_MODEL_FIXES` / `model-fixes` input | `on` to request model drafts. Default off. Still needs `modelFixes: true` in `.a11ygate.yml`. |
+| `A11YGATE_MODEL_PROVIDERS` | Allowlist, for example `groq,gemini,cloudflare`. Order of trial is always the order above. Empty means no provider. |
+| `A11YGATE_MODEL_MAX_REQUESTS` | Request budget per run, 1–100. Default 0: no requests. Retries count against it. When it is used up, no further model call is made. |
+| `A11YGATE_MODEL_TIMEOUT_MS` | Per-request deadline, 1–120000. Default 0: no requests. A timed-out request still counts against the budget. |
+| `A11YGATE_MODEL_MAX_OUTPUT_TOKENS` | Optional output-token cap per request, up to 4096. Default 1024. |
+| `GROQ_API_KEY`, `A11YGATE_MODEL_GROQ_MODEL` | Groq credentials and an explicit model ID. No default model. |
+| `GEMINI_API_KEY`, `A11YGATE_MODEL_GEMINI_MODEL` | Gemini API key (sent in the `x-goog-api-key` header, never in the URL) and an explicit model ID. |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `A11YGATE_MODEL_CLOUDFLARE_MODEL` | Workers AI token, 32-hex account ID and an explicit `@cf/...` model ID. |
+| `A11YGATE_MODEL_ALLOW_PAID`, `A11YGATE_MODEL_MAX_COST_USD` | Separate paid opt-in. Default `false` and `0`. No paid adapter ships in this version, so these have no effect on the built-in providers. |
+
+Pass credentials as repository or organization secrets in the workflow `env:` only. Never commit them or put them in `.a11ygate.yml`.
+
+### Rate limits and quotas
+
+- On HTTP 429 or a free-quota signal, A11yGate reads `Retry-After` and provider reset signals (Groq `x-ratelimit-reset-*`, Gemini `RetryInfo`, Cloudflare's daily reset at 00:00 UTC), puts that provider on cooldown, and moves to the next allowed provider. It does not wait for the cooldown. Without a reset signal, the provider stays off for the rest of the run.
+- Transient errors (5xx, network) get at most 2 retries with jittered backoff of up to 2 seconds, inside the request budget. Auth errors, unknown models, unsupported regions and timeouts are not retried; the provider is skipped for the rest of the run.
+- A11yGate does not rotate keys, upgrade accounts or move to paid usage. When every provider is cooling or failed, it returns to rule-based suggestions.
+- A key alone does not prove that requests are free. Use dedicated free-plan credentials or provider-side billing limits. If an account has billing enabled, usage above the free allowance may be charged by the provider.
+
+Free-tier notes. Only the Cloudflare figures are sourced; recheck before relying on any of them:
+
+- **Cloudflare Workers AI:** 10,000 Neurons/day free, reset at 00:00 UTC. Usage above that is $0.011 per 1,000 Neurons on Workers Paid, and some models require paid billing. Source: <https://developers.cloudflare.com/workers-ai/platform/pricing/> (fetched 2026-11-13). Neurons do not map to a fixed number of requests.
+- **Groq:** has a free plan with organization-level rate limits and HTTP 429 responses (<https://console.groq.com/docs/rate-limits>, fetched 2026-11-13). Exact quotas: **unverified**.
+- **Gemini:** has a free tier with model- and project-dependent limits (<https://ai.google.dev/gemini-api/docs/rate-limits>, fetched 2026-11-13). Exact quotas: **unverified**.
+
+### What is sent, and privacy
+
+- **Sent:** the rule ID (for example `color-contrast`), the file extension, the line count and the exact mapped source lines of one element (at most 4 KB), plus fixed instructions. Credentials go only in the authentication header to the fixed provider endpoint.
+- **Not sent:** file paths, repository names, commits, finding IDs, full files, the page, the scan report, screenshots or images.
+- **Skipped entirely (no request):** snippets that contain secret-shaped strings or credential words, `value=` attributes or hidden inputs, URLs with query strings or fragments, private or internal hosts, email addresses or phone-like numbers, scripts or event handlers, and files such as `.env*`, `.git`, `.npmrc`, keys and certificates. Those findings get rule-based output only.
+- Replies are untrusted. They are size-capped, must be JSON, and go through the same draft validator as any other draft (path, range, blob hash, no scripts, no check suppression). A reply that writes alt, label or accessible-name text instead of a `TODO(a11ygate)` placeholder is rejected.
+- Raw prompts, replies and error bodies are not logged. Provider retention, training use and regional processing are **unverified** here. A11yGate makes no "no storage" or "no training" claim. Repository owners must check and accept each provider's current terms before enabling it.
+
+A manual live check, `scripts/modelfix-live-smoke.mjs`, is not run by CI or any npm script. It sends one synthetic fixture snippet per provider and needs `A11YGATE_LIVE_SMOKE=1` plus your own credentials.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
