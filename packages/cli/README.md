@@ -114,6 +114,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 | `--json` / `--markdown` / `--html <file>` | Write individual reports instead. `--json -` prints JSON to stdout; otherwise Markdown is printed. |
 | `--en301549-ref` | Opt in: add an "EN 301 549 ref." column (ETSI EN 301 549 V3.2.1 clause 9) to HTML report v2 and to SARIF rule properties (`properties.en301549Ref`). WCAG 2.2-only criteria show "not in EN 301 549 V3.2.1". Reference mapping only; does not indicate conformance. Default off: output is unchanged without it. |
 | `--report-version 1\|2` | HTML layout. `2` (default): executive summary, top 10 fixes, WCAG and page grouping, how-to-fix links, limits of automated testing, print and dark-mode CSS. `1`: the previous HTML, byte-for-byte. |
+| `--report-lang <lang>` | Language for HTML report v2 and the Markdown summary. Shipped: `en` (default, unchanged output). `en-XA` and `ar-XB` (right-to-left) are pseudo-locales for layout testing only. The disclaimer and legal wording always stay in English. See [docs/report-locales.md](../../docs/report-locales.md). |
 | `--delay-ms <ms>` | Pause between page loads. Default 1000. |
 
 `playwright` and `@axe-core/playwright` are optional peer dependencies, loaded only by `scan`. If they are missing, `scan` prints an install hint and exits 2. The gate mode stays dependency-free.

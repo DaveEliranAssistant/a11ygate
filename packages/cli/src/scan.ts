@@ -17,6 +17,7 @@ import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { fetchSitemap } from '@/lib/scan/sitemap';
 import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
 import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanMarkdown, type FailOn } from '@/lib/scan/report';
+import { isPseudoReportLang, isReportLang, REPORT_LANGS, type ReportLang } from '@/lib/i18n';
 import { DEFAULT_REPORT_VERSION, isReportVersion, renderScanHtml, type ReportVersion } from '@/lib/scan/report-html-v2';
 import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
 import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
@@ -69,6 +70,8 @@ export type ScanOptions = AuthOptions & {
   markdown?: string;
   html?: string;
   reportVersion: ReportVersion;
+  /** A11Y-R58: report language for HTML v2 and Markdown. Only `en` is shipped; pseudo-locales are for layout tests. */
+  reportLang?: ReportLang;
   formats: ReportFormat[];
   warnings: string[];
   engines: EngineId[];
@@ -86,7 +89,7 @@ const AUTH_CHECK_FLAGS = {
   '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
   '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
 } as const;
-const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -208,6 +211,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     } else if (name === '--report-version') {
       if (!/^\d+$/.test(value) || !isReportVersion(Number(value))) return { ok: false, error: `Unknown --report-version "${value}". Use 1 or 2.` };
       options.reportVersion = Number(value) as ReportVersion;
+    } else if (name === '--report-lang') {
+      if (!isReportLang(value)) return { ok: false, error: `Unknown --report-lang "${value}". Use ${REPORT_LANGS.join(', ')} (only en is a shipped language).` };
+      if (isPseudoReportLang(value)) options.warnings.push(`--report-lang ${value} is a pseudo-locale for layout testing only, not a translation.`);
+      if (value !== 'en') options.reportLang = value;
     } else if (name === '--baseline') options.baseline = value;
     else if (name === '--out-dir') options.outDir = value;
     else if (name === '--json') options.json = value;
@@ -306,6 +313,9 @@ Options:
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
                        grouping, how-to-fix links. 1: the previous HTML, byte-for-byte.
+  --report-lang <lang> Report language for HTML v2 and Markdown. Shipped: en (default).
+                       en-XA and ar-XB (right-to-left) are pseudo-locales for layout
+                       testing only. The disclaimer always stays in English.
   --en301549-ref       Opt in: add an "EN 301 549 ref." column (ETSI EN 301 549 V3.2.1
                        clause 9) to HTML v2 and SARIF rule properties. Reference mapping
                        only; does not indicate conformance. Default off.
@@ -745,7 +755,7 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
   for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
   report = redactor.object(report);
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  const markdown = scanMarkdown(report);
+  const markdown = scanMarkdown(report, options.reportLang);
 
   const formatReport = formatReportFromScan(report);
   const extra: [string, string][] = [];
@@ -764,14 +774,14 @@ async function writeScanReport(report: import('@/lib/scan/report').ScanReport, o
     ? [
         [path.join(options.outDir, 'a11ygate-scan.json'), json],
         [path.join(options.outDir, 'a11ygate-scan.md'), markdown],
-        [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
+        [path.join(options.outDir, 'a11ygate-scan.html'), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...(options.reportLang ? { lang: options.reportLang } : {}) })],
         ...(options.noScreenshots ? [[path.join(options.outDir, '.a11ygate-no-screenshots'), 'Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n'] as [string, string]] : []),
         ...extra,
       ]
     : [
         [options.json === '-' ? undefined : options.json, json],
         [options.markdown, markdown],
-        [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true }) : ''],
+        [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...(options.reportLang ? { lang: options.reportLang } : {}) }) : ''],
       ];
   try {
     if (typeof options.interactions === 'string' || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
