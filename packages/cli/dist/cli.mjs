@@ -2027,7 +2027,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path15) => {
+  const run2 = async (name, steps, index, path17) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2057,8 +2057,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path15) {
-        for (const control of path15) {
+      else if (path17) {
+        for (const control of path17) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2068,7 +2068,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path15 && path15.length < depth) children = (await revealedControls(page, path15.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path17 && path17.length < depth) children = (await revealedControls(page, path17.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2085,11 +2085,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path15) => {
-      if (autoUsed >= maxStates || used + path15.length > options.budget) return;
+    const explore = async (path17) => {
+      if (autoUsed >= maxStates || used + path17.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path15.map((c) => c.name).join(">"), void 0, void 0, path15);
-      for (const child of children) await explore([...path15, child]);
+      const children = await run2(path17.map((c) => c.name).join(">"), void 0, void 0, path17);
+      for (const child of children) await explore([...path17, child]);
     };
     for (const root of roots) await explore([root]);
   }
