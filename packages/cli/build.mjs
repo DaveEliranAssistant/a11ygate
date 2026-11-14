@@ -50,6 +50,19 @@ await build({
   plugins: [atAlias],
 });
 
+// Optional model-fix orchestrator (routing only, no provider code or network) for the Action.
+await build({
+  entryPoints: [path.join(repoRoot, 'lib', 'modelfix', 'index.ts')],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node20',
+  outfile: path.join(repoRoot, 'action', 'dist', 'modelfix.mjs'),
+  legalComments: 'none',
+  logLevel: 'warning',
+  plugins: [atAlias],
+});
+
 await chmod(outfile, 0o755);
 await copyFile(outfile, actionOut);
 await chmod(actionOut, 0o755);

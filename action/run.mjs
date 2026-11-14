@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCommentBody, findA11yComment } from './comment.mjs';
-import { postSuggestions } from './suggestions.mjs';
+import { REPO_CONFIG_FILE, resolveModelFixConfig } from './dist/modelfix.mjs';
+import { postSuggestions, readWorkspaceFile } from './suggestions.mjs';
 
 const actionDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -128,12 +129,25 @@ async function suggestFixes(jsonPath) {
     warning(error instanceof Error ? error.message : 'Invalid GitHub API URL.');
     return;
   }
+  const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+  // Model-assisted drafts: default off, and the repository must opt in with `modelFixes: true`
+  // in .a11ygate.yml. The model-fixes input / A11YGATE_MODEL_FIXES cannot override a repository denial.
+  let repoConfig = null;
+  try {
+    repoConfig = readWorkspaceFile(workspace, REPO_CONFIG_FILE);
+  } catch {
+    repoConfig = null;
+  }
+  const modelFixes = resolveModelFixConfig({ repoConfig, flag: process.env.A11Y_MODEL_FIXES, env: process.env });
+  for (const message of modelFixes.warnings) warning(`A11yGate: ${message}`);
   await postSuggestions({
     report,
     repo,
     pr,
     headSha: (process.env.A11Y_HEAD_SHA || '').trim(),
-    workspace: process.env.GITHUB_WORKSPACE || process.cwd(),
+    workspace,
+    modelFixes,
+    env: process.env,
     lang: (process.env.A11Y_SUGGEST_LANG || '').trim() || 'en',
     github: (pathname, options = {}) => github(pathname, { ...options, token, api }),
     warn: warning,
