@@ -10,6 +10,9 @@ export type EngineId = typeof ENGINE_IDS[number];
 export type OptionalEngineContext = { page: Page; browserURL?: string };
 const require = createRequire(import.meta.url);
 
+type OptionalNative = { findings: NormalizedFinding[]; raw: unknown };
+const normalize = (results: OptionalNative) => results.findings;
+
 async function localScript(packageName: string, script: string): Promise<string> {
   try {
     // Resolve at runtime; engine code is never copied into CLI/Action bundles.
@@ -24,7 +27,7 @@ function finding(engine: EngineId, url: string, ruleId: string, selector: string
     wcagSc: wcagSc ?? [...(WCAG_RULE_MAP[engine]?.[ruleId] ?? [])] };
 }
 
-export function createHtmlcsEngine(): Engine<OptionalEngineContext, NormalizedFinding[]> {
+export function createHtmlcsEngine(): Engine<OptionalEngineContext, OptionalNative> {
   return {
     id: 'htmlcs', displayName: 'HTML_CodeSniffer',
     async run({ page }, url) {
@@ -35,9 +38,9 @@ export function createHtmlcsEngine(): Engine<OptionalEngineContext, NormalizedFi
           process: (standard: string, document: Document, done: () => void) => void;
           getMessages: () => Message[];
         } }).HTMLCS;
-        return await new Promise<{ code: string; selector: string; snippet: string }[]>((resolve) => {
+        return await new Promise<{ code: string; type: number; message: string; selector: string; snippet: string }[]>((resolve) => {
           htmlcs.process('WCAG2AA', document, () => resolve(htmlcs.getMessages()
-            .filter((m) => m.type === 1).map((m) => {
+            .map((m) => {
               const parts: string[] = [];
               let element: Element | null = m.element;
               while (element) {
@@ -45,45 +48,45 @@ export function createHtmlcsEngine(): Engine<OptionalEngineContext, NormalizedFi
                 parts.unshift(`${element.localName}:nth-child(${parent ? Array.from(parent.children).indexOf(element) + 1 : 1})`);
                 element = parent;
               }
-              return { code: m.code, selector: parts.join(' > '), snippet: m.element?.outerHTML?.slice(0, 2000) ?? '' };
+              return { code: m.code, type: m.type, message: m.msg, selector: parts.join(' > '), snippet: m.element?.outerHTML ?? '' };
             })));
         });
       });
-      return issues.map((i) => {
+      return { raw: issues, findings: issues.filter((i) => i.type === 1).map((i) => {
         const sc = i.code.match(/Guideline\d+_\d+\.(\d+)_(\d+)_(\d+)/);
-        return finding('htmlcs', url, i.code, i.selector, i.snippet,
+        return finding('htmlcs', url, i.code, i.selector, i.snippet.slice(0, 2000),
           'https://squizlabs.github.io/HTML_CodeSniffer/Standards/WCAG2/', sc ? [`${sc[1]}.${sc[2]}.${sc[3]}`] : []);
-      });
+      }) };
     },
-    normalize: (results) => results,
+    normalize,
   };
 }
 
-export function createIbmEngine(): Engine<OptionalEngineContext, NormalizedFinding[]> {
+export function createIbmEngine(): Engine<OptionalEngineContext, OptionalNative> {
   return {
     id: 'ibm', displayName: 'IBM Equal Access',
     async run({ page }, url) {
       // The official engine package contains the complete versioned rules. No checker
       // configuration, archive server, cache refresh, telemetry or CDN is involved.
       await page.evaluate(await localScript('accessibility-checker-engine', 'ace.js'));
-      const issues = await page.evaluate(async () => {
+      const native = await page.evaluate(async () => {
         type Issue = { ruleId: string; value: string[]; path?: { dom?: string }; snippet?: string };
         const ace = (window as unknown as { ace: { Checker: new () => {
           check: (doc: Document, policies: string[]) => Promise<{ results: Issue[] }>;
         } } }).ace;
         const report = await new ace.Checker().check(document, ['IBM_Accessibility']);
-        return report.results.filter((issue) => issue.value[0] === 'VIOLATION' && issue.value[1] === 'FAIL').map((i) => ({
+        return { raw: report, issues: report.results.filter((issue) => issue.value[0] === 'VIOLATION' && issue.value[1] === 'FAIL').map((i) => ({
           ruleId: i.ruleId, selector: i.path?.dom ?? '', snippet: i.snippet ?? '',
-        }));
+        })) };
       });
-      return issues.map((i) => finding('ibm', url, i.ruleId, i.selector, i.snippet,
-        `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`));
+      return { raw: native.raw, findings: native.issues.map((i) => finding('ibm', url, i.ruleId, i.selector, i.snippet,
+        `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`)) };
     },
-    normalize: (results) => results,
+    normalize,
   };
 }
 
-export function createLighthouseEngine(): Engine<OptionalEngineContext, NormalizedFinding[]> {
+export function createLighthouseEngine(): Engine<OptionalEngineContext, OptionalNative> {
   return {
     id: 'lighthouse', displayName: 'Lighthouse accessibility',
     async run({ page, browserURL }, url) {
@@ -114,16 +117,16 @@ export function createLighthouseEngine(): Engine<OptionalEngineContext, Normaliz
         if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
         const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === 'error');
         if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? 'unknown error'}`);
-        return Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
+        return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
           const details = a.details as { items?: { node?: { selector?: string; snippet?: string }; subItems?: { items?: { node?: { selector?: string; snippet?: string } }[] } }[] } | undefined;
           const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== undefined);
           return (nodes.length ? nodes : [{}]).map((n) => finding('lighthouse', url, a.id, n.selector ?? '', n.snippet ?? '',
             a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? 'https://developer.chrome.com/docs/lighthouse/accessibility/'));
-        });
+        }) };
       } finally {
         await browser.disconnect();
       }
     },
-    normalize: (results) => results,
+    normalize,
   };
 }

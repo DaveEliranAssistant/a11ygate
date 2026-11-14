@@ -11,6 +11,8 @@ export type NormalizedFinding = {
   impact: Impact | null;
   url: string;
   selector: string;
+  /** Canonical DOM path resolved during scanning; raw selector is preserved. */
+  elementKey?: string;
   snippet: string;
   helpUrl: string;
   /** Original public axe finding retained for lossless compatibility. */

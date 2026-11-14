@@ -1,3 +1,4 @@
+import type { Agreement } from '@/lib/scan/engines/dedupe';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { lookupStandards, type Criterion } from '@/lib/mapping';
 import { findingsFromResults } from '@/lib/parse';
@@ -20,7 +21,7 @@ export type SourceLocation = {
 
 export type FormatWcag = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag'>;
 
-export type FormatFinding = {
+export type FormatFinding = Partial<Agreement> & {
   ruleId: string;
   impact: Impact | null;
   help: string;
@@ -36,6 +37,7 @@ export type FormatFinding = {
 };
 
 export type FormatReport = {
+  engines?: ScanReport['engines'];
   toolName: 'A11yGate';
   version: string;
   generatedAt: string;
@@ -103,6 +105,7 @@ export function formatFindingFromScan(finding: ScanFinding): FormatFinding {
     selector: finding.selector,
     html: finding.html,
     fingerprint: finding.fingerprint,
+    ...(finding.engines ? { engines: finding.engines, confidence: finding.confidence } : {}),
   };
 }
 
@@ -112,6 +115,7 @@ export function formatReportFromScan(report: ScanReport): FormatReport {
     version: report.version,
     generatedAt: report.scannedAt,
     command: 'scan',
+    ...(report.engines ? { engines: report.engines } : {}),
     verdict: report.verdict,
     reason: report.reason,
     startUrl: report.startUrl,

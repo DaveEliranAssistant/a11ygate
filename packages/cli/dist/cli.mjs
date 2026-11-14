@@ -527,7 +527,8 @@ function formatFindingFromScan(finding2) {
     pageUrl: finding2.pageUrl,
     selector: finding2.selector,
     html: finding2.html,
-    fingerprint: finding2.fingerprint
+    fingerprint: finding2.fingerprint,
+    ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {}
   };
 }
 function formatReportFromScan(report) {
@@ -536,6 +537,7 @@ function formatReportFromScan(report) {
     version: report.version,
     generatedAt: report.scannedAt,
     command: "scan",
+    ...report.engines ? { engines: report.engines } : {},
     verdict: report.verdict,
     reason: report.reason,
     startUrl: report.startUrl,
@@ -725,6 +727,39 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 `;
 }
 
+// lib/scan/engines/locators.ts
+async function resolveElementKeys(page, findings) {
+  const keys = await page.evaluate((selectors) => selectors.map((selector) => {
+    try {
+      let element = null;
+      if (selector.startsWith("/") || selector.startsWith("xpath=")) {
+        const nodes = document.evaluate(selector.replace(/^xpath=/, ""), document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE);
+        if (nodes.snapshotLength === 1) element = nodes.snapshotItem(0);
+      } else {
+        const nodes = document.querySelectorAll(selector);
+        if (nodes.length === 1) element = nodes[0];
+      }
+      if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
+      const parts = [];
+      while (element) {
+        const tag = element.localName;
+        let index = 1;
+        let sibling = element.previousElementSibling;
+        while (sibling) {
+          if (sibling.localName === tag) index += 1;
+          sibling = sibling.previousElementSibling;
+        }
+        parts.unshift(`${tag}:nth-of-type(${index})`);
+        element = element.parentElement;
+      }
+      return parts.join(">");
+    } catch {
+      return null;
+    }
+  }), findings.map((f) => f.selector));
+  return findings.map((f, i) => keys[i] ? { ...f, elementKey: keys[i] } : f);
+}
+
 // packages/cli/src/scan.ts
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -755,6 +790,7 @@ var WCAG_RULE_MAP = {
 // lib/scan/engines/optional.ts
 var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
 var require2 = createRequire(import.meta.url);
+var normalize = (results) => results.findings;
 async function localScript(packageName, script) {
   try {
     return await readFile(require2.resolve(`${packageName}/${script}`), "utf8");
@@ -783,7 +819,7 @@ function createHtmlcsEngine() {
       const issues = await page.evaluate(async () => {
         const htmlcs = window.HTMLCS;
         return await new Promise((resolve) => {
-          htmlcs.process("WCAG2AA", document, () => resolve(htmlcs.getMessages().filter((m) => m.type === 1).map((m) => {
+          htmlcs.process("WCAG2AA", document, () => resolve(htmlcs.getMessages().map((m) => {
             const parts = [];
             let element = m.element;
             while (element) {
@@ -791,24 +827,24 @@ function createHtmlcsEngine() {
               parts.unshift(`${element.localName}:nth-child(${parent ? Array.from(parent.children).indexOf(element) + 1 : 1})`);
               element = parent;
             }
-            return { code: m.code, selector: parts.join(" > "), snippet: m.element?.outerHTML?.slice(0, 2e3) ?? "" };
+            return { code: m.code, type: m.type, message: m.msg, selector: parts.join(" > "), snippet: m.element?.outerHTML ?? "" };
           })));
         });
       });
-      return issues.map((i) => {
+      return { raw: issues, findings: issues.filter((i) => i.type === 1).map((i) => {
         const sc = i.code.match(/Guideline\d+_\d+\.(\d+)_(\d+)_(\d+)/);
         return finding(
           "htmlcs",
           url,
           i.code,
           i.selector,
-          i.snippet,
+          i.snippet.slice(0, 2e3),
           "https://squizlabs.github.io/HTML_CodeSniffer/Standards/WCAG2/",
           sc ? [`${sc[1]}.${sc[2]}.${sc[3]}`] : []
         );
-      });
+      }) };
     },
-    normalize: (results) => results
+    normalize
   };
 }
 function createIbmEngine() {
@@ -817,25 +853,25 @@ function createIbmEngine() {
     displayName: "IBM Equal Access",
     async run({ page }, url) {
       await page.evaluate(await localScript("accessibility-checker-engine", "ace.js"));
-      const issues = await page.evaluate(async () => {
+      const native = await page.evaluate(async () => {
         const ace = window.ace;
         const report = await new ace.Checker().check(document, ["IBM_Accessibility"]);
-        return report.results.filter((issue) => issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL").map((i) => ({
+        return { raw: report, issues: report.results.filter((issue) => issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL").map((i) => ({
           ruleId: i.ruleId,
           selector: i.path?.dom ?? "",
           snippet: i.snippet ?? ""
-        }));
+        })) };
       });
-      return issues.map((i) => finding(
+      return { raw: native.raw, findings: native.issues.map((i) => finding(
         "ibm",
         url,
         i.ruleId,
         i.selector,
         i.snippet,
         `https://www.ibm.com/able/requirements/checker-rule-sets#${encodeURIComponent(i.ruleId)}`
-      ));
+      )) };
     },
-    normalize: (results) => results
+    normalize
   };
 }
 function createLighthouseEngine() {
@@ -870,7 +906,7 @@ function createLighthouseEngine() {
         if (result.lhr.runtimeError) throw new Error(`Lighthouse: ${result.lhr.runtimeError.message}`);
         const failedAudit = Object.values(result.lhr.audits).find((a) => a.scoreDisplayMode === "error");
         if (failedAudit) throw new Error(`Lighthouse audit ${failedAudit.id} failed: ${failedAudit.errorMessage ?? "unknown error"}`);
-        return Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
+        return { raw: result.lhr, findings: Object.values(result.lhr.audits).filter((a) => a.score === 0).flatMap((a) => {
           const details = a.details;
           const nodes = (details?.items ?? []).flatMap((i) => [i.node, ...(i.subItems?.items ?? []).map((sub) => sub.node)]).filter((n) => n !== void 0);
           return (nodes.length ? nodes : [{}]).map((n) => finding(
@@ -881,12 +917,12 @@ function createLighthouseEngine() {
             n.snippet ?? "",
             a.description.match(/https:\/\/[^\s)]+/)?.[0] ?? "https://developer.chrome.com/docs/lighthouse/accessibility/"
           ));
-        });
+        }) };
       } finally {
         await browser.disconnect();
       }
     },
-    normalize: (results) => results
+    normalize
   };
 }
 
@@ -1052,6 +1088,63 @@ async function crawl(options) {
     }
   }
   return { pages, skipped };
+}
+
+// lib/scan/engines/dedupe.ts
+function normalizeLocator(locator) {
+  const value = locator.trim().replace(/^xpath=/, "");
+  if (/^\/(?:[a-zA-Z][\w-]*(?:\[\d+\])?\/)*[a-zA-Z][\w-]*(?:\[\d+\])?$/.test(value) && value.slice(1).split("/").every((part) => /\[\d+\]$/.test(part) || /^(html|body)$/.test(part))) {
+    return value.slice(1).split("/").map((part) => {
+      const [, tag, index] = part.match(/^([\w-]+)(?:\[(\d+)\])?$/);
+      return `${tag.toLowerCase()}:nth-of-type(${index ?? "1"})`;
+    }).join(">");
+  }
+  return value.split(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g).map(
+    (part, i) => i % 2 ? part : part.replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ")
+  ).join("").replace(/\[id=("|')([\w-]+)\1\]/g, "#$2");
+}
+function dedupeFindings(results) {
+  const completed = results.filter((r) => r.status === "complete");
+  const enginesByPage = /* @__PURE__ */ new Map();
+  for (const r of completed) {
+    const page = normalizeUrl(r.url) ?? r.url;
+    const engines = enginesByPage.get(page) ?? /* @__PURE__ */ new Set();
+    engines.add(r.engine);
+    enginesByPage.set(page, engines);
+  }
+  const merged = /* @__PURE__ */ new Map();
+  for (const result of completed) {
+    if (result.status !== "complete") continue;
+    for (const f of result.findings) {
+      const page = normalizeUrl(result.url) ?? result.url;
+      const locator = f.elementKey ?? normalizeLocator(f.selector);
+      const scs = [...new Set(f.wcagSc.length ? f.wcagSc : WCAG_RULE_MAP[f.engine]?.[f.ruleId] ?? [])].sort();
+      for (const sc of scs.length ? scs : [null]) {
+        const key = JSON.stringify([page, locator || [f.engine, f.ruleId, merged.size], sc ?? `${f.engine}:${f.ruleId}`]);
+        const existing = merged.get(key);
+        const engines = [.../* @__PURE__ */ new Set([...existing?.engines ?? [], result.engine])].sort();
+        const enginesRan = enginesByPage.get(page).size;
+        const representative = existing && impactRank(existing.impact) >= impactRank(f.impact) ? existing : f;
+        merged.set(key, {
+          ...representative,
+          url: page,
+          wcagSc: sc ? [sc] : [],
+          engines,
+          confidence: { confirmedBy: engines.length, enginesRan, agreement: engines.length / enginesRan }
+        });
+      }
+    }
+  }
+  return [...merged.values()];
+}
+function engineSummary(results) {
+  return {
+    used: [...new Set(results.filter((r) => r.status === "complete").map((r) => r.engine))].sort(),
+    errored: results.flatMap((r) => r.status === "errored" ? [{ engine: r.engine, url: r.url, error: r.error }] : [])
+  };
+}
+function attribution(finding2) {
+  return finding2.engines ? `detected by: ${finding2.engines.join(", ")}; confirmed by ${finding2.confidence.confirmedBy} of ${finding2.confidence.enginesRan} engines` : "";
 }
 
 // lib/guidance.ts
@@ -1261,10 +1354,41 @@ function buildScanReport(input) {
       byImpact
     });
   }
+  const extended = input.engineResults?.some((e) => e.engine !== "axe") ?? false;
+  if (extended) {
+    const merged = dedupeFindings(input.engineResults ?? []);
+    findings.splice(0, findings.length, ...merged.map((f) => {
+      const wcag = CRITERIA.filter((c) => f.wcagSc.includes(c.number));
+      return {
+        pageUrl: f.url,
+        ruleId: f.ruleId,
+        impact: f.impact,
+        selector: f.selector,
+        selectors: [f.selector],
+        html: f.snippet,
+        help: f.compatibility?.help ?? f.ruleId,
+        helpUrl: f.helpUrl,
+        tags: wcag.map((c) => c.tag),
+        wcag,
+        bestPractice: f.wcagSc.length === 0,
+        fingerprint: JSON.stringify([f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? "" : `${f.engine}:${f.ruleId}`]),
+        engines: f.engines,
+        confidence: f.confidence
+      };
+    }));
+    for (const key of Object.keys(totals)) totals[key] = 0;
+    for (const f of findings) totals[f.impact ?? "unknown"] += 1;
+    for (const page of pages) {
+      const pageFindings = findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
+      page.findings = pageFindings.length;
+      page.violations = new Set(pageFindings.map((f) => f.ruleId)).size;
+      page.byImpact = emptyCounts();
+      for (const f of pageFindings) page.byImpact[f.impact ?? "unknown"] += 1;
+    }
+  }
   const gating = gatingScanFindings(findings, input.failOn);
-  const extraGating = input.failOn === "none" ? [] : (input.engineResults ?? []).flatMap((e) => e.engine !== "axe" && e.status === "complete" ? e.findings.filter((f) => meetsThreshold(f.impact, input.failOn)) : []);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
-  const verdict = engineErrors ? "ERROR" : gating.length + extraGating.length > 0 ? "FAIL" : "PASS";
+  const verdict = engineErrors ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
   const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
   return {
     tool: "a11ygate",
@@ -1277,8 +1401,8 @@ function buildScanReport(input) {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : extraGating.length ? `${gating.length + extraGating.length} findings at or above ${input.failOn} across selected engines (not deduplicated).` : reason,
-    ...input.engineResults ? { engineResults: input.engineResults } : {},
+    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
@@ -1347,7 +1471,7 @@ function heading(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
 }
 function mdFinding(f) {
-  return `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 function scanMarkdown(report) {
   const lines = [
@@ -1387,12 +1511,15 @@ function scanMarkdown(report) {
   if (robotsSkipped.length > 0) {
     lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
   }
-  if (report.engineResults) lines.push("## Engine results (separate, not deduplicated)", "", ...report.engineResults.flatMap((e) => [
-    `### ${cell(e.engine)} \u2014 ${cell(e.url)} \u2014 ${e.status}`,
+  if (report.engines) lines.push(
+    "## Engines used / engines errored",
     "",
-    ...e.status === "errored" ? [cell(e.error)] : e.findings.map((f) => `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) \u2014 ${code(f.selector)} \u2014 ${code(f.snippet)}`),
+    `Engines used: ${report.engines.used.join(", ") || "none"}.`,
+    `Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} \u2014 ${code(e.url)} \u2014 ${cell(e.error)}`).join("; ") : "none"}.`,
+    "",
+    AUTOMATED_TESTING_DISCLAIMER,
     ""
-  ]));
+  );
   lines.push("## Scope and boundaries", "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
   return lines.join("\n");
 }
@@ -1403,7 +1530,7 @@ function safeHref(url) {
   return /^https?:\/\//i.test(url) ? esc(url) : "#";
 }
 function htmlFinding(f) {
-  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 function htmlGroups(title, groups) {
   if (groups.length === 0) return `<h2>${esc(title)}</h2><p>None detected.</p>`;
@@ -1440,7 +1567,7 @@ a{color:#0b57d0}
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
-${report.engineResults ? "<h2>Engine results (separate, not deduplicated)</h2>" + report.engineResults.map((e) => `<section><h3>${esc(e.engine)} \u2014 ${esc(e.url)} \u2014 ${esc(e.status)}</h3>${e.status === "errored" ? `<p>${esc(e.error)}</p>` : `<ul>${e.findings.map((f) => `<li><strong>${esc(f.ruleId)}</strong> (${esc(f.impact ?? "unspecified")}) \u2014 <code>${esc(f.selector)}</code> \u2014 <code>${esc(f.snippet)}</code></li>`).join("")}</ul>`}</section>`).join("") + "\n" : ""}<h2>Scope and boundaries</h2>
+${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + esc(report.engines.used.join(", ") || "none") + ".</p><p>Engines errored: " + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none") + ".</p><p>" + esc(AUTOMATED_TESTING_DISCLAIMER) + "</p>\n" : ""}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>
@@ -1535,6 +1662,7 @@ function failureBody(group2) {
     lines.push(
       `- ${finding2.pageUrl} \u2014 ${finding2.selector} \u2014 ${wcag}`,
       `  element: ${finding2.html}`,
+      attribution(finding2),
       finding2.helpUrl ? `  guidance: ${finding2.helpUrl}` : "",
       finding2.status ? `  status: ${finding2.status}` : ""
     );
@@ -1562,6 +1690,7 @@ function toJunit(report) {
     property("reason", report.reason),
     property("command", report.command)
   ];
+  if (report.engines) properties.push(property("engines-used", report.engines.used.join(", ")), property("engines-errored", JSON.stringify(report.engines.errored)));
   if (report.startUrl) properties.push(property("startUrl", report.startUrl));
   if (report.projectName) properties.push(property("projectName", report.projectName));
   const testcases = cases.map((item) => {
@@ -1675,7 +1804,7 @@ function toSarif(report) {
       ...index !== void 0 ? { ruleIndex: index } : {},
       level: sarifLevel(finding2.impact),
       message: {
-        text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}`
+        text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}${finding2.engines ? "; " + attribution(finding2) : ""}`
       },
       locations: [
         {
@@ -1694,6 +1823,7 @@ function toSarif(report) {
       ],
       ...finding2.fingerprint ? { fingerprints: { a11ygate: finding2.fingerprint }, partialFingerprints: { a11ygate: finding2.fingerprint } } : {},
       properties: {
+        ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {},
         selector: finding2.selector,
         impact: finding2.impact ?? "unspecified",
         tags: finding2.tags,
@@ -1728,6 +1858,7 @@ function toSarif(report) {
         results,
         properties: {
           disclaimer: FORMAT_DISCLAIMER,
+          ...report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {},
           verdict: report.verdict,
           reason: report.reason,
           command: report.command,
@@ -1878,6 +2009,7 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
+  let nativeAxe;
   const axeEngine = engines.includes("axe") ? createAxeEngine(async (page) => {
     if (!axeModule) {
       try {
@@ -1887,9 +2019,11 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"] }) => {
       }
     }
     const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
-    return await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+    nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+    return nativeAxe;
   }, userAgent) : void 0;
   const engineResults = [];
+  const rawEngineResults = [];
   let debugPort;
   if (engines.includes("lighthouse")) {
     const server = createServer();
@@ -1913,6 +2047,7 @@ Install it with: npx playwright install chromium
   }
   const context = await browser.newContext({ userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true });
   return {
+    rawEngineResults,
     ...extended ? { engineResults } : {},
     visit: async (url, collectLinks) => {
       const page = await context.newPage();
@@ -1929,12 +2064,17 @@ Install it with: npx playwright install chromium
         let result;
         for (const id of engines) {
           if (id === "axe" && axeEngine) {
+            nativeAxe = void 0;
             const execution = await runEngine(axeEngine, page, url);
+            rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeAxe } : {}, url });
+            if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
             if (!extended && execution.status === "errored") throw new Error(execution.error);
             if (execution.status === "complete") result = execution.native;
             if (extended) engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
           } else if (id !== "axe") {
             const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
+            rawEngineResults.push({ ...execution, url });
+            if (execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
             engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
           }
         }
@@ -2048,6 +2188,16 @@ Run a11ygate scan --help for usage.
   ];
   try {
     if (options.outDir) await mkdir(path.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) {
+      const evidenceDir = path.resolve(cwd, options.outDir, "engines");
+      await mkdir(evidenceDir, { recursive: true });
+      for (const id of options.engines) {
+        const native = engine.rawEngineResults?.filter((e) => e.engine === id);
+        const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
+        await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}
+`, "utf8");
+      }
+    }
     for (const [file, content] of targets) {
       if (file) await writeFile(path.resolve(cwd, file), content, "utf8");
     }
