@@ -611,6 +611,57 @@ var a11ygate_schema_default = {
       maximum: 20,
       "x-cli": ["--crawl"]
     },
+    maxPages: {
+      description: "Explicit crawl page budget overriding crawl; record alongside --max-pages in CI.",
+      type: "integer",
+      minimum: 1,
+      maximum: 1e3,
+      "x-cli": ["--max-pages"]
+    },
+    maxDepth: {
+      description: "Maximum link depth; start URL and sitemap seeds have depth zero.",
+      type: "integer",
+      minimum: 0,
+      maximum: 1e3,
+      "x-cli": ["--max-depth"]
+    },
+    timeoutMs: {
+      description: "Whole-page navigation and analysis deadline in milliseconds.",
+      type: "integer",
+      minimum: 1,
+      maximum: 3e5,
+      "x-cli": ["--timeout-ms"]
+    },
+    concurrency: {
+      description: "Maximum active browser pages; global delay still spaces starts and retries.",
+      type: "integer",
+      minimum: 1,
+      maximum: 8,
+      "x-cli": ["--concurrency"]
+    },
+    sitemap: {
+      description: "Same-origin sitemap URL or path supplied through --sitemap.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--sitemap"]
+    },
+    include: {
+      description: "Include globs supplied through repeatable --include flags.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--include"]
+    },
+    exclude: {
+      description: "Exclude globs supplied through repeatable --exclude flags; exclusions win.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--exclude"]
+    },
+    ignoreRobots: {
+      description: "Record the explicit --ignore-robots opt-out for an authorized scan; default false.",
+      type: "boolean",
+      "x-cli": ["--ignore-robots"]
+    },
     failOn: {
       description: "Lowest impact that fails the scan; none never fails on findings.",
       type: "string",

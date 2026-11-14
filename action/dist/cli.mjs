@@ -863,7 +863,7 @@ function buildScanReport(input) {
     failOn: input.failOn,
     reason: authenticationFailed ? "Not authenticated: protected content was not scanned." : startFailed ? "Start page could not be scanned; coverage is incomplete." : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {},
-    options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
+    options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
       pagesFailed: input.crawl.pages.filter((p) => p.scanStatus === "failed").length,
@@ -874,7 +874,13 @@ function buildScanReport(input) {
     pages,
     skipped: input.crawl.skipped,
     findings,
-    boundaries: input.authenticated ? SCAN_BOUNDARIES.map((boundary, index) => index === 2 ? "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only." : boundary) : SCAN_BOUNDARIES,
+    boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.authenticated) return "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.";
+      if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== void 0))) {
+        return `Only same-origin pages from the start URL, discovered links/history routes and configured sitemap seeds (at most ${input.maxPages}) were visited; ${input.crawlControls?.ignoreRobots ? "robots.txt rules were ignored by explicit opt-out" : "robots.txt Disallow rules were honoured"}.`;
+      }
+      return boundary;
+    }),
     results
   };
 }
@@ -972,6 +978,8 @@ function scanMarkdown(report) {
   if (robotsSkipped.length > 0) {
     lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
   }
+  const otherSkipped = report.skipped.filter((s) => s.reason !== "robots" && s.reason !== "cap");
+  if (otherSkipped.length) lines.push("## Skipped pages", "", ...otherSkipped.map((s) => `- ${cell(s.url)} \u2014 ${cell(s.reason)}`), "");
   if (report.engines) lines.push(
     "## Engines used / engines errored",
     "",
@@ -1028,7 +1036,7 @@ ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
-${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + esc(report.engines.used.join(", ") || "none") + ".</p><p>Engines errored: " + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none") + ".</p><p>" + esc(AUTOMATED_TESTING_DISCLAIMER) + "</p>\n" : ""}<h2>Scope and boundaries</h2>
+${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? "<h2>Skipped pages</h2><ul>" + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> \u2014 ${esc(s.reason)}</li>`).join("") + "</ul>\n" : ""}${report.engines ? "<h2>Engines used / engines errored</h2><p>Engines used: " + esc(report.engines.used.join(", ") || "none") + ".</p><p>Engines errored: " + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none") + ".</p><p>" + esc(AUTOMATED_TESTING_DISCLAIMER) + "</p>\n" : ""}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>
@@ -1729,6 +1737,86 @@ function createLighthouseEngine() {
   };
 }
 
+// lib/scan/sitemap.ts
+var MAX_XML_BYTES = 512 * 1024;
+async function fetchSiteText(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    for (let redirects = 0; redirects <= 5; redirects++) {
+      if (new URL(url).origin !== origin) throw new Error("Metadata URL must be same-origin.");
+      const response = await fetchImpl(url, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "manual" });
+      if (response.status >= 300 && response.status < 400) {
+        const location2 = response.headers?.get("location");
+        await response.body?.cancel();
+        if (!location2) throw new Error("Metadata redirect has no location.");
+        const next = normalizeUrl(location2, url);
+        if (!next) throw new Error("Invalid metadata redirect.");
+        url = next;
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (!response.body) {
+        const text2 = await response.text();
+        if (Buffer.byteLength(text2) > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
+        return text2;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      let text = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return text + decoder.decode();
+          bytes += value.byteLength;
+          if (bytes > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
+          text += decoder.decode(value, { stream: true });
+        }
+      } finally {
+        await reader.cancel().catch(() => void 0);
+      }
+    }
+    throw new Error("Too many metadata redirects.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function decodeXml(value) {
+  return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&(amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);/gi, (entity, key) => {
+    const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+    if (named[key]) return named[key];
+    const n = key.startsWith("#x") ? parseInt(key.slice(2), 16) : Number(key.slice(1));
+    return n > 0 && n <= 1114111 ? String.fromCodePoint(n) : entity;
+  }).trim();
+}
+async function fetchSitemap(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const pending = [url];
+  const seen = /* @__PURE__ */ new Set();
+  const urls = /* @__PURE__ */ new Set();
+  while (pending.length && seen.size < 10 && urls.size < 1e4) {
+    const current = pending.shift();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    const xml = await fetchSiteText(current, origin, userAgent, fetchImpl, timeoutMs);
+    if (/<!DOCTYPE|<!ENTITY/i.test(xml) || !/<(?:\w+:)?(?:urlset|sitemapindex)\b/i.test(xml)) throw new Error("Unsupported sitemap XML.");
+    const index = /<(?:\w+:)?sitemapindex\b/i.test(xml);
+    for (const match of xml.matchAll(/<(?:\w+:)?loc\b[^>]*>([\s\S]*?)<\/(?:\w+:)?loc\s*>/gi)) {
+      const location2 = normalizeUrl(decodeXml(match[1]), current);
+      if (!location2) continue;
+      if (index) {
+        if (new URL(location2).origin !== origin) throw new Error("Sitemap index must be same-origin.");
+        if (pending.length < 10 && !seen.has(location2)) pending.push(location2);
+      } else urls.add(location2);
+      if (urls.size >= 1e4) break;
+    }
+  }
+  return [...urls];
+}
+
 // lib/scan/robots.ts
 var ROBOTS_AGENT = "a11ygate";
 function parseRobots(text, agent = ROBOTS_AGENT) {
@@ -1783,17 +1871,12 @@ function robotsAllowsUrl(robots, url) {
   return isAllowedByRobots(robots, parsed.pathname + parsed.search);
 }
 async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "follow" });
-    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
-    const text = (await response.text()).slice(0, 512 * 1024);
+    const text = await fetchSiteText(`${origin}/robots.txt`, origin, userAgent, fetchImpl, timeoutMs);
     return { rules: parseRobots(text), note: "robots.txt honoured." };
-  } catch {
-    return { rules: null, note: "robots.txt unreachable; proceeding without rules." };
-  } finally {
-    clearTimeout(timer);
+  } catch (error) {
+    const status = error instanceof Error && /^HTTP \d+$/.test(error.message) ? error.message : null;
+    return { rules: null, note: status ? `robots.txt returned ${status}; no rules applied.` : "robots.txt unreachable; proceeding without rules." };
   }
 }
 
@@ -1803,66 +1886,139 @@ function clampPages(requested) {
   if (!Number.isFinite(requested) || requested < 1) return 1;
   return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
 }
+function matchesGlob(url, glob) {
+  const target = glob.includes("://") ? url : new URL(url).pathname + new URL(url).search;
+  let previous = new Uint8Array(target.length + 1);
+  previous[0] = 1;
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    const across = c === "*" && glob[i + 1] === "*";
+    if (across) i++;
+    const next = new Uint8Array(target.length + 1);
+    if (c === "*") next[0] = previous[0];
+    for (let j = 1; j <= target.length; j++) {
+      if (c === "*") next[j] = previous[j] || (across || target[j - 1] !== "/" ? next[j - 1] : 0);
+      else if (c === "?" && target[j - 1] !== "/" || c === target[j - 1]) next[j] = previous[j - 1];
+    }
+    previous = next;
+  }
+  return previous[target.length] === 1;
+}
+var MAX_DISCOVERED_URLS = 1e4;
 async function crawl(options) {
   const start = normalizeUrl(options.startUrl);
   if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
   const origin = new URL(start).origin;
-  const maxPages = clampPages(options.maxPages);
+  const maxPages = options.pageLimit === void 0 ? clampPages(options.maxPages) : Math.min(1e3, Number.isFinite(options.pageLimit) ? Math.max(1, Math.floor(options.pageLimit)) : 1);
+  const concurrency = Math.min(8, Math.max(1, Math.floor(options.concurrency ?? 1) || 1));
+  const timeoutMs = Math.min(3e5, Math.max(1, options.timeoutMs ?? 3e4));
   const sleep = options.sleep ?? defaultSleep;
   const crawling = maxPages > 1;
-  const queue = [start];
-  const seen = /* @__PURE__ */ new Set([start]);
+  const queue = [];
+  const seen = /* @__PURE__ */ new Set();
   const pages = [];
   const skipped = [];
   const skippedSeen = /* @__PURE__ */ new Set();
   const skip = (entry) => {
     const key = entry.reason + " " + entry.url;
     if (skippedSeen.has(key)) return;
+    if (skipped.length >= MAX_DISCOVERED_URLS) {
+      skipped[MAX_DISCOVERED_URLS - 1] = { url: start, reason: "discovery-cap" };
+      return;
+    }
     skippedSeen.add(key);
     skipped.push(entry);
   };
-  let visits = 0;
-  while (queue.length > 0) {
-    const url = queue.shift();
-    if (pages.length >= maxPages) {
-      skip({ url, reason: "cap" });
-      continue;
+  const enqueue = (href, base, depth, from) => {
+    const link = classifyLink(href, base, origin);
+    if (!link.ok) {
+      skip({ url: link.url, reason: link.reason, ...from ? { from } : {} });
+      return;
     }
-    if (!robotsAllowsUrl(options.robots, url)) {
-      skip({ url, reason: "robots" });
-      continue;
+    if (seen.has(link.url)) return;
+    if (seen.size >= MAX_DISCOVERED_URLS) {
+      skip({ url: start, reason: "discovery-cap" });
+      return;
     }
-    if (visits > 0 && options.delayMs > 0) await sleep(options.delayMs);
-    visits += 1;
+    seen.add(link.url);
+    let reason;
+    if (options.exclude?.some((g) => matchesGlob(link.url, g))) reason = "excluded";
+    else if (options.include?.length && !options.include.some((g) => matchesGlob(link.url, g))) reason = "not-included";
+    else if (depth > (options.maxDepth ?? Infinity)) reason = "depth";
+    else if (!robotsAllowsUrl(options.robots, link.url)) reason = "robots";
+    if (reason) {
+      skip({ url: link.url, reason, ...from ? { from } : {} });
+      return;
+    }
+    queue.push({ url: link.url, depth });
+  };
+  enqueue(start, start, 0);
+  if (crawling) for (const seed of (options.seedUrls ?? []).slice(0, MAX_DISCOVERED_URLS)) enqueue(seed, start, 0);
+  let starts = 0;
+  let gate = Promise.resolve();
+  const visit = async (url) => {
+    const turn = gate.then(async () => {
+      if (starts++ > 0 && options.delayMs > 0) await sleep(options.delayMs);
+    });
+    gate = turn;
+    await turn;
     options.log?.(`Scanning ${url}`);
-    const outcome = await options.visit(url, crawling);
-    if (outcome.error?.startsWith("Not authenticated:")) {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error });
-      continue;
+    const controller = new AbortController();
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(() => options.visit(url, crawling, controller.signal)),
+        new Promise((resolve) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            resolve({ status: null, finalUrl: url, links: [], error: `Page timeout after ${timeoutMs}ms.` });
+          }, timeoutMs);
+        })
+      ]);
+    } catch (error) {
+      return { status: null, finalUrl: url, links: [], error: error instanceof Error ? error.message : "Navigation failed.", navigationError: true };
+    } finally {
+      clearTimeout(timer);
     }
-    if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
-      skip({ url, reason: "redirected-off-origin" });
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
-      continue;
-    }
-    if (outcome.result || outcome.analysed) {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
-    } else {
-      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
-    }
-    if (!crawling) continue;
-    const base = outcome.finalUrl || url;
-    for (const href of outcome.links) {
-      const link = classifyLink(href, base, origin);
-      if (!link.ok) {
-        skip({ url: link.url, reason: link.reason, from: url });
+  };
+  const navigationFailed = (outcome) => !!outcome.error && !outcome.error.startsWith("Not authenticated:") && (outcome.navigationError === true || outcome.navigationError === void 0 && outcome.status === null);
+  while (queue.length > 0 && pages.length < maxPages) {
+    const depth = queue[0].depth;
+    const batch = [];
+    while (queue.length && queue[0].depth === depth && batch.length < concurrency && pages.length + batch.length < maxPages) batch.push(queue.shift());
+    const outcomes = await Promise.all(batch.map(async ({ url }) => {
+      let outcome = await visit(url);
+      if (navigationFailed(outcome) && !outcome.error?.startsWith("Page timeout")) outcome = await visit(url);
+      return outcome;
+    }));
+    for (let i = 0; i < batch.length; i++) {
+      const { url, depth: depth2 } = batch[i];
+      const outcome = outcomes[i];
+      if (outcome.error?.startsWith("Page timeout")) {
+        skip({ url, reason: "timeout" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error });
         continue;
       }
-      if (seen.has(link.url)) continue;
-      seen.add(link.url);
-      queue.push(link.url);
+      if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
+        skip({ url, reason: "redirected-off-origin" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
+        continue;
+      }
+      if (!isHtmlContentType(outcome.contentType)) {
+        skip({ url, reason: "non-html" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error ?? "Not an HTML page." });
+        continue;
+      }
+      if (outcome.result || outcome.analysed) {
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
+      } else {
+        if (navigationFailed(outcome)) skip({ url, reason: "navigation-error" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
+      }
+      if (crawling) for (const href of outcome.links.slice(0, MAX_DISCOVERED_URLS)) enqueue(href, outcome.finalUrl || url, depth2 + 1, url);
     }
   }
+  for (const { url } of queue) skip({ url, reason: "cap" });
   return { pages, skipped };
 }
 
@@ -2068,7 +2224,7 @@ function limitsSection(report) {
 <p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
 <h3>Scope and boundaries of this scan</h3>
 <ul>${report.boundaries.map((b) => `<li>${esc2(b)}</li>`).join("")}</ul>
-${notScanned.length ? `<h3>Not scanned</h3><ul>${notScanned.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}</li>`).join("")}</ul>` : ""}
+${notScanned.length ? `<h3>Not scanned</h3><ul>${notScanned.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}</li>`).join("")}</ul>` : ""}${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? `<h3>Skipped pages</h3><ul>${report.skipped.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${esc2(s.reason)}</li>`).join("")}</ul>` : ""}
 </section>`;
 }
 var STYLE = `:root{color-scheme:light dark;${cssVars("light")}}
@@ -2595,8 +2751,8 @@ function shrinkSnippets(log, maxChars) {
       if (result.message.text.length > maxChars) {
         result.message.text = `${result.message.text.slice(0, maxChars)}\u2026`;
       }
-      for (const location of result.locations) {
-        const snippet = location.physicalLocation.region.snippet;
+      for (const location2 of result.locations) {
+        const snippet = location2.physicalLocation.region.snippet;
         if (snippet && snippet.text.length > maxChars) {
           snippet.text = `${snippet.text.slice(0, maxChars)}\u2026`;
         }
@@ -2645,8 +2801,8 @@ function applyGitHubSizeBudget(log, maxGzipBytes) {
     shrinkSnippets(log, 0);
     for (const run2 of log.runs) {
       for (const result of run2.results) {
-        for (const location of result.locations) {
-          delete location.physicalLocation.region.snippet;
+        for (const location2 of result.locations) {
+          delete location2.physicalLocation.region.snippet;
         }
       }
     }
@@ -2794,7 +2950,7 @@ async function runBaseline(argv, io) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -2811,6 +2967,11 @@ function parseScanArgs(argv) {
     const eq = token.indexOf("=");
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? void 0 : token.slice(eq + 1);
+    if (name === "--ignore-robots") {
+      if (inline !== void 0) return { ok: false, error: "--ignore-robots takes no value." };
+      options.ignoreRobots = true;
+      continue;
+    }
     if (name === "--crawl") {
       let text = inline;
       if (text === void 0 && /^\d+$/.test(argv[index + 1] ?? "")) {
@@ -2833,7 +2994,19 @@ function parseScanArgs(argv) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--storage-state") options.storageState = value;
+    if (name === "--include" || name === "--exclude") {
+      if (value.length > 512 || (options[name === "--include" ? "include" : "exclude"]?.length ?? 0) >= 32) return { ok: false, error: "Use at most 32 globs, each up to 512 characters." };
+      (options[name === "--include" ? "include" : "exclude"] ??= []).push(value);
+    } else if (name === "--sitemap") options.sitemap = value;
+    else if (["--max-pages", "--max-depth", "--timeout-ms", "--concurrency"].includes(name)) {
+      const max = name === "--max-pages" ? 1e3 : name === "--max-depth" ? 1e3 : name === "--concurrency" ? 8 : 3e5;
+      const min = name === "--max-depth" ? 0 : 1;
+      if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) return { ok: false, error: `${name} must be from ${min} to ${max}.` };
+      if (name === "--max-pages") options.pageLimit = Number(value);
+      else if (name === "--max-depth") options.maxDepth = Number(value);
+      else if (name === "--timeout-ms") options.timeoutMs = Number(value);
+      else options.concurrency = Number(value);
+    } else if (name === "--storage-state") options.storageState = value;
     else if (name === "--login-script") options.loginScript = value;
     else if (name === "--login-timeout-ms") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 3e5) return { ok: false, error: "--login-timeout-ms must be from 1 to 300000." };
@@ -2874,6 +3047,13 @@ function parseScanArgs(argv) {
   const url = normalizeUrl(positionals[0]);
   if (!url) return { ok: false, error: `Not a valid http(s) URL: ${positionals[0]}` };
   options.url = url;
+  if (options.pageLimit !== void 0) options.maxPages = options.pageLimit;
+  if (options.sitemap) {
+    const sitemap = normalizeUrl(options.sitemap, url);
+    if (!sitemap || new URL(sitemap).origin !== new URL(url).origin) return { ok: false, error: "--sitemap must be a same-origin http(s) URL." };
+    options.sitemap = sitemap;
+    if (options.pageLimit === void 0 && !argv.some((arg) => arg === "--crawl" || arg.startsWith("--crawl="))) options.maxPages = MAX_CRAWL_PAGES;
+  }
   if (options.outDir && (options.json || options.markdown || options.html)) {
     return { ok: false, error: "Use either --out-dir or --json/--markdown/--html, not both." };
   }
@@ -2901,6 +3081,16 @@ Options:
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
+  --max-pages <n>      Explicit page budget, 1\u20131000; overrides --crawl (legacy cap 20).
+  --max-depth <n>      Link depth from start/sitemap seeds (0\u20131000); default unlimited.
+  --sitemap <url>      Same-origin sitemap.xml URL/path; enables crawling (default 20).
+                       URL sets and indexes supported; seeds have depth 0.
+  --include <glob>     Only matching paths (or full URLs); repeatable. Applies to seeds too.
+  --exclude <glob>     Skip matching paths; repeatable, takes precedence over include.
+                       Globs: * within a segment, ** across segments, ? one character.
+  --timeout-ms <ms>    Whole page deadline including analysis; default 30000, max 300000.
+  --concurrency <n>    Active pages, 1\u20138; default 1. Global delay applies to every start/retry.
+  --ignore-robots     Opt out of robots.txt rules for an authorized scan.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
   --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
@@ -2939,7 +3129,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -2950,7 +3140,7 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth }) =>
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
-  let nativeAxe;
+  const nativeByPage = /* @__PURE__ */ new WeakMap();
   const axeEngine = engines.includes("axe") ? createAxeEngine(async (page) => {
     if (!axeModule) {
       try {
@@ -2960,7 +3150,8 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth }) =>
       }
     }
     const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder;
-    nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+    const nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+    nativeByPage.set(page, nativeAxe);
     return nativeAxe;
   }, userAgent) : void 0;
   const engineResults = [];
@@ -3006,11 +3197,41 @@ Install it with: npx playwright install chromium
   return {
     rawEngineResults,
     ...extended ? { engineResults } : {},
-    visit: async (url, collectLinks) => {
+    visit: async (url, collectLinks, signal) => {
       const page = await context.newPage();
+      const abort = () => {
+        void page.close().catch(() => void 0);
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
+      let navigating = true;
+      let blockedNavigation;
       try {
-        const response = await page.goto(url, { waitUntil: "load", timeout: NAVIGATION_TIMEOUT_MS });
+        const session = await context.newCDPSession(page);
+        session.on("Fetch.requestPaused", (event) => {
+          const external = new URL(event.request.url).origin !== origin;
+          if (external) blockedNavigation = event.request.url;
+          void session.send(external ? "Fetch.failRequest" : "Fetch.continueRequest", {
+            requestId: event.requestId,
+            ...external ? { errorReason: "BlockedByClient" } : {}
+          }).catch(() => void 0);
+        });
+        await session.send("Fetch.enable", { patterns: [{ resourceType: "Document", requestStage: "Request" }] });
+        if (collectLinks) await page.addInitScript(() => {
+          const routes = [];
+          Object.defineProperty(window, "__a11ygateRoutes", { value: routes });
+          for (const name of ["pushState", "replaceState"]) {
+            const original = history[name].bind(history);
+            history[name] = function(data, unused, url2) {
+              const result2 = original(data, unused, url2);
+              if (url2 != null && routes.length < 1e4) routes.push(new URL(String(url2), location.href).href);
+              return result2;
+            };
+          }
+        });
+        const response = await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+        navigating = false;
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()["content-type"] ?? null;
@@ -3023,13 +3244,16 @@ Install it with: npx playwright install chromium
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
-        const links = collectLinks ? await page.$$eval("a[href]", (anchors) => anchors.map((a) => a.href)) : [];
+        const links = collectLinks ? await page.evaluate(() => {
+          const routes = window.__a11ygateRoutes ?? [];
+          return [...Array.from(document.querySelectorAll("a[href]")).slice(0, 1e4).map((a) => a.href), ...routes].slice(0, 1e4);
+        }) : [];
         let result;
         for (const id of engines) {
           if (id === "axe" && axeEngine) {
-            nativeAxe = void 0;
+            nativeByPage.delete(page);
             const execution = await runEngine(axeEngine, page, url);
-            rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeAxe } : {}, url });
+            rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeByPage.get(page) } : {}, url });
             if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
             if (!extended && execution.status === "errored") throw new Error(execution.error);
             if (execution.status === "complete") result = execution.native;
@@ -3043,9 +3267,10 @@ Install it with: npx playwright install chromium
         }
         return { status, finalUrl, contentType, links, result, ...extended ? { analysed: true } : {} };
       } catch (error) {
-        const detail = error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
-        return { status: null, finalUrl: url, links: [], error: detail };
+        const detail = navigating && error instanceof Error && error.name === "TimeoutError" ? `Page timeout after ${timeoutMs}ms.` : error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
+        return { status: null, finalUrl: blockedNavigation ?? url, links: [], error: detail, navigationError: navigating && !blockedNavigation };
       } finally {
+        signal?.removeEventListener("abort", abort);
         await page.close().catch(() => void 0);
       }
     },
@@ -3105,15 +3330,23 @@ Run a11ygate scan --help for usage.
   const userAgent = scanUserAgent(version);
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? globalThis.fetch;
-  const robots = await fetchRobots(origin, userAgent, fetchImpl);
+  const robots = options.ignoreRobots ? { rules: null, note: "robots.txt ignored by explicit --ignore-robots opt-out." } : await fetchRobots(origin, userAgent, fetchImpl);
   if (!robotsAllowsUrl(robots.rules, options.url)) {
     stderr(`${options.url} is disallowed by ${origin}/robots.txt; nothing was scanned.
 `);
     return 2;
   }
+  let seedUrls = [];
+  try {
+    if (options.sitemap) seedUrls = await fetchSitemap(options.sitemap, origin, userAgent, fetchImpl, options.timeoutMs);
+  } catch (error) {
+    stderr(`Could not read sitemap: ${error.message}
+`);
+    return 2;
+  }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -3123,6 +3356,13 @@ Run a11ygate scan --help for usage.
   try {
     result = await crawl({
       startUrl: options.url,
+      pageLimit: options.pageLimit,
+      maxDepth: options.maxDepth,
+      include: options.include,
+      exclude: options.exclude,
+      concurrency: options.concurrency,
+      timeoutMs: options.timeoutMs,
+      seedUrls,
       maxPages: options.maxPages,
       delayMs: options.delayMs,
       robots: robots.rules,
@@ -3149,6 +3389,15 @@ Run a11ygate scan --help for usage.
     delayMs: options.delayMs,
     userAgent,
     robotsNote: robots.note,
+    crawlControls: {
+      maxDepth: options.maxDepth,
+      timeoutMs: options.timeoutMs,
+      concurrency: options.concurrency,
+      include: options.include,
+      exclude: options.exclude,
+      sitemap: options.sitemap,
+      ignoreRobots: options.ignoreRobots
+    },
     engineResults: engine.engineResults,
     authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
@@ -4395,6 +4644,57 @@ var a11ygate_schema_default = {
       minimum: 0,
       maximum: 20,
       "x-cli": ["--crawl"]
+    },
+    maxPages: {
+      description: "Explicit crawl page budget overriding crawl; record alongside --max-pages in CI.",
+      type: "integer",
+      minimum: 1,
+      maximum: 1e3,
+      "x-cli": ["--max-pages"]
+    },
+    maxDepth: {
+      description: "Maximum link depth; start URL and sitemap seeds have depth zero.",
+      type: "integer",
+      minimum: 0,
+      maximum: 1e3,
+      "x-cli": ["--max-depth"]
+    },
+    timeoutMs: {
+      description: "Whole-page navigation and analysis deadline in milliseconds.",
+      type: "integer",
+      minimum: 1,
+      maximum: 3e5,
+      "x-cli": ["--timeout-ms"]
+    },
+    concurrency: {
+      description: "Maximum active browser pages; global delay still spaces starts and retries.",
+      type: "integer",
+      minimum: 1,
+      maximum: 8,
+      "x-cli": ["--concurrency"]
+    },
+    sitemap: {
+      description: "Same-origin sitemap URL or path supplied through --sitemap.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--sitemap"]
+    },
+    include: {
+      description: "Include globs supplied through repeatable --include flags.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--include"]
+    },
+    exclude: {
+      description: "Exclude globs supplied through repeatable --exclude flags; exclusions win.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      "x-cli": ["--exclude"]
+    },
+    ignoreRobots: {
+      description: "Record the explicit --ignore-robots opt-out for an authorized scan; default false.",
+      type: "boolean",
+      "x-cli": ["--ignore-robots"]
     },
     failOn: {
       description: "Lowest impact that fails the scan; none never fails on findings.",

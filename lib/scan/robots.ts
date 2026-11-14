@@ -1,3 +1,4 @@
+import { fetchSiteText } from './sitemap';
 /** Minimal robots.txt support: User-agent groups, Allow/Disallow with `*` and `$`, longest match wins. */
 
 export type RobotsRule = { allow: boolean; pattern: string };
@@ -70,23 +71,18 @@ export function robotsAllowsUrl(robots: RobotsRules | null, url: string): boolea
   return isAllowedByRobots(robots, parsed.pathname + parsed.search);
 }
 
-export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect: 'follow' }) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
+export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect: 'follow' | 'manual' }) => Promise<{ ok: boolean; status: number; headers?: { get(name: string): string | null }; body?: ReadableStream<Uint8Array> | null; text(): Promise<string> }>;
 
 /**
  * Fetch `<origin>/robots.txt`. A 4xx response or an unreachable server means "no rules" (proceed);
  * a 5xx response is treated as unreachable too, as the task allows proceeding.
  */
 export async function fetchRobots(origin: string, userAgent: string, fetchImpl: FetchLike, timeoutMs = 5000): Promise<{ rules: RobotsRules | null; note: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(`${origin}/robots.txt`, { headers: { 'user-agent': userAgent }, signal: controller.signal, redirect: 'follow' });
-    if (!response.ok) return { rules: null, note: `robots.txt returned HTTP ${response.status}; no rules applied.` };
-    const text = (await response.text()).slice(0, 512 * 1024);
+    const text = await fetchSiteText(`${origin}/robots.txt`, origin, userAgent, fetchImpl, timeoutMs);
     return { rules: parseRobots(text), note: 'robots.txt honoured.' };
-  } catch {
-    return { rules: null, note: 'robots.txt unreachable; proceeding without rules.' };
-  } finally {
-    clearTimeout(timer);
+  } catch (error) {
+    const status = error instanceof Error && /^HTTP \d+$/.test(error.message) ? error.message : null;
+    return { rules: null, note: status ? `robots.txt returned ${status}; no rules applied.` : 'robots.txt unreachable; proceeding without rules.' };
   }
 }

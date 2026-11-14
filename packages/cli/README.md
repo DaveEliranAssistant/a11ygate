@@ -62,7 +62,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 
 | Option | Meaning |
 | --- | --- |
-| `--crawl [n]` | Breadth-first crawl of same-origin `a[href]` links, at most `n` pages. Bare `--crawl` and any larger value mean 20, the hard maximum. Without it, only `<url>` is scanned. |
+| `--crawl [n]` | Breadth-first crawl of same-origin `a[href]` links, at most `n` pages. Bare `--crawl` and any larger value mean 20. `--max-pages` explicitly opts into a larger budget (see crawler controls below). Without it, only `<url>` is scanned. |
 | `--fail-on <impact>` | `minor`, `moderate`, `serious` (default), `critical`, or `none`. |
 | `--out-dir <dir>` | Write `a11ygate-scan.json`, `.md` and `.html` into `<dir>`. |
 | `--format <fmt>` | Also write `junit`, `sarif`, `json`, `md`, or `gitlab-codequality` into `--out-dir` (`a11ygate-scan.junit.xml`, `a11ygate-scan.sarif`). Repeat or comma-separate. Exit codes are unchanged. |
@@ -74,7 +74,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 
 Exit codes: **0** no finding at or above `--fail-on`; **1** at least one is; **2** bad arguments, missing browser or dependencies, a start page that is unreachable or disallowed by robots.txt, or an unwritable output.
 
-The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` (URL, HTTP status, finding counts), `skipped[]` (external, robots, logout, non-HTML, cap), and `findings[]` (page URL, CSS selector(s), axe rule id, impact, mapped WCAG success criteria, help text and `helpUrl`). Its `results` array holds the raw per-page axe results, so the same file is valid `--current` input for the gate, for example `a11ygate --current a11y-scan/a11ygate-scan.json --baseline a11y/baseline.json`. The Markdown and self-contained HTML summaries group findings by WCAG criterion and by severity.
+The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` (URL, HTTP status, finding counts), `skipped[]` (external, robots, logout, non-HTML, cap, filters, depth, timeout, navigation errors, discovery cap), and `findings[]` (page URL, CSS selector(s), axe rule id, impact, mapped WCAG success criteria, help text and `helpUrl`). Its `results` array holds the raw per-page axe results, so the same file is valid `--current` input for the gate, for example `a11ygate --current a11y-scan/a11ygate-scan.json --baseline a11y/baseline.json`. The Markdown and self-contained HTML summaries group findings by WCAG criterion and by severity.
 
 **Boundaries.** Only scan sites you own or are explicitly authorized to test. Page analysis is read-only. Authentication is opt-in; an explicitly configured login script may fill forms and click before analysis. Use test accounts only. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
 
@@ -175,3 +175,69 @@ variable names belong in arguments or configuration. Credentials are redacted
 from reports, native evidence, and logs; login failures/timeouts exit 2.
 See [authenticated page setup and limitations](../../docs/authenticated-pages.md).
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Crawler safety controls (A11Y-R30)
+
+Defaults remain one page, one active browser page, a 1000 ms delay, a 30 second
+whole-page deadline, same-origin document navigation, and robots.txt enabled.
+`--crawl [n]` retains its existing 20-page hard cap. To explicitly authorize a
+larger scan, use `--max-pages <n>` (1–1000); this overrides `--crawl` regardless of
+argument order. Failed or timed-out attempts count against the page budget;
+one retry of a navigation error does not count as another page. HTTP errors,
+analysis errors and timeouts are not retried.
+
+```sh
+node packages/cli/dist/cli.mjs scan http://127.0.0.1:3000/ \
+  --sitemap /sitemap.xml --max-pages 500 --max-depth 3 \
+  --include '/**' --exclude '/account/**' --exclude '/logout' \
+  --concurrency 2 --delay-ms 1000 --timeout-ms 30000 --out-dir a11y-scan
+```
+
+- `--sitemap <url-or-path>` adds sitemap URLs as depth-zero seeds after the start
+  URL and enables crawling (20 pages unless a page budget is supplied). Supports
+  URL sets, XML entities, CDATA and same-origin sitemap indexes. Metadata requests
+  have a 5 second deadline (sitemaps use `--timeout-ms` when supplied), a 512 KiB
+  response limit, at most five same-origin redirect hops, and at most ten sitemap
+  documents / 10000 seed URLs. DTDs and entity declarations are rejected.
+- `--include <glob>` and `--exclude <glob>` are repeatable (up to 32 of each,
+  512 characters per glob). Paths include the query string; patterns containing
+  `://` match the entire normalized URL. `*` matches within a segment, `**` crosses
+  `/`, and `?` matches one non-slash character. All other characters are literal.
+  Excludes win. Filters apply to the start URL, sitemap seeds and discovered links.
+- `--max-depth <n>` allows link depths 0–1000; default unlimited. The start URL
+  and sitemap seeds have depth zero. Breadth-first batches keep report order
+  deterministic even with multiple active pages.
+- `--timeout-ms <ms>` bounds navigation and analysis together (1–300000).
+  Timed-out browser pages close and appear in `skipped[]` with reason `timeout`.
+- `--concurrency <n>` permits 1–8 active pages. The default is 1. `--delay-ms`
+  is global spacing between every start, including retries, rather than a delay
+  per worker. Concurrency never increases the page budget.
+- robots.txt is respected by default. `--ignore-robots` explicitly opts out for an
+  authorized scan and records that choice in the report. As before, an unavailable
+  robots.txt means proceed without rules. A disallowed start URL exits 2.
+
+Document redirects are checked before every network hop, including redirects to
+another origin. Third-party page subresources can still load in real scans.
+The scanner observes `history.pushState` and `history.replaceState` calls during
+page load and discovers their URL arguments alongside `a[href]` links. It does
+not click controls or execute event handlers to enumerate routes; interaction-only
+routes and states remain unassessed.
+
+Discovery and skipped-record storage are each bounded at 10000 entries. A
+`discovery-cap` reason identifies truncated discovery. JSON records configured crawler controls and all retained
+skip reasons; Markdown preserves the existing `Not scanned` section for robots
+and page caps and adds `Skipped pages` for other reasons. HTML adds the expanded
+section when those other reasons are present, preserving legacy report goldens.
+The existing automated-testing disclaimer and limitations still apply.
+
+Crawler tests use only a guarded local fixture server. `npm test` runs the
+500-page HTTP-transport budget/RSS test without Chromium. To additionally run
+browser route, redirect and cancellation checks explicitly:
+
+```sh
+A11YGATE_CRAWL_BROWSER_TESTS=1 npx vitest run tests/crawl-hardening.test.ts --disableConsoleIntercept
+```
+
+The benchmark records peak **Node process RSS**, growth from its baseline and
+elapsed time; it enforces 15 seconds and less than 128 MiB growth. It does not
+measure Chromium process RSS or axe execution across 500 pages.
