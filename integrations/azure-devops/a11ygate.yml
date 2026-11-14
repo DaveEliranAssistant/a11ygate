@@ -38,12 +38,14 @@ parameters:
     default: a11ygate
 
 steps:
-  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0
-  - task: NodeTool@0
+  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1
+  # The version is always passed explicitly; the task's own default (10.x) is never used.
+  - task: UseNode@1
     displayName: 'A11yGate: use Node.js'
     inputs:
       versionSource: spec
-      versionSpec: '${{ parameters.nodeVersion }}'
+      version: '${{ parameters.nodeVersion }}'
+      checkLatest: false
 
   - script: ${{ parameters.installCommand }}
     displayName: 'A11yGate: install dependencies'

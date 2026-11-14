@@ -46,7 +46,7 @@ Adapt the build/start commands to your application. Only set `url` to a local or
 | `failOn` | `serious` | `minor`, `moderate`, `serious`, `critical`, or `none`. |
 | `crawl` | `1` | Maximum pages to crawl (same origin, robots.txt respected). |
 | `outDir` | `a11y` | Output directory, relative to the working directory. |
-| `nodeVersion` | `22.x` | Passed to `NodeTool@0` `versionSpec`. |
+| `nodeVersion` | `22.x` | Passed to `UseNode@1` `version` (SemVer range or exact version, e.g. `22.12.0`). |
 | `installCommand` | `npm ci` | Dependency install command. |
 | `installBrowsers` | `true` | Runs `npx --no-install playwright install --with-deps chromium`. |
 | `artifactName` | `a11ygate` | Name of the reports/evidence artifact. |
@@ -57,7 +57,7 @@ The consuming project's lockfile must provide the A11yGate CLI (a revision conta
 
 | Step | Task / command | Source |
 | --- | --- | --- |
-| Use Node.js | `NodeTool@0` with `versionSource: spec`, `versionSpec` | [Node.js tool installer v0](https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0) |
+| Use Node.js | `UseNode@1` with `versionSource: spec`, `version: <nodeVersion>`, `checkLatest: false` | [Use Node.js ecosystem v1](https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1) |
 | Install | `installCommand` | |
 | Chromium | `npx --no-install playwright install --with-deps chromium` | [Playwright CI docs](https://playwright.dev/docs/ci) |
 | Scan | `npx --no-install a11ygate scan "<url>" --crawl <n> --fail-on <policy> --format junit,sarif --out-dir <outDir>` | |
@@ -66,7 +66,7 @@ The consuming project's lockfile must provide the A11yGate CLI (a revision conta
 | Reports + evidence | `PublishBuildArtifacts@1` with `PathtoPublish: <outDir>`, `ArtifactName: <artifactName>`, `publishLocation: Container` | [Publish Build Artifacts v1](https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1) |
 | SARIF | `PublishBuildArtifacts@1` with `PathtoPublish: <outDir>/a11ygate-scan.sarif`, `ArtifactName: CodeAnalysisLogs` | [SARIF SAST Scans Tab](https://marketplace.visualstudio.com/items?itemName=sariftools.scans) |
 
-Microsoft marks `NodeTool@0` as deprecated in favor of [`UseNode@1`](https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1). The template keeps `NodeTool@0` because it still runs on current agents; switching is a one-line change (`task: UseNode@1`, input `version`).
+The template uses `UseNode@1`, the current Node.js setup task; Microsoft's reference marks the older Node.js tool installer (version 0) as deprecated in its favor. The `version` input is always set from `nodeVersion`, so the task's own default (`10.x`) never applies. `22.x` resolves to the newest cached or downloadable 22 release; set `nodeVersion` to an exact version such as `22.12.0` to pin a specific release. `checkLatest: false` prefers a version already cached on the agent.
 
 The `$(Build.SourceVersion)` macro records the commit being built in the evidence pack manifest; Azure substitutes it before the script runs, on every agent OS.
 
@@ -100,7 +100,7 @@ Every agent OS needs network access to the npm registry for `installCommand`, an
 
 No Azure DevOps organization is needed or contacted to test the template. [`tests/azure-devops.test.ts`](../../tests/azure-devops.test.ts) (part of `npm test`):
 
-- parses the YAML and checks parameter types and defaults, task names (`NodeTool@0`, `PublishTestResults@2`, `PublishBuildArtifacts@1`) and input names against the Microsoft pages above;
+- parses the YAML and checks parameter types and defaults, task names (`UseNode@1`, `PublishTestResults@2`, `PublishBuildArtifacts@1`) and input names against the Microsoft pages above, and that no deprecated Node.js tool installer (version 0) reference remains in the repository;
 - **no drift:** renders the template's own scan and evidence-pack `script:` lines (expanding `${{ parameters.* }}` and `$(Build.SourceVersion)`) and runs them in-process through the CLI with a stub browser and a network guard, for `failOn` `serious`, `critical`, and `none`. It then checks that every file the publish steps reference (JUnit, SARIF, HTML, evidence zip) exists;
 - when Chromium is installed locally, also runs those same rendered lines in a real `/bin/sh` against the loopback `fixtures/scan-site` server, expecting exit 1 for `serious` and 0 for `none`;
 - link-checks this page and greps it for compliance claims.

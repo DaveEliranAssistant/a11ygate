@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import { minimalResult } from './helpers';
 import { blockNetwork } from './network-guard';
 
 // Task names and inputs were authored from Microsoft's task reference pages, cited in the template:
-//   https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0
+//   https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1
 //   https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2
 //   https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1
 //   https://learn.microsoft.com/en-us/azure/devops/pipelines/process/templates
@@ -94,10 +94,15 @@ describe('integrations/azure-devops/a11ygate.yml structure', () => {
   it('uses Microsoft task names and input names exactly as documented', () => {
     const all = steps();
     expect(all.map((s) => s.task ?? 'script')).toEqual([
-      'NodeTool@0', 'script', 'script', 'script', 'script', 'PublishTestResults@2', 'PublishBuildArtifacts@1', 'PublishBuildArtifacts@1',
+      'UseNode@1', 'script', 'script', 'script', 'script', 'PublishTestResults@2', 'PublishBuildArtifacts@1', 'PublishBuildArtifacts@1',
     ]);
     expect(steps({ installBrowsers: false })).toHaveLength(7);
-    expect(all[0]!.inputs).toEqual({ versionSource: 'spec', versionSpec: '${{ parameters.nodeVersion }}' });
+    // UseNode@1 documents versionSource (spec | fromFile), version, versionFilePath, checkLatest, force32bit,
+    // nodejsMirror, retryCountOnDownloadFails and delayBetweenRetries. The template pins version explicitly.
+    expect(all[0]!.inputs).toEqual({ versionSource: 'spec', version: '${{ parameters.nodeVersion }}', checkLatest: false });
+    const useNodeInputs = ['versionSource', 'version', 'versionFilePath', 'checkLatest', 'force32bit', 'nodejsMirror', 'retryCountOnDownloadFails', 'delayBetweenRetries'];
+    for (const key of Object.keys(all[0]!.inputs!)) expect(useNodeInputs, key).toContain(key);
+    expect(render(all[0]!.inputs!.version as string)).toBe('22.x');
     expect(all[1]!.script).toBe('${{ parameters.installCommand }}');
     expect(all[2]!.script).toBe('npx --no-install playwright install --with-deps chromium');
     const junit = all[5]!;
@@ -118,11 +123,24 @@ describe('integrations/azure-devops/a11ygate.yml structure', () => {
     expect(scan.condition).toBeUndefined();
     expect(scan.continueOnError).toBeUndefined();
     for (const url of [
-      'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0',
+      'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1',
       'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2',
       'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1',
       'https://marketplace.visualstudio.com/items?itemName=sariftools.scans',
     ]) expect(templateText).toContain(url);
+  });
+});
+
+describe('deprecated Node.js tool installer', () => {
+  it('is not referenced anywhere in the tracked repository', () => {
+    // Built from parts so this file does not match its own grep.
+    const deprecated = ['NodeTool', '@0'].join('');
+    const files = execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' }).split('\0').filter(Boolean);
+    expect(files.length).toBeGreaterThan(10);
+    const hits = files.filter((file) => {
+      try { return readFileSync(path.join(repoRoot, file), 'utf8').includes(deprecated); } catch { return false; }
+    });
+    expect(hits).toEqual([]);
   });
 });
 
@@ -230,7 +248,7 @@ describe('docs/integrations/azure-devops.md', () => {
 
   it('cites the Microsoft and SARIF Scans Tab sources and links the template file', () => {
     for (const url of [
-      'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/node-tool-v0',
+      'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1',
       'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2',
       'https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1',
       'https://learn.microsoft.com/en-us/azure/devops/pipelines/process/templates',
