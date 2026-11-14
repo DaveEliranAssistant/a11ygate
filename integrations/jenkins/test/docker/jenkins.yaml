@@ -1,8 +1,22 @@
-# JCasC for the optional Dockerized Jenkins verification (R8).
-# No credentials. No external Jenkins is contacted; this file is mounted into a local container.
+# Disposable, loopback-only test controller. Never use this unsecured configuration
+# for a network-accessible Jenkins. No host ports are published by run.sh.
 jenkins:
   systemMessage: "A11yGate Jenkins fixture. Automated testing only. Not a WCAG audit, certification or legal advice."
   numExecutors: 1
+  mode: NORMAL
+  securityRealm: none
+  authorizationStrategy: unsecured
+  slaveAgentPort: -1
 unclassified:
   location:
     url: http://127.0.0.1:8080/
+  globalLibraries:
+    libraries:
+      - name: a11ygate
+        defaultVersion: main
+        implicit: false
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: file:///tmp/a11ygate-library

@@ -179,7 +179,17 @@ recordIssues(tools: [sarif(pattern: 'a11y-results/*.sarif')])
 | SARIF not in Warnings NG | Install the Warnings NG plugin and call the [`record-issues.groovy`](../../examples/jenkins/record-issues.groovy) fragment. |
 | Docker image cannot see the workspace | Pass `dockerArgs` such as a workspace mount if your agent needs it; or run on a Node agent without `image`. |
 
-A Dockerized Jenkins LTS + JCasC harness exists at [`integrations/jenkins/test/docker/run.sh`](../../integrations/jenkins/test/docker/run.sh). It exits 2 when Docker is not available and does not contact an external Jenkins.
+The [Dockerized Jenkins LTS + JCasC harness](../../integrations/jenkins/test/docker/run.sh) runs the example Jenkinsfile and shared library against loopback-only BAD and clean fixture sites. It checks build status and nonempty JUnit results through the Jenkins API. The [Jenkins E2E workflow](../../.github/workflows/jenkins-e2e.yml) runs on a GitHub-hosted Ubuntu runner, nightly and on integration changes. No credentials or external Jenkins are used. It exits 2 when Docker is unavailable; assertion failures exit nonzero.
+
+Live status: **not yet run** on Jenkins **2.580.2 LTS (Java 21)**. The controller image is pinned by digest; see [image provenance and harness details](../../integrations/jenkins/test/docker/README.md). A green hosted-run link will be recorded here after verification.
+
+Mac fallback: start Docker Desktop (Linux containers), then from the repository root run:
+
+```sh
+bash integrations/jenkins/test/docker/run.sh
+```
+
+Python 3 is required. Evidence is saved under `test-results/jenkins-e2e/`, including build JSON, JUnit API JSON, console logs, and archived reports. This live boot is separate from `npm test` and `npm run test:jenkins`.
 
 ## Disclaimer
 
