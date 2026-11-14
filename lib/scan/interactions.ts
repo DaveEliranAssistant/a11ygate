@@ -56,7 +56,8 @@ export async function activationReason(locator: Locator): Promise<string | null>
     if (el.closest('input, textarea, select, [contenteditable="true"]')) return 'Form inputs are not interaction targets.';
     const button = el.closest('button');
     if (button && (button.type === 'submit' || button.type === 'reset') && (button.form || button.type === 'reset')) return 'Submit/reset buttons are not interaction targets.';
-    if (/delete|remove|pay|buy|submit/i.test((el.closest('button, [role="button"]') ?? el).textContent ?? '')) return 'Destructive-looking controls are not interaction targets.';
+    const textButton = el.closest('button, [role="button"]');
+    if (textButton && /\b(delete|remove|pay|buy|submit)\b/i.test(textButton.textContent ?? '')) return 'Destructive-looking controls are not interaction targets.';
     return null;
   });
 }

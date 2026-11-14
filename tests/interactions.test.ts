@@ -126,6 +126,23 @@ describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('local SPA browser a
     expect(explicit.report.pages.at(-1)?.error).toContain('Destructive-looking');
     expect(requests.some(p => /danger|external|submitted/.test(p))).toBe(false);
   }, 120_000);
+  it('preserves R37 explicit container steps with destructive words in descendants and matches only whole button words', async () => {
+    const { scan, requests } = await fixture('tests/fixtures/spa-interactions/nested.html');
+    const states: InteractionState[] = [
+      { route: '/pricing', name: 'escape', steps: [{ action: 'press', selector: 'body', key: 'Escape' }] },
+      { route: '/pricing', name: 'container', steps: [{ action: 'click', selector: 'main' }] },
+      { route: '/pricing', name: 'payment', steps: [{ action: 'click', selector: '#payment' }] },
+      { route: '/pricing', name: 'unsafe-role-child', steps: [{ action: 'click', selector: '#role-child' }] },
+    ];
+    const result = await scan(['--interactions', JSON.stringify(states)]);
+    expect(result.report.pages.slice(1, 4).map(p => ({ url: new URL(p.url).hash, status: p.scanStatus, error: p.error }))).toEqual([
+      { url: '#escape', status: 'complete', error: undefined },
+      { url: '#container', status: 'complete', error: undefined },
+      { url: '#payment', status: 'complete', error: undefined },
+    ]);
+    expect(result.report.pages.at(-1)?.error).toContain('Destructive-looking');
+    expect(requests.some(p => /danger|external|submitted/.test(p))).toBe(false);
+  }, 60_000);
   it('preserves the complete R37 depth 1 output with explicit defaults', async () => {
     const { scan } = await fixture();
     const legacy = await scan(['--auto-interactions']);
