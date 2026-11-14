@@ -1,3 +1,4 @@
+import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
@@ -53,6 +54,7 @@ export type ScanPageSummary = {
 };
 
 export type ScanReport = {
+  engineResults?: EnginePageResult[];
   tool: 'a11ygate';
   kind: 'site-scan';
   schemaVersion: 1;
@@ -61,7 +63,7 @@ export type ScanReport = {
   scannedAt: string;
   startUrl: string;
   origin: string;
-  verdict: 'PASS' | 'FAIL';
+  verdict: 'PASS' | 'FAIL' | 'ERROR';
   failOn: FailOn;
   reason: string;
   options: { maxPages: number; delayMs: number; tags: string[]; userAgent: string; robots: string };
@@ -124,6 +126,7 @@ export function buildScanReport(input: {
   delayMs: number;
   userAgent: string;
   robotsNote: string;
+  engineResults?: EnginePageResult[];
 }): ScanReport {
   const pages: ScanPageSummary[] = [];
   const findings: ScanFinding[] = [];
@@ -153,7 +156,10 @@ export function buildScanReport(input: {
     });
   }
   const gating = gatingScanFindings(findings, input.failOn);
-  const verdict = gating.length > 0 ? 'FAIL' : 'PASS';
+  const extraGating = input.failOn === 'none' ? [] : (input.engineResults ?? []).flatMap((e) =>
+    e.engine !== 'axe' && e.status === 'complete' ? e.findings.filter((f) => meetsThreshold(f.impact, input.failOn as Impact)) : []);
+  const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
+  const verdict = engineErrors ? 'ERROR' : gating.length + extraGating.length > 0 ? 'FAIL' : 'PASS';
   const reason =
     input.failOn === 'none'
       ? 'Reporting only (--fail-on none).'
@@ -171,7 +177,8 @@ export function buildScanReport(input: {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason,
+    reason: engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : extraGating.length ? `${gating.length + extraGating.length} findings at or above ${input.failOn} across selected engines (not deduplicated).` : reason,
+    ...(input.engineResults ? { engineResults: input.engineResults } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === 'complete').length,
@@ -294,6 +301,10 @@ export function scanMarkdown(report: ScanReport): string {
   if (robotsSkipped.length > 0) {
     lines.push('## Not scanned', '', ...robotsSkipped.map((s) => `- ${cell(s.url)} — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}`), '');
   }
+  if (report.engineResults) lines.push('## Engine results (separate, not deduplicated)', '', ...report.engineResults.flatMap((e) => [
+    `### ${cell(e.engine)} — ${cell(e.url)} — ${e.status}`, '',
+    ...(e.status === 'errored' ? [cell(e.error)] : e.findings.map((f) => `- **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) — ${code(f.selector)} — ${code(f.snippet)}`)), '',
+  ]));
   lines.push('## Scope and boundaries', '', ...report.boundaries.map((b) => `- ${cell(b)}`), '', DISCLAIMER, LEGAL_DISCLAIMER, '');
   return lines.join('\n');
 }
@@ -349,7 +360,7 @@ a{color:#0b57d0}
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups('Findings by WCAG criterion', groupByCriterion(report.findings))}
 ${htmlGroups('Findings by severity', groupBySeverity(report.findings))}
-<h2>Scope and boundaries</h2>
+${report.engineResults ? '<h2>Engine results (separate, not deduplicated)</h2>' + report.engineResults.map((e) => `<section><h3>${esc(e.engine)} — ${esc(e.url)} — ${esc(e.status)}</h3>${e.status === 'errored' ? `<p>${esc(e.error)}</p>` : `<ul>${e.findings.map((f) => `<li><strong>${esc(f.ruleId)}</strong> (${esc(f.impact ?? 'unspecified')}) — <code>${esc(f.selector)}</code> — <code>${esc(f.snippet)}</code></li>`).join('')}</ul>`}</section>`).join('') + '\n' : ''}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>

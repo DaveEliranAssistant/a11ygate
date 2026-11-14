@@ -41,6 +41,12 @@ describe('engine interface and normalized findings', () => {
     expect(await runEngine(createAxeEngine(async () => native, 'fixture-agent'), null, 'http://localhost')).toMatchObject({ status: 'complete' });
   });
 
+  it('isolates a hung engine and still runs axe', async () => {
+    const hung: Engine<null, never> = { id: 'hung', displayName: 'Hung', run: () => new Promise(() => {}), normalize: () => [] };
+    expect(await runEngine(hung, null, 'http://localhost', 10)).toMatchObject({ engine: 'hung', status: 'errored', error: expect.stringContaining('timed out') });
+    expect(await runEngine(createAxeEngine(async () => native, 'fixture-agent'), null, 'http://localhost')).toMatchObject({ status: 'complete', findings: [expect.objectContaining({ ruleId: 'image-alt' })] });
+  });
+
   it('has valid criterion IDs aligned with the existing standards map', () => {
     const known = new Set(CRITERIA.map((c) => c.number));
     expect(Object.keys(WCAG_RULE_MAP.axe!)).toContain('image-alt');
@@ -55,13 +61,15 @@ describe('engine interface and normalized findings', () => {
     expect(WCAG_RULE_MAP.axe?.['image-alt']).toEqual(lookupStandards(['wcag111']).flatMap((h) => h.kind === 'criterion' ? [h.number] : []));
   });
 
-  it('defaults to axe only and accepts only the explicit axe selection', () => {
+  it('defaults to axe only and accepts explicit opt-in selections', () => {
     for (const args of [[], ['--engines', 'axe'], ['--engines=axe']]) {
       expect(parseScanArgs(['http://localhost', ...args])).toMatchObject({ ok: true, options: { engines: ['axe'] } });
     }
-    for (const selection of ['pa11y', 'axe,pa11y', 'lighthouse', 'AXE', 'axe,axe']) {
-      expect(parseScanArgs(['http://localhost', '--engines', selection])).toMatchObject({ ok: false, error: expect.stringContaining('Only axe is available') });
+    for (const selection of ['pa11y', 'axe,pa11y', 'AXE', 'axe,axe', 'axe,', ',htmlcs']) {
+      expect(parseScanArgs(['http://localhost', '--engines', selection])).toMatchObject({ ok: false, error: expect.stringContaining('axe,htmlcs,ibm,lighthouse') });
     }
+    expect(parseScanArgs(['http://localhost', '--engines', 'axe,htmlcs,ibm,lighthouse'])).toMatchObject({ ok: true, options: { engines: ['axe', 'htmlcs', 'ibm', 'lighthouse'] } });
+    expect(parseScanArgs(['http://localhost', '--engines', 'lighthouse'])).toMatchObject({ ok: true, options: { engines: ['lighthouse'] } });
     expect(parseScanArgs(['http://localhost', '--engines'])).toMatchObject({ ok: false, error: '--engines needs a value.' });
     expect(parseScanArgs(['http://localhost', '--engines='])).toMatchObject({ ok: false });
   });

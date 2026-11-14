@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -22,9 +22,9 @@ type Report = {
 };
 
 // The CLI must run asynchronously: the fixture server lives in this process.
-function runCli(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
+function runCli(args: string[], executable = cli): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [cli, ...args], { cwd: repoRoot });
+    const child = spawn(process.execPath, [executable, ...args], { cwd: repoRoot });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => (stdout += d));
@@ -115,8 +115,52 @@ test.describe('a11ygate scan against a local fixture site', () => {
     expect(explicit.stdout).not.toContain('"engine":');
     const unknown = await runCli(['scan', `${server.origin}/`, '--engines', 'pa11y']);
     expect(unknown.code).toBe(2);
-    expect(unknown.stderr).toContain('Only axe is available');
+    expect(unknown.stderr).toContain('axe,htmlcs,ibm,lighthouse');
 
+  });
+
+  test('opt-in engines share one visit and report their findings separately', async () => {
+    server.requests.length = 0;
+    const out = path.join(dir, 'engines');
+    const result = await runCli(['scan', `${server.origin}/`, '--engines', 'axe,htmlcs,ibm,lighthouse', '--out-dir', out]);
+    expect(result.code, result.stderr).toBe(1);
+    const report = JSON.parse(await readFile(path.join(out, 'a11ygate-scan.json'), 'utf8'));
+    expect(report.engineResults.map((e: { engine: string }) => e.engine)).toEqual(['axe', 'htmlcs', 'ibm', 'lighthouse']);
+    for (const execution of report.engineResults) {
+      expect(execution.status, execution.error).toBe('complete');
+      expect(execution.findings.length).toBeGreaterThan(0);
+    }
+    expect(server.requests.filter((r) => r.path === '/')).toHaveLength(1);
+    expect(result.stdout).toContain('Engine results (separate, not deduplicated)');
+    const html = await readFile(path.join(out, 'a11ygate-scan.html'), 'utf8');
+    expect(html).toContain('Engine results (separate, not deduplicated)');
+    expect(html).not.toContain('<script');
+    const only = await runCli(['scan', `${server.origin}/`, '--engines', 'ibm', '--json', '-']);
+    expect(only.code, only.stderr).toBe(1);
+    expect(JSON.parse(only.stdout).engineResults).toEqual([expect.objectContaining({ engine: 'ibm', status: 'complete' })]);
+    expect(JSON.parse(only.stdout).results).toEqual([]);
+  });
+
+  test('missing selected peers are errored while an installed engine still reports', async () => {
+    // Copy the real bundle outside the workspace so Node cannot find its peers
+    // through the repository's node_modules. Only these two packages are supplied.
+    const isolated = path.join(dir, 'isolated');
+    await mkdir(path.join(isolated, 'node_modules'), { recursive: true });
+    const executable = path.join(isolated, 'cli.mjs');
+    await copyFile(cli, executable);
+    for (const name of ['playwright', 'html_codesniffer']) {
+      await symlink(path.join(repoRoot, 'node_modules', name), path.join(isolated, 'node_modules', name), 'dir');
+    }
+    const result = await runCli(['scan', `${server.origin}/`, '--engines', 'axe,htmlcs,ibm,lighthouse', '--json', '-'], executable);
+    expect(result.code, result.stderr).toBe(2);
+    const report = JSON.parse(result.stdout);
+    expect(report.verdict).toBe('ERROR');
+    expect(report.engineResults).toEqual([
+      expect.objectContaining({ engine: 'axe', status: 'errored', error: expect.stringContaining('npm install') }),
+      expect.objectContaining({ engine: 'htmlcs', status: 'complete', findings: expect.arrayContaining([expect.objectContaining({ engine: 'htmlcs' })]) }),
+      expect.objectContaining({ engine: 'ibm', status: 'errored', error: expect.stringContaining('npm install') }),
+      expect.objectContaining({ engine: 'lighthouse', status: 'errored', error: expect.stringContaining('npm install') }),
+    ]);
   });
 
   test('exit codes follow --fail-on and errors exit 2', async () => {

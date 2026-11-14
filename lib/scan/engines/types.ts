@@ -13,11 +13,22 @@ export type EngineExecution<NativeResults> =
   | { engine: string; status: 'errored'; error: string };
 
 /** Catch both analyzer and mapper errors so callers can continue with later engines. */
-export async function runEngine<Context, NativeResults>(engine: Engine<Context, NativeResults>, context: Context, url: string): Promise<EngineExecution<NativeResults>> {
+export async function runEngine<Context, NativeResults>(engine: Engine<Context, NativeResults>, context: Context, url: string, timeoutMs = 30_000): Promise<EngineExecution<NativeResults>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const native = await engine.run(context, url);
+    const native = await Promise.race([engine.run(context, url), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Engine ${engine.id} timed out after ${timeoutMs}ms.`)), timeoutMs);
+    })]);
     return { engine: engine.id, status: 'complete', native, findings: engine.normalize(native) };
   } catch (error) {
     return { engine: engine.id, status: 'errored', error: error instanceof Error ? error.message.split('\n')[0]! : 'Engine failed.' };
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+/** Public opt-in results are separate from historical axe output; never deduplicated. */
+export type EnginePageResult = { url: string } & (
+  | { engine: string; status: 'complete'; findings: NormalizedFinding[] }
+  | { engine: string; status: 'errored'; error: string }
+);
