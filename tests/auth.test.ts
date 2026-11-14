@@ -3,14 +3,61 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { scanMarkdown, scanHtml, type ScanReport } from '@/lib/scan/report';
+import { renderScanHtml } from '@/lib/scan/report-html-v2';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { envMapping, prepareAuth } from '@/packages/cli/src/auth';
 import { parseScanArgs, runScan } from '@/packages/cli/src/scan';
+import { doctorChecks } from '@/packages/cli/src/doctor';
 import { blockNetwork } from './network-guard';
 
 const noRobots = async () => ({ ok: false, status: 404, text: async () => '' });
 
 describe('authentication configuration (no browser or network)', () => {
+  it('counts not-authenticated pages separately in JSON, Markdown and both HTML summaries', async () => {
+    const network = blockNetwork();
+    let output = '';
+    try {
+      const code = await runScan(['https://site.test/', '--auth-check-must-have-selector', '#member', '--crawl', '3', '--delay-ms', '0', '--fail-on', 'none', '--json', '-'], {
+        env: { NODE_ENV: 'test' }, fetch: noRobots, stdout: text => { output += text; }, stderr: () => {},
+        engine: async ({ auth }) => {
+          expect(auth?.check).toEqual({ mustHaveSelector: '#member' });
+          return {
+            visit: async url => url === 'https://site.test/' ? {
+              status: 200, finalUrl: url, links: ['https://site.test/next', 'https://site.test/last'],
+              result: { url, timestamp: '2026-11-14T00:00:00Z', testEngine: { version: '4' }, violations: [] },
+            } : { status: 200, finalUrl: url, links: [], notAuthenticated: true, error: 'Not authenticated: explicit auth.check failed.' },
+            close: async () => {},
+          };
+        },
+      });
+      expect(code).toBe(2);
+      const report: ScanReport = JSON.parse(output);
+      expect(report.counts).toMatchObject({ pagesScanned: 1, pagesFailed: 0, pagesNotAuthenticated: 2 });
+      expect(report.results).toHaveLength(1);
+      expect(report.pages.slice(1).map(page => page.scanStatus)).toEqual(['not-authenticated', 'not-authenticated']);
+      for (const rendered of [scanMarkdown(report), scanHtml(report), renderScanHtml(report)]) expect(rendered).toContain('not authenticated: 2');
+      expect(network.attempts).toEqual([]);
+    } finally { network.restore(); }
+  });
+
+  it('doctor warns for auth without a check and accepts explicit checks', async () => {
+    const network = blockNetwork();
+    try {
+      for (const hasCheck of [false, true]) {
+        const findings = await doctorChecks({}, { env: {}, repoConfig: 'auth:\n  cookieEnv: [session=SESSION]\n' + (hasCheck ? '  check:\n    mustHaveSelector: "#member"\n' : ''), head: () => null, chromium: () => true, hasPackage: () => true });
+        expect(findings.find(f => f.check === 'auth')).toMatchObject({ status: hasCheck ? 'pass' : 'unknown', message: expect.stringContaining(hasCheck ? 'Explicit auth.check' : 'without auth.check') });
+      }
+      expect(network.attempts).toEqual([]);
+    } finally { network.restore(); }
+  });
+
+  it('rejects off-origin probe URLs before launching the browser', async () => {
+    for (const url of ['https://other.test/', '//other.test/', 'https://user:pass@site.test/']) {
+      await expect(prepareAuth({ authCheck: { url } }, '.', 'https://site.test', { NODE_ENV: 'test' })).rejects.toThrow('auth.check.url must be on the scan origin');
+    }
+  });
+
   it('accepts repeatable environment names and rejects literal credentials', () => {
     expect(parseScanArgs(['https://site.test', '--storage-state', 'state.json', '--session-storage=session.json', '--login-script=login.mjs', '--login-timeout-ms', '1200', '--cookie-env', 'session=TEST_SESSION', '--cookie-env', 'csrf=TEST_CSRF', '--header-env', 'Authorization=TEST_AUTH'])).toMatchObject({
       ok: true, options: { storageState: 'state.json', sessionStorage: 'session.json', loginScript: 'login.mjs', loginTimeoutMs: 1200, cookieEnv: ['session=TEST_SESSION', 'csrf=TEST_CSRF'], headerEnv: ['Authorization=TEST_AUTH'] },

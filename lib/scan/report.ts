@@ -56,7 +56,7 @@ export type ScanPageSummary = {
   url: string;
   finalUrl: string;
   status: number | null;
-  scanStatus: 'complete' | 'failed' | 'skipped';
+  scanStatus: 'complete' | 'failed' | 'skipped' | 'not-authenticated';
   error?: string;
   violations: number;
   findings: number;
@@ -91,7 +91,7 @@ export type ScanReport = {
   failOn: FailOn;
   reason: string;
   options: { maxPages: number; delayMs: number; tags: string[]; userAgent: string; robots: string } & CrawlControls;
-  counts: { pagesScanned: number; pagesFailed: number; skippedLinks: number; findings: number; byImpact: Record<Impact | 'unknown', number> };
+  counts: { pagesNotAuthenticated?: number; pagesScanned: number; pagesFailed: number; skippedLinks: number; findings: number; byImpact: Record<Impact | 'unknown', number> };
   pages: ScanPageSummary[];
   skipped: SkippedLink[];
   findings: ScanFinding[];
@@ -155,6 +155,7 @@ export function buildScanReport(input: {
   engineResults?: EnginePageResult[];
   keyboardResults?: KeyboardResult[];
   authenticated?: boolean;
+  explicitAuthCheck?: boolean;
   interactions?: boolean;
   crawlControls?: CrawlControls;
 }): ScanReport {
@@ -240,7 +241,7 @@ export function buildScanReport(input: {
   }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
-  const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith('Not authenticated:'));
+  const authenticationFailed = input.crawl.pages.some((p) => p.scanStatus === 'not-authenticated' || p.error?.startsWith('Not authenticated:'));
   const startFailed = input.crawl.pages[0]?.scanStatus !== 'complete';
   const stateFailed = !!input.interactions && pages.some(p => new URL(p.url).hash && p.scanStatus !== 'complete');
   const verdict = (engineErrors || authenticationFailed || startFailed || stateFailed) ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
@@ -266,6 +267,7 @@ export function buildScanReport(input: {
     ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER + (input.keyboardResults ? ' ' + KEYBOARD_DISCLAIMER : '') } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
+      ...(input.explicitAuthCheck ? { pagesNotAuthenticated: input.crawl.pages.filter(p => p.scanStatus === 'not-authenticated').length } : {}),
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === 'complete').length,
       pagesFailed: input.crawl.pages.filter((p) => p.scanStatus === 'failed').length,
       skippedLinks: input.crawl.skipped.length,
@@ -370,7 +372,7 @@ export function scanMarkdown(report: ScanReport): string {
     '| --- | --- |',
     ...(['critical', 'serious', 'moderate', 'minor', 'unknown'] as const).map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
     '',
-    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${report.axeVersion ?? 'n/a'}; A11yGate ${report.version}.`,
+    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== undefined ? '; not authenticated: ' + report.counts.pagesNotAuthenticated : ''}. axe-core ${report.axeVersion ?? 'n/a'}; A11yGate ${report.version}.`,
     '',
     ...(report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, '', AUTOMATED_TESTING_DISCLAIMER, ''] : []),
     '## Pages',
@@ -484,7 +486,7 @@ a{color:#0b57d0}
 <p>Start URL: <code>${esc(report.startUrl)}</code></p>
 <p class="verdict">Verdict: ${esc(report.verdict)} (fail on: ${esc(report.failOn)})</p>
 <p>${esc(report.reason)}</p>
-<p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${esc(report.axeVersion ?? 'n/a')}; A11yGate ${esc(report.version)}.</p>
+<p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== undefined ? '; not authenticated: ' + report.counts.pagesNotAuthenticated : ''}. axe-core ${esc(report.axeVersion ?? 'n/a')}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
 ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>

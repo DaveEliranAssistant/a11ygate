@@ -15,13 +15,14 @@ export type VisitOutcome = {
   analysed?: boolean;
   error?: string;
   navigationError?: boolean;
+  notAuthenticated?: boolean;
 };
 
 export type PageRecord = {
   url: string;
   finalUrl: string;
   status: number | null;
-  scanStatus: 'complete' | 'failed' | 'skipped';
+  scanStatus: 'complete' | 'failed' | 'skipped' | 'not-authenticated';
   error?: string;
   result?: AxeResults;
 };
@@ -166,6 +167,10 @@ export async function crawl(options: CrawlOptions): Promise<CrawlResult> {
     for (let i = 0; i < batch.length; i++) {
       const { url, depth } = batch[i]!;
       const outcome = outcomes[i]!;
+      if (outcome.notAuthenticated) {
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'not-authenticated', error: outcome.error });
+        continue;
+      }
       if (outcome.error?.startsWith('Page timeout')) {
         skip({ url, reason: 'timeout' });
         pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'skipped', error: outcome.error });

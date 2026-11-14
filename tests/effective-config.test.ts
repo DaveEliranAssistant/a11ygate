@@ -24,6 +24,7 @@ function leaves(node: JsonSchema, prefix = ''): string[] {
   });
 }
 function yamlEntry(key: string, value: unknown): string {
+  if (key.startsWith('auth.check.')) return `auth:\n  check:\n    ${key.slice(11)}: ${JSON.stringify(value)}\n`;
   return key.startsWith('auth.') ? `auth:\n  ${key.slice(5)}: ${JSON.stringify(value)}\n` : `${key}: ${JSON.stringify(value)}\n`;
 }
 // Explicit expected destination, independent of the production wiring registry.
@@ -44,6 +45,10 @@ const cases: [string, unknown, string, unknown][] = [
   ['formats', ['sarif', 'junit'], 'formats', ['sarif', 'junit']],
   ['outDir', 'custom-reports', 'outDir', 'custom-reports'], ['delayMs', 25, 'delayMs', 25],
   ['reportVersion', 1, 'reportVersion', 1],
+  ['auth.check.url', '/probe', 'authCheck', { url: '/probe' }],
+  ['auth.check.mustHaveSelector', '#member', 'authCheck', { mustHaveSelector: '#member' }],
+  ['auth.check.mustNotHaveSelector', '#login', 'authCheck', { mustNotHaveSelector: '#login' }],
+  ['auth.check.mustNotRedirectTo', '/login', 'authCheck', { mustNotRedirectTo: '/login' }],
   ['auth.storageState', 'state.json', 'storageState', 'state.json'],
   ['auth.loginScript', 'login.mjs', 'loginScript', 'login.mjs'],
   ['auth.loginTimeoutMs', 5678, 'loginTimeoutMs', 5678],
