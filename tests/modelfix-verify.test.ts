@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { chromium } from 'playwright';
 import type { FixFinding, SourceFile } from '@/lib/fix';
 import {
+  applyDrafts,
   gitBlobHash,
   planWithModelFixes,
   resolveModelFixConfig,
@@ -48,6 +49,13 @@ let leftoversBefore: Set<string>;
 
 function sh(args: string[], cwd = repo): string {
   return execFileSync('git', ['-c', 'user.name=a11ygate test', '-c', 'user.email=test@a11ygate.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd, encoding: 'utf8' }).trim();
+}
+
+/** Independent tree id: the scanned commit's tree with `file` replaced, built with plumbing in the object store only. */
+function expectedTree(file: string, content: string): string {
+  const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, input: content, encoding: 'utf8' }).trim();
+  const listing = sh(['ls-tree', sha]).split('\n').map((line) => (line.endsWith(`\t${file}`) ? line.replace(/blob [0-9a-f]{40}/, `blob ${blob}`) : line));
+  return execFileSync('git', ['mktree'], { cwd: repo, input: `${listing.join('\n')}\n`, encoding: 'utf8' }).trim();
 }
 
 function verifierDirs(): string[] {
@@ -138,6 +146,10 @@ describe.skipIf(!hasChromium)('(a) apply in isolation and re-scan', () => {
   it('verifies a correct contrast patch: target cleared, no new findings', { timeout: TIMEOUT }, async () => {
     const result = await verifyCandidate(correctContrast(), options());
     expect(result).toMatchObject({ verified: true, outcome: 'verified', reason: 'verified', newFindings: 0, findingIds: ['fp-contrast'] });
+    // The verified tree is exactly the scanned tree plus the patched file (what a publisher must reproduce).
+    const patched = applyDrafts(page, [correctContrast().validated.draft]);
+    expect(result.treeHash).toBe(expectedTree(FILE, patched));
+    expect(result.patchedBlobs).toEqual([{ path: FILE, blobHash: gitBlobHash(patched) }]);
   });
 
   it('stub placeholder alt/aria-label drafts: axe accepts any non-empty name, so they clear, but still need a person', { timeout: TIMEOUT }, async () => {

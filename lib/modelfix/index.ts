@@ -27,3 +27,16 @@ export type {
   VerifyOutcome,
   VerifyReason,
 } from '@/lib/modelfix/types';
+export { applyDrafts } from '@/lib/modelfix/apply';
+export {
+  buildDraftPullBody,
+  buildModelSuggestionBody,
+  buildPublishStatus,
+  MODEL_DRAFT_LABEL,
+  MODEL_DRAFT_MARKER_PREFIX,
+  modelDraftBranch,
+  modelDraftMarker,
+  publishModelDrafts,
+} from '@/lib/modelfix/publish';
+export type { GithubRequest, PublishInput, PublishMode, PublishRecord, PublishSkipReason, PublishSummary } from '@/lib/modelfix/publish';
+export type { PublishableCandidate } from '@/lib/modelfix/types';

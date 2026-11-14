@@ -1,5 +1,6 @@
 import type { FixFinding, PlanResult, SourceFile, Suggestion } from '../lib/fix/types';
-import type { ModelAdapter, ModelFixConfig, ModelFixRun } from '../lib/modelfix/types';
+import type { PublishMode, PublishSummary } from '../lib/modelfix/publish';
+import type { CandidateVerifier, ModelAdapter, ModelFixConfig, ModelFixRun } from '../lib/modelfix/types';
 
 export const MAX_SUGGESTIONS: number;
 
@@ -35,6 +36,8 @@ export type SuggestionSummary = {
   skipped: PlanResult['skipped'];
   /** Present only when a model-fix config was passed. Routing metadata; never published output. */
   model?: ModelFixRun;
+  /** Present only when verified model drafts were handed to the draft-only publisher. */
+  published?: PublishSummary;
 };
 
 export function postSuggestions(options: {
@@ -53,4 +56,8 @@ export function postSuggestions(options: {
   /** Adapters for the model path. Defaults to the built-in list, which is empty in this phase. */
   modelAdapters?: readonly ModelAdapter[];
   env?: Readonly<Record<string, string | undefined>>;
+  /** Isolated apply + re-scan verifier. Without one, model drafts are discarded unpublished. */
+  modelVerifier?: CandidateVerifier;
+  /** Draft-only publishing of verified drafts. Omit to keep verified drafts unpublished. */
+  modelPublish?: { mode?: PublishMode; baseBranch?: string | null; models?: Readonly<Record<string, string>>; routes?: readonly string[] };
 }): Promise<SuggestionSummary>;

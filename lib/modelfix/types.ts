@@ -3,9 +3,10 @@ import type { SkipReason } from '@/lib/fix/types';
 /**
  * Types for the optional model-assisted fix path (design: docs/design/model-written-fix-prs.md).
  *
- * No live provider adapters or draft publisher exist yet. A validated draft
- * may be applied in an isolated worktree and re-scanned by an injected
- * `CandidateVerifier` (lib/modelfix-verify). Model output is never published.
+ * No live provider adapters exist yet. A validated draft may be applied in an
+ * isolated worktree and re-scanned by an injected `CandidateVerifier`
+ * (lib/modelfix-verify). Only verified drafts may be published, and only as a
+ * draft pull request or a labelled review suggestion (lib/modelfix/publish.ts).
  */
 
 /** Exact repository config file name, read from the workspace root. */
@@ -306,6 +307,14 @@ export type CandidateVerification = {
   findingIds: string[];
   /** Count of findings that appeared after the patch. */
   newFindings: number;
+  /**
+   * Set only when verified: git tree id of the scanned commit's tree with the
+   * patched files staged, i.e. the exact tree that was re-scanned. A publisher
+   * must publish this tree and nothing else.
+   */
+  treeHash?: string;
+  /** Set only when verified: git blob id of each patched file as re-scanned. */
+  patchedBlobs?: { path: string; blobHash: string }[];
 };
 
 /**
@@ -318,6 +327,14 @@ export interface CandidateVerifier {
   /** Applies every candidate together and re-scans once. */
   verifyCombined(candidates: readonly VerifyCandidate[]): Promise<CandidateVerification>;
 }
+
+/** A verified candidate handed to the draft publisher. */
+export type PublishableCandidate = {
+  candidate: VerifyCandidate;
+  verification: CandidateVerification;
+  /** Adapter id that wrote the draft (`stub` for the stub adapter). */
+  provider: string;
+};
 
 export type ModelFixRun = {
   status: ModelRunStatus;

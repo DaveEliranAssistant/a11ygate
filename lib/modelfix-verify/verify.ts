@@ -1,8 +1,9 @@
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { applyDrafts } from '@/lib/modelfix/apply';
 import { gitBlobHash, validateDraft } from '@/lib/modelfix/validate';
 import type { CandidateVerification, CandidateVerifier, VerifyCandidate, VerifyReason } from '@/lib/modelfix/types';
-import { blobAt, createWorktree, isFullSha, resolveCommit } from './git';
+import { blobAt, createWorktree, git, isFullSha, resolveCommit } from './git';
 import type { RescanFinding, RescanResult, Rescanner } from './rescan';
 
 /**
@@ -33,9 +34,13 @@ export type IsolatedVerifierOptions = {
 
 type Prepared = { candidate: VerifyCandidate; route: string; selector: string };
 
-function result(candidates: readonly VerifyCandidate[], reason: VerifyReason, detail: string, newFindings = 0): CandidateVerification {
+type TreeEvidence = Pick<CandidateVerification, 'treeHash' | 'patchedBlobs'>;
+
+function result(candidates: readonly VerifyCandidate[], reason: VerifyReason, detail: string, newFindings = 0, evidence?: TreeEvidence): CandidateVerification {
   const outcome = reason === 'verified' ? 'verified' : STALE.has(reason) ? 'stale' : 'rejected';
-  return { verified: reason === 'verified', outcome, reason, detail, findingIds: candidates.map((item) => item.validated.draft.findingId), newFindings };
+  const out: CandidateVerification = { verified: reason === 'verified', outcome, reason, detail, findingIds: candidates.map((item) => item.validated.draft.findingId), newFindings };
+  if (reason === 'verified' && evidence) Object.assign(out, evidence);
+  return out;
 }
 
 const STALE: ReadonlySet<VerifyReason> = new Set(['head-moved', 'commit-missing', 'blob-mismatch', 'original-mismatch']);
@@ -131,12 +136,17 @@ async function run(candidates: readonly VerifyCandidate[], options: IsolatedVeri
     if (!targets) return result(candidates, 'target-not-reproduced', 'target finding not found exactly once in the pre-patch scan');
 
     // Exact replacement, bottom-up per file so earlier ranges keep their line numbers.
+    const patchedBlobs: { path: string; blobHash: string }[] = [];
     for (const [file, content] of contents) {
-      const drafts = candidates.map((item) => item.validated.draft).filter((draft) => draft.path === file).sort((a, b) => b.startLine - a.startLine);
-      const next = lines(content);
-      for (const draft of drafts) next.splice(draft.startLine - 1, draft.endLine - draft.startLine + 1, ...draft.replacement);
-      await writeFile(resolve(file), next.join('\n'), 'utf8');
+      const patched = applyDrafts(content, candidates.map((item) => item.validated.draft).filter((draft) => draft.path === file));
+      await writeFile(resolve(file), patched, 'utf8');
+      patchedBlobs.push({ path: file, blobHash: gitBlobHash(patched) });
     }
+    // The exact tree that is re-scanned: the scanned commit's tree plus the patched files only
+    // (build output is never staged). A publisher must reproduce this hash before publishing.
+    await git(root, ['add', '--', ...contents.keys()]);
+    const treeHash = (await git(root, ['write-tree'])).trim();
+    if (!isFullSha(treeHash)) return result(candidates, 'error', 'could not record the verified tree');
 
     if (options.build) await options.build(root);
     const post = await options.rescanner.scan({ root: renderRoot, routes: options.routes, probes: targets.map(({ route, selector }) => ({ route, selector })) });
@@ -155,7 +165,7 @@ async function run(candidates: readonly VerifyCandidate[], options: IsolatedVeri
       }
     }
     if (fresh.length > 0) return result(candidates, 'new-finding', `${fresh.length} new finding(s) after the patch`, fresh.length);
-    return result(candidates, 'verified', 'target cleared and no new findings in the tested routes');
+    return result(candidates, 'verified', 'target cleared and no new findings in the tested routes', 0, { treeHash, patchedBlobs });
   } finally {
     await worktree.remove();
   }

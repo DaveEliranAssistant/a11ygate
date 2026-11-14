@@ -42,9 +42,13 @@ inputs:
     required: false
     default: en
   model-fixes:
-    description: Optional model-drafted fixes (experimental, not implemented beyond routing). on or off. Needs modelFixes true in the repository's .a11ygate.yml; cannot override a repository denial. Falls back to rule-based suggestions.
+    description: Optional model-drafted fixes (experimental; no live providers yet). on or off. Needs modelFixes true in the repository's .a11ygate.yml; cannot override a repository denial. Falls back to rule-based suggestions.
     required: false
     default: 'off'
+  model-fixes-publish:
+    description: How verified model drafts are published when model-fixes is on. draft-pr (a draft pull request, never marked ready, approved or merged; falls back to a review suggestion when drafts are unavailable) or review-suggestion (a review comment labelled "model-drafted, needs human review"). Needs pull-requests and contents write; without them A11yGate reports only.
+    required: false
+    default: draft-pr
   token:
     description: Token used to post the pull request comment. Defaults to the job token.
     required: false
@@ -83,6 +87,9 @@ runs:
         A11Y_SUGGEST_FIXES: ${{ inputs.suggest-fixes }}
         A11Y_SUGGEST_LANG: ${{ inputs.suggest-lang }}
         A11Y_MODEL_FIXES: ${{ inputs.model-fixes }}
+        A11Y_MODEL_PUBLISH: ${{ inputs.model-fixes-publish }}
+        A11Y_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        A11Y_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         A11Y_TOKEN: ${{ inputs.token }}
         A11Y_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         A11Y_PR_NUMBER: ${{ github.event.pull_request.number }}
