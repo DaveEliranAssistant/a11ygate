@@ -1,3 +1,4 @@
+import { parseInteractionStates } from '@/lib/scan/interactions';
 import { resolveModelFixConfig } from '@/lib/modelfix/config';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,6 +13,9 @@ const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
 export const CONFIG_WIRING: Record<string, Wiring> = {
+  interactions: { flag: '--interactions', commands: scan, default: [] },
+  autoInteractions: { flag: '--auto-interactions', commands: scan, default: false },
+  interactionBudget: { flag: '--interaction-budget', commands: scan, default: 10 },
   url: { flag: '--url', commands: scan, default: '' },
   crawl: { flag: '--crawl', commands: scan, default: 0 },
   maxPages: { flag: '--max-pages', commands: scan, default: 1 },
@@ -94,6 +98,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
       values[key] = value; sources[key] = `env:${name}`;
     }
   }
+  parseInteractionStates(values.interactions);
   // Parse only registered options here; command-specific parsing and validation stays in the command parser.
   const remaining: string[] = [];
   const supplied = new Set<string>();
@@ -121,15 +126,18 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     else if (schema.type === 'boolean' && key !== 'modelFixes') text ??= 'true';
     else if (text === undefined) text = argv[++i];
     if (text === undefined) throw new Error(`${name} needs a value.`);
-    if (key === 'ignoreRobots' && token.includes('=')) throw new Error('--ignore-robots takes no value.');
-    let value = schema.type === 'array' && !['engines', 'formats'].includes(key) ? [text] : decode(text, schema);
+    if (['ignoreRobots', 'autoInteractions'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
+    let value = key === 'interactions' ? (() => {
+      try { return parseInteractionStates(JSON.parse(text.trim().startsWith('[') ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), 'utf8'))); }
+      catch { throw new Error('Invalid --interactions; provide a readable local JSON file containing route states.'); }
+    })() : schema.type === 'array' && !['engines', 'formats'].includes(key) ? [text] : decode(text, schema);
     if (key === 'formats' && Array.isArray(value)) value = [...new Set(value)];
     // Keep legacy --crawl >20 clamping in the scan parser.
     if (!(key === 'crawl' && typeof value === 'number' && value > 20) && validateConfig(value, schema).length) {
       if (key === 'engines') throw new Error('Invalid --engines. Use a comma-separated list of axe,htmlcs,ibm,lighthouse.');
       throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
     }
-    if (schema.type === 'array' && key !== 'engines' && supplied.has(key)) {
+    if (schema.type === 'array' && !['engines', 'interactions'].includes(key) && supplied.has(key)) {
       const items = [...values[key] as unknown[], ...value as unknown[]];
       values[key] = key === 'formats' ? [...new Set(items)] : items;
     }
@@ -154,7 +162,8 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     if (schemaAt(key).type === 'boolean') {
       if (key === 'modelFixes') prefix.push(flag, value ? 'on' : 'off');
       else if (value) prefix.push(flag);
-    } else if (Array.isArray(value)) {
+    } else if (key === 'interactions') prefix.push(flag, JSON.stringify(value));
+    else if (Array.isArray(value)) {
       if (['engines', 'formats'].includes(key)) { if (value.length) prefix.push(flag, value.join(',')); }
       else for (const item of value) prefix.push(flag, String(item));
     } else prefix.push(flag, String(value));

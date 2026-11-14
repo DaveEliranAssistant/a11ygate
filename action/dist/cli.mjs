@@ -370,7 +370,7 @@ function normalizeLocator(locator) {
     (part, i) => i % 2 ? part : part.replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ")
   ).join("").replace(/\[id=("|')([\w-]+)\1\]/g, "#$2");
 }
-function dedupeFindings(results) {
+function dedupeFindings(results, interactionStates = false) {
   const completed = results.filter((r) => r.status === "complete");
   const enginesByPage = /* @__PURE__ */ new Map();
   for (const r of completed) {
@@ -392,9 +392,11 @@ function dedupeFindings(results) {
         const engines = [.../* @__PURE__ */ new Set([...existing?.engines ?? [], result.engine])].sort();
         const enginesRan = enginesByPage.get(page).size;
         const representative = existing && impactRank(existing.impact) >= impactRank(f.impact) ? existing : f;
+        const states = interactionStates ? [.../* @__PURE__ */ new Set([...existing?.states ?? [], ...new URL(result.url).hash ? [result.url] : []])] : [];
         merged.set(key, {
           ...representative,
-          url: page,
+          url: interactionStates ? representative.url : page,
+          ...states.length ? { states } : {},
           wcagSc: sc ? [sc] : [],
           engines,
           confidence: { confirmedBy: engines.length, enginesRan, agreement: engines.length / enginesRan }
@@ -864,7 +866,7 @@ function buildScanReport(input) {
   }
   const extended = input.engineResults?.some((e) => e.engine !== "axe") ?? false;
   if (extended) {
-    const merged = dedupeFindings(input.engineResults ?? []);
+    const merged = dedupeFindings(input.engineResults ?? [], !!input.interactions);
     findings.splice(0, findings.length, ...merged.map((f) => {
       const wcag = CRITERIA.filter((c) => f.wcagSc.includes(c.number));
       return {
@@ -879,26 +881,43 @@ function buildScanReport(input) {
         tags: wcag.map((c) => c.tag),
         wcag,
         bestPractice: f.wcagSc.length === 0,
-        fingerprint: JSON.stringify([f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? "" : `${f.engine}:${f.ruleId}`]),
+        fingerprint: JSON.stringify([input.interactions ? normalizeUrl(f.url) ?? f.url : f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? "" : `${f.engine}:${f.ruleId}`]),
         engines: f.engines,
-        confidence: f.confidence
+        confidence: f.confidence,
+        ...f.states?.length ? { states: f.states } : {}
       };
     }));
     for (const key of Object.keys(totals)) totals[key] = 0;
     for (const f of findings) totals[f.impact ?? "unknown"] += 1;
     for (const page of pages) {
-      const pageFindings = findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
+      const pageFindings = input.interactions ? dedupeFindings((input.engineResults ?? []).filter((e) => e.url === page.url)) : findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
       page.findings = pageFindings.length;
       page.violations = new Set(pageFindings.map((f) => f.ruleId)).size;
       page.byImpact = emptyCounts();
       for (const f of pageFindings) page.byImpact[f.impact ?? "unknown"] += 1;
     }
   }
+  if (input.interactions) {
+    if (!extended) {
+      const unique = /* @__PURE__ */ new Map();
+      for (const finding2 of findings) {
+        const key = JSON.stringify([normalizeUrl(finding2.pageUrl), finding2.fingerprint]);
+        const existing = unique.get(key);
+        const states = [.../* @__PURE__ */ new Set([...existing?.states ?? [], ...new URL(finding2.pageUrl).hash ? [finding2.pageUrl] : []])];
+        const representative = existing && impactRank(existing.impact) >= impactRank(finding2.impact) ? existing : finding2;
+        unique.set(key, { ...representative, ...states.length ? { states } : {} });
+      }
+      findings.splice(0, findings.length, ...unique.values());
+    }
+    for (const key of Object.keys(totals)) totals[key] = 0;
+    for (const finding2 of findings) totals[finding2.impact ?? "unknown"]++;
+  }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
   const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith("Not authenticated:"));
   const startFailed = input.crawl.pages[0]?.scanStatus !== "complete";
-  const verdict = engineErrors || authenticationFailed || startFailed ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
+  const stateFailed = !!input.interactions && pages.some((p) => new URL(p.url).hash && p.scanStatus !== "complete");
+  const verdict = engineErrors || authenticationFailed || startFailed || stateFailed ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
   const reason = input.failOn === "none" ? "Reporting only (--fail-on none)." : gating.length === 0 ? `No finding is at or above ${input.failOn}.` : `${gating.length} finding${gating.length === 1 ? "" : "s"} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(", ")}.`;
   return {
     tool: "a11ygate",
@@ -911,7 +930,7 @@ function buildScanReport(input) {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: authenticationFailed ? "Not authenticated: protected content was not scanned." : startFailed ? "Start page could not be scanned; coverage is incomplete." : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    reason: stateFailed ? "One or more interaction states were skipped; coverage is incomplete." : authenticationFailed ? "Not authenticated: protected content was not scanned." : startFailed ? "Start page could not be scanned; coverage is incomplete." : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
@@ -927,6 +946,7 @@ function buildScanReport(input) {
     sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
     sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.interactions) return "Opt-in interaction states were scanned with a per-route step budget. Forms, links and document navigation during steps were blocked. Unvisited states remain unassessed; use test accounts only.";
       if (index === 2 && input.authenticated) return "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.";
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== void 0))) {
         return `Only same-origin pages from the start URL, discovered links/history routes and configured sitemap seeds (at most ${input.maxPages}) were visited; ${input.crawlControls?.ignoreRobots ? "robots.txt rules were ignored by explicit opt-out" : "robots.txt Disallow rules were honoured"}.`;
@@ -989,7 +1009,7 @@ function heading(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
 }
 function mdFinding(f) {
-  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 states: " + f.states.map(code).join(", ") : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 function scanMarkdown(report) {
   const lines = [
@@ -1051,7 +1071,7 @@ function safeHref(url) {
   return /^https?:\/\//i.test(url) ? esc(url) : "#";
 }
 function htmlFinding(f) {
-  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""}${f.states?.length ? "<br>States: " + f.states.map(esc).join(", ") : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 function htmlGroups(title, groups) {
   if (groups.length === 0) return `<h2>${esc(title)}</h2><p>None detected.</p>`;
@@ -1435,6 +1455,104 @@ A file larger than 8 MB is refused. The same diff and gate as the web app are us
 Coverage and manual-evidence flags are included in 0.2.0.
 PASS is not legal advice or certification. Baseline updates never clear the current gate result.
 `;
+}
+
+// lib/scan/interactions.ts
+var AUTO_SELECTOR = '[aria-expanded="false"], button[aria-haspopup]:not([aria-haspopup="false"]), [role="button"][aria-haspopup]:not([aria-haspopup="false"])';
+function parseInteractionStates(value) {
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Interactions must be a list of at most 100 states.");
+  const names = /* @__PURE__ */ new Set();
+  for (const state of value) {
+    if (!state || typeof state !== "object" || Object.keys(state).some((k) => !["route", "name", "steps"].includes(k)) || typeof state.route !== "string" || !state.route.startsWith("/") || state.route.startsWith("//") || /[#\s]/.test(state.route) || typeof state.name !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(state.name) || state.name.startsWith("auto-") || !Array.isArray(state.steps) || state.steps.length < 1 || state.steps.length > 100) throw new Error("Each interaction needs route (/path), unique name (letters, numbers, _ or -; auto- is reserved), and 1\u2013100 steps.");
+    const label = state.route + "#" + state.name;
+    if (names.has(label)) throw new Error("Interaction state labels must be unique.");
+    names.add(label);
+    for (const step of state.steps) {
+      if (!step || typeof step !== "object" || Object.keys(step).some((k) => !["action", "selector", "key"].includes(k)) || !["click", "press", "wait"].includes(step.action) || typeof step.selector !== "string" || !step.selector.trim() || step.selector.length > 512 || (step.action === "press" ? typeof step.key !== "string" || !step.key.trim() || step.key.length > 80 : step.key !== void 0)) throw new Error("Interaction steps need action click/press/wait and a selector; press also needs a key.");
+    }
+  }
+  return value;
+}
+async function activationReason(locator) {
+  return locator.evaluate((el) => {
+    if (el.closest("a[href], area[href]")) return "Links are not interaction targets.";
+    if (el.closest('input, textarea, select, [contenteditable="true"]')) return "Form inputs are not interaction targets.";
+    const button = el.closest("button");
+    if (button && (button.type === "submit" || button.type === "reset") && (button.form || button.type === "reset")) return "Submit/reset buttons are not interaction targets.";
+    return null;
+  });
+}
+async function installInteractionGuards(page) {
+  await page.addInitScript(() => {
+    document.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+    HTMLFormElement.prototype.submit = function() {
+      throw new Error("Form submission blocked during interaction scan.");
+    };
+    HTMLFormElement.prototype.requestSubmit = function() {
+      throw new Error("Form submission blocked during interaction scan.");
+    };
+    document.addEventListener("click", (event) => {
+      const el = event.target instanceof Element ? event.target : null;
+      if (el?.closest('a[href], area[href], input[type="submit"], input[type="image"]')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+    window.open = () => null;
+  });
+}
+async function scanInteractionStates(page, url, options, scan2, active, timeoutMs) {
+  const records = [];
+  const route = new URL(url).pathname + new URL(url).search;
+  const states = options.states.filter((s) => s.route === route);
+  const autoCount = options.auto ? Math.min(await page.locator(AUTO_SELECTOR).count(), options.budget) : 0;
+  let used = 0;
+  const run2 = async (name, steps, index) => {
+    const label = new URL(url);
+    label.hash = name;
+    const record = { url: label.href, finalUrl: label.href, status: 200, scanStatus: "skipped" };
+    let stepNumber = 0;
+    try {
+      if (used >= options.budget) throw new Error("Interaction step budget exhausted.");
+      active(false);
+      const response = await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+      if (response && !response.ok()) throw new Error("Route reload failed before interaction.");
+      const loaded = new URL(page.url());
+      loaded.hash = "";
+      if (loaded.href !== url) throw new Error("Route changed during reload; state was not scanned.");
+      active(true);
+      const perform = async (locator, action, key) => {
+        stepNumber++;
+        if (used >= options.budget) throw new Error("Interaction step budget exhausted.");
+        used++;
+        if (action === "wait") await locator.waitFor({ state: "visible", timeout: Math.min(timeoutMs, 5e3) });
+        else {
+          await locator.waitFor({ state: "visible", timeout: Math.min(timeoutMs, 5e3) });
+          const reason = await activationReason(locator);
+          if (reason) throw new Error(reason);
+          if (action === "click") await locator.click({ timeout: Math.min(timeoutMs, 5e3), noWaitAfter: true });
+          else await locator.press(key, { timeout: Math.min(timeoutMs, 5e3), noWaitAfter: true });
+        }
+      };
+      if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
+      else await perform(page.locator(AUTO_SELECTOR).nth(index), "click");
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      record.result = await scan2(label.href);
+      if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
+      record.scanStatus = "complete";
+    } catch (error) {
+      record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
+    } finally {
+      active(true);
+    }
+    records.push(record);
+  };
+  for (const state of states) await run2(state.name, state.steps);
+  for (let i = 0; i < autoCount && used < options.budget; i++) await run2(`auto-${i + 1}`, void 0, i);
+  return records;
 }
 
 // packages/cli/src/local-server.ts
@@ -3367,6 +3485,111 @@ var a11ygate_schema_default = {
           "x-cli": ["--header-env"]
         }
       }
+    },
+    interactions: {
+      description: "Opt-in route states. --interactions reads this list from a local JSON file.",
+      type: "array",
+      maxItems: 100,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "route",
+          "name",
+          "steps"
+        ],
+        properties: {
+          route: {
+            type: "string",
+            pattern: "^/(?!/)[^#\\s]*$"
+          },
+          name: {
+            type: "string",
+            pattern: "^(?!auto-)[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          steps: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "action",
+                "selector"
+              ],
+              properties: {
+                action: {
+                  type: "string",
+                  enum: [
+                    "click",
+                    "press",
+                    "wait"
+                  ]
+                },
+                selector: {
+                  type: "string",
+                  minLength: 1,
+                  maxLength: 512
+                },
+                key: {
+                  type: "string",
+                  minLength: 1,
+                  maxLength: 80
+                }
+              },
+              allOf: [
+                {
+                  if: {
+                    properties: {
+                      action: {
+                        const: "press"
+                      }
+                    }
+                  },
+                  then: {
+                    required: [
+                      "key"
+                    ],
+                    properties: {
+                      key: {}
+                    }
+                  },
+                  else: {
+                    not: {
+                      required: [
+                        "key"
+                      ],
+                      properties: {
+                        key: {}
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "x-cli": [
+        "--interactions"
+      ]
+    },
+    autoInteractions: {
+      description: "Opt in to opening collapsed controls and popup buttons, individually.",
+      type: "boolean",
+      "x-cli": [
+        "--auto-interactions"
+      ]
+    },
+    interactionBudget: {
+      description: "Maximum attempted interaction steps per route, shared by explicit and auto states. Default 10.",
+      type: "integer",
+      minimum: 1,
+      maximum: 100,
+      "x-cli": [
+        "--interaction-budget"
+      ]
     }
   }
 };
@@ -3406,6 +3629,11 @@ function scalar(raw, line) {
     return text.slice(1, -1).replace(/''/g, "'");
   }
   if (text.startsWith("[")) {
+    try {
+      const value = JSON.parse(text);
+      if (Array.isArray(value)) return value;
+    } catch {
+    }
     if (!text.endsWith("]")) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
     const inner = text.slice(1, -1).trim();
     return inner ? inner.split(",").map((item) => scalar(item, line)) : [];
@@ -3422,7 +3650,17 @@ function parseBlock(lines, start, indent) {
     let i2 = start;
     while (i2 < lines.length && lines[i2].indent === indent && (lines[i2].text.startsWith("- ") || lines[i2].text === "-")) {
       const item = lines[i2].text.slice(1).trim();
-      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i2].number}: lists of mappings are not supported in .a11ygate.yml.`);
+      if (item === "" || /^[^\s'"[]*:(\s|$)/.test(item)) {
+        const begin = i2++;
+        while (i2 < lines.length && lines[i2].indent > indent) i2++;
+        const children = lines.slice(begin + 1, i2);
+        const nested = item ? [{ indent: indent + 2, text: item, number: lines[begin].number }, ...children] : children;
+        if (!nested.length) throw new YamlError(`line ${lines[begin].number}: empty list item.`);
+        const [value, next] = parseBlock(nested, 0, nested[0].indent);
+        if (next !== nested.length) throw new YamlError(`line ${lines[begin].number}: unexpected list indentation.`);
+        list.push(value);
+        continue;
+      }
       list.push(scalar(item, lines[i2].number));
       i2++;
     }
@@ -3528,11 +3766,13 @@ function check(schema, value, where, errors) {
     if (schema.maximum !== void 0 && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
   }
   if (typeof value === "string") {
+    if (schema.maxLength !== void 0 && value.length > schema.maxLength) errors.push(`'${label}' is too long.`);
     if (schema.minLength !== void 0 && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
     else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ""}`.trimEnd());
   }
   if (Array.isArray(value)) {
     if (schema.minItems !== void 0 && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? "" : "s"}.`);
+    if (schema.maxItems !== void 0 && value.length > schema.maxItems) errors.push(`'${label}' has too many items.`);
     if (schema.uniqueItems) {
       const duplicate = value.find((item, index) => value.indexOf(item) !== index);
       if (duplicate !== void 0) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
@@ -3542,6 +3782,11 @@ function check(schema, value, where, errors) {
   if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
     const properties = schema.properties ?? {};
     const known = Object.keys(properties);
+    for (const key of schema.required ?? []) if (!Object.hasOwn(value, key)) errors.push(`'${label}.${key}' is required.`);
+    if (properties.action && properties.key) {
+      const step = value;
+      if (step.action === "press" !== Object.hasOwn(step, "key")) errors.push(`'${label}' needs key only for press actions.`);
+    }
     for (const [key, child] of Object.entries(value)) {
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
@@ -3567,6 +3812,9 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  interactions: { flag: "--interactions", commands: scan, default: [] },
+  autoInteractions: { flag: "--auto-interactions", commands: scan, default: false },
+  interactionBudget: { flag: "--interaction-budget", commands: scan, default: 10 },
   url: { flag: "--url", commands: scan, default: "" },
   crawl: { flag: "--crawl", commands: scan, default: 0 },
   maxPages: { flag: "--max-pages", commands: scan, default: 1 },
@@ -3651,6 +3899,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       sources[key] = `env:${name}`;
     }
   }
+  parseInteractionStates(values.interactions);
   const remaining = [];
   const supplied = /* @__PURE__ */ new Set();
   let hasPositionalUrl = false;
@@ -3680,14 +3929,20 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (key === "ignoreRobots" && token.includes("=")) throw new Error("--ignore-robots takes no value.");
-    let value = schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
+    if (["ignoreRobots", "autoInteractions"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    let value = key === "interactions" ? (() => {
+      try {
+        return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path4.resolve(io.cwd ?? process.cwd(), text), "utf8")));
+      } catch {
+        throw new Error("Invalid --interactions; provide a readable local JSON file containing route states.");
+      }
+    })() : schema.type === "array" && !["engines", "formats"].includes(key) ? [text] : decode(text, schema);
     if (key === "formats" && Array.isArray(value)) value = [...new Set(value)];
     if (!(key === "crawl" && typeof value === "number" && value > 20) && validateConfig(value, schema).length) {
       if (key === "engines") throw new Error("Invalid --engines. Use a comma-separated list of axe,htmlcs,ibm,lighthouse.");
       throw new Error(`Invalid ${name}; see the config schema for the expected type/range.`);
     }
-    if (schema.type === "array" && key !== "engines" && supplied.has(key)) {
+    if (schema.type === "array" && !["engines", "interactions"].includes(key) && supplied.has(key)) {
       const items = [...values[key], ...value];
       values[key] = key === "formats" ? [...new Set(items)] : items;
     } else values[key] = value;
@@ -3714,7 +3969,8 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (schemaAt(key).type === "boolean") {
       if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
       else if (value) prefix.push(flag);
-    } else if (Array.isArray(value)) {
+    } else if (key === "interactions") prefix.push(flag, JSON.stringify(value));
+    else if (Array.isArray(value)) {
       if (["engines", "formats"].includes(key)) {
         if (value.length) prefix.push(flag, value.join(","));
       } else for (const item of value) prefix.push(flag, String(item));
@@ -3760,7 +4016,7 @@ function effectiveModelFixConfig(config2, env = process.env) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -3777,6 +4033,11 @@ function parseScanArgs(argv) {
     const eq = token.indexOf("=");
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? void 0 : token.slice(eq + 1);
+    if (name === "--auto-interactions") {
+      if (inline !== void 0) return { ok: false, error: "--auto-interactions takes no value." };
+      options.autoInteractions = true;
+      continue;
+    }
     if (name === "--ignore-robots") {
       if (inline !== void 0) return { ok: false, error: "--ignore-robots takes no value." };
       options.ignoreRobots = true;
@@ -3804,7 +4065,16 @@ function parseScanArgs(argv) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--start") options.start = value;
+    if (name === "--interactions") {
+      try {
+        options.interactions = value.trim().startsWith("[") ? parseInteractionStates(JSON.parse(value)) : value;
+      } catch {
+        return { ok: false, error: "Invalid interaction states." };
+      }
+    } else if (name === "--interaction-budget") {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return { ok: false, error: "--interaction-budget must be from 1 to 100." };
+      options.interactionBudget = Number(value);
+    } else if (name === "--start") options.start = value;
     else if (name === "--wait-on") options.waitOn = value;
     else if (name === "--storybook") options.storybook = value;
     else if (name === "--include" || name === "--exclude") {
@@ -3893,6 +4163,9 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --interactions <file> Load opt-in route states from local JSON (click, press, wait).
+  --auto-interactions Open collapsed/popup controls one at a time (default off).
+  --interaction-budget <n> Maximum attempted steps per route (1\u2013100, default 10).
   --start <cmd>         Run a trusted local shell command; requires --wait-on. Stops its process group after scanning.
   --wait-on <url>       Wait for loopback HTTP 2xx (same origin); --timeout-ms sets readiness deadline (default 30000).
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
@@ -3936,7 +4209,7 @@ Opt-in engine peers (install only those selected):
 IBM uses the installed engine's offline rules; Lighthouse snapshots the existing page.
 See docs/engines.md for licenses and engine result/error reporting.
 
-Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only; explicit login scripts may
+Boundaries: only scan sites you own or are authorized to test. Page scanning is read-only by default; opt-in interactions activate configured UI controls, and explicit login scripts may
 interact with the login form. Same-origin crawling only, honours robots.txt, identifies itself as A11yGate. Automated testing
 finds a subset of issues; PASS is not conformance, certification or legal advice.
 
@@ -3955,7 +4228,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -4020,7 +4293,9 @@ Install it with: npx playwright install chromium
     await browserServer?.close().catch(() => void 0);
     throw new ScanSetupError(auth?.script ? error.message : "Could not initialize authentication storage state.");
   }
+  const interactionPages = [];
   return {
+    ...interactions ? { interactionPages } : {},
     rawEngineResults,
     ...extended ? { engineResults } : {},
     visit: async (url, collectLinks, signal) => {
@@ -4030,13 +4305,19 @@ Install it with: npx playwright install chromium
       };
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) abort();
+      if (interactions) await installInteractionGuards(page);
+      let interacting = false;
+      if (interactions) await page.route("**/*", (route) => {
+        if (interacting && !["GET", "HEAD", "OPTIONS"].includes(route.request().method())) return route.abort("blockedbyclient");
+        return route.continue();
+      });
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
       let navigating = true;
       let blockedNavigation;
       try {
         const session = await context.newCDPSession(page);
         session.on("Fetch.requestPaused", (event) => {
-          const external = new URL(event.request.url).origin !== origin;
+          const external = new URL(event.request.url).origin !== origin || interacting;
           if (external) blockedNavigation = event.request.url;
           void session.send(external ? "Fetch.failRequest" : "Fetch.continueRequest", {
             requestId: event.requestId,
@@ -4074,23 +4355,30 @@ Install it with: npx playwright install chromium
           const routes = window.__a11ygateRoutes ?? [];
           return [...Array.from(document.querySelectorAll("a[href]")).slice(0, 1e4).map((a) => a.href), ...routes].slice(0, 1e4);
         }) : [];
-        let result;
-        for (const id of engines) {
-          if (id === "axe" && axeEngine) {
-            nativeByPage.delete(page);
-            const execution = await runEngine(axeEngine, page, url);
-            rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeByPage.get(page) } : {}, url });
-            if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
-            if (!extended && execution.status === "errored") throw new Error(execution.error);
-            if (execution.status === "complete") result = execution.native;
-            if (extended) engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
-          } else if (id !== "axe") {
-            const execution = await runEngine(optionalEngines[id], { page, browserURL }, url);
-            rawEngineResults.push({ ...execution, url });
-            if (execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
-            engineResults.push(execution.status === "complete" ? { url, engine: id, status: "complete", findings: execution.findings } : { url, engine: id, status: "errored", error: execution.error });
+        const scanPage = async (scanUrl) => {
+          let result2;
+          for (const id of engines) {
+            if (id === "axe" && axeEngine) {
+              nativeByPage.delete(page);
+              const execution = await runEngine(axeEngine, page, scanUrl);
+              rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeByPage.get(page) } : {}, url: scanUrl });
+              if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
+              if (!extended && execution.status === "errored") throw new Error(execution.error);
+              if (execution.status === "complete") result2 = execution.native;
+              if (extended) engineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
+            } else if (id !== "axe") {
+              const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
+              rawEngineResults.push({ ...execution, url: scanUrl });
+              if (execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
+              engineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
+            }
           }
-        }
+          return result2;
+        };
+        const result = await scanPage(url);
+        if (interactions) interactionPages.push(...await scanInteractionStates(page, url, interactions, scanPage, (value) => {
+          interacting = value;
+        }, timeoutMs));
         return { status, finalUrl, contentType, links, result, ...extended ? { analysed: true } : {} };
       } catch (error) {
         const detail = navigating && error instanceof Error && error.name === "TimeoutError" ? `Page timeout after ${timeoutMs}ms.` : error instanceof Error ? error.message.split("\n")[0] : "Navigation failed.";
@@ -4151,6 +4439,16 @@ Run a11ygate scan --help for usage.
     stdout(scanHelpText());
     return 0;
   }
+  let interactions;
+  try {
+    if (options.interactions || options.autoInteractions) {
+      const states = typeof options.interactions === "string" ? JSON.parse(await readFile4(path5.resolve(cwd, options.interactions), "utf8")) : options.interactions ?? [];
+      interactions = { states: parseInteractionStates(states), auto: !!options.autoInteractions, budget: options.interactionBudget ?? 10 };
+    }
+  } catch {
+    stderr("Could not read valid interaction states from the local JSON file.\n");
+    return 2;
+  }
   let auth;
   try {
     auth = await prepareAuth(options, cwd, new URL(options.url).origin, io.env ?? process.env, io.redactor);
@@ -4197,7 +4495,7 @@ Run a11ygate scan --help for usage.
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {} });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -4225,6 +4523,10 @@ Run a11ygate scan --help for usage.
   } finally {
     await engine.close();
   }
+  if (engine.interactionPages) {
+    const states = result.pages.flatMap((page) => engine.interactionPages.filter((state) => normalizeUrl(state.url) === page.url));
+    result.pages.push(...states);
+  }
   const first = result.pages[0];
   if (!first || first.scanStatus !== "complete") {
     stderr(`Start page could not be scanned: ${first?.error ?? "unreachable"}
@@ -4250,6 +4552,7 @@ Run a11ygate scan --help for usage.
       ignoreRobots: options.ignoreRobots
     },
     engineResults: engine.engineResults,
+    interactions: !!interactions,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
@@ -4287,10 +4590,10 @@ async function writeScanReport(report, options, io, engine) {
     [options.html, options.html ? renderScanHtml(report, options.reportVersion) : ""]
   ];
   try {
-    if (options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
+    if (typeof options.interactions === "string" || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
       await assertSafeOutputs(
         cwd,
-        [options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f) => !!f),
+        [typeof options.interactions === "string" ? options.interactions : void 0, options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
           ...options.outDir ? options.engines.map((id) => path5.join(options.outDir, "engines", `${id}.json`)) : []

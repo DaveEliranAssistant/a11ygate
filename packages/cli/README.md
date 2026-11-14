@@ -272,3 +272,21 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 ### Repository configuration
 
 `scan`, `ci`, `doctor`, and the GitHub Action share the [.a11ygate.yml resolver](../../docs/configuration.md): CLI flags (or explicit Action inputs) > environment > YAML > defaults. Run `a11ygate config print [scan|ci|doctor] [flags]` to see effective values, their sources and command scopes, with secrets redacted. Run `a11ygate config validate` for schema diagnostics. Missing configuration preserves the existing defaults.
+
+### SPA interaction states (opt-in)
+
+Use `--interactions states.json` (a JSON list of `{ "route": "/pricing",
+"name": "dialog-open", "steps": [{ "action": "click", "selector": "#open-dialog" }] }`)
+or the `interactions` list in `.a11ygate.yml`. Steps support `click`, `press`
+(with `key`) and `wait` (visible selector). States reload the route individually
+and are labelled `/pricing#dialog-open`. Repeated findings are counted once and
+retain observed state URLs. Failed steps are skipped with a reason; incomplete
+states exit 2.
+
+`--auto-interactions --interaction-budget 3` opens collapsed controls and popup
+buttons individually, up to the per-route step budget. Default off; default budget
+10. Forms, links and document navigation during steps are blocked. Use test
+accounts in authorized test environments: custom application handlers may have
+side effects. See [configuration and limits](../../docs/configuration.md#opt-in-spa-interaction-states).
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

@@ -53,6 +53,9 @@ entire list; repeatable flags still collect within the CLI source.
 | `outDir` | scan/ci/Action report directory | `A11YGATE_OUT_DIR` | absent |
 | `delayMs` | scan global crawl start delay | `A11YGATE_DELAY_MS` | 1000 |
 | `reportVersion` | scan HTML layout | `A11YGATE_REPORT_VERSION` | 2 |
+| `interactions` | scan route state list; `--interactions <file>` reads JSON | `A11YGATE_INTERACTIONS` (JSON) | [] |
+| `autoInteractions` | scan `--auto-interactions` | `A11YGATE_AUTO_INTERACTIONS` | false |
+| `interactionBudget` | scan `--interaction-budget` per route | `A11YGATE_INTERACTION_BUDGET` | 10 |
 | `auth` | container for the five live-scan auth settings below | — | absent |
 | `auth.storageState` | Playwright storage-state file | `A11YGATE_AUTH_STORAGE_STATE` | absent |
 | `auth.loginScript` | isolated login worker script | `A11YGATE_AUTH_LOGIN_SCRIPT` | absent |
@@ -62,7 +65,7 @@ entire list; repeatable flags still collect within the CLI source.
 
 There are no unwired or CLI-only schema keys. Command scopes are deliberate:
 ci and the Action gate consume saved axe JSON, so they do not navigate URLs,
-crawl, inject authentication, choose engines, or render scan HTML. Doctor
+crawl, run interactions, inject authentication, choose engines, or render scan HTML. Doctor
 preflights engines and model setup; it does not run a scan or write scan reports.
 `scan` and `ci` do not generate model fixes. The Action's optional suggestion
 stage consumes `modelFixes`. Per-run inputs such as `--current`, output paths
@@ -87,4 +90,70 @@ does not turn incomplete coverage into a PASS. List flags and existing output
 formats otherwise preserve their previous behavior. Credentials belong only in
 environment variables and private storage-state files, never in committed YAML.
 
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Opt-in SPA interaction states
+
+Configure states for routes that the scan visits (states do not add crawl seeds):
+
+```yaml
+interactions:
+  - route: /pricing
+    name: dialog-open
+    steps:
+      - action: click
+        selector: "#open-dialog"
+      - action: wait
+        selector: "dialog[open]"
+  - route: /pricing
+    name: details-tab
+    steps:
+      - action: press
+        selector: "#details-tab"
+        key: Enter
+interactionBudget: 10
+# autoInteractions: true
+```
+
+Or save the list as JSON and run:
+
+```sh
+a11ygate scan http://127.0.0.1:3000/pricing --interactions states.json
+a11ygate scan http://127.0.0.1:3000/pricing --auto-interactions --interaction-budget 3
+```
+
+Routes match pathname plus query exactly. State names use letters, numbers,
+underscores and hyphens; `auto-` is reserved. Each state starts from a fresh
+route load, executes its ordered `click`, `press` (Playwright key syntax) or
+`wait` (visible selector) steps, then runs the selected engines. Selectors must
+identify one target for clicks/keypresses. Use explicit waits for async content;
+step waits/actions time out after at most five seconds, within the whole-page
+deadline. Native browser dialogs are dismissed; HTML dialogs can be opened.
+
+State evidence and page rows use labels such as `/pricing#dialog-open` (full URL
+in JSON). Raw engine results remain separate. Repeated findings across states
+are deduplicated before totals, gate decisions and shared-component grouping;
+the highest impact wins and `findings[].states` retains observed state URLs.
+A failed step or exhausted explicit-state budget produces a skipped state with
+a step number and reason, and an ERROR (exit 2), so incomplete states cannot PASS.
+Per-state page counts describe observations and should not be summed as unique
+finding totals. Saved reports retain state rows and deduplicated findings.
+
+Auto mode snapshots collapsed controls (`aria-expanded="false"`) and popup
+buttons (`aria-haspopup` other than `false`) in DOM order. Each candidate starts
+from a fresh route load; labels are `#auto-1`, `#auto-2`, etc. It is a bounded
+heuristic, not exhaustive exploration. Explicit states run first. Every attempted
+step, including waits and rejected unsafe targets, consumes the shared per-route
+budget (default 10, maximum 100). Auto mode stops when the budget is spent.
+
+Links, submit/reset controls and editable inputs are rejected. Interaction scans
+block form submission, new windows, document navigation during steps and non-read
+HTTP methods during steps. Sites may perform side effects in custom handlers,
+including GET requests; use authorized local/test environments and test accounts.
+Reloading resets DOM state, but cookies and storage persist in the browser context.
+Auto mode does not explore nested controls revealed only after opening a parent,
+shadow-root candidates, or combinations of states. Provide explicit steps for
+those states. No labels or alternative text are generated or changed.
+
+Without interaction settings the existing scan output is unchanged.
 Automated testing only. Not a WCAG audit, certification or legal advice.

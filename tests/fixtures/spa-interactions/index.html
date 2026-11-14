@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<title>Interaction fixture</title>
+<main>
+<h1>Local interaction fixture</h1>
+<button id="open-dialog" aria-haspopup="dialog" onclick="document.querySelector('dialog').showModal()">Open dialog</button>
+<dialog aria-label="Details"><img id="dialog-issue" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"><button onclick="this.closest('dialog').close()">Close</button></dialog>
+<button id="menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded','true'); document.querySelector('#menu-panel').hidden=false">Menu</button>
+<div id="menu-panel" hidden>Menu opened</div>
+<button id="tab" role="tab" aria-selected="false" onclick="this.setAttribute('aria-selected','true'); document.querySelector('#tab-panel').hidden=false">Details tab</button>
+<div id="tab-panel" hidden>Tab opened</div>
+<button id="accordion" aria-expanded="false" onclick="this.setAttribute('aria-expanded','true'); document.querySelector('#accordion-panel').hidden=false">Accordion</button>
+<div id="accordion-panel" hidden>Accordion opened</div>
+<form action="/submitted"><button id="submit" aria-expanded="false">Submit</button><input id="input-submit" type="submit" aria-expanded="false"></form>
+<a id="external" aria-expanded="false" href="http://127.0.0.1:1/external">External</a>
+<button id="script-submit" aria-haspopup="true" onclick="document.querySelector('form').submit()">Script submit</button>
+<button id="navigate" aria-haspopup="true" onclick="location.href='/followed'">Navigate</button>
+<button id="popup" aria-haspopup="true" onclick="window.open('/popup')">Popup</button>
+</main>
+</html>

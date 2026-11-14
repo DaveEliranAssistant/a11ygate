@@ -30,6 +30,7 @@ export const SCAN_BOUNDARIES = [
 export type ScanCriterion = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag' | 'en301549'>;
 
 export type ScanFinding = Partial<Agreement> & {
+  states?: string[];
   baselineStatus?: 'new' | 'existing';
   baselineFingerprint?: string;
   pageUrl: string;
@@ -147,6 +148,7 @@ export function buildScanReport(input: {
   robotsNote: string;
   engineResults?: EnginePageResult[];
   authenticated?: boolean;
+  interactions?: boolean;
   crawlControls?: CrawlControls;
 }): ScanReport {
   const pages: ScanPageSummary[] = [];
@@ -178,7 +180,7 @@ export function buildScanReport(input: {
   }
   const extended = input.engineResults?.some((e) => e.engine !== 'axe') ?? false;
   if (extended) {
-    const merged = dedupeFindings(input.engineResults ?? []);
+    const merged = dedupeFindings(input.engineResults ?? [], !!input.interactions);
     findings.splice(0, findings.length, ...merged.map((f): ScanFinding => {
       const wcag = CRITERIA.filter((c) => f.wcagSc.includes(c.number));
       return {
@@ -186,25 +188,44 @@ export function buildScanReport(input: {
         selectors: [f.selector], html: f.snippet, help: f.compatibility?.help ?? f.ruleId,
         helpUrl: f.helpUrl, tags: wcag.map((c) => c.tag), wcag,
         bestPractice: f.wcagSc.length === 0,
-        fingerprint: JSON.stringify([f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? '' : `${f.engine}:${f.ruleId}`]),
-        engines: f.engines, confidence: f.confidence,
+        fingerprint: JSON.stringify([input.interactions ? normalizeUrl(f.url) ?? f.url : f.url, f.elementKey ?? f.selector, f.wcagSc, f.wcagSc.length ? '' : `${f.engine}:${f.ruleId}`]),
+        engines: f.engines, confidence: f.confidence, ...(f.states?.length ? { states: f.states } : {}),
       };
     }));
     for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] = 0;
     for (const f of findings) totals[f.impact ?? 'unknown'] += 1;
     for (const page of pages) {
-      const pageFindings = findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
+      const pageFindings = input.interactions
+        ? dedupeFindings((input.engineResults ?? []).filter(e => e.url === page.url))
+        : findings.filter((f) => f.pageUrl === (normalizeUrl(page.url) ?? page.url));
       page.findings = pageFindings.length;
       page.violations = new Set(pageFindings.map((f) => f.ruleId)).size;
       page.byImpact = emptyCounts();
       for (const f of pageFindings) page.byImpact[f.impact ?? 'unknown'] += 1;
     }
   }
+  if (input.interactions) {
+    if (!extended) {
+      const unique = new Map<string, ScanFinding>();
+      for (const finding of findings) {
+        // Existing axe fingerprints omit state hashes. Include full route/query to avoid merging distinct routes.
+        const key = JSON.stringify([normalizeUrl(finding.pageUrl), finding.fingerprint]);
+        const existing = unique.get(key);
+        const states = [...new Set([...(existing?.states ?? []), ...(new URL(finding.pageUrl).hash ? [finding.pageUrl] : [])])];
+        const representative = existing && impactRank(existing.impact) >= impactRank(finding.impact) ? existing : finding;
+        unique.set(key, { ...representative, ...(states.length ? { states } : {}) });
+      }
+      findings.splice(0, findings.length, ...unique.values());
+    }
+    for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] = 0;
+    for (const finding of findings) totals[finding.impact ?? 'unknown']++;
+  }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
   const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith('Not authenticated:'));
   const startFailed = input.crawl.pages[0]?.scanStatus !== 'complete';
-  const verdict = (engineErrors || authenticationFailed || startFailed) ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
+  const stateFailed = !!input.interactions && pages.some(p => new URL(p.url).hash && p.scanStatus !== 'complete');
+  const verdict = (engineErrors || authenticationFailed || startFailed || stateFailed) ? 'ERROR' : gating.length > 0 ? 'FAIL' : 'PASS';
   const reason =
     input.failOn === 'none'
       ? 'Reporting only (--fail-on none).'
@@ -222,7 +243,7 @@ export function buildScanReport(input: {
     origin: new URL(input.startUrl).origin,
     verdict,
     failOn: input.failOn,
-    reason: authenticationFailed ? 'Not authenticated: protected content was not scanned.' : startFailed ? 'Start page could not be scanned; coverage is incomplete.' : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
+    reason: stateFailed ? 'One or more interaction states were skipped; coverage is incomplete.' : authenticationFailed ? 'Not authenticated: protected content was not scanned.' : startFailed ? 'Start page could not be scanned; coverage is incomplete.' : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
@@ -238,6 +259,7 @@ export function buildScanReport(input: {
     sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
     sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.interactions) return 'Opt-in interaction states were scanned with a per-route step budget. Forms, links and document navigation during steps were blocked. Unvisited states remain unassessed; use test accounts only.';
       if (index === 2 && input.authenticated) return 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.';
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== undefined))) {
         return `Only same-origin pages from the start URL, discovered links/history routes and configured sitemap seeds (at most ${input.maxPages}) were visited; ${input.crawlControls?.ignoreRobots ? 'robots.txt rules were ignored by explicit opt-out' : 'robots.txt Disallow rules were honoured'}.`;
@@ -313,7 +335,7 @@ function heading(value: string): string {
 }
 
 function mdFinding(f: ScanFinding): string {
-  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — states: ' + f.states.map(code).join(', ') : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 
 export function scanMarkdown(report: ScanReport): string {
@@ -374,7 +396,7 @@ function safeHref(url: string): string {
 }
 
 function htmlFinding(f: ScanFinding): string {
-  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${esc(f.impact ?? 'unspecified')}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''}${f.states?.length ? '<br>States: ' + f.states.map(esc).join(', ') : ''} — <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 
 function htmlGroups(title: string, groups: ScanGroup[]): string {

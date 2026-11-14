@@ -19,6 +19,9 @@ export type JsonSchema = {
   properties?: Record<string, JsonSchema>;
   additionalProperties?: boolean;
   items?: JsonSchema;
+  required?: string[];
+  maxLength?: number;
+  maxItems?: number;
   minimum?: number;
   maximum?: number;
   minLength?: number;
@@ -57,6 +60,7 @@ function scalar(raw: string, line: number): Yaml {
     return text.slice(1, -1).replace(/''/g, "'");
   }
   if (text.startsWith('[')) {
+    try { const value = JSON.parse(text); if (Array.isArray(value)) return value; } catch { /* YAML flow scalars below */ }
     if (!text.endsWith(']')) throw new YamlError(`line ${line}: a [ list must close with ] on the same line.`);
     const inner = text.slice(1, -1).trim();
     return inner ? inner.split(',').map((item) => scalar(item, line)) : [];
@@ -74,7 +78,17 @@ function parseBlock(lines: Line[], start: number, indent: number): [Yaml, number
     let i = start;
     while (i < lines.length && lines[i]!.indent === indent && (lines[i]!.text.startsWith('- ') || lines[i]!.text === '-')) {
       const item = lines[i]!.text.slice(1).trim();
-      if (/^[^\s'"[]*:(\s|$)/.test(item)) throw new YamlError(`line ${lines[i]!.number}: lists of mappings are not supported in .a11ygate.yml.`);
+      if (item === '' || /^[^\s'"[]*:(\s|$)/.test(item)) {
+        const begin = i++;
+        while (i < lines.length && lines[i]!.indent > indent) i++;
+        const children = lines.slice(begin + 1, i);
+        const nested = item ? [{ indent: indent + 2, text: item, number: lines[begin]!.number }, ...children] : children;
+        if (!nested.length) throw new YamlError(`line ${lines[begin]!.number}: empty list item.`);
+        const [value, next] = parseBlock(nested, 0, nested[0]!.indent);
+        if (next !== nested.length) throw new YamlError(`line ${lines[begin]!.number}: unexpected list indentation.`);
+        list.push(value);
+        continue;
+      }
       list.push(scalar(item, lines[i]!.number));
       i++;
     }
@@ -183,11 +197,13 @@ function check(schema: JsonSchema, value: unknown, where: string, errors: string
     if (schema.maximum !== undefined && value > schema.maximum) errors.push(`'${label}' must be at most ${schema.maximum}, but got ${value}.`);
   }
   if (typeof value === 'string') {
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) errors.push(`'${label}' is too long.`);
     if (schema.minLength !== undefined && value.length < schema.minLength) errors.push(`'${label}' must not be empty.`);
     else if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`'${label}' has an invalid format: ${show(value)}. ${schema.description ?? ''}`.trimEnd());
   }
   if (Array.isArray(value)) {
     if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`'${label}' needs at least ${schema.minItems} item${schema.minItems === 1 ? '' : 's'}.`);
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`'${label}' has too many items.`);
     if (schema.uniqueItems) {
       const duplicate = value.find((item, index) => value.indexOf(item) !== index);
       if (duplicate !== undefined) errors.push(`'${label}' lists ${show(duplicate)} more than once.`);
@@ -197,6 +213,11 @@ function check(schema: JsonSchema, value: unknown, where: string, errors: string
   if (schema.type === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
     const properties = schema.properties ?? {};
     const known = Object.keys(properties);
+    for (const key of schema.required ?? []) if (!Object.hasOwn(value, key)) errors.push(`'${label}.${key}' is required.`);
+    if (properties.action && properties.key) {
+      const step = value as Record<string, unknown>;
+      if ((step.action === 'press') !== Object.hasOwn(step, 'key')) errors.push(`'${label}' needs key only for press actions.`);
+    }
     for (const [key, child] of Object.entries(value)) {
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key]!, child, childWhere, errors);
