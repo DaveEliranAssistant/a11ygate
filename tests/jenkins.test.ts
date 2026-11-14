@@ -26,11 +26,26 @@ const IMAGE_ALT = {
   nodes: [{ target: ['img'], html: '<img src="product.png" width="200" height="200">' }],
 };
 
-function resolveJavaHome(): string | undefined {
-  if (process.env.JAVA_HOME && existsSync(path.join(process.env.JAVA_HOME, 'bin/java'))) return process.env.JAVA_HOME;
-  const fromPath = spawnSync('java', ['-version'], { encoding: 'utf8' });
-  if (fromPath.status === 0 || fromPath.status === 1 && /version/i.test(fromPath.stderr + fromPath.stdout)) {
-    return process.env.JAVA_HOME;
+function javaMajor(javaHomeOrBin: string): number {
+  const bin = javaHomeOrBin.endsWith('java') ? javaHomeOrBin : path.join(javaHomeOrBin, 'bin/java');
+  const probe = spawnSync(bin, ['-version'], { encoding: 'utf8' });
+  const output = `${probe.stdout}${probe.stderr}`;
+  return Number(/version "(\d+)/.exec(output)?.[1] ?? 0);
+}
+
+/** JenkinsPipelineUnit 1.31 + Gradle 8.14 need Java 21–24 (not 25 / class-file 69). */
+function resolveJava21Home(): string | undefined {
+  const candidates = [
+    process.env.JAVA_HOME_21_X64,
+    process.env.JAVA_HOME_21_arm64,
+    process.env.JAVA_HOME,
+    '/usr/lib/jvm/temurin-21-jdk-amd64',
+    '/usr/lib/jvm/temurin-21-jdk-arm64',
+    '/usr/lib/jvm/zulu-21-amd64',
+    '/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21',
+  ].filter((value): value is string => !!value);
+  for (const home of candidates) {
+    if (existsSync(path.join(home, 'bin/java')) && javaMajor(home) === 21) return home;
   }
   return undefined;
 }
@@ -116,22 +131,17 @@ describe('Jenkins example pipelines', () => {
 
 describe('JenkinsPipelineUnit (Groovy)', () => {
   it('runs the shared-library parameter tests with Gradle when Java is available', () => {
-    const javaHome = resolveJavaHome();
-    const java = javaHome ? path.join(javaHome, 'bin/java') : 'java';
-    const probe = spawnSync(java, ['-version'], { encoding: 'utf8' });
-    const output = `${probe.stdout}${probe.stderr}`;
-    const available = probe.error === undefined && (probe.status === 0 || /version/i.test(output));
-    const major = Number(/version "(\d+)/.exec(output)?.[1] ?? 0);
-    if (!available || major < 21) {
-      // JenkinsPipelineUnit 1.31 needs Java 21. Run `npm run test:jenkins` when a JDK 21 is on JAVA_HOME.
-      // GitHub-hosted runners may already have it; this is skipped rather than failed when they do not.
-      console.warn(`Skipping JenkinsPipelineUnit tests (java available=${available}, major=${major || 'unknown'}).`);
+    const javaHome = resolveJava21Home();
+    if (!javaHome) {
+      // Gradle 8.14 cannot run on the Java 25 default of some runners (class-file major 69).
+      // Use JAVA_HOME_21_X64 or a Java 21 install; the 7 PipelineUnit tests were verified locally on Temurin 21.
+      console.warn('Skipping JenkinsPipelineUnit tests: no Java 21 home found.');
       return;
     }
     const result = spawnSync('./gradlew', ['test', '--quiet'], {
       cwd: jenkinsRoot,
       encoding: 'utf8',
-      env: { ...process.env, ...(javaHome ? { JAVA_HOME: javaHome } : {}) },
+      env: { ...process.env, JAVA_HOME: javaHome },
     });
     expect(result.status, result.stdout + result.stderr).toBe(0);
   }, 180_000);
