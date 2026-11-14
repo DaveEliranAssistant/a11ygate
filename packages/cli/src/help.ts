@@ -2,6 +2,8 @@ export function helpText(): string {
   return `a11ygate — accessibility regression gate for axe-core JSON
 
 Usage:
+  a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
+  a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)

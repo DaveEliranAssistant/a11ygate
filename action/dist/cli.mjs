@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir2, readFile as readFile2, realpath, stat, lstat, writeFile as writeFile2 } from "node:fs/promises";
-import path2 from "node:path";
+import { mkdir as mkdir2, readFile as readFile4, realpath as realpath2, stat as stat4, lstat as lstat2, writeFile as writeFile3 } from "node:fs/promises";
+import path4 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/types.ts
@@ -166,15 +166,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path3 = parsed.pathname || "/";
-    if (path3.length > 1 && path3.endsWith("/")) path3 = path3.slice(0, -1);
-    return path3 || "/";
+    let path5 = parsed.pathname || "/";
+    if (path5.length > 1 && path5.endsWith("/")) path5 = path5.slice(0, -1);
+    return path5 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path3 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path3.length > 1 && path3.endsWith("/")) path3 = path3.slice(0, -1);
-    return path3;
+    let path5 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path5.length > 1 && path5.endsWith("/")) path5 = path5.slice(0, -1);
+    return path5;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -235,21 +235,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path3) {
+function readImpact(value, path5) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path3} must be minor, moderate, serious, critical, or null`
+    error: `${path5} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path3) {
+function readTarget(value, path5) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path3}.target must be an array of strings`;
+    return `${path5}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path3}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path5}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -257,52 +257,52 @@ function readTarget(value, path3) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path3}.target must be an array of strings`;
+    return `${path5}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path3) {
-  if (!isRecord(value)) return `${path3} must be an object`;
-  const target = readTarget(value.target, path3);
+function validateNode(value, path5) {
+  if (!isRecord(value)) return `${path5} must be an object`;
+  const target = readTarget(value.target, path5);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path3}.html must be a string`;
+  if (typeof value.html !== "string") return `${path5}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path3}.impact`);
+    const impact = readImpact(value.impact, `${path5}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path3) {
-  if (!isRecord(value)) return `${path3} must be an object`;
+function validateViolation(value, path5) {
+  if (!isRecord(value)) return `${path5} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path3}.id must be a non-empty string`;
+    return `${path5}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path3}.impact is missing`;
+    return `${path5}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path3}.impact`);
+  const impact = readImpact(value.impact, `${path5}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path3}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path5}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path3}.tags must be an array of strings`;
+    return `${path5}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path3}.help must be a non-empty string`;
+    return `${path5}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path3}.helpUrl must be a non-empty string`;
+    return `${path5}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path3}.nodes must contain at least one node`;
+    return `${path5}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path3}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path5}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -318,37 +318,37 @@ function validateViolation(value, path3) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path3) {
-  if (!isRecord(value)) return `${path3} must be an axe result object`;
+function validateResult(value, path5) {
+  if (!isRecord(value)) return `${path5} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path3}.url must be a non-empty string`;
+    return `${path5}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path3}.timestamp must be an ISO date string`;
+    return `${path5}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path3}.testEngine.version must be a non-empty string`;
+    return `${path5}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path3}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path5}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path3}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path5}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path3}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path3}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path3}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path3}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path5}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path5}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path5}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path5}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path3}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path5}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path3}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path5}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path3}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path5}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -449,7 +449,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path3 = pagePath(result.url);
+    const path5 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -464,7 +464,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path3,
+          path: path5,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -527,7 +527,8 @@ function formatFindingFromScan(finding2) {
     pageUrl: finding2.pageUrl,
     selector: finding2.selector,
     html: finding2.html,
-    fingerprint: finding2.fingerprint,
+    fingerprint: finding2.baselineFingerprint ?? finding2.fingerprint,
+    ...finding2.baselineStatus ? { baselineStatus: finding2.baselineStatus } : {},
     ...finding2.engines ? { engines: finding2.engines, confidence: finding2.confidence } : {}
   };
 }
@@ -537,6 +538,7 @@ function formatReportFromScan(report) {
     version: report.version,
     generatedAt: report.scannedAt,
     command: "scan",
+    ...report.baseline ? { baseline: report.baseline } : {},
     ...report.engines ? { engines: report.engines } : {},
     verdict: report.verdict,
     reason: report.reason,
@@ -690,6 +692,8 @@ function helpText() {
   return `a11ygate \u2014 accessibility regression gate for axe-core JSON
 
 Usage:
+  a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
+  a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
@@ -761,8 +765,8 @@ async function resolveElementKeys(page, findings) {
 }
 
 // packages/cli/src/scan.ts
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mkdir, readFile as readFile3, stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
+import path3 from "node:path";
 import { createServer } from "node:net";
 
 // lib/scan/engines/optional.ts
@@ -1321,7 +1325,7 @@ function toScanFinding(finding2, result) {
 }
 function gatingScanFindings(findings, failOn) {
   if (failOn === "none") return [];
-  return findings.filter((f) => meetsThreshold(f.impact, failOn));
+  return findings.filter((f) => f.baselineStatus !== "existing" && meetsThreshold(f.impact, failOn));
 }
 function scanExitCode(findings, failOn) {
   return gatingScanFindings(findings, failOn).length > 0 ? 1 : 0;
@@ -1471,7 +1475,7 @@ function heading(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
 }
 function mdFinding(f) {
-  return `- **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 function scanMarkdown(report) {
   const lines = [
@@ -1487,6 +1491,7 @@ function scanMarkdown(report) {
     "",
     `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${report.axeVersion ?? "n/a"}; A11yGate ${report.version}.`,
     "",
+    ...report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, "", AUTOMATED_TESTING_DISCLAIMER, ""] : [],
     "## Pages",
     "",
     "| Page | HTTP | Status | Findings |",
@@ -1530,7 +1535,7 @@ function safeHref(url) {
   return /^https?:\/\//i.test(url) ? esc(url) : "#";
 }
 function htmlFinding(f) {
-  return `<li><strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ": " : ""}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? "unknown")}">${esc(f.impact ?? "unspecified")}</span><br>Page: <code>${esc(f.pageUrl)}</code><br>Selector: <code>${esc(f.selector)}</code><br>${esc(f.help)}${f.engines ? "<br>" + esc(attribution(f)) : ""} \u2014 <a href="${safeHref(f.helpUrl)}">Rule guidance<span class="sr"> for ${esc(f.ruleId)}</span></a></li>`;
 }
 function htmlGroups(title, groups) {
   if (groups.length === 0) return `<h2>${esc(title)}</h2><p>None detected.</p>`;
@@ -1563,7 +1568,7 @@ a{color:#0b57d0}
 <p>${esc(report.reason)}</p>
 <p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${esc(report.axeVersion ?? "n/a")}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
-<h2>Pages</h2>
+${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups("Findings by WCAG criterion", groupByCriterion(report.findings))}
 ${htmlGroups("Findings by severity", groupBySeverity(report.findings))}
@@ -1679,7 +1684,7 @@ function toJunit(report) {
   const cases = [...failed, ...passing].sort(
     (a, b) => a.classname.localeCompare(b.classname) || a.name.localeCompare(b.name)
   );
-  const failures = failed.length;
+  const failures = failed.filter((g) => g.findings.some((f) => f.baselineStatus !== "existing")).length;
   const tests = cases.length;
   const timestamp = escapeXml(report.generatedAt);
   const properties = [
@@ -1690,15 +1695,17 @@ function toJunit(report) {
     property("reason", report.reason),
     property("command", report.command)
   ];
+  if (report.baseline) properties.push(...Object.entries(report.baseline).map(([key, value]) => property(`baseline-${key}`, String(value))));
   if (report.engines) properties.push(property("engines-used", report.engines.used.join(", ")), property("engines-errored", JSON.stringify(report.engines.errored)));
   if (report.startUrl) properties.push(property("startUrl", report.startUrl));
   if (report.projectName) properties.push(property("projectName", report.projectName));
   const testcases = cases.map((item) => {
     const attrs = `classname="${escapeXml(item.classname)}" name="${escapeXml(item.name)}" time="0"`;
-    if (item.findings.length === 0) return `    <testcase ${attrs}/>`;
+    if (item.findings.length === 0 || item.findings.every((f) => f.baselineStatus === "existing")) return `    <testcase ${attrs}/>`;
+    const failingItem = { ...item, findings: item.findings.filter((f) => f.baselineStatus !== "existing") };
     const type = escapeXml(item.name);
-    const message = escapeXml(failureMessage(item));
-    const body = escapeXml(failureBody(item));
+    const message = escapeXml(failureMessage(failingItem));
+    const body = escapeXml(failureBody(failingItem));
     return `    <testcase ${attrs}>
       <failure message="${message}" type="${type}">${body}</failure>
     </testcase>`;
@@ -1888,6 +1895,9 @@ function toSarifResult(finding2, ruleIndex) {
     ruleId: finding2.ruleId,
     ...index !== void 0 ? { ruleIndex: index } : {},
     level: sarifLevel(finding2.impact),
+    // SARIF 2.1.0 §3.27.24: https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html
+    ...finding2.baselineStatus ? { baselineState: finding2.baselineStatus === "existing" ? "unchanged" : "new" } : {},
+    ...finding2.baselineStatus ? { suppressions: finding2.baselineStatus === "existing" ? [{ kind: "external", status: "accepted", justification: "Existing finding accepted in the fingerprint baseline; remains accessibility debt." }] : [] } : {},
     message: {
       text: `${finding2.help} (${finding2.impact ?? "unspecified"}) at ${finding2.selector} on ${finding2.pageUrl}${finding2.engines ? "; " + attribution(finding2) : ""}`
     },
@@ -1985,6 +1995,7 @@ function buildRun(report, engine, findings, limits) {
       ...report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {},
       verdict: report.verdict,
       reason: report.reason,
+      ...report.baseline ? { baseline: report.baseline } : {},
       command: report.command,
       engine,
       ...report.startUrl ? { startUrl: report.startUrl } : {},
@@ -2115,10 +2126,165 @@ function toSarif(report, options = {}) {
   return stringify(log);
 }
 
+// packages/cli/src/output-paths.ts
+import { lstat, realpath, stat } from "node:fs/promises";
+import path from "node:path";
+async function assertSafeOutputs(cwd, inputs, outputs) {
+  const identify = async (file) => {
+    const absolute = path.resolve(cwd, file);
+    const canonical2 = await realpath(absolute).catch(async () => {
+      if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling output symlink.");
+      return path.join(await realpath(path.dirname(absolute)).catch(() => path.dirname(absolute)), path.basename(absolute));
+    });
+    const info = await stat(absolute).catch(() => null);
+    return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : void 0 };
+  };
+  const protectedPaths = await Promise.all(inputs.map(identify));
+  for (const output of outputs) {
+    const id = await identify(output);
+    if (protectedPaths.some((p) => p.canonical === id.canonical || !!(id.inode && p.inode === id.inode))) {
+      throw new Error("Output paths must be distinct and must not overwrite input evidence.");
+    }
+    protectedPaths.push(id);
+  }
+}
+
+// lib/scan/baseline.ts
+function baselineFingerprint(finding2, occurrence = 0) {
+  if (finding2.engines) {
+    const [page, locator, sc, rule] = JSON.parse(finding2.fingerprint);
+    return JSON.stringify([normalizeUrl(page) ?? page, normalizeLocator(locator) || ["unlocated", occurrence], [...sc].sort(), rule]);
+  }
+  return JSON.stringify([
+    normalizeUrl(finding2.pageUrl) ?? finding2.pageUrl,
+    finding2.selectors.some((selector) => selector.trim()) ? finding2.selectors.map(normalizeLocator) : ["unlocated", occurrence],
+    finding2.ruleId,
+    [...new Set(finding2.wcag.map((c) => c.number))].sort()
+  ]);
+}
+function createFingerprintBaseline(report) {
+  return {
+    kind: "a11ygate-fingerprint-baseline",
+    schemaVersion: 1,
+    disclaimer: AUTOMATED_TESTING_DISCLAIMER,
+    engines: report.engines?.used ?? ["axe"],
+    findings: [...new Map(report.findings.map((f, index) => {
+      const fingerprint2 = baselineFingerprint(f, index);
+      return [fingerprint2, { fingerprint: fingerprint2, pageUrl: f.pageUrl, ruleId: f.ruleId, selector: f.selector }];
+    })).values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint))
+  };
+}
+function parseFingerprintBaseline(value) {
+  const b = value;
+  if (!b || b.kind !== "a11ygate-fingerprint-baseline" || b.schemaVersion !== 1 || !Array.isArray(b.findings) || b.findings.some((f) => !f || ["fingerprint", "pageUrl", "ruleId", "selector"].some((k) => typeof f[k] !== "string"))) {
+    throw new Error("Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1). Axe JSON baselines belong to a11ygate [ci] --baseline.");
+  }
+  if (b.engines !== void 0 && (!Array.isArray(b.engines) || b.engines.some((engine) => typeof engine !== "string"))) throw new Error("Invalid baseline engine coverage.");
+  if (new Set(b.findings.map((f) => f.fingerprint)).size !== b.findings.length) throw new Error("Duplicate baseline fingerprints.");
+  return b;
+}
+function parseScanReport(value) {
+  const report = value;
+  if (!report || report.kind !== "site-scan" || report.schemaVersion !== 1 || !Array.isArray(report.findings) || !Array.isArray(report.pages) || !Array.isArray(report.results)) {
+    throw new Error("Expected an A11yGate site-scan JSON report.");
+  }
+  for (const f of report.findings) {
+    if (typeof f.pageUrl !== "string" || typeof f.ruleId !== "string" || typeof f.selector !== "string" || !Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") || !Array.isArray(f.wcag)) throw new Error("Invalid scan finding.");
+    baselineFingerprint(f);
+  }
+  return report;
+}
+function applyFingerprintBaseline(report, baseline) {
+  const known = new Set(baseline.findings.map((f) => f.fingerprint));
+  const current = new Set(report.findings.map(baselineFingerprint));
+  const findings = report.findings.map((f, index) => {
+    const fingerprint2 = baselineFingerprint(f, index);
+    return { ...f, baselineFingerprint: fingerprint2, baselineStatus: known.has(fingerprint2) ? "existing" : "new" };
+  });
+  const complete = new Set(report.pages.filter((p) => p.scanStatus === "complete").flatMap((p) => [p.url, p.finalUrl]).map((url) => normalizeUrl(url) ?? url));
+  const missing = baseline.findings.filter((f) => !current.has(f.fingerprint));
+  const currentEngines = report.engines?.used ?? ["axe"];
+  const comparable = (baseline.engines ?? ["axe"]).every((engine) => currentEngines.includes(engine));
+  const fixed = missing.filter((f) => comparable && !report.engines?.errored.length && complete.has(normalizeUrl(f.pageUrl) ?? f.pageUrl)).length;
+  const summary = {
+    new: findings.filter((f) => f.baselineStatus === "new").length,
+    existing: findings.filter((f) => f.baselineStatus === "existing").length,
+    fixed,
+    unassessed: missing.length - fixed
+  };
+  const gating = gatingScanFindings(findings, report.failOn);
+  return {
+    ...report,
+    findings,
+    baseline: summary,
+    verdict: report.verdict === "ERROR" ? "ERROR" : gating.length ? "FAIL" : "PASS",
+    reason: report.verdict === "ERROR" ? report.reason : report.failOn === "none" ? "Reporting only (--fail-on none)." : `${gating.length} new finding${gating.length === 1 ? "" : "s"} at or above ${report.failOn}.`,
+    disclaimer: AUTOMATED_TESTING_DISCLAIMER
+  };
+}
+
+// packages/cli/src/baseline.ts
+import { readFile as readFile2, stat as stat2, writeFile } from "node:fs/promises";
+import path2 from "node:path";
+var BASELINE_HELP = `a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
+  --from <scan.json>   Read a saved site-scan report (also accepts an out-dir).
+  --out-dir <dir>     Read a11ygate-scan.json from this directory.
+  --output <file>     Default: .a11ygate-baseline.json in the current directory.
+Without an input, read ./a11ygate-scan.json after a scan.
+Use this fingerprint file with a11ygate scan --baseline or a11ygate report --baseline.
+The separate a11ygate [ci] --baseline continues to accept axe JSON only.
+Automated testing only. Not a WCAG audit, certification or legal advice.
+`;
+async function readScanInput(file, cwd) {
+  let absolute = path2.resolve(cwd, file);
+  if ((await stat2(absolute)).isDirectory()) absolute = path2.join(absolute, "a11ygate-scan.json");
+  return parseScanReport(JSON.parse(await readFile2(absolute, "utf8")));
+}
+async function runBaseline(argv, io) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout(BASELINE_HELP);
+    return 0;
+  }
+  if (argv[0] !== "create") {
+    stderr(BASELINE_HELP);
+    return 2;
+  }
+  let source;
+  let output = ".a11ygate-baseline.json";
+  try {
+    for (let i = 1; i < argv.length; i++) {
+      const token = argv[i];
+      if (["--from", "--out-dir", "--output"].includes(token)) {
+        const value = argv[++i];
+        if (!value || value.startsWith("-")) throw new Error(`${token} needs a value.`);
+        if (token === "--output") output = value;
+        else {
+          if (source) throw new Error("Pass one scan input.");
+          source = value;
+        }
+      } else if (!token.startsWith("-") && !source) source = token;
+      else throw new Error(`Unexpected baseline argument ${token}.`);
+    }
+    const cwd = io.cwd ?? process.cwd();
+    const report = await readScanInput(source ?? "a11ygate-scan.json", cwd);
+    if (report.counts.pagesFailed || report.engines?.errored.length || report.verdict === "ERROR") throw new Error("Cannot create a baseline from incomplete scan coverage.");
+    await writeFile(path2.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    stdout(`Wrote fingerprint baseline ${output}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not create baseline: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -2169,7 +2335,8 @@ function parseScanArgs(argv) {
     } else if (name === "--delay-ms") {
       if (!/^\d+$/.test(value) || Number(value) > 6e4) return { ok: false, error: "--delay-ms needs a whole number of milliseconds from 0 to 60000." };
       options.delayMs = Number(value);
-    } else if (name === "--out-dir") options.outDir = value;
+    } else if (name === "--baseline") options.baseline = value;
+    else if (name === "--out-dir") options.outDir = value;
     else if (name === "--json") options.json = value;
     else if (name === "--markdown") options.markdown = value;
     else if (name === "--html") options.html = value;
@@ -2202,6 +2369,7 @@ Usage:
                       [--html <file>] [--delay-ms <ms>]
 
 Options:
+  --baseline <file>    Fingerprint baseline from baseline create; gate only new findings.
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
@@ -2358,6 +2526,14 @@ Run a11ygate scan --help for usage.
   }
   for (const warning of options.warnings) stderr(`${warning}
 `);
+  let baseline;
+  try {
+    if (options.baseline) baseline = parseFingerprintBaseline(JSON.parse(await readFile3(path3.resolve(cwd, options.baseline), "utf8")));
+  } catch (error) {
+    stderr(`Could not read fingerprint baseline: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
   const userAgent = scanUserAgent(version);
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? globalThis.fetch;
@@ -2396,7 +2572,7 @@ Run a11ygate scan --help for usage.
 `);
     return 2;
   }
-  const report = buildScanReport({
+  let report = buildScanReport({
     crawl: result,
     version,
     scannedAt: now().toISOString(),
@@ -2408,21 +2584,28 @@ Run a11ygate scan --help for usage.
     robotsNote: robots.note,
     engineResults: engine.engineResults
   });
+  if (baseline) report = applyFingerprintBaseline(report, baseline);
+  return writeScanReport(report, options, io, engine);
+}
+async function writeScanReport(report, options, io, engine) {
+  const cwd = io.cwd ?? process.cwd();
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
   const json = `${JSON.stringify(report, null, 2)}
 `;
   const markdown = scanMarkdown(report);
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
-    extra.push([path.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+    extra.push([path3.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
+    extra.push([path3.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport)]);
   }
   const targets = options.outDir ? [
-    [path.join(options.outDir, "a11ygate-scan.json"), json],
-    [path.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)],
+    [path3.join(options.outDir, "a11ygate-scan.json"), json],
+    [path3.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path3.join(options.outDir, "a11ygate-scan.html"), scanHtml(report)],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -2430,29 +2613,77 @@ Run a11ygate scan --help for usage.
     [options.html, options.html ? scanHtml(report) : ""]
   ];
   try {
-    if (options.outDir) await mkdir(path.resolve(cwd, options.outDir), { recursive: true });
+    if (options.baseline || io.reportInput) {
+      await assertSafeOutputs(
+        cwd,
+        [options.baseline, io.reportInput].filter((f) => !!f),
+        [
+          ...targets.map(([file]) => file).filter((f) => !!f),
+          ...options.outDir ? options.engines.map((id) => path3.join(options.outDir, "engines", `${id}.json`)) : []
+        ]
+      );
+    }
+    if (options.outDir) await mkdir(path3.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
-      const evidenceDir = path.resolve(cwd, options.outDir, "engines");
+      const evidenceDir = path3.resolve(cwd, options.outDir, "engines");
       await mkdir(evidenceDir, { recursive: true });
       for (const id of options.engines) {
-        const native = engine.rawEngineResults?.filter((e) => e.engine === id);
+        const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile(path.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}
+        await writeFile2(path3.join(evidenceDir, `${id}.json`), `${JSON.stringify(evidence, null, 2)}
 `, "utf8");
       }
     }
     for (const [file, content] of targets) {
-      if (file) await writeFile(path.resolve(cwd, file), content, "utf8");
+      if (file) await writeFile2(path3.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
     const code2 = error.code;
-    stderr(`Could not write the scan report${code2 ? ` (${code2})` : ""}.
+    stderr(`Could not write the scan report${code2 ? ` (${code2})` : ""}: ${error instanceof Error ? error.message : String(error)}
 `);
     return 2;
   }
   stdout(options.json === "-" ? json : markdown);
-  if (report.engineResults?.some((e) => e.status === "errored")) return 2;
-  return report.verdict === "FAIL" ? 1 : scanExitCode(report.findings, options.failOn);
+  if (report.verdict === "ERROR" || report.engineResults?.some((e) => e.status === "errored")) return 2;
+  return report.verdict === "FAIL" ? 1 : scanExitCode(report.findings, report.failOn);
+}
+async function runReport(argv, io = {}) {
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (!argv[0] || argv[0].startsWith("-") || argv.includes("--help") || argv.includes("-h")) {
+    (argv.includes("--help") || argv.includes("-h") ? io.stdout ?? ((s) => process.stdout.write(s)) : stderr)(
+      "Usage: a11ygate report <scan.json|out-dir> [--baseline <file>] [--out-dir <dir>] [--format junit,sarif] [--fail-on <impact>]\n"
+    );
+    return argv.includes("--help") || argv.includes("-h") ? 0 : 2;
+  }
+  const parsed = parseScanArgs(["https://saved-report.invalid", ...argv.slice(1)]);
+  if (!parsed.ok) {
+    stderr(parsed.error + "\n");
+    return 2;
+  }
+  try {
+    const cwd = io.cwd ?? process.cwd();
+    let report = await readScanInput(argv[0], cwd);
+    if (argv.some((a) => a === "--fail-on" || a.startsWith("--fail-on="))) {
+      const failOn = parsed.options.failOn;
+      const failing = scanExitCode(report.findings, failOn);
+      report = {
+        ...report,
+        failOn,
+        verdict: report.verdict === "ERROR" ? "ERROR" : failing ? "FAIL" : "PASS",
+        reason: report.verdict === "ERROR" ? report.reason : `${failing ? "At least one finding is" : "No finding is"} at or above ${failOn}.`
+      };
+    }
+    if (parsed.options.baseline) report = applyFingerprintBaseline(report, parseFingerprintBaseline(JSON.parse(await readFile3(path3.resolve(cwd, parsed.options.baseline), "utf8"))));
+    const source = path3.resolve(cwd, argv[0]);
+    const reportInput = (await stat3(source)).isDirectory() ? path3.join(source, "a11ygate-scan.json") : source;
+    const engines = report.engines?.used ?? ["axe"];
+    if (engines.some((id) => !ENGINE_IDS.includes(id))) throw new Error("Unknown engine in saved report.");
+    return await writeScanReport(report, { ...parsed.options, engines }, { ...io, reportInput });
+  } catch (error) {
+    stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
 }
 
 // lib/export-baseline.ts
@@ -2618,20 +2849,20 @@ function inferProjectName(results) {
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path2.resolve(cwd, file);
+  return path4.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
   for (const file of files) {
     const absolute = resolveInput(cwd, file);
     try {
-      const info = await stat(absolute);
+      const info = await stat4(absolute);
       if (!info.isFile()) return { ok: false, error: `${file}: not a file.` };
       if (info.size === 0) return { ok: false, error: `${file}: The file is empty.` };
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile2(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile4(absolute, "utf8") });
     } catch (error) {
       const code2 = error.code;
       if (code2 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -2647,14 +2878,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path2.dirname(fileURLToPath(import.meta.url));
+  const here = path4.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path2.join(here, "..", "package.json"),
-    path2.join(here, "..", "..", "packages", "cli", "package.json")
+    path4.join(here, "..", "package.json"),
+    path4.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile2(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile4(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -2717,6 +2948,8 @@ async function run(argv, io = {}) {
   const stderr = io.stderr ?? ((chunk) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => /* @__PURE__ */ new Date());
+  if (argv[0] === "baseline") return runBaseline(argv.slice(1), io);
+  if (argv[0] === "report") return runReport(argv.slice(1), io);
   if (argv[0] === "scan") return runScan(argv.slice(1), { ...io, version: await readVersion() });
   const gateArgv = argv[0] === "ci" ? argv.slice(1) : argv;
   const parsed = parseArgs(gateArgv);
@@ -2747,19 +2980,19 @@ async function run(argv, io = {}) {
   try {
     const identify = async (file) => {
       const absolute = resolveInput(cwd, file);
-      const canonical2 = await realpath(absolute).catch(async () => {
-        if ((await lstat(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path2.join(await realpath(path2.dirname(absolute)).catch(() => path2.dirname(absolute)), path2.basename(absolute));
+      const canonical2 = await realpath2(absolute).catch(async () => {
+        if ((await lstat2(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
+        return path4.join(await realpath2(path4.dirname(absolute)).catch(() => path4.dirname(absolute)), path4.basename(absolute));
       });
-      const info = await stat(absolute).catch(() => null);
+      const info = await stat4(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
     };
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path2.join(options.outDir, formatFileName("ci", "json")),
-      path2.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path2.join(options.outDir, formatFileName("ci", format)))
+      path4.join(options.outDir, formatFileName("ci", "json")),
+      path4.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path4.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -2847,8 +3080,8 @@ async function run(argv, io = {}) {
       return 2;
     }
     try {
-      await writeFile2(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile2(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile3(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile3(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -2859,7 +3092,7 @@ async function run(argv, io = {}) {
   }
   if (options.markdown) {
     try {
-      await writeFile2(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile3(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -2868,7 +3101,7 @@ async function run(argv, io = {}) {
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile2(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile3(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -2895,7 +3128,7 @@ async function run(argv, io = {}) {
       const dir = resolveInput(cwd, options.outDir);
       await mkdir2(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile2(path2.join(dir, name), content, "utf8");
+        await writeFile3(path4.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

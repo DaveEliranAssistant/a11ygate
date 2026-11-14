@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './args';
 import { helpText } from './help';
-import { runScan } from './scan';
+import { runReport, runScan } from './scan';
+import { runBaseline } from './baseline';
 import { baselineDocument, baselineReview } from '@/lib/export-baseline';
 import { findingGuidance } from '@/lib/guidance';
 import { parseManualEvidence, type ManualCheck } from '@/lib/manual-evidence';
@@ -146,6 +147,8 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   const cwd = io.cwd ?? process.cwd();
   const now = io.now ?? (() => new Date());
 
+  if (argv[0] === 'baseline') return runBaseline(argv.slice(1), io);
+  if (argv[0] === 'report') return runReport(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
 
   const gateArgv = argv[0] === 'ci' ? argv.slice(1) : argv;
