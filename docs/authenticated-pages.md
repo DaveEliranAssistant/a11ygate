@@ -110,3 +110,37 @@ npx playwright test --config playwright.auth.config.ts
 These checks exercise a login-form fixture with each method, failed/expired
 sessions, script exceptions, async and CPU timeouts, and byte-search every report,
 log, re-export, native archive and decompressed ZIP entry for generated secrets.
+
+### Explicit authentication checks
+
+Set `auth.check` to replace heuristic login detection. `mustHaveSelector` requires
+at least one matching element; `mustNotHaveSelector` requires none. These are cheap
+presence checks after each page loads, with no selector waiting. Invalid selectors
+fail the check. All configured conditions must pass. Password fields and login-like
+paths no longer imply failure by themselves when an explicit check is configured.
+HTTP errors still fail verification.
+
+An optional `url` (absolute or relative to the scan origin) is loaded once after
+authentication, before crawling. It must stay on the scan origin; off-origin
+redirects are blocked. The same selectors and forbidden destination check apply
+to that probe. A failed probe marks requested pages as not authenticated. Without
+a probe URL, the first requested page is the initial check. Every requested page
+is checked before any accessibility engine runs; the probe is never scanned.
+
+`mustNotRedirectTo` is an absolute URL or path: its origin and pathname must not
+match the final page URL or a child path. Query strings and fragments are ignored.
+It also rejects direct visits to that destination. It is a literal path check,
+not a regular expression or glob. For example, use your application's existing
+member marker as `mustHaveSelector` and its actual login path as
+`mustNotRedirectTo`; A11yGate does not infer a marker or accessible name.
+
+Failed pages have `scanStatus: "not-authenticated"`, no engine results, and a
+separate `counts.pagesNotAuthenticated` count in JSON and report summaries. They
+make the verdict ERROR (exit 2), including with `failOn: none`; they are never a
+pass. Without `auth.check`, existing heuristics and report output are unchanged.
+`doctor` warns when authentication is configured without an explicit check.
+The corresponding optional CLI flags are `--auth-check-url`,
+`--auth-check-must-have-selector`, `--auth-check-must-not-have-selector`, and
+`--auth-check-must-not-redirect-to`.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

@@ -3,11 +3,13 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
-import type { BrowserContext, BrowserContextOptions } from 'playwright';
+import type { BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
 
+export type AuthCheck = { url?: string; mustHaveSelector?: string; mustNotHaveSelector?: string; mustNotRedirectTo?: string };
 export type AuthOptions = {
+  authCheck?: AuthCheck;
   storageState?: string;
   sessionStorage?: string;
   loginScript?: string;
@@ -18,6 +20,7 @@ export type AuthOptions = {
 export type SessionStorageState = { origins: { origin: string; sessionStorage: { name: string; value: string }[] }[] };
 
 export type PreparedAuth = {
+  check?: AuthCheck;
   sessionStorage?: SessionStorageState;
   state?: BrowserContextOptions['storageState'];
   script?: string;
@@ -36,6 +39,14 @@ export function envMapping(value: string): { name: string; env: string } | null 
 export async function prepareAuth(options: AuthOptions, cwd: string, origin: string, env = process.env, redactor = new AuthRedactor()): Promise<PreparedAuth> {
   for (const value of secretEnvValues(env, 1)) redactor.add(value);
   const auth: PreparedAuth = { timeout: options.loginTimeoutMs ?? 30_000, env: { ...env }, cookies: [], headers: {}, redactor };
+  if (options.authCheck) {
+    auth.check = { ...options.authCheck };
+    if (auth.check.url) {
+      const url = new URL(auth.check.url, origin);
+      if (url.origin !== origin || url.username || url.password) throw new Error('auth.check.url must be on the scan origin and contain no credentials.');
+      auth.check.url = url.href;
+    }
+  }
   for (const [kind, mappings] of [['cookie', options.cookieEnv], ['header', options.headerEnv]] as const) {
     for (const input of mappings ?? []) {
       const mapping = envMapping(input);
@@ -165,4 +176,19 @@ export async function runLoginScript(endpoint: string, origin: string, auth: Pre
       resolve(message.state);
     });
   });
+}
+
+/** Presence checks do not wait or run accessibility engines. Invalid selectors fail closed. */
+export async function passesAuthCheck(page: Page, check: AuthCheck, status: number | null): Promise<boolean> {
+  try {
+    if (status === null || status >= 400) return false;
+    if (check.mustNotRedirectTo) {
+      const forbidden = new URL(check.mustNotRedirectTo, page.url());
+      const actual = new URL(page.url());
+      if (actual.origin === forbidden.origin && (actual.pathname === forbidden.pathname || actual.pathname.startsWith(forbidden.pathname.replace(/\/$/, '') + '/'))) return false;
+    }
+    if (check.mustHaveSelector && await page.locator(check.mustHaveSelector).count() === 0) return false;
+    if (check.mustNotHaveSelector && await page.locator(check.mustNotHaveSelector).count() > 0) return false;
+    return true;
+  } catch { return false; }
 }

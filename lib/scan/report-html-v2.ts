@@ -168,7 +168,7 @@ function summarySection(report: ScanReport): string {
 <p class="verdict">Gate verdict: ${esc(report.verdict)} <span class="muted">(fail on: ${esc(report.failOn)})</span></p>
 <p>${esc(report.reason)}</p>
 <ul class="facts">
-<li>Pages scanned: <strong>${c.pagesScanned}</strong>; pages that failed to load: ${c.pagesFailed}; links not scanned: ${c.skippedLinks}.</li>
+<li>Pages scanned: <strong>${c.pagesScanned}</strong>; pages that failed to load: ${c.pagesFailed};${c.pagesNotAuthenticated !== undefined ? ' not authenticated: ' + c.pagesNotAuthenticated + ';' : ''} links not scanned: ${c.skippedLinks}.</li>
 <li>Total findings: <strong>${c.findings}</strong> across ${plural(new Set(report.findings.map((f) => f.ruleId)).size, 'rule')}.</li>
 ${baseline}
 ${engines}

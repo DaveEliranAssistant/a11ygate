@@ -2,7 +2,7 @@ import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/s
 import { parseInteractionStates, installInteractionGuards, scanInteractionStates, type InteractionState, type InteractionOptions } from '@/lib/scan/interactions';
 import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
-import { prepareAuth, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
+import { prepareAuth, passesAuthCheck, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
 import { resolveElementKeys } from '@/lib/scan/engines/locators';
@@ -71,7 +71,13 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
+const AUTH_CHECK_FLAGS = {
+  '--auth-check-url': 'url',
+  '--auth-check-must-have-selector': 'mustHaveSelector',
+  '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
+  '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
+} as const;
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -151,6 +157,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       else options.concurrency = Number(value);
     } else if (name === '--storage-state') options.storageState = value;
     else if (name === '--session-storage') options.sessionStorage = value;
+    else if (Object.hasOwn(AUTH_CHECK_FLAGS, name)) {
+      const key = AUTH_CHECK_FLAGS[name as keyof typeof AUTH_CHECK_FLAGS];
+      options.authCheck = { ...options.authCheck, [key]: value };
+    }
     else if (name === '--login-script') options.loginScript = value;
     else if (name === '--login-timeout-ms') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 300_000) return { ok: false, error: '--login-timeout-ms must be from 1 to 300000.' };
@@ -237,6 +247,10 @@ Options:
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
   --session-storage <file> Read origin-scoped sessionStorage JSON (never written back).
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
+  --auth-check-url <url>  Same-origin auth probe URL (config auth.check.url).
+  --auth-check-must-have-selector <selector>     Required on every page.
+  --auth-check-must-not-have-selector <selector> Forbidden on every page.
+  --auth-check-must-not-redirect-to <url/path>   Forbidden destination path/subtree.
   --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
   --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
   --cookie-env <name=ENV> Inject a cookie using an environment variable name. Repeatable.
@@ -395,6 +409,28 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     await browserServer?.close().catch(() => undefined);
     throw new ScanSetupError(auth?.script ? (error as Error).message : 'Could not initialize authentication storage state.');
   }
+  // Probe only an explicitly configured URL, once after authentication. A failed
+  // probe is reported on pages as incomplete coverage, never as an empty pass.
+  let initialAuthPassed = true;
+  if (auth?.check?.url) {
+    const context = await pool.init();
+    const page = await context.newPage();
+    try {
+      const session = await context.newCDPSession(page);
+      session.on('Fetch.requestPaused', event => {
+        const external = new URL(event.request.url).origin !== origin;
+        void session.send(external ? 'Fetch.failRequest' : 'Fetch.continueRequest', {
+          requestId: event.requestId, ...(external ? { errorReason: 'BlockedByClient' } : {}),
+        }).catch(() => undefined);
+      });
+      await session.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+      page.on('dialog', dialog => void dialog.dismiss().catch(() => undefined));
+      const response = await page.goto(auth.check.url, { waitUntil: 'load', timeout: timeoutMs });
+      auth.redactor.storage(await context.storageState());
+      initialAuthPassed = await passesAuthCheck(page, auth.check, response?.status() ?? null);
+    } catch { initialAuthPassed = false; }
+    finally { await page.close().catch(() => undefined); }
+  }
   const interactionPages: PageRecord[] = [];
   const keyboardResults: KeyboardResult[] = [];
   return {
@@ -454,8 +490,9 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         if (auth) auth.redactor.storage(await context.storageState());
         const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
         const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
-        if (status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
-          return { status, finalUrl, contentType, links: [], error: 'Not authenticated: login page or access denied; protected content was not scanned.' };
+        if (auth?.check ? (!initialAuthPassed || !await passesAuthCheck(page, auth.check, status)) :
+          (status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0)) {
+          return { status, finalUrl, contentType, links: [], ...(auth?.check ? { notAuthenticated: true } : {}), error: auth?.check ? 'Not authenticated: explicit auth.check failed; protected content was not scanned.' : 'Not authenticated: login page or access denied; protected content was not scanned.' };
         }
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
@@ -654,6 +691,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     engineResults: engine.engineResults,
     interactions: !!interactions,
     keyboardResults: engine.keyboardResults ? result.pages.flatMap(page => engine.keyboardResults!.filter(result => result.url === page.url)) : undefined,
+    explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);

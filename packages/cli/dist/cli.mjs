@@ -1104,7 +1104,7 @@ function buildScanReport(input) {
   }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === "errored").length;
-  const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith("Not authenticated:"));
+  const authenticationFailed = input.crawl.pages.some((p) => p.scanStatus === "not-authenticated" || p.error?.startsWith("Not authenticated:"));
   const startFailed = input.crawl.pages[0]?.scanStatus !== "complete";
   const stateFailed = !!input.interactions && pages.some((p) => new URL(p.url).hash && p.scanStatus !== "complete");
   const verdict = engineErrors || authenticationFailed || startFailed || stateFailed ? "ERROR" : gating.length > 0 ? "FAIL" : "PASS";
@@ -1125,6 +1125,7 @@ function buildScanReport(input) {
     ...extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER + (input.keyboardResults ? " " + KEYBOARD_DISCLAIMER : "") } : {},
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
+      ...input.explicitAuthCheck ? { pagesNotAuthenticated: input.crawl.pages.filter((p) => p.scanStatus === "not-authenticated").length } : {},
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === "complete").length,
       pagesFailed: input.crawl.pages.filter((p) => p.scanStatus === "failed").length,
       skippedLinks: input.crawl.skipped.length,
@@ -1215,7 +1216,7 @@ function scanMarkdown(report) {
     "| --- | --- |",
     ...["critical", "serious", "moderate", "minor", "unknown"].map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
     "",
-    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${report.axeVersion ?? "n/a"}; A11yGate ${report.version}.`,
+    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== void 0 ? "; not authenticated: " + report.counts.pagesNotAuthenticated : ""}. axe-core ${report.axeVersion ?? "n/a"}; A11yGate ${report.version}.`,
     "",
     ...report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, "", AUTOMATED_TESTING_DISCLAIMER, ""] : [],
     "## Pages",
@@ -1331,7 +1332,7 @@ a{color:#0b57d0}
 <p>Start URL: <code>${esc(report.startUrl)}</code></p>
 <p class="verdict">Verdict: ${esc(report.verdict)} (fail on: ${esc(report.failOn)})</p>
 <p>${esc(report.reason)}</p>
-<p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}. axe-core ${esc(report.axeVersion ?? "n/a")}; A11yGate ${esc(report.version)}.</p>
+<p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== void 0 ? "; not authenticated: " + report.counts.pagesNotAuthenticated : ""}. axe-core ${esc(report.axeVersion ?? "n/a")}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
 ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
@@ -1928,6 +1929,14 @@ function envMapping(value) {
 async function prepareAuth(options, cwd, origin, env = process.env, redactor = new AuthRedactor()) {
   for (const value of secretEnvValues(env, 1)) redactor.add(value);
   const auth = { timeout: options.loginTimeoutMs ?? 3e4, env: { ...env }, cookies: [], headers: {}, redactor };
+  if (options.authCheck) {
+    auth.check = { ...options.authCheck };
+    if (auth.check.url) {
+      const url = new URL(auth.check.url, origin);
+      if (url.origin !== origin || url.username || url.password) throw new Error("auth.check.url must be on the scan origin and contain no credentials.");
+      auth.check.url = url.href;
+    }
+  }
   for (const [kind, mappings] of [["cookie", options.cookieEnv], ["header", options.headerEnv]]) {
     for (const input of mappings ?? []) {
       const mapping = envMapping(input);
@@ -2073,6 +2082,21 @@ async function runLoginScript(endpoint, origin, auth, contextOptions) {
       resolve(message.state);
     });
   });
+}
+async function passesAuthCheck(page, check2, status) {
+  try {
+    if (status === null || status >= 400) return false;
+    if (check2.mustNotRedirectTo) {
+      const forbidden = new URL(check2.mustNotRedirectTo, page.url());
+      const actual = new URL(page.url());
+      if (actual.origin === forbidden.origin && (actual.pathname === forbidden.pathname || actual.pathname.startsWith(forbidden.pathname.replace(/\/$/, "") + "/"))) return false;
+    }
+    if (check2.mustHaveSelector && await page.locator(check2.mustHaveSelector).count() === 0) return false;
+    if (check2.mustNotHaveSelector && await page.locator(check2.mustNotHaveSelector).count() > 0) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // lib/scan/engines/locators.ts
@@ -2511,6 +2535,10 @@ async function crawl(options) {
     for (let i = 0; i < batch.length; i++) {
       const { url, depth: depth2 } = batch[i];
       const outcome = outcomes[i];
+      if (outcome.notAuthenticated) {
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "not-authenticated", error: outcome.error });
+        continue;
+      }
       if (outcome.error?.startsWith("Page timeout")) {
         skip({ url, reason: "timeout" });
         pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error });
@@ -2661,7 +2689,7 @@ function summarySection(report) {
 <p class="verdict">Gate verdict: ${esc2(report.verdict)} <span class="muted">(fail on: ${esc2(report.failOn)})</span></p>
 <p>${esc2(report.reason)}</p>
 <ul class="facts">
-<li>Pages scanned: <strong>${c.pagesScanned}</strong>; pages that failed to load: ${c.pagesFailed}; links not scanned: ${c.skippedLinks}.</li>
+<li>Pages scanned: <strong>${c.pagesScanned}</strong>; pages that failed to load: ${c.pagesFailed};${c.pagesNotAuthenticated !== void 0 ? " not authenticated: " + c.pagesNotAuthenticated + ";" : ""} links not scanned: ${c.skippedLinks}.</li>
 <li>Total findings: <strong>${c.findings}</strong> across ${plural(new Set(report.findings.map((f) => f.ruleId)).size, "rule")}.</li>
 ${baseline}
 ${engines}
@@ -3813,6 +3841,17 @@ var a11ygate_schema_default = {
       type: "object",
       additionalProperties: false,
       properties: {
+        check: {
+          description: "Explicit auth verification, replacing login heuristics. Optional same-origin URL is probed once; selectors and forbidden redirect are checked on every page.",
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            url: { type: "string", minLength: 1, "x-cli": ["--auth-check-url"] },
+            mustHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-have-selector"] },
+            mustNotHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-have-selector"] },
+            mustNotRedirectTo: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-redirect-to"] }
+          }
+        },
         storageState: {
           description: "Playwright storage-state JSON file (keep it out of version control).",
           type: "string",
@@ -4198,6 +4237,10 @@ var CONFIG_WIRING = {
   outDir: { flag: "--out-dir", commands: reports, default: null },
   delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
   reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  "auth.check.url": { flag: "--auth-check-url", commands: scan, default: null },
+  "auth.check.mustHaveSelector": { flag: "--auth-check-must-have-selector", commands: scan, default: null },
+  "auth.check.mustNotHaveSelector": { flag: "--auth-check-must-not-have-selector", commands: scan, default: null },
+  "auth.check.mustNotRedirectTo": { flag: "--auth-check-must-not-redirect-to", commands: scan, default: null },
   "auth.storageState": { flag: "--storage-state", commands: scan, default: null },
   "auth.loginScript": { flag: "--login-script", commands: scan, default: null },
   "auth.loginTimeoutMs": { flag: "--login-timeout-ms", commands: scan, default: 3e4 },
@@ -4381,7 +4424,13 @@ function effectiveModelFixConfig(config2, env = process.env) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
+var AUTH_CHECK_FLAGS = {
+  "--auth-check-url": "url",
+  "--auth-check-must-have-selector": "mustHaveSelector",
+  "--auth-check-must-not-have-selector": "mustNotHaveSelector",
+  "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
+};
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -4464,7 +4513,10 @@ function parseScanArgs(argv) {
       else options.concurrency = Number(value);
     } else if (name === "--storage-state") options.storageState = value;
     else if (name === "--session-storage") options.sessionStorage = value;
-    else if (name === "--login-script") options.loginScript = value;
+    else if (Object.hasOwn(AUTH_CHECK_FLAGS, name)) {
+      const key = AUTH_CHECK_FLAGS[name];
+      options.authCheck = { ...options.authCheck, [key]: value };
+    } else if (name === "--login-script") options.loginScript = value;
     else if (name === "--login-timeout-ms") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 3e5) return { ok: false, error: "--login-timeout-ms must be from 1 to 300000." };
       options.loginTimeoutMs = Number(value);
@@ -4549,6 +4601,10 @@ Options:
   --storybook <url>     Discover every story from loopback index.json; scan iframe URLs (maximum 1000).
   --session-storage <file> Read origin-scoped sessionStorage JSON (never written back).
   --storage-state <file>  Read a Playwright storageState JSON file (never written back).
+  --auth-check-url <url>  Same-origin auth probe URL (config auth.check.url).
+  --auth-check-must-have-selector <selector>     Required on every page.
+  --auth-check-must-not-have-selector <selector> Forbidden on every page.
+  --auth-check-must-not-redirect-to <url/path>   Forbidden destination path/subtree.
   --login-script <file>   Trusted JS module: default async (page, env) => { ... }.
   --login-timeout-ms <ms> Login deadline including module load; default 30000, max 300000.
   --cookie-env <name=ENV> Inject a cookie using an environment variable name. Repeatable.
@@ -4677,6 +4733,30 @@ Install it with: npx playwright install chromium
     await browserServer?.close().catch(() => void 0);
     throw new ScanSetupError(auth?.script ? error.message : "Could not initialize authentication storage state.");
   }
+  let initialAuthPassed = true;
+  if (auth?.check?.url) {
+    const context = await pool.init();
+    const page = await context.newPage();
+    try {
+      const session = await context.newCDPSession(page);
+      session.on("Fetch.requestPaused", (event) => {
+        const external = new URL(event.request.url).origin !== origin;
+        void session.send(external ? "Fetch.failRequest" : "Fetch.continueRequest", {
+          requestId: event.requestId,
+          ...external ? { errorReason: "BlockedByClient" } : {}
+        }).catch(() => void 0);
+      });
+      await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+      page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
+      const response = await page.goto(auth.check.url, { waitUntil: "load", timeout: timeoutMs });
+      auth.redactor.storage(await context.storageState());
+      initialAuthPassed = await passesAuthCheck(page, auth.check, response?.status() ?? null);
+    } catch {
+      initialAuthPassed = false;
+    } finally {
+      await page.close().catch(() => void 0);
+    }
+  }
   const interactionPages = [];
   const keyboardResults = [];
   return {
@@ -4740,8 +4820,8 @@ Install it with: npx playwright install chromium
         if (auth) auth.redactor.storage(await context.storageState());
         const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
         const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
-        if (status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
-          return { status, finalUrl, contentType, links: [], error: "Not authenticated: login page or access denied; protected content was not scanned." };
+        if (auth?.check ? !initialAuthPassed || !await passesAuthCheck(page, auth.check, status) : status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {
+          return { status, finalUrl, contentType, links: [], ...auth?.check ? { notAuthenticated: true } : {}, error: auth?.check ? "Not authenticated: explicit auth.check failed; protected content was not scanned." : "Not authenticated: login page or access denied; protected content was not scanned." };
         }
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
@@ -4958,6 +5038,7 @@ Run a11ygate scan --help for usage.
     engineResults: engine.engineResults,
     interactions: !!interactions,
     keyboardResults: engine.keyboardResults ? result.pages.flatMap((page) => engine.keyboardResults.filter((result2) => result2.url === page.url)) : void 0,
+    explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
   if (baseline) report = applyFingerprintBaseline(report, baseline);
@@ -6649,7 +6730,7 @@ function adaptersForEnv(env = {}) {
 
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
-var sections = { config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
+var sections = { auth: "doctor-config", config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
 var PEERS = { axe: ["@axe-core/playwright"], htmlcs: ["html_codesniffer"], ibm: ["accessibility-checker-engine"], lighthouse: ["lighthouse", "puppeteer-core"] };
 var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
@@ -6690,6 +6771,12 @@ async function doctorChecks(options = {}, io = {}) {
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
   add("config", problems.length ? "fail" : config2 === null ? "skipped" : "pass", config2 === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  const hasAuth = ["auth.storageState", "auth.loginScript", "auth.cookieEnv", "auth.headerEnv"].some((key) => {
+    const value = effective.values[key];
+    return Array.isArray(value) ? value.length > 0 : !!value;
+  });
+  const hasCheck = Object.keys(effective.values).some((key) => key.startsWith("auth.check.") && effective.values[key] !== null);
+  if (hasAuth) add("auth", hasCheck ? "pass" : "unknown", hasCheck ? "Explicit auth.check is configured." : "Authentication is configured without auth.check; login detection is heuristic. Configure auth.check to verify protected content.");
   let head = null;
   try {
     head = io.head ? io.head() : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

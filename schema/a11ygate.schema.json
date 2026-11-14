@@ -133,6 +133,17 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "check": {
+          "description": "Explicit auth verification, replacing login heuristics. Optional same-origin URL is probed once; selectors and forbidden redirect are checked on every page.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {"type": "string", "minLength": 1, "x-cli": ["--auth-check-url"]},
+            "mustHaveSelector": {"type": "string", "minLength": 1, "x-cli": ["--auth-check-must-have-selector"]},
+            "mustNotHaveSelector": {"type": "string", "minLength": 1, "x-cli": ["--auth-check-must-not-have-selector"]},
+            "mustNotRedirectTo": {"type": "string", "minLength": 1, "x-cli": ["--auth-check-must-not-redirect-to"]}
+          }
+        },
         "storageState": {
           "description": "Playwright storage-state JSON file (keep it out of version control).",
           "type": "string",

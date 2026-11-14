@@ -220,6 +220,17 @@ var a11ygate_schema_default = {
       type: "object",
       additionalProperties: false,
       properties: {
+        check: {
+          description: "Explicit auth verification, replacing login heuristics. Optional same-origin URL is probed once; selectors and forbidden redirect are checked on every page.",
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            url: { type: "string", minLength: 1, "x-cli": ["--auth-check-url"] },
+            mustHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-have-selector"] },
+            mustNotHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-have-selector"] },
+            mustNotRedirectTo: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-redirect-to"] }
+          }
+        },
         storageState: {
           description: "Playwright storage-state JSON file (keep it out of version control).",
           type: "string",
@@ -647,6 +658,10 @@ var CONFIG_WIRING = {
   outDir: { flag: "--out-dir", commands: reports, default: null },
   delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
   reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  "auth.check.url": { flag: "--auth-check-url", commands: scan, default: null },
+  "auth.check.mustHaveSelector": { flag: "--auth-check-must-have-selector", commands: scan, default: null },
+  "auth.check.mustNotHaveSelector": { flag: "--auth-check-must-not-have-selector", commands: scan, default: null },
+  "auth.check.mustNotRedirectTo": { flag: "--auth-check-must-not-redirect-to", commands: scan, default: null },
   "auth.storageState": { flag: "--storage-state", commands: scan, default: null },
   "auth.loginScript": { flag: "--login-script", commands: scan, default: null },
   "auth.loginTimeoutMs": { flag: "--login-timeout-ms", commands: scan, default: 3e4 },

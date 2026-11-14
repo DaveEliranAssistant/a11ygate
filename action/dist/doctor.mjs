@@ -742,6 +742,17 @@ var a11ygate_schema_default = {
       type: "object",
       additionalProperties: false,
       properties: {
+        check: {
+          description: "Explicit auth verification, replacing login heuristics. Optional same-origin URL is probed once; selectors and forbidden redirect are checked on every page.",
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            url: { type: "string", minLength: 1, "x-cli": ["--auth-check-url"] },
+            mustHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-have-selector"] },
+            mustNotHaveSelector: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-have-selector"] },
+            mustNotRedirectTo: { type: "string", minLength: 1, "x-cli": ["--auth-check-must-not-redirect-to"] }
+          }
+        },
         storageState: {
           description: "Playwright storage-state JSON file (keep it out of version control).",
           type: "string",
@@ -1127,6 +1138,10 @@ var CONFIG_WIRING = {
   outDir: { flag: "--out-dir", commands: reports, default: null },
   delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
   reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  "auth.check.url": { flag: "--auth-check-url", commands: scan, default: null },
+  "auth.check.mustHaveSelector": { flag: "--auth-check-must-have-selector", commands: scan, default: null },
+  "auth.check.mustNotHaveSelector": { flag: "--auth-check-must-not-have-selector", commands: scan, default: null },
+  "auth.check.mustNotRedirectTo": { flag: "--auth-check-must-not-redirect-to", commands: scan, default: null },
   "auth.storageState": { flag: "--storage-state", commands: scan, default: null },
   "auth.loginScript": { flag: "--login-script", commands: scan, default: null },
   "auth.loginTimeoutMs": { flag: "--login-timeout-ms", commands: scan, default: 3e4 },
@@ -1296,7 +1311,7 @@ var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, ce
 
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
-var sections = { config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
+var sections = { auth: "doctor-config", config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
 var PEERS = { axe: ["@axe-core/playwright"], htmlcs: ["html_codesniffer"], ibm: ["accessibility-checker-engine"], lighthouse: ["lighthouse", "puppeteer-core"] };
 var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 function configuredEngines(text) {
@@ -1341,6 +1356,12 @@ async function doctorChecks(options = {}, io = {}) {
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
   add("config", problems.length ? "fail" : config === null ? "skipped" : "pass", config === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  const hasAuth = ["auth.storageState", "auth.loginScript", "auth.cookieEnv", "auth.headerEnv"].some((key) => {
+    const value = effective.values[key];
+    return Array.isArray(value) ? value.length > 0 : !!value;
+  });
+  const hasCheck = Object.keys(effective.values).some((key) => key.startsWith("auth.check.") && effective.values[key] !== null);
+  if (hasAuth) add("auth", hasCheck ? "pass" : "unknown", hasCheck ? "Explicit auth.check is configured." : "Authentication is configured without auth.check; login detection is heuristic. Configure auth.check to verify protected content.");
   let head = null;
   try {
     head = io.head ? io.head() : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
