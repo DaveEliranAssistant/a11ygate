@@ -18,6 +18,7 @@ import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots'
 import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
 import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
 import { runEngine } from '@/lib/scan/engines/types';
+import { ContextPool } from '@/lib/scan/context-pool';
 export { toAxeResults } from '@/lib/scan/engines/axe';
 import { toJunit } from '@/lib/export-junit';
 import { toGitlabCodeQuality } from '@/lib/export-gitlab-codequality';
@@ -59,6 +60,7 @@ export type ScanOptions = AuthOptions & {
   formats: ReportFormat[];
   warnings: string[];
   engines: EngineId[];
+  recycleEvery?: number;
 };
 
 export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; error: string };
@@ -66,7 +68,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
+const VALUE_FLAGS = new Set(['--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -153,6 +155,9 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
         return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
       }
       options.engines = ids as EngineId[];
+    } else if (name === '--recycle-every') {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1000) return { ok: false, error: '--recycle-every must be from 1 to 1000.' };
+      options.recycleEvery = Number(value);
     } else if (name === '--fail-on') {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
@@ -238,6 +243,8 @@ Options:
                        Globs: * within a segment, ** across segments, ? one character.
   --timeout-ms <ms>    Whole page deadline including analysis; default 30000, max 300000.
   --concurrency <n>    Active pages, 1–8; default 1. Global delay applies to every start/retry.
+  --recycle-every <n>  Open a fresh browser context every n pages (1–1000); default: one context
+                       for the whole scan. Bounds Chromium memory on long scans (docs/perf/).
   --ignore-robots     Opt out of robots.txt rules for an authorized scan.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
@@ -279,9 +286,11 @@ export type ScanEngine = {
   engineResults?: EnginePageResult[];
   visit: (url: string, collectLinks: boolean, signal?: AbortSignal) => Promise<VisitOutcome>;
   close: () => Promise<void>;
+  /** Browser-context recycling counters (playwright engine only). */
+  contexts?: () => { created: number; recycled: number };
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -310,7 +319,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -359,11 +368,15 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).\nInstall it with: npx playwright install chromium\n`);
   }
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: 'block' as const, javaScriptEnabled: true };
-  let context: import('playwright').BrowserContext;
+  let pool: ContextPool<import('playwright').BrowserContext>;
   try {
     const storageState = auth?.script ? await runLoginScript(browserServer!.wsEndpoint(), origin, auth, contextOptions) : auth?.state;
-    context = await browser.newContext({ ...contextOptions, storageState });
-    if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+    pool = new ContextPool(async () => {
+      const context = await browser.newContext({ ...contextOptions, storageState });
+      if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+      return context;
+    }, recycleEvery);
+    await pool.init();
   } catch (error) {
     await browser.close().catch(() => undefined);
     await browserServer?.close().catch(() => undefined);
@@ -374,8 +387,12 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     ...(interactions ? { interactionPages } : {}),
     rawEngineResults,
     ...(extended ? { engineResults } : {}),
+    contexts: () => ({ created: pool.created, recycled: pool.recycled }),
     visit: async (url, collectLinks, signal) => {
-      const page = await context.newPage();
+      const lease = await pool.acquire();
+      const context = lease.context;
+      let page: import('playwright').Page;
+      try { page = await context.newPage(); } catch (error) { lease.release(); throw error; }
       const abort = () => { void page.close().catch(() => undefined); };
       signal?.addEventListener('abort', abort, { once: true });
       if (signal?.aborted) abort();
@@ -465,10 +482,11 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
       } finally {
         signal?.removeEventListener('abort', abort);
         await page.close().catch(() => undefined);
+        lease.release();
       }
     },
     close: async () => {
-      await context.close().catch(() => undefined);
+      await pool.close();
       await browser.close().catch(() => undefined);
       await browserServer?.close().catch(() => undefined);
     },
@@ -556,7 +574,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}) });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;

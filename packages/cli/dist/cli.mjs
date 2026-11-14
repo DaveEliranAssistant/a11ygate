@@ -2763,6 +2763,90 @@ async function runEngine(engine, context, url, timeoutMs = 3e4) {
   }
 }
 
+// lib/scan/context-pool.ts
+var ContextPool = class {
+  constructor(create, recycleEvery) {
+    this.create = create;
+    this.recycleEvery = recycleEvery;
+    if (recycleEvery !== void 0 && (!Number.isInteger(recycleEvery) || recycleEvery < 1)) throw new Error("recycleEvery must be a positive integer.");
+  }
+  create;
+  recycleEvery;
+  current;
+  creating;
+  live = /* @__PURE__ */ new Set();
+  /** Number of contexts created, including the first. */
+  created = 0;
+  /** Number of contexts retired because they reached the page budget. */
+  recycled = 0;
+  /** Create the first context eagerly so setup errors surface before scanning. */
+  async init() {
+    return (await this.slot(false)).context;
+  }
+  async fresh() {
+    const slot = { context: await this.create(), opened: 0, active: 0, retired: false };
+    this.created += 1;
+    this.live.add(slot);
+    this.current = slot;
+    return slot;
+  }
+  /** Pick (and, when `reserve`, synchronously reserve a page in) the current slot. */
+  async slot(reserve = true) {
+    for (; ; ) {
+      while (this.creating) await this.creating.catch(() => void 0);
+      const current = this.current;
+      if (current && !(this.recycleEvery !== void 0 && current.opened >= this.recycleEvery)) {
+        if (reserve) {
+          current.opened += 1;
+          current.active += 1;
+        }
+        return current;
+      }
+      if (current) {
+        current.retired = true;
+        this.recycled += 1;
+        if (current.active === 0) void this.dispose(current);
+        this.current = void 0;
+      }
+      this.creating = this.fresh();
+      try {
+        await this.creating;
+      } finally {
+        this.creating = void 0;
+      }
+    }
+  }
+  dispose(slot) {
+    slot.closed ??= slot.context.close().catch(() => void 0).finally(() => {
+      this.live.delete(slot);
+    });
+    return slot.closed;
+  }
+  /** Reserve a page slot in the current context. Call `release` once the page is closed. */
+  async acquire() {
+    const slot = await this.slot();
+    let released = false;
+    return {
+      context: slot.context,
+      release: () => {
+        if (released) return;
+        released = true;
+        slot.active -= 1;
+        if (slot.retired && slot.active === 0) void this.dispose(slot);
+      }
+    };
+  }
+  /** Number of contexts that are open right now (current plus retired ones still draining). */
+  get openContexts() {
+    return [...this.live].filter((slot) => !slot.closed).length;
+  }
+  async close() {
+    while (this.creating) await this.creating.catch(() => void 0);
+    await Promise.all([...this.live].map((slot) => this.dispose(slot)));
+    this.current = void 0;
+  }
+};
+
 // lib/export-junit.ts
 function xmlSafe(value) {
   return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
@@ -3514,6 +3598,13 @@ var a11ygate_schema_default = {
       maximum: 8,
       "x-cli": ["--concurrency"]
     },
+    recycleEvery: {
+      description: "Open a fresh browser context every n pages to bound Chromium memory on long scans. Absent: one context for the whole scan. See docs/perf/.",
+      type: "integer",
+      minimum: 1,
+      maximum: 1e3,
+      "x-cli": ["--recycle-every"]
+    },
     sitemap: {
       description: "Same-origin sitemap URL or path. Enables crawling (20 pages unless crawl or maxPages is set).",
       type: "string",
@@ -3961,6 +4052,7 @@ var CONFIG_WIRING = {
   maxDepth: { flag: "--max-depth", commands: scan, default: null },
   timeoutMs: { flag: "--timeout-ms", commands: scan, default: 3e4 },
   concurrency: { flag: "--concurrency", commands: scan, default: 1 },
+  recycleEvery: { flag: "--recycle-every", commands: scan, default: null },
   sitemap: { flag: "--sitemap", commands: scan, default: null },
   include: { flag: "--include", commands: scan, default: [] },
   exclude: { flag: "--exclude", commands: scan, default: [] },
@@ -4156,7 +4248,7 @@ function effectiveModelFixConfig(config2, env = process.env) {
 // packages/cli/src/scan.ts
 var DEFAULT_DELAY_MS = 1e3;
 var NAVIGATION_TIMEOUT_MS = 3e4;
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set(["--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
 function parseScanArgs(argv) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -4245,6 +4337,9 @@ function parseScanArgs(argv) {
         return { ok: false, error: `Unknown or duplicate --engines "${value}". Use a comma-separated list of axe,htmlcs,ibm,lighthouse.` };
       }
       options.engines = ids;
+    } else if (name === "--recycle-every") {
+      if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1e3) return { ok: false, error: "--recycle-every must be from 1 to 1000." };
+      options.recycleEvery = Number(value);
     } else if (name === "--fail-on") {
       if (!isFailOn(value)) return { ok: false, error: `Unknown --fail-on "${value}". Use minor, moderate, serious, critical, or none.` };
       options.failOn = value;
@@ -4329,6 +4424,8 @@ Options:
                        Globs: * within a segment, ** across segments, ? one character.
   --timeout-ms <ms>    Whole page deadline including analysis; default 30000, max 300000.
   --concurrency <n>    Active pages, 1\u20138; default 1. Global delay applies to every start/retry.
+  --recycle-every <n>  Open a fresh browser context every n pages (1\u20131000); default: one context
+                       for the whole scan. Bounds Chromium memory on long scans (docs/perf/).
   --ignore-robots     Opt out of robots.txt rules for an authorized scan.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
@@ -4368,7 +4465,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions }) => {
+var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery }) => {
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -4423,11 +4520,15 @@ Install it with: npx playwright install chromium
 `);
   }
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true };
-  let context;
+  let pool;
   try {
     const storageState = auth?.script ? await runLoginScript(browserServer.wsEndpoint(), origin, auth, contextOptions) : auth?.state;
-    context = await browser.newContext({ ...contextOptions, storageState });
-    if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+    pool = new ContextPool(async () => {
+      const context = await browser.newContext({ ...contextOptions, storageState });
+      if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+      return context;
+    }, recycleEvery);
+    await pool.init();
   } catch (error) {
     await browser.close().catch(() => void 0);
     await browserServer?.close().catch(() => void 0);
@@ -4438,8 +4539,17 @@ Install it with: npx playwright install chromium
     ...interactions ? { interactionPages } : {},
     rawEngineResults,
     ...extended ? { engineResults } : {},
+    contexts: () => ({ created: pool.created, recycled: pool.recycled }),
     visit: async (url, collectLinks, signal) => {
-      const page = await context.newPage();
+      const lease = await pool.acquire();
+      const context = lease.context;
+      let page;
+      try {
+        page = await context.newPage();
+      } catch (error) {
+        lease.release();
+        throw error;
+      }
       const abort = () => {
         void page.close().catch(() => void 0);
       };
@@ -4526,10 +4636,11 @@ Install it with: npx playwright install chromium
       } finally {
         signal?.removeEventListener("abort", abort);
         await page.close().catch(() => void 0);
+        lease.release();
       }
     },
     close: async () => {
-      await context.close().catch(() => void 0);
+      await pool.close();
       await browser.close().catch(() => void 0);
       await browserServer?.close().catch(() => void 0);
     }
@@ -4635,7 +4746,7 @@ Run a11ygate scan --help for usage.
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {} });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `);

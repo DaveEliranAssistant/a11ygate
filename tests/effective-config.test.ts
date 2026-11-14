@@ -34,7 +34,7 @@ const cases: [string, unknown, string, unknown][] = [
   ['url', 'https://other.test/', 'url', 'https://other.test/'],
   ['crawl', 7, 'maxPages', 7], ['maxPages', 31, 'maxPages', 31],
   ['maxDepth', 4, 'maxDepth', 4], ['timeoutMs', 1234, 'timeoutMs', 1234],
-  ['concurrency', 3, 'concurrency', 3], ['sitemap', '/map.xml', 'sitemap', 'https://site.test/map.xml'],
+  ['concurrency', 3, 'concurrency', 3], ['recycleEvery', 50, 'recycleEvery', 50], ['sitemap', '/map.xml', 'sitemap', 'https://site.test/map.xml'],
   ['include', ['/docs/**'], 'include', ['/docs/**']], ['exclude', ['/admin/**'], 'exclude', ['/admin/**']],
   ['ignoreRobots', true, 'ignoreRobots', true], ['failOn', 'minor', 'failOn', 'minor'],
   ['engines', ['axe', 'ibm'], 'engines', ['axe', 'ibm']],

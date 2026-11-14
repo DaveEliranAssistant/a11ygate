@@ -22,6 +22,7 @@ export const CONFIG_WIRING: Record<string, Wiring> = {
   maxDepth: { flag: '--max-depth', commands: scan, default: null },
   timeoutMs: { flag: '--timeout-ms', commands: scan, default: 30000 },
   concurrency: { flag: '--concurrency', commands: scan, default: 1 },
+  recycleEvery: { flag: '--recycle-every', commands: scan, default: null },
   sitemap: { flag: '--sitemap', commands: scan, default: null },
   include: { flag: '--include', commands: scan, default: [] },
   exclude: { flag: '--exclude', commands: scan, default: [] },
