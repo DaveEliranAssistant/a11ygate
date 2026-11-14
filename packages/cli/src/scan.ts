@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createServer } from 'node:net';
 import { ENGINE_IDS, createHtmlcsEngine, createIbmEngine, createLighthouseEngine, type EngineId } from '@/lib/scan/engines/optional';
 import type { EnginePageResult } from '@/lib/scan/engines/types';
+import { fetchSitemap } from '@/lib/scan/sitemap';
 import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
 import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanMarkdown, type FailOn } from '@/lib/scan/report';
 import { DEFAULT_REPORT_VERSION, isReportVersion, renderScanHtml, type ReportVersion } from '@/lib/scan/report-html-v2';
@@ -28,6 +29,14 @@ export type ScanOptions = AuthOptions & {
   help: boolean;
   url: string;
   maxPages: number;
+  pageLimit?: number;
+  maxDepth?: number;
+  timeoutMs?: number;
+  concurrency?: number;
+  include?: string[];
+  exclude?: string[];
+  sitemap?: string;
+  ignoreRobots?: boolean;
   failOn: FailOn;
   delayMs: number;
   outDir?: string;
@@ -46,7 +55,7 @@ export type ParsedScanArgs = { ok: true; options: ScanOptions } | { ok: false; e
 export const DEFAULT_DELAY_MS = 1000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const VALUE_FLAGS = new Set(['--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
+const VALUE_FLAGS = new Set(['--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -65,6 +74,10 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     const name = eq === -1 ? token : token.slice(0, eq);
     const inline = eq === -1 ? undefined : token.slice(eq + 1);
 
+    if (name === '--ignore-robots') {
+      if (inline !== undefined) return { ok: false, error: '--ignore-robots takes no value.' };
+      options.ignoreRobots = true; continue;
+    }
     if (name === '--crawl') {
       // The page count is optional: `--crawl` alone means the cap (20).
       let text = inline;
@@ -88,7 +101,19 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--storage-state') options.storageState = value;
+    if (name === '--include' || name === '--exclude') {
+      if (value.length > 512 || (options[name === '--include' ? 'include' : 'exclude']?.length ?? 0) >= 32) return { ok: false, error: 'Use at most 32 globs, each up to 512 characters.' };
+      (options[name === '--include' ? 'include' : 'exclude'] ??= []).push(value);
+    } else if (name === '--sitemap') options.sitemap = value;
+    else if (['--max-pages', '--max-depth', '--timeout-ms', '--concurrency'].includes(name)) {
+      const max = name === '--max-pages' ? 1000 : name === '--max-depth' ? 1000 : name === '--concurrency' ? 8 : 300000;
+      const min = name === '--max-depth' ? 0 : 1;
+      if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) return { ok: false, error: `${name} must be from ${min} to ${max}.` };
+      if (name === '--max-pages') options.pageLimit = Number(value);
+      else if (name === '--max-depth') options.maxDepth = Number(value);
+      else if (name === '--timeout-ms') options.timeoutMs = Number(value);
+      else options.concurrency = Number(value);
+    } else if (name === '--storage-state') options.storageState = value;
     else if (name === '--login-script') options.loginScript = value;
     else if (name === '--login-timeout-ms') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 300_000) return { ok: false, error: '--login-timeout-ms must be from 1 to 300000.' };
@@ -129,6 +154,13 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const url = normalizeUrl(positionals[0] as string);
   if (!url) return { ok: false, error: `Not a valid http(s) URL: ${positionals[0]}` };
   options.url = url;
+  if (options.pageLimit !== undefined) options.maxPages = options.pageLimit;
+  if (options.sitemap) {
+    const sitemap = normalizeUrl(options.sitemap, url);
+    if (!sitemap || new URL(sitemap).origin !== new URL(url).origin) return { ok: false, error: '--sitemap must be a same-origin http(s) URL.' };
+    options.sitemap = sitemap;
+    if (options.pageLimit === undefined && !argv.some((arg) => arg === '--crawl' || arg.startsWith('--crawl='))) options.maxPages = MAX_CRAWL_PAGES;
+  }
   if (options.outDir && (options.json || options.markdown || options.html)) {
     return { ok: false, error: 'Use either --out-dir or --json/--markdown/--html, not both.' };
   }
@@ -157,6 +189,16 @@ Options:
   --engines <ids>      Default: axe. Opt in: --engines axe,htmlcs,ibm,lighthouse.
   --crawl [n]          Breadth-first crawl of same-origin a[href] links, up to n pages
                        (default and hard maximum: ${MAX_CRAWL_PAGES}). Without --crawl only <url> is scanned.
+  --max-pages <n>      Explicit page budget, 1–1000; overrides --crawl (legacy cap 20).
+  --max-depth <n>      Link depth from start/sitemap seeds (0–1000); default unlimited.
+  --sitemap <url>      Same-origin sitemap.xml URL/path; enables crawling (default 20).
+                       URL sets and indexes supported; seeds have depth 0.
+  --include <glob>     Only matching paths (or full URLs); repeatable. Applies to seeds too.
+  --exclude <glob>     Skip matching paths; repeatable, takes precedence over include.
+                       Globs: * within a segment, ** across segments, ? one character.
+  --timeout-ms <ms>    Whole page deadline including analysis; default 30000, max 300000.
+  --concurrency <n>    Active pages, 1–8; default 1. Global delay applies to every start/retry.
+  --ignore-robots     Opt out of robots.txt rules for an authorized scan.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --out-dir <dir>      Write a11ygate-scan.json, a11ygate-scan.md and a11ygate-scan.html here.
   --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
@@ -194,11 +236,11 @@ export type ScanEngine = {
   rawEngineResults?: { engine: string; url: string; status: string; native?: unknown; error?: string }[];
   axeVersion?: string;
   engineResults?: EnginePageResult[];
-  visit: (url: string, collectLinks: boolean) => Promise<VisitOutcome>;
+  visit: (url: string, collectLinks: boolean, signal?: AbortSignal) => Promise<VisitOutcome>;
   close: () => Promise<void>;
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -227,7 +269,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS }) => {
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -238,14 +280,15 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     if (isModuleNotFound(error)) throw new ScanSetupError(INSTALL_HINT);
     throw error;
   }
-  let nativeAxe: AxeLike | undefined;
+  const nativeByPage = new WeakMap<import('playwright').Page, AxeLike>();
   const axeEngine = engines.includes('axe') ? createAxeEngine(async (page: import('playwright').Page) => {
     if (!axeModule) {
       try { axeModule = await import('@axe-core/playwright'); }
       catch { throw new Error('Missing @axe-core/playwright. Install with: npm install --save-dev @axe-core/playwright'); }
     }
     const AxeBuilder = axeModule.default ?? (axeModule as unknown as { AxeBuilder: typeof axeModule.default }).AxeBuilder;
-    nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike;
+    const nativeAxe = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze() as unknown as AxeLike;
+    nativeByPage.set(page, nativeAxe);
     return nativeAxe;
   }, userAgent) : undefined;
   const engineResults: EnginePageResult[] = [];
@@ -288,12 +331,42 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
   return {
     rawEngineResults,
     ...(extended ? { engineResults } : {}),
-    visit: async (url, collectLinks) => {
+    visit: async (url, collectLinks, signal) => {
       const page = await context.newPage();
+      const abort = () => { void page.close().catch(() => undefined); };
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) abort();
       // Read-only: no clicks, no form input, no dialogs accepted.
       page.on('dialog', (dialog) => void dialog.dismiss().catch(() => undefined));
+      let navigating = true;
+      let blockedNavigation: string | undefined;
       try {
-        const response = await page.goto(url, { waitUntil: 'load', timeout: NAVIGATION_TIMEOUT_MS });
+        // Playwright route handlers do not intercept redirected requests. CDP's
+        // request-stage pause runs on every redirect hop, before network access.
+        const session = await context.newCDPSession(page);
+        session.on('Fetch.requestPaused', (event) => {
+          const external = new URL(event.request.url).origin !== origin;
+          if (external) blockedNavigation = event.request.url;
+          void session.send(external ? 'Fetch.failRequest' : 'Fetch.continueRequest', {
+            requestId: event.requestId,
+            ...(external ? { errorReason: 'BlockedByClient' } : {}),
+          }).catch(() => undefined);
+        });
+        await session.send('Fetch.enable', { patterns: [{ resourceType: 'Document', requestStage: 'Request' }] });
+        if (collectLinks) await page.addInitScript(() => {
+          const routes: string[] = [];
+          Object.defineProperty(window, '__a11ygateRoutes', { value: routes });
+          for (const name of ['pushState', 'replaceState'] as const) {
+            const original = history[name].bind(history);
+            history[name] = function (data, unused, url) {
+              const result = original(data, unused, url);
+              if (url != null && routes.length < 10000) routes.push(new URL(String(url), location.href).href);
+              return result;
+            };
+          }
+        });
+        const response = await page.goto(url, { waitUntil: 'load', timeout: timeoutMs });
+        navigating = false;
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()['content-type'] ?? null;
@@ -306,13 +379,16 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         if (new URL(finalUrl).origin !== origin) return { status, finalUrl, contentType, links: [] };
         if (status !== null && status >= 400) return { status, finalUrl, contentType, links: [], error: `HTTP ${status}` };
         if (!isHtmlContentType(contentType)) return { status, finalUrl, contentType, links: [], error: `Not an HTML page (${contentType}).` };
-        const links = collectLinks ? await page.$$eval('a[href]', (anchors) => anchors.map((a) => (a as HTMLAnchorElement).href)) : [];
+        const links = collectLinks ? await page.evaluate(() => {
+          const routes = (window as unknown as { __a11ygateRoutes?: string[] }).__a11ygateRoutes ?? [];
+          return [...Array.from(document.querySelectorAll('a[href]')).slice(0, 10000).map((a) => (a as HTMLAnchorElement).href), ...routes].slice(0, 10000);
+        }) : [];
         let result: import('@/lib/types').AxeResults | undefined;
         for (const id of engines) {
           if (id === 'axe' && axeEngine) {
-            nativeAxe = undefined;
+            nativeByPage.delete(page);
             const execution = await runEngine(axeEngine, page, url);
-            rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeAxe } : {}), url });
+            rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeByPage.get(page) } : {}), url });
             if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
             if (!extended && execution.status === 'errored') throw new Error(execution.error);
             if (execution.status === 'complete') result = execution.native;
@@ -330,9 +406,10 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
         }
         return { status, finalUrl, contentType, links, result, ...(extended ? { analysed: true } : {}) };
       } catch (error) {
-        const detail = error instanceof Error ? error.message.split('\n')[0] : 'Navigation failed.';
-        return { status: null, finalUrl: url, links: [], error: detail };
+        const detail = navigating && error instanceof Error && error.name === 'TimeoutError' ? `Page timeout after ${timeoutMs}ms.` : error instanceof Error ? error.message.split('\n')[0] : 'Navigation failed.';
+        return { status: null, finalUrl: blockedNavigation ?? url, links: [], error: detail, navigationError: navigating && !blockedNavigation };
       } finally {
+        signal?.removeEventListener('abort', abort);
         await page.close().catch(() => undefined);
       }
     },
@@ -389,15 +466,19 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   const userAgent = scanUserAgent(version);
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? (globalThis.fetch as unknown as FetchLike);
-  const robots = await fetchRobots(origin, userAgent, fetchImpl);
+  const robots = options.ignoreRobots ? { rules: null, note: 'robots.txt ignored by explicit --ignore-robots opt-out.' } : await fetchRobots(origin, userAgent, fetchImpl);
   if (!robotsAllowsUrl(robots.rules, options.url)) {
     stderr(`${options.url} is disallowed by ${origin}/robots.txt; nothing was scanned.\n`);
     return 2;
   }
 
+  let seedUrls: string[] = [];
+  try {
+    if (options.sitemap) seedUrls = await fetchSitemap(options.sitemap, origin, userAgent, fetchImpl, options.timeoutMs);
+  } catch (error) { stderr(`Could not read sitemap: ${(error as Error).message}\n`); return 2; }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, timeoutMs: options.timeoutMs });
   } catch (error) {
     stderr(error instanceof ScanSetupError ? error.message : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
@@ -407,6 +488,13 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   try {
     result = await crawl({
       startUrl: options.url,
+      pageLimit: options.pageLimit,
+      maxDepth: options.maxDepth,
+      include: options.include,
+      exclude: options.exclude,
+      concurrency: options.concurrency,
+      timeoutMs: options.timeoutMs,
+      seedUrls,
       maxPages: options.maxPages,
       delayMs: options.delayMs,
       robots: robots.rules,
@@ -433,6 +521,15 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     delayMs: options.delayMs,
     userAgent,
     robotsNote: robots.note,
+    crawlControls: {
+      maxDepth: options.maxDepth,
+      timeoutMs: options.timeoutMs,
+      concurrency: options.concurrency,
+      include: options.include,
+      exclude: options.exclude,
+      sitemap: options.sitemap,
+      ignoreRobots: options.ignoreRobots,
+    },
     engineResults: engine.engineResults,
     authenticated: !!(options.storageState || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });

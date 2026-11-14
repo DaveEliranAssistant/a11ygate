@@ -57,6 +57,16 @@ export type ScanPageSummary = {
   byImpact: Record<Impact | 'unknown', number>;
 };
 
+export type CrawlControls = {
+  maxDepth?: number;
+  timeoutMs?: number;
+  concurrency?: number;
+  include?: string[];
+  exclude?: string[];
+  sitemap?: string;
+  ignoreRobots?: boolean;
+};
+
 export type ScanReport = {
   baseline?: import('./baseline').BaselineSummary;
   engineResults?: EnginePageResult[];
@@ -73,7 +83,7 @@ export type ScanReport = {
   verdict: 'PASS' | 'FAIL' | 'ERROR';
   failOn: FailOn;
   reason: string;
-  options: { maxPages: number; delayMs: number; tags: string[]; userAgent: string; robots: string };
+  options: { maxPages: number; delayMs: number; tags: string[]; userAgent: string; robots: string } & CrawlControls;
   counts: { pagesScanned: number; pagesFailed: number; skippedLinks: number; findings: number; byImpact: Record<Impact | 'unknown', number> };
   pages: ScanPageSummary[];
   skipped: SkippedLink[];
@@ -135,6 +145,7 @@ export function buildScanReport(input: {
   robotsNote: string;
   engineResults?: EnginePageResult[];
   authenticated?: boolean;
+  crawlControls?: CrawlControls;
 }): ScanReport {
   const pages: ScanPageSummary[] = [];
   const findings: ScanFinding[] = [];
@@ -211,7 +222,7 @@ export function buildScanReport(input: {
     failOn: input.failOn,
     reason: authenticationFailed ? 'Not authenticated: protected content was not scanned.' : startFailed ? 'Start page could not be scanned; coverage is incomplete.' : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
     ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {}),
-    options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote },
+    options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === 'complete').length,
       pagesFailed: input.crawl.pages.filter((p) => p.scanStatus === 'failed').length,
@@ -222,9 +233,13 @@ export function buildScanReport(input: {
     pages,
     skipped: input.crawl.skipped,
     findings,
-    boundaries: input.authenticated ? SCAN_BOUNDARIES.map((boundary, index) => index === 2
-      ? 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.'
-      : boundary) : SCAN_BOUNDARIES,
+    boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.authenticated) return 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.';
+      if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== undefined))) {
+        return `Only same-origin pages from the start URL, discovered links/history routes and configured sitemap seeds (at most ${input.maxPages}) were visited; ${input.crawlControls?.ignoreRobots ? 'robots.txt rules were ignored by explicit opt-out' : 'robots.txt Disallow rules were honoured'}.`;
+      }
+      return boundary;
+    }),
     results,
   };
 }
@@ -336,6 +351,8 @@ export function scanMarkdown(report: ScanReport): string {
   if (robotsSkipped.length > 0) {
     lines.push('## Not scanned', '', ...robotsSkipped.map((s) => `- ${cell(s.url)} — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}`), '');
   }
+  const otherSkipped = report.skipped.filter((s) => s.reason !== 'robots' && s.reason !== 'cap');
+  if (otherSkipped.length) lines.push('## Skipped pages', '', ...otherSkipped.map((s) => `- ${cell(s.url)} — ${cell(s.reason)}`), '');
   if (report.engines) lines.push('## Engines used / engines errored', '',
     `Engines used: ${report.engines.used.join(', ') || 'none'}.`,
     `Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} — ${code(e.url)} — ${cell(e.error)}`).join('; ') : 'none'}.`,
@@ -395,7 +412,7 @@ ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.
 <table><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 ${htmlGroups('Findings by WCAG criterion', groupByCriterion(report.findings))}
 ${htmlGroups('Findings by severity', groupBySeverity(report.findings))}
-${report.engines ? '<h2>Engines used / engines errored</h2><p>Engines used: ' + esc(report.engines.used.join(', ') || 'none') + '.</p><p>Engines errored: ' + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : 'none') + '.</p><p>' + esc(AUTOMATED_TESTING_DISCLAIMER) + '</p>\n' : ''}<h2>Scope and boundaries</h2>
+${report.skipped.some((s) => s.reason !== 'robots' && s.reason !== 'cap') ? '<h2>Skipped pages</h2><ul>' + report.skipped.map((s) => `<li><code>${esc(s.url)}</code> — ${esc(s.reason)}</li>`).join('') + '</ul>\n' : ''}${report.engines ? '<h2>Engines used / engines errored</h2><p>Engines used: ' + esc(report.engines.used.join(', ') || 'none') + '.</p><p>Engines errored: ' + (report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : 'none') + '.</p><p>' + esc(AUTOMATED_TESTING_DISCLAIMER) + '</p>\n' : ''}<h2>Scope and boundaries</h2>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
 <p>${esc(DISCLAIMER)}</p>
 <p>${esc(LEGAL_DISCLAIMER)}</p>

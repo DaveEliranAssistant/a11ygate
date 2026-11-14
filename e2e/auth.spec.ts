@@ -134,7 +134,7 @@ test('login failures and CPU-bound scripts have bounded, secret-free diagnostics
 });
 
 
-test('injected headers never follow a redirect to another origin', async () => {
+test('off-origin redirects are blocked before requests or injected headers leave the origin', async () => {
   let leaked = false;
   let received = false;
   const other = createServer((req, res) => {
@@ -147,7 +147,8 @@ test('injected headers never follow a redirect to another origin', async () => {
     const target = `http://127.0.0.1:${(other.address() as AddressInfo).port}/`;
     const result = await run(['scan', fixture.origin + '/redirect?to=' + encodeURIComponent(target), '--header-env', 'X-Session=TEST_HEADER', '--json', '-'], { TEST_HEADER: secret });
     expect(result.code).toBe(2);
-    expect(received).toBe(true);
+    expect(received, 'same-origin crawling must block the redirect before any destination request').toBe(false);
+    expect(JSON.parse(result.stdout).skipped).toContainEqual(expect.objectContaining({ reason: 'redirected-off-origin' }));
     expect(leaked, 'headers must be scoped to the scan origin across redirects').toBe(false);
   } finally { await new Promise<void>((resolve, reject) => other.close(error => error ? reject(error) : resolve())); }
 });

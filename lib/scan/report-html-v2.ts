@@ -264,7 +264,7 @@ function limitsSection(report: ScanReport): string {
 <p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
 <h3>Scope and boundaries of this scan</h3>
 <ul>${report.boundaries.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
-${notScanned.length ? `<h3>Not scanned</h3><ul>${notScanned.map((s) => `<li><code>${esc(s.url)}</code> — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}</li>`).join('')}</ul>` : ''}
+${notScanned.length ? `<h3>Not scanned</h3><ul>${notScanned.map((s) => `<li><code>${esc(s.url)}</code> — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}</li>`).join('')}</ul>` : ''}${report.skipped.some((s) => s.reason !== 'robots' && s.reason !== 'cap') ? `<h3>Skipped pages</h3><ul>${report.skipped.map((s) => `<li><code>${esc(s.url)}</code> — ${esc(s.reason)}</li>`).join('')}</ul>` : ''}
 </section>`;
 }
 
