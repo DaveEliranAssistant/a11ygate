@@ -6,8 +6,8 @@ native results; `normalize(native)` produces one internal `NormalizedFinding` pe
 rule/node occurrence. Engines do not own navigation, crawl policy or browser lifecycle.
 `runEngine` catches analyzer and normalization failures and returns either `complete`
 (with native results and findings) or `errored` (with the engine ID and error), so a
-future caller can continue with other engines. The CLI currently runs only axe and
-keeps its existing failed-page/exit-code behavior when axe errors.
+future caller can continue with other engines. The CLI keeps its existing failed-page/exit-code behavior when axe alone errors.
+Opt-in scans record each engine independently, including errors.
 
 Normalized fields are `engine`, `ruleId` (the engine's own rule ID), `wcagSc`
 (success-criterion IDs), `impact` (nullable), `url`, `selector`, `snippet`, and
@@ -21,7 +21,10 @@ Native axe criterion tags take precedence; the table supplies internal fallback 
 for known rules. Empty criterion arrays represent best-practice rules. Public axe
 reports continue to use their historical tag mapping, including tag order.
 
-Only axe is available and enabled. `--engines axe` is equivalent to omitting the flag.
-No additional engine dependencies are installed.
+Only axe is enabled by default. `--engines axe` is equivalent to omitting the flag.
+Additional engines require explicitly installed optional peers.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+R11 adds the `htmlcs`, `ibm`, and `lighthouse` opt-in adapters. See
+[engine usage, offline execution and verified package licenses](../../../docs/engines.md).

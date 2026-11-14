@@ -195,3 +195,22 @@ Published CLI 0.1.0 does not include coverage-aware comparison, actionable findi
 
 Scanning accepts `--engines axe` and defaults to axe only. Other engines are not enabled yet.
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Opt-in scan engines
+
+Axe remains the only default engine. Enable additional engines explicitly:
+
+```sh
+npm install --save-dev html_codesniffer accessibility-checker-engine lighthouse puppeteer-core
+npx a11ygate scan http://127.0.0.1:8080 --engines axe,htmlcs,ibm,lighthouse --out-dir report
+```
+
+Install only the optional peers you select: `html_codesniffer` for `htmlcs`,
+`accessibility-checker-engine` for `ibm`, and `lighthouse puppeteer-core` for
+`lighthouse`. All use the same browser session; IBM rules are installed locally.
+Opt-in results are listed separately without deduplication. Missing peers or engine
+failures are reported as `errored` while remaining engines continue (exit 2).
+See [engine documentation](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/engines.md)
+for offline behavior, licensing and the opt-in report fields.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
