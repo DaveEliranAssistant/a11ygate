@@ -145,6 +145,8 @@ describe('(c) schema covers every CLI option', () => {
     '--decision': 'review: per-run reviewer decision', '--reason': 'review: per-run reviewer reason',
     '--expires': 'review: per-run decision expiry',
     '--verify': 'not a CLI option: argument to git rev-parse in evidence.ts',
+    '--short': 'not a CLI option: argument to git symbolic-ref in evidence.ts', '-q': 'not a CLI option: argument to git symbolic-ref in evidence.ts',
+    '--order': 'trend: per-run report ordering',
   };
 
   function schemaFlags(node: JsonSchema, out = new Set<string>()): Set<string> {

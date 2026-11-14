@@ -109,7 +109,7 @@ Unreleased source build. Builds a history from a directory of evidence packs, fo
 node packages/cli/dist/cli.mjs trend a11y-evidence/ --out-dir a11y-trend
 ```
 
-Writes `a11ygate-trend.json` and `a11ygate-trend.html` (default `--out-dir` is the packs directory). See [Trend report](../../docs/trend-report.md) for how runs are ordered and counted.
+Writes `a11ygate-trend.json` and `a11ygate-trend.html` (default `--out-dir` is the packs directory). Runs are ordered by commit time when every pack records it (packs made inside a git work tree do), otherwise by scan time with a note; `--order scan|commit` chooses explicitly. See [Trend report](../../docs/trend-report.md) for how runs are ordered and counted.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 

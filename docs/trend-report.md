@@ -19,7 +19,13 @@ a11ygate trend packs --out-dir trend
 
 ## Ordering
 
-Runs are ordered oldest first by `manifest.timestamps.scannedAt` (UTC), falling back to `packedAt`, then commit SHA, then file name. File names and the order on disk do not matter. The manifest records when the scan ran for a commit, not the git commit date; scan each commit when it is built if you need the two to match.
+Runs are ordered oldest first. `--order scan|commit` chooses the key; without it, `trend` uses commit order when it can.
+
+- **Commit order** (`--order commit`, and the default when every pack records a commit time): by `manifest.commit.committedAt`, compared as instants so time-zone offsets are handled. `evidence pack` records it from `git log -1 --format=%cI <sha>` when run inside a git work tree that contains the commit, and records `commit.branch` when that commit is the checked-out branch HEAD. Neither is invented when git cannot answer.
+- **Scan order** (`--order scan`): by `manifest.timestamps.scannedAt` (UTC), falling back to `packedAt`.
+- **Fallback**: if any pack lacks a commit time (for example packs made before A11Y-R48, outside a git work tree, or in a checkout without the commit), runs are ordered by scan time and the report says so in a note at the top of the HTML and in `ordering.note` / `notes` in the JSON. With an explicit `--order commit` the note is also printed on stderr.
+
+Ties are broken by scan time, then `packedAt`, then commit SHA, then file name. File names and the order on disk do not matter. The JSON records `ordering: { requested, used }` and `orderedBy`. When ordered by commit, the HTML runs table adds "Committed at" and "Branch" columns.
 
 ## Counting
 
@@ -40,6 +46,6 @@ Fixed means a finding was not detected again; it is not proof the issue is resol
 
 ## Tests
 
-`tests/trend.test.ts` builds three evidence packs through the real scan and pack code (offline fake engine), then checks hand-computed per-run counts, cross-checks each total against the deduped fingerprint baseline, checks ordering by manifest timestamp, blocks all network access while the command runs, and, when Chromium is installed, scans the HTML with axe-core in light and dark color schemes.
+`tests/trend.test.ts` builds three evidence packs through the real scan and pack code (offline fake engine), then checks hand-computed per-run counts, cross-checks each total against the deduped fingerprint baseline, checks ordering by scan time and by commit time (including the fallback note and packs without commit time), blocks all network access while the command runs, and, when Chromium is installed, scans the HTML with axe-core in light and dark color schemes.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
