@@ -15,6 +15,7 @@ import {
   type ModelFixRun,
   type ModelOutcome,
   type ModelRunStatus,
+  type PublishableCandidate,
   type RouteRecord,
   type VerifyCandidate,
 } from '@/lib/modelfix/types';
@@ -49,6 +50,12 @@ export type OrchestrateResult = {
   /** Always the F1 plan, unchanged. Model output is never merged into it. */
   plan: PlanResult;
   model: ModelFixRun;
+  /**
+   * Candidates the verifier marked verified, with their verification. Kept out
+   * of `model` (which is logged). Input for the draft publisher only, which
+   * still checks the combined verification and the tree hash before publishing.
+   */
+  verified: PublishableCandidate[];
 };
 
 /**
@@ -155,7 +162,7 @@ async function safeVerify(run: () => Promise<CandidateVerification>, findingIds:
   }
 }
 
-async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Promise<ModelFixRun> {
+async function runModelPath(input: OrchestrateInput, routes: RouteRecord[], publishable: PublishableCandidate[]): Promise<ModelFixRun> {
   const { config } = input;
   const eligible = routes.filter((route) => route.route === 'model-eligible');
   if (!config.enabled) return finish('disabled', routes, 0, 'models-off');
@@ -208,7 +215,10 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
         const verifier = input.verifier;
         const check = await safeVerify(() => verifier.verify(candidate), [route.fingerprint]);
         route.model = { outcome: VERIFY_OUTCOME[check.outcome], provider: adapter.id, verification: check.reason };
-        if (check.verified) verified.push(candidate);
+        if (check.verified) {
+          verified.push(candidate);
+          publishable.push({ candidate, verification: check, provider: adapter.id });
+        }
         break;
       } catch {
         // Circuit opens for the rest of the run; the error text is not logged.
@@ -246,10 +256,11 @@ export async function planWithModelFixes(input: OrchestrateInput): Promise<Orche
   const plan = input.f1Plan ?? planSuggestions(input.findings, input.files, input.options ?? {});
   const sourceCommit = input.sourceCommit ?? null;
   let routes: RouteRecord[] = [];
+  const verified: PublishableCandidate[] = [];
   try {
     routes = routeFindings(input.findings, input.files, plan, sourceCommit);
-    return { plan, model: await runModelPath(input, routes) };
+    return { plan, model: await runModelPath(input, routes, verified), verified };
   } catch {
-    return { plan, model: finish('error', routes, 0) };
+    return { plan, model: finish('error', routes, 0), verified: [] };
   }
 }

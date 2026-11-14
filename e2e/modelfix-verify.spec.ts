@@ -5,6 +5,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { FixFinding, SourceFile } from '../lib/fix';
 import {
+  applyDrafts,
   gitBlobHash,
   planWithModelFixes,
   resolveModelFixConfig,
@@ -41,6 +42,13 @@ test.describe('isolated model-fix verify (local axe re-scan)', () => {
 
   function sh(args: string[], cwd = repo): string {
     return execFileSync('git', ['-c', 'user.name=a11ygate test', '-c', 'user.email=test@a11ygate.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd, encoding: 'utf8' }).trim();
+  }
+
+  /** Independent tree id: the scanned commit's tree with `file` replaced, built with plumbing in the object store only. */
+  function expectedTree(file: string, content: string): string {
+    const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, input: content, encoding: 'utf8' }).trim();
+    const listing = sh(['ls-tree', sha]).split('\n').map((line) => (line.endsWith(`\t${file}`) ? line.replace(/blob [0-9a-f]{40}/, `blob ${blob}`) : line));
+    return execFileSync('git', ['mktree'], { cwd: repo, input: `${listing.join('\n')}\n`, encoding: 'utf8' }).trim();
   }
 
   function request(line: number, ruleId: string, findingId: string, content = page): ModelDraftRequest {
@@ -101,7 +109,11 @@ test.describe('isolated model-fix verify (local axe re-scan)', () => {
   });
 
   test('verifies a correct contrast patch: target cleared, no new findings', async () => {
-    await expect(verifyCandidate(correctContrast(), options())).resolves.toMatchObject({ verified: true });
+    const result = await verifyCandidate(correctContrast(), options());
+    expect(result).toMatchObject({ verified: true });
+    const patched = applyDrafts(page, [correctContrast().validated.draft]);
+    expect(result.treeHash).toBe(expectedTree(FILE, patched));
+    expect(result.patchedBlobs).toEqual([{ path: FILE, blobHash: gitBlobHash(patched) }]);
   });
 
   test('stub placeholder alt/aria-label drafts clear axe but still need a person', async () => {
