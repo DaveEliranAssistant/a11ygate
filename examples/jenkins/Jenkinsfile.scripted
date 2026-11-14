@@ -1,0 +1,22 @@
+// Scripted variant of examples/jenkins/Jenkinsfile. Same step, parameters, and artifacts.
+// Automated testing only. Not a WCAG audit, certification or legal advice.
+
+@Library('a11ygate') _
+
+node {
+  timestamps {
+    def siteUrl = params.SITE_URL ?: 'http://127.0.0.1:4173/'
+    def failOn = params.FAIL_ON ?: 'serious'
+    stage('Accessibility scan') {
+      a11yGate(
+        url: siteUrl,
+        crawl: 10,
+        failOn: failOn,
+        formats: ['junit', 'sarif', 'json', 'md'],
+        cli: 'node packages/cli/dist/cli.mjs',
+        outDir: 'a11y-results'
+      )
+    }
+    echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'
+  }
+}

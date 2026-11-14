@@ -1,0 +1,8 @@
+# JCasC for the optional Dockerized Jenkins verification (R8).
+# No credentials. No external Jenkins is contacted; this file is mounted into a local container.
+jenkins:
+  systemMessage: "A11yGate Jenkins fixture. Automated testing only. Not a WCAG audit, certification or legal advice."
+  numExecutors: 1
+unclassified:
+  location:
+    url: http://127.0.0.1:8080/

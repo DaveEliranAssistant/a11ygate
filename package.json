@@ -18,7 +18,8 @@
     "test:e2e": "NEXT_TELEMETRY_DISABLED=1 playwright test",
     "db:migrate": "node scripts/migrate-waitlist.mjs",
     "cli:build": "node packages/cli/build.mjs",
-    "a11ygate": "node packages/cli/dist/cli.mjs"
+    "a11ygate": "node packages/cli/dist/cli.mjs",
+    "test:jenkins": "cd integrations/jenkins && ./gradlew test"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
