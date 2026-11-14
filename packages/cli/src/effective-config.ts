@@ -13,6 +13,9 @@ const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
 export const CONFIG_WIRING: Record<string, Wiring> = {
+  screenshots: { flag: '--screenshots', commands: scan, default: false },
+  noScreenshots: { flag: '--no-screenshots', commands: scan, default: false },
+  'redact.selectors': { flag: '--redact-selector', commands: scan, default: [] },
   keyboard: { flag: '--keyboard', commands: scan, default: false },
   keyboardBudget: { flag: '--keyboard-budget', commands: scan, default: 100 },
   interactions: { flag: '--interactions', commands: scan, default: [] },
@@ -142,7 +145,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     else if (schema.type === 'boolean' && key !== 'modelFixes') text ??= 'true';
     else if (text === undefined) text = argv[++i];
     if (text === undefined) throw new Error(`${name} needs a value.`);
-    if (['ignoreRobots', 'autoInteractions', 'keyboard'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
+    if (['screenshots', 'noScreenshots', 'ignoreRobots', 'autoInteractions', 'keyboard'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
     let value = key === 'interactions' ? (() => {
       const inline = text.trim().startsWith('[');
       const source = inline ? '--interactions' : text;

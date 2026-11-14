@@ -346,3 +346,9 @@ accounts in authorized test environments: custom application handlers may have
 side effects. See [configuration and limits](../../docs/configuration.md#opt-in-spa-interaction-states).
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Screenshot privacy
+
+Screenshots are off by default. `scan --screenshots --out-dir out` captures masked viewport PNGs. Use `--no-screenshots` for authenticated scans; it also excludes existing images from subsequent evidence packs for that output directory. Add CSS selectors with `redact.selectors` in YAML or repeat `--redact-selector`. See [authenticated scans](../../docs/authenticated-pages.md) for defaults and limitations.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

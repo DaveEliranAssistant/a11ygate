@@ -25,10 +25,14 @@ function leaves(node: JsonSchema, prefix = ''): string[] {
 }
 function yamlEntry(key: string, value: unknown): string {
   if (key.startsWith('auth.check.')) return `auth:\n  check:\n    ${key.slice(11)}: ${JSON.stringify(value)}\n`;
+  if (key === 'redact.selectors') return `redact:\n  selectors: ${JSON.stringify(value)}\n`;
   return key.startsWith('auth.') ? `auth:\n  ${key.slice(5)}: ${JSON.stringify(value)}\n` : `${key}: ${JSON.stringify(value)}\n`;
 }
 // Explicit expected destination, independent of the production wiring registry.
 const cases: [string, unknown, string, unknown][] = [
+  ['screenshots', true, 'screenshots', true],
+  ['noScreenshots', true, 'noScreenshots', true],
+  ['redact.selectors', ['#private'], 'redactSelectors', ['#private']],
   ['keyboard', true, 'keyboard', true],
   ['keyboardBudget', 20, 'keyboardBudget', 20],
   ['interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }], 'interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }]],

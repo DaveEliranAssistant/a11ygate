@@ -283,6 +283,29 @@
       "x-cli": [
         "--interaction-budget"
       ]
+    },
+    "screenshots": {
+      "description": "Opt in to masked viewport PNGs. Requires outDir. Default off.",
+      "type": "boolean",
+      "x-cli": ["--screenshots"]
+    },
+    "noScreenshots": {
+      "description": "Disable capture and persistently exclude images from evidence packs for this output directory.",
+      "type": "boolean",
+      "x-cli": ["--no-screenshots"]
+    },
+    "redact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selectors": {
+          "description": "Additional CSS selectors for solid black screenshot masks. Built-in selectors always apply.",
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "x-cli": ["--redact-selector"]
+        }
+      }
     }
   }
 }

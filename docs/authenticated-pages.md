@@ -95,8 +95,35 @@ secret-named environment variables, token fields, bearer/basic authorization,
 and credential query parameters are redacted before report serialization. This
 covers JSON, Markdown, HTML, SARIF, JUnit, stdout/stderr and native engine evidence.
 Evidence packs keep their credential guard and refuse suspicious unsanitized
-inputs. The scan does not capture screenshots. Do not add screenshots containing
-credentials or personal data; the evidence pack cannot inspect image pixels.
+inputs. Screenshots remain off by default. Lighthouse internal full-page capture is disabled;
+its accessibility analysis still runs on the original page. Opt in with `--screenshots --out-dir out` for
+viewport PNGs after each page/state analysis. Before capture, the scanner places
+solid black overlays over `input[type=password]`, `[autocomplete*="cc-"]`,
+`[data-a11ygate-redact]` and additional CSS selectors in `redact.selectors`.
+It removes overlays after capture, including on failure; engines run before masks.
+Open shadow roots are searched; frames are covered wholesale. Invalid selectors
+fail capture rather than saving an unmasked image. The screenshot is limited to
+the viewport to avoid full-page scrolling moving fixed or sticky content.
+
+Configure additional application-specific secrets with `.a11ygate.yml`:
+
+```yaml
+redact:
+  selectors: ["#account-token", ".personal-details"]
+```
+
+Or repeat `--redact-selector <css>`. Selectors add to the built-in defaults.
+Use `--no-screenshots` for authenticated scans to disable capture even if
+`screenshots: true` is configured. With `--out-dir`, it writes an exclusion marker
+that makes subsequent evidence packs omit all images, including stale images
+already in that directory. The marker persists: use a fresh output directory to
+resume including screenshots. Existing image files are not deleted. `doctor`
+recommends this option when authentication is configured.
+
+Masking cannot identify secrets outside matching element rectangles (including
+pseudo-elements, canvas drawings, closed shadow roots, or rapidly changing content).
+Review images before sharing. The evidence pack cannot inspect image pixels;
+externally supplied images have not passed through these masks.
 Redaction cannot identify arbitrary personal data or an application's novel
 encoding of a credential. Review outputs and avoid real accounts.
 
@@ -144,3 +171,7 @@ The corresponding optional CLI flags are `--auth-check-url`,
 `--auth-check-must-not-redirect-to`.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+The screenshot pixel/cleanup and authenticated evidence exclusion fixtures run with
+`A11YGATE_BROWSER_TESTS=1 npx vitest run tests/screenshot-redaction.test.ts`.
+They use only local content and a loopback server with the existing network guard.

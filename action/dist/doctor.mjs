@@ -904,6 +904,29 @@ var a11ygate_schema_default = {
       "x-cli": [
         "--interaction-budget"
       ]
+    },
+    screenshots: {
+      description: "Opt in to masked viewport PNGs. Requires outDir. Default off.",
+      type: "boolean",
+      "x-cli": ["--screenshots"]
+    },
+    noScreenshots: {
+      description: "Disable capture and persistently exclude images from evidence packs for this output directory.",
+      type: "boolean",
+      "x-cli": ["--no-screenshots"]
+    },
+    redact: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        selectors: {
+          description: "Additional CSS selectors for solid black screenshot masks. Built-in selectors always apply.",
+          type: "array",
+          maxItems: 32,
+          items: { type: "string", minLength: 1, maxLength: 512 },
+          "x-cli": ["--redact-selector"]
+        }
+      }
     }
   }
 };
@@ -1127,6 +1150,9 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  screenshots: { flag: "--screenshots", commands: scan, default: false },
+  noScreenshots: { flag: "--no-screenshots", commands: scan, default: false },
+  "redact.selectors": { flag: "--redact-selector", commands: scan, default: [] },
   keyboard: { flag: "--keyboard", commands: scan, default: false },
   keyboardBudget: { flag: "--keyboard-budget", commands: scan, default: 100 },
   interactions: { flag: "--interactions", commands: scan, default: [] },
@@ -1262,7 +1288,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    if (["screenshots", "noScreenshots", "ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
       const inline = text.trim().startsWith("[");
       const source = inline ? "--interactions" : text;
@@ -1401,6 +1427,7 @@ async function doctorChecks(options = {}, io = {}) {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
   });
+  if (hasAuth) add("auth-screenshots", "unknown", "Authentication is configured. Use --no-screenshots to keep screenshot pixels out of evidence packs; selector masks cannot identify every secret or personal detail.");
   const hasCheck = Object.keys(effective.values).some((key) => key.startsWith("auth.check.") && effective.values[key] !== null);
   if (hasAuth) add("auth", hasCheck ? "pass" : "unknown", hasCheck ? "Explicit auth.check is configured." : "Authentication is configured without auth.check; login detection is heuristic. Configure auth.check to verify protected content.");
   let head = null;
