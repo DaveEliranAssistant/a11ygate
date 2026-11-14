@@ -241,3 +241,27 @@ A11YGATE_CRAWL_BROWSER_TESTS=1 npx vitest run tests/crawl-hardening.test.ts --di
 The benchmark records peak **Node process RSS**, growth from its baseline and
 elapsed time; it enforces 15 seconds and less than 128 MiB growth. It does not
 measure Chromium process RSS or axe execution across 500 pages.
+
+### Likely shared components
+
+The v2 HTML report includes **Likely shared components** with affected page counts,
+finding counts and up to three example pages, selectors and HTML snippets. Scan JSON
+includes `sharedComponentGroups` (including singleton groups) and
+`sharedComponentDisclaimer`; CI JSON includes groups for current new/still-open findings.
+SARIF keeps individual results and stable fingerprints, adding other affected pages
+as `relatedLocations` with the group page count in result properties. Related locations
+respect the configured SARIF location cap; any omitted count is recorded.
+
+Grouping matches the rule, normalized selector path (including frame/shadow path
+boundaries) and normalized HTML. Generated IDs, CSS hashes and positional selectors
+use the existing fingerprint normalization. HTML ignores text content and href/src/value
+values, normalizes attribute order and whitespace, and retains structure and semantic
+attributes. Missing HTML or an empty selector cannot establish a cross-page match.
+
+These are **likely** shared components, not verified root causes: unrelated elements
+can look alike, and structural or semantic changes can split a real component into
+multiple groups. Review examples before deciding whether one fix applies. Finding
+totals, severity counts, baseline identities and gate decisions are unchanged.
+`--report-version 1` retains the frozen HTML layout.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

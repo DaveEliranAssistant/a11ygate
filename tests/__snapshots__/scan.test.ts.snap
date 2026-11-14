@@ -243,6 +243,81 @@ exports[`scan report > preserves the pre-plugin axe-only report bytes for a loca
       "fingerprint": "label|input|/about"
     }
   ],
+  "sharedComponentDisclaimer": "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.",
+  "sharedComponentGroups": [
+    {
+      "key": "[\\"color-contrast\\",[\\"p.faint\\"],\\"<p [[\\\\\\"class\\\\\\",\\\\\\".faint\\\\\\"]]>TEXT</p>\\",\\"\\"]",
+      "ruleId": "color-contrast",
+      "normalizedSelector": "p.faint",
+      "likelySharedComponent": false,
+      "pageCount": 1,
+      "findingCount": 1,
+      "pages": [
+        "https://site.test/about"
+      ],
+      "examples": [
+        {
+          "pageUrl": "https://site.test/about",
+          "selector": "p.faint",
+          "html": "<p class=\\"faint\\">x</p>"
+        }
+      ]
+    },
+    {
+      "key": "[\\"image-alt\\",[\\"img\\"],\\"<img [[\\\\\\"src\\\\\\",\\\\\\"*\\\\\\"]]>\\",\\"\\"]",
+      "ruleId": "image-alt",
+      "normalizedSelector": "img",
+      "likelySharedComponent": false,
+      "pageCount": 1,
+      "findingCount": 1,
+      "pages": [
+        "https://site.test/"
+      ],
+      "examples": [
+        {
+          "pageUrl": "https://site.test/",
+          "selector": "img",
+          "html": "<img src=\\"a.png\\">"
+        }
+      ]
+    },
+    {
+      "key": "[\\"label\\",[\\"input\\"],\\"<input []>\\",\\"\\"]",
+      "ruleId": "label",
+      "normalizedSelector": "input",
+      "likelySharedComponent": false,
+      "pageCount": 1,
+      "findingCount": 1,
+      "pages": [
+        "https://site.test/about"
+      ],
+      "examples": [
+        {
+          "pageUrl": "https://site.test/about",
+          "selector": "input",
+          "html": "<input>"
+        }
+      ]
+    },
+    {
+      "key": "[\\"region\\",[\\"div\\"],\\"<div []>\\",\\"\\"]",
+      "ruleId": "region",
+      "normalizedSelector": "div",
+      "likelySharedComponent": false,
+      "pageCount": 1,
+      "findingCount": 1,
+      "pages": [
+        "https://site.test/"
+      ],
+      "examples": [
+        {
+          "pageUrl": "https://site.test/",
+          "selector": "div",
+          "html": "<div>"
+        }
+      ]
+    }
+  ],
   "boundaries": [
     "Only scan sites you own or are explicitly authorized to test.",
     "Automated testing only: axe-core detects a subset of WCAG issues. Absence of findings is not conformance, certification or legal advice.",

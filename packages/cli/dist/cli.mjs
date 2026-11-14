@@ -1,15 +1,186 @@
 #!/usr/bin/env node
 
-// packages/cli/src/run.ts
-import { mkdir as mkdir4, readFile as readFile7, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
-import path9 from "node:path";
-import { fileURLToPath } from "node:url";
+// lib/fingerprint.ts
+function unescapeCss(value) {
+  return value.replace(/\\(.)/g, "$1");
+}
+function isDynamicId(id) {
+  const value = id.trim();
+  if (value.length === 0) return false;
+  if (/^:r[0-9a-z]+:?$/i.test(value)) return true;
+  if (/^ember\d+$/i.test(value)) return true;
+  if (/^(?:react|mui|headlessui|radix)-/i.test(value) && /\d/.test(value)) return true;
+  if (/(?:^|[-_])[a-f0-9]{6,}(?:$|[-_])/i.test(value) && /\d/.test(value) && /[a-f]/i.test(value)) {
+    return true;
+  }
+  if (/[-_]\d{4,}$/.test(value) || /^\d{4,}$/.test(value)) return true;
+  return false;
+}
+function stripDynamicIds(selector) {
+  const withoutAttributes = selector.replace(
+    /\[id=(?:'([^']*)'|"([^"]*)"|([^\]]+))\]/gi,
+    (match, single, double, bare) => {
+      const id = unescapeCss(single ?? double ?? bare ?? "");
+      return isDynamicId(id) ? "" : match;
+    }
+  );
+  return withoutAttributes.replace(/#(?:\\.|[^\s#.\[>,+~])+/g, (match) => {
+    const id = unescapeCss(match.slice(1));
+    return isDynamicId(id) ? "" : match;
+  });
+}
+function stripHashClasses(selector) {
+  return selector.replace(/\.css-[a-z0-9]+\b/gi, "").replace(/\.([A-Za-z_][\w-]*?)__[A-Za-z0-9]{5,}\b/g, ".$1");
+}
+function tidySelector(selector) {
+  let current = selector.replace(/\s+/g, " ").trim();
+  let previous = "";
+  while (current !== previous) {
+    previous = current;
+    current = current.replace(/\s*>\s*>\s*/g, " > ").replace(/\s*\+\s*\+\s*/g, " + ").replace(/^\s*[>+~]\s*/, "").replace(/\s*[>+~]\s*$/, "").replace(/\s+/g, " ").trim();
+  }
+  return current;
+}
+function normaliseSelector(selector) {
+  const withoutIndexes = selector.trim().replace(/:nth-(?:last-)?(?:child|of-type)\([^)]*\)/gi, "");
+  return tidySelector(stripHashClasses(stripDynamicIds(withoutIndexes)));
+}
+function pagePath(url) {
+  const trimmed = url.trim();
+  try {
+    const parsed = new URL(trimmed);
+    let path10 = parsed.pathname || "/";
+    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
+    return path10 || "/";
+  } catch {
+    const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
+    if (withoutQuery.length === 0) return "/";
+    let path10 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
+    return path10;
+  }
+}
+function fingerprint(ruleId, selector, url) {
+  return `${ruleId}|${normaliseSelector(selector)}|${pagePath(url)}`;
+}
+
+// lib/gate.ts
+var RANK = {
+  minor: 1,
+  moderate: 2,
+  serious: 3,
+  critical: 4
+};
+function impactRank(impact) {
+  if (!impact) return 0;
+  return RANK[impact];
+}
+function meetsThreshold(impact, threshold) {
+  return impactRank(impact) >= impactRank(threshold);
+}
+function gatingFindings(findings, threshold) {
+  return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
+}
+function gateVerdict(newFindings, threshold, coverage) {
+  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
+  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
+}
+function verdictReason(newFindings, threshold) {
+  const gating = gatingFindings(newFindings, threshold);
+  if (gating.length === 0) {
+    return `No new finding is at or above ${threshold}.`;
+  }
+  const rules2 = [...new Set(gating.map((finding2) => finding2.ruleId))];
+  const noun = gating.length === 1 ? "finding" : "findings";
+  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
+}
 
 // lib/types.ts
 var IMPACTS = ["minor", "moderate", "serious", "critical"];
 function isImpact(value) {
   return value === "minor" || value === "moderate" || value === "serious" || value === "critical";
 }
+
+// lib/group.ts
+function groupLabel(key, value) {
+  if (key === "impact" && value === "unknown") return "unknown impact";
+  return value;
+}
+function groupFindings(findings, by) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding2 of findings) {
+    const key = by === "rule" ? finding2.ruleId : by === "page" ? finding2.path : finding2.impact ?? "unknown";
+    const existing = groups.get(key);
+    if (existing) existing.push(finding2);
+    else groups.set(key, [finding2]);
+  }
+  const grouped = [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: groupLabel(by, key),
+    findings: items
+  }));
+  if (by === "impact") {
+    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
+    grouped.sort((a, b) => rank(b.key) - rank(a.key));
+  } else {
+    grouped.sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return grouped;
+}
+var SHARED_COMPONENT_DISCLAIMER = "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.";
+function normalizedComponentHtml(html) {
+  return html.trim().replace(/<!--[^]*?-->/g, "").replace(/>([^<]+)</g, (_, text) => text.trim() ? ">TEXT<" : "><").replace(/<([\w:-]+)([^<>]*?)(\/?)>/g, (_, tag, attrs, closing) => {
+    const attributes = [...attrs.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)].map((match) => {
+      const name = match[1].toLowerCase();
+      let value = match[2] ?? match[3] ?? match[4] ?? "";
+      if (/^(href|src|value)$/.test(name)) value = "*";
+      else if (name === "id") value = normaliseSelector(`#${value}`);
+      else if (name === "class") value = normaliseSelector(value.split(/\s+/).filter(Boolean).sort().map((c) => `.${c}`).join(""));
+      return [name, value.replace(/\s+/g, " ").trim()];
+    }).sort((a, b) => compareText(JSON.stringify(a), JSON.stringify(b)));
+    return `<${tag.toLowerCase()} ${JSON.stringify(attributes)}${closing}>`;
+  }).replace(/\s+/g, " ").trim();
+}
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function componentGroupKey(finding2) {
+  const path10 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const html = normalizedComponentHtml(finding2.html);
+  return JSON.stringify([finding2.ruleId, path10, html, !html || path10.every((p) => !p) ? finding2.pageUrl : ""]);
+}
+function groupSharedComponents(findings) {
+  const buckets = /* @__PURE__ */ new Map();
+  for (const finding2 of findings) {
+    const key = componentGroupKey(finding2);
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(finding2);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.entries()].map(([key, members]) => {
+    const sorted = [...members].sort((a, b) => compareText(JSON.stringify([a.pageUrl, a.selector, a.html]), JSON.stringify([b.pageUrl, b.selector, b.html])));
+    const pages = [...new Set(sorted.map((f) => f.pageUrl))].sort(compareText);
+    const first = sorted[0];
+    return {
+      key,
+      ruleId: first.ruleId,
+      normalizedSelector: (first.selectors ?? [first.selector]).map(normaliseSelector).join(" \u2192 "),
+      likelySharedComponent: pages.length > 1,
+      pageCount: pages.length,
+      findingCount: members.length,
+      pages,
+      examples: pages.slice(0, 3).map((pageUrl) => {
+        const f = sorted.find((item) => item.pageUrl === pageUrl);
+        return { pageUrl, selector: f.selector, html: f.html };
+      })
+    };
+  }).sort((a, b) => b.pageCount - a.pageCount || compareText(a.key, b.key));
+}
+
+// packages/cli/src/run.ts
+import { mkdir as mkdir4, readFile as readFile7, realpath as realpath3, stat as stat4, lstat as lstat4, writeFile as writeFile5 } from "node:fs/promises";
+import path9 from "node:path";
+import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
 var DISCLAIMER = "Automated checks cover only part of WCAG; this is evidence, not certification.";
@@ -134,37 +305,6 @@ function understandingUrl(criterion) {
   if (!known) return null;
   const slug = known.name.toLowerCase().replace(/[(),]/g, "").trim().replace(/\s+/g, "-");
   return `${W3C_UNDERSTANDING_BASE}${slug}.html`;
-}
-
-// lib/gate.ts
-var RANK = {
-  minor: 1,
-  moderate: 2,
-  serious: 3,
-  critical: 4
-};
-function impactRank(impact) {
-  if (!impact) return 0;
-  return RANK[impact];
-}
-function meetsThreshold(impact, threshold) {
-  return impactRank(impact) >= impactRank(threshold);
-}
-function gatingFindings(findings, threshold) {
-  return findings.filter((finding2) => meetsThreshold(finding2.impact, threshold));
-}
-function gateVerdict(newFindings, threshold, coverage) {
-  if (gatingFindings(newFindings, threshold).length > 0) return "FAIL";
-  return coverage?.status === "incomplete" ? "INCOMPLETE" : "PASS";
-}
-function verdictReason(newFindings, threshold) {
-  const gating = gatingFindings(newFindings, threshold);
-  if (gating.length === 0) {
-    return `No new finding is at or above ${threshold}.`;
-  }
-  const rules2 = [...new Set(gating.map((finding2) => finding2.ruleId))];
-  const noun = gating.length === 1 ? "finding" : "findings";
-  return `${gating.length} new ${noun} at or above ${threshold}: ${rules2.join(", ")}.`;
 }
 
 // lib/scan/url.ts
@@ -340,97 +480,6 @@ function prSummaryMarkdown(input) {
     ""
   ];
   return lines.join("\n");
-}
-
-// lib/group.ts
-function groupLabel(key, value) {
-  if (key === "impact" && value === "unknown") return "unknown impact";
-  return value;
-}
-function groupFindings(findings, by) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const finding2 of findings) {
-    const key = by === "rule" ? finding2.ruleId : by === "page" ? finding2.path : finding2.impact ?? "unknown";
-    const existing = groups.get(key);
-    if (existing) existing.push(finding2);
-    else groups.set(key, [finding2]);
-  }
-  const grouped = [...groups.entries()].map(([key, items]) => ({
-    key,
-    label: groupLabel(by, key),
-    findings: items
-  }));
-  if (by === "impact") {
-    const rank = (key) => isImpact(key) ? impactRank(key) : 0;
-    grouped.sort((a, b) => rank(b.key) - rank(a.key));
-  } else {
-    grouped.sort((a, b) => a.label.localeCompare(b.label));
-  }
-  return grouped;
-}
-
-// lib/fingerprint.ts
-function unescapeCss(value) {
-  return value.replace(/\\(.)/g, "$1");
-}
-function isDynamicId(id) {
-  const value = id.trim();
-  if (value.length === 0) return false;
-  if (/^:r[0-9a-z]+:?$/i.test(value)) return true;
-  if (/^ember\d+$/i.test(value)) return true;
-  if (/^(?:react|mui|headlessui|radix)-/i.test(value) && /\d/.test(value)) return true;
-  if (/(?:^|[-_])[a-f0-9]{6,}(?:$|[-_])/i.test(value) && /\d/.test(value) && /[a-f]/i.test(value)) {
-    return true;
-  }
-  if (/[-_]\d{4,}$/.test(value) || /^\d{4,}$/.test(value)) return true;
-  return false;
-}
-function stripDynamicIds(selector) {
-  const withoutAttributes = selector.replace(
-    /\[id=(?:'([^']*)'|"([^"]*)"|([^\]]+))\]/gi,
-    (match, single, double, bare) => {
-      const id = unescapeCss(single ?? double ?? bare ?? "");
-      return isDynamicId(id) ? "" : match;
-    }
-  );
-  return withoutAttributes.replace(/#(?:\\.|[^\s#.\[>,+~])+/g, (match) => {
-    const id = unescapeCss(match.slice(1));
-    return isDynamicId(id) ? "" : match;
-  });
-}
-function stripHashClasses(selector) {
-  return selector.replace(/\.css-[a-z0-9]+\b/gi, "").replace(/\.([A-Za-z_][\w-]*?)__[A-Za-z0-9]{5,}\b/g, ".$1");
-}
-function tidySelector(selector) {
-  let current = selector.replace(/\s+/g, " ").trim();
-  let previous = "";
-  while (current !== previous) {
-    previous = current;
-    current = current.replace(/\s*>\s*>\s*/g, " > ").replace(/\s*\+\s*\+\s*/g, " + ").replace(/^\s*[>+~]\s*/, "").replace(/\s*[>+~]\s*$/, "").replace(/\s+/g, " ").trim();
-  }
-  return current;
-}
-function normaliseSelector(selector) {
-  const withoutIndexes = selector.trim().replace(/:nth-(?:last-)?(?:child|of-type)\([^)]*\)/gi, "");
-  return tidySelector(stripHashClasses(stripDynamicIds(withoutIndexes)));
-}
-function pagePath(url) {
-  const trimmed = url.trim();
-  try {
-    const parsed = new URL(trimmed);
-    let path10 = parsed.pathname || "/";
-    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
-    return path10 || "/";
-  } catch {
-    const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
-    if (withoutQuery.length === 0) return "/";
-    let path10 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path10.length > 1 && path10.endsWith("/")) path10 = path10.slice(0, -1);
-    return path10;
-  }
-}
-function fingerprint(ruleId, selector, url) {
-  return `${ruleId}|${normaliseSelector(selector)}|${pagePath(url)}`;
 }
 
 // lib/limits.ts
@@ -874,6 +923,8 @@ function buildScanReport(input) {
     pages,
     skipped: input.crawl.skipped,
     findings,
+    sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
+    sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
       if (index === 2 && input.authenticated) return "Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.";
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== void 0))) {
@@ -2158,8 +2209,16 @@ function topFixesSection(rules2) {
   const body = top.length === 0 ? "<p>No automated findings to prioritise. This does not mean the pages are accessible; see what automated testing does not cover.</p>" : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc2(r.ruleId)}</strong></a> ${badge(r.impact)} \u2014 ${esc2(r.help)}<br><span class="muted">${plural(r.pages.length, "page")} affected; ${plural(r.occurrences, "occurrence")}${r.newOccurrences ? `; ${r.newOccurrences} new` : ""}; priority score ${r.score}. ${r.wcag.length ? "WCAG " + esc2(r.wcag.map((c) => c.number).join(", ")) : "Best practice"}.</span></li>`).join("")}</ol>`;
   return `<section id="top-fixes" aria-labelledby="top-fixes-h">
 <h2 id="top-fixes-h">Top ${TOP_FIXES_LIMIT} fixes</h2>
-<p class="muted">Ordered by impact weight \xD7 pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Fixing a shared component usually clears every page it appears on.</p>
+<p class="muted">Ordered by impact weight \xD7 pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Review likely shared components below to assess whether one fix may address multiple pages.</p>
 ${body}
+</section>`;
+}
+function sharedComponentsSection(report) {
+  const groups = groupSharedComponents(report.findings).filter((g) => g.likelySharedComponent);
+  return `<section id="shared-components" aria-labelledby="shared-components-h">
+<h2 id="shared-components-h">Likely shared components</h2>
+<p>${esc2(SHARED_COMPONENT_DISCLAIMER)}</p>
+${groups.length ? groups.map((g) => `<section><h3>${esc2(g.ruleId)} \u2014 likely shared component on ${plural(g.pageCount, "page")}</h3><p>${plural(g.findingCount, "finding")}; normalized selector: <code>${esc2(g.normalizedSelector)}</code></p><ul>${g.examples.map((f) => `<li>Example page: <code>${esc2(f.pageUrl)}</code><br>Selector: <code>${esc2(f.selector)}</code><br>HTML: <code>${esc2(f.html)}</code></li>`).join("")}</ul></section>`).join("") : "<p>No likely shared components detected across pages.</p>"}
 </section>`;
 }
 function byWcagSection(report, rules2) {
@@ -2271,6 +2330,7 @@ ${STYLE}
 <nav aria-label="Report sections"><ul>
 <li><a href="#summary">Executive summary</a></li>
 <li><a href="#top-fixes">Top ${TOP_FIXES_LIMIT} fixes</a></li>
+<li><a href="#shared-components">Likely shared components</a></li>
 <li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
 <li><a href="#by-page">Findings by page</a></li>
 <li><a href="#how-to-fix">How to fix, by rule</a></li>
@@ -2280,6 +2340,7 @@ ${STYLE}
 <main>
 ${summarySection(report)}
 ${topFixesSection(rules2)}
+${sharedComponentsSection(report)}
 ${byWcagSection(report, rules2)}
 ${byPageSection(report)}
 ${howToFixSection(rules2)}
@@ -2676,8 +2737,34 @@ function buildRun(report, engine, findings, limits) {
       ...relationships.length > 0 ? { relationships } : {}
     };
   });
+  const shared = new Map(groupSharedComponents(findings).filter((g) => g.likelySharedComponent).map((g) => [g.key, g]));
+  const members = /* @__PURE__ */ new Map();
+  for (const f of findings) {
+    const key = componentGroupKey(f);
+    if (!shared.has(key)) continue;
+    const list = members.get(key) ?? [];
+    list.push(f);
+    members.set(key, list);
+  }
   const results = kept.map((finding2) => {
     const result = toSarifResult(finding2, ruleIndex);
+    const key = componentGroupKey(finding2);
+    const group2 = shared.get(key);
+    if (group2) {
+      const examples = [...members.get(key) ?? []].sort(compareFindings);
+      const pages = /* @__PURE__ */ new Set([finding2.pageUrl]);
+      const related = examples.filter((f) => {
+        if (pages.has(f.pageUrl)) return false;
+        pages.add(f.pageUrl);
+        return true;
+      }).slice(0, limits.maxLocationsPerResult);
+      result.relatedLocations = related.map((f, index) => ({
+        ...toSarifResult(f, ruleIndex).locations[0],
+        id: index + 1,
+        message: { text: `Likely shared component: ${f.ruleId} on ${f.pageUrl}; selector: ${f.selector}` }
+      }));
+      result.properties.likelySharedComponent = { key, pageCount: group2.pageCount, findingCount: group2.findingCount, relatedLocationsTruncated: Math.max(0, group2.pageCount - 1 - related.length) };
+    }
     if (result.locations.length > limits.maxLocationsPerResult) {
       result.locations = result.locations.slice(0, limits.maxLocationsPerResult);
     }
@@ -2705,6 +2792,7 @@ function buildRun(report, engine, findings, limits) {
     results,
     properties: {
       disclaimer: FORMAT_DISCLAIMER,
+      sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
       ...report.engines ? { enginesUsed: report.engines.used, enginesErrored: report.engines.errored } : {},
       verdict: report.verdict,
       reason: report.reason,
@@ -2751,7 +2839,7 @@ function shrinkSnippets(log, maxChars) {
       if (result.message.text.length > maxChars) {
         result.message.text = `${result.message.text.slice(0, maxChars)}\u2026`;
       }
-      for (const location2 of result.locations) {
+      for (const location2 of [...result.locations, ...result.relatedLocations ?? []]) {
         const snippet = location2.physicalLocation.region.snippet;
         if (snippet && snippet.text.length > maxChars) {
           snippet.text = `${snippet.text.slice(0, maxChars)}\u2026`;
@@ -2801,7 +2889,7 @@ function applyGitHubSizeBudget(log, maxGzipBytes) {
     shrinkSnippets(log, 0);
     for (const run2 of log.runs) {
       for (const result of run2.results) {
-        for (const location2 of result.locations) {
+        for (const location2 of [...result.locations, ...result.relatedLocations ?? []]) {
           delete location2.physicalLocation.region.snippet;
         }
       }
@@ -5647,6 +5735,8 @@ function reportJson(input) {
       generatedAt: input.generatedAt,
       coverage: input.diff.coverage,
       baselineReview: baselineReview(input.currentResults, input.diff),
+      sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
+      sharedComponentGroups: groupSharedComponents([...input.diff.newFindings, ...input.diff.stillOpen].map((f) => ({ ...f, pageUrl: f.url }))),
       manualChecks: input.manualChecks,
       manualEvidenceNotice: "Self-reported human evidence, not identity-verified or automatically assessed; never improves the automated gate. Unrecorded scopes remain unassessed.",
       counts: {

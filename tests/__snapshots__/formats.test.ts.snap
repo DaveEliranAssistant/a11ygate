@@ -330,6 +330,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
       ],
       "properties": {
         "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "sharedComponentDisclaimer": "Likely shared components are heuristic suggestions based on matching rules, normalized selector paths and similar HTML. Review examples to confirm whether one component fix applies. Finding totals and gate decisions are unchanged.",
         "verdict": "FAIL",
         "reason": "2 findings at or above serious: image-alt, color-contrast.",
         "command": "scan",
