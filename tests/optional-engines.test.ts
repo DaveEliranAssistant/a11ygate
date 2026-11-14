@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { Socket } from 'node:net';
 import { chromium, type Browser, type BrowserContext } from 'playwright';
@@ -8,7 +9,13 @@ import { runEngine } from '@/lib/scan/engines/types';
 // Every resource, including the deliberately broken image, stays on this server.
 const bad = '<!doctype html><html><head><title>Local BAD fixture</title></head><body><img src="/blank.svg"><input><button></button></body></html>';
 
-describe('optional engines against an offline local BAD fixture', () => {
+// CI runs `npm test` (vitest) before `npx playwright install`, so Chromium is
+// not available in unit-test CI. The same live-engine checks run in
+// e2e/scan.spec.ts after browsers are installed. Skip here when the
+// executable is missing rather than failing the unit job.
+const hasChromium = existsSync(chromium.executablePath());
+
+describe.skipIf(!hasChromium)('optional engines against an offline local BAD fixture', () => {
   let browser: Browser;
   let context: BrowserContext;
   const server = createServer((req, res) => {
