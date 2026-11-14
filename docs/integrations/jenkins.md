@@ -4,6 +4,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 A11yGate can run in a Jenkins pipeline: it scans a site you are authorized to test, writes JUnit and SARIF reports, and sets the build result from the fail-on level. The step and the example pipelines live in this repository and are the files the tests include — this page links to or includes those files rather than a second, drifting copy.
 
+Sibling guide: [GitHub Action integration](github-action.md).
+
 ## Install
 
 ### Shared library
