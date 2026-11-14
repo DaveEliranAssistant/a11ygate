@@ -41,7 +41,7 @@ A separate publisher receives only verified diffs and sanitized evidence. It can
 - **Rejected:** schema errors, another finding, any path other than the request path, `..`/absolute/backslash/null-byte/encoded paths, symlinks resolving outside the repository root (when a root is given), scanner/CI/gate/tooling config (`.a11ygate.yml`, axe/Lighthouse/pa11y config, `.github/**`, `action.yml`, `package.json`, lockfiles, test-runner and lint config), test files, range/original/blob mismatches, oversize, empty or no-op replacements, added suppressions (ignore/disable comments, `data-axe-*`, `aria-hidden`, `role="presentation|none"`, `alt=""`, `hidden`, `display:none`, …) and added executable content (scripts, event handlers, `javascript:` URLs).
 - **Review flags:** the validator adds the flags it detects, whatever the adapter declared. New alt/accessible-name text or changed visible text that is not a `TODO(a11ygate)` placeholder gets `generated-accessible-name`; placeholders get `placeholder-accessible-name`. Both require tracked human acknowledgement (§7). Every validated draft still needs human review.
 
-The validator never runs a shell and only reads file metadata for the symlink check. A rejected draft is recorded by rejection code only; its content is not applied, published or logged. The orchestrator validates every draft, then discards valid drafts too, because there is no isolated apply or re-scan yet (R3). The `stubAdapter` returns placeholder-only drafts for tests and is never a built-in adapter.
+The validator never runs a shell and only reads file metadata for the symlink check. A rejected draft is recorded by rejection code only; its content is not applied, published or logged. The orchestrator validates every draft. Without a verifier, valid drafts are discarded too; with one (R3, see §5), they are applied in isolation and re-scanned, and only the outcome is recorded. The `stubAdapter` returns placeholder-only drafts for tests and is never a built-in adapter.
 
 ## 3. Exact no-model fallback (hard requirement)
 
@@ -98,6 +98,17 @@ Require all of the following:
 - Build/render checks succeed and the final published diff exactly matches the verified tree and pinned source commit.
 
 If the original finding persists, any new finding appears, the scan fails, or results cannot be compared reliably, discard the candidate. Record a sanitized reason and use F1 on the original source. Do not publish the failed patch as “best effort.” A new revision requires a new verification cycle. Successful checks cover only tested states; PR evidence must state that limitation and retain human review requirements.
+
+**Implementation (R3).** `lib/modelfix-verify` (kept outside `lib/modelfix` so drafting and validation stay shell-free) provides `createIsolatedVerifier`, which `planWithModelFixes` accepts as an optional `verifier`. Per run it:
+
+1. Discards the candidate as **stale** when the scanned commit is unknown or not a full SHA, the head ref (default `HEAD`) no longer resolves to it, or the file's blob at that commit (or the checked-out text at the range) differs from the draft.
+2. Creates a detached `git worktree` pinned to the scanned commit under `<tmpdir>/a11ygate-modelfix-*` (git hooks off, no CRLF conversion), re-validates each draft against the pinned file, and replaces the exact range only. No fuzzy matching.
+3. Runs an optional caller-supplied local build, then scans the worktree before and after the patch with the same rescanner (same axe tags as `a11ygate scan`). The rescanner takes a directory, serves it on `127.0.0.1` with an ephemeral port and aborts every request to another origin; there is no URL input, so a production deployment cannot be re-scanned.
+4. Marks the candidate **verified** only when the target (found exactly once in the pre-patch scan) is gone, is not inconclusive, still renders visibly, and no violation appears that the pre-patch scan did not have. Otherwise it is **rejected** with a sanitized reason.
+5. Re-verifies every individually verified candidate **together** in one worktree with one re-scan (`ModelFixRun.combined`) before a later publisher (R4) may use them.
+6. Removes the worktree and temp directory in a `finally`, including on errors.
+
+Verified drafts are recorded only (`verified-unpublished`). They are never merged into the F1 plan or published. A placeholder (`TODO(a11ygate)`) name can satisfy axe; it still carries `placeholder-accessible-name` and requires a person to write the wording. Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## 6. Human approval and publication
 

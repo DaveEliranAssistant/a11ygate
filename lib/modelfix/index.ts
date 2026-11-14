@@ -6,6 +6,7 @@ export { planWithModelFixes, routeFindings } from '@/lib/modelfix/orchestrator';
 export type { OrchestrateInput, OrchestrateResult } from '@/lib/modelfix/orchestrator';
 export { DRAFT_LIMITS, HUMAN_REVIEW_FLAGS, MODEL_ELIGIBLE_RULES, REPO_CONFIG_FILE } from '@/lib/modelfix/types';
 export type {
+  CandidateVerification,
   CandidateVerifier,
   DraftRejection,
   DraftRejectionCode,
@@ -22,4 +23,7 @@ export type {
   RepoConsent,
   RouteRecord,
   ValidatedDraft,
+  VerifyCandidate,
+  VerifyOutcome,
+  VerifyReason,
 } from '@/lib/modelfix/types';

@@ -3,8 +3,9 @@ import type { SkipReason } from '@/lib/fix/types';
 /**
  * Types for the optional model-assisted fix path (design: docs/design/model-written-fix-prs.md).
  *
- * Phase 2 skeleton only: no live provider adapters, isolated apply, re-scan
- * verifier or draft publisher exist yet. Model output is never published.
+ * No live provider adapters or draft publisher exist yet. A validated draft
+ * may be applied in an isolated worktree and re-scanned by an injected
+ * `CandidateVerifier` (lib/modelfix-verify). Model output is never published.
  */
 
 /** Exact repository config file name, read from the workspace root. */
@@ -76,8 +77,14 @@ export type ModelOutcome =
   | 'adapters-failed'
   /** Every draft returned for this finding failed validation. Nothing was applied or published. */
   | 'draft-rejected'
-  /** A draft came back but no verifier exists yet, so it was discarded unpublished. */
-  | 'unverified-discarded';
+  /** A draft came back but no verifier was configured, so it was discarded unpublished. */
+  | 'unverified-discarded'
+  /** Applied in isolation at the scanned commit and re-scanned: target cleared, no new findings. Still unpublished. */
+  | 'verified'
+  /** Applied and re-scanned, but the target persisted, a new finding appeared or the scan failed. Discarded. */
+  | 'verify-rejected'
+  /** The scanned commit, blob or original text no longer matches. Discarded without re-scan. */
+  | 'stale-discarded';
 
 export type RouteRecord = {
   fingerprint: string;
@@ -92,7 +99,13 @@ export type RouteRecord = {
   startLine: number | null;
   endLine: number | null;
   /** Set only for `model-eligible`. */
-  model: { outcome: ModelOutcome; provider: string | null; rejections?: DraftRejectionCode[] } | null;
+  model: {
+    outcome: ModelOutcome;
+    provider: string | null;
+    rejections?: DraftRejectionCode[];
+    /** Sanitized verifier reason, set when a verifier ran. */
+    verification?: VerifyReason;
+  } | null;
 };
 
 export type ModelRunStatus =
@@ -103,6 +116,8 @@ export type ModelRunStatus =
   | 'over-budget'
   | 'adapters-failed'
   | 'no-verified-candidate'
+  /** At least one candidate verified in isolation. Nothing was published or merged into the F1 plan. */
+  | 'verified-unpublished'
   | 'error';
 
 /** Bounded request handed to an adapter. Contains no credentials and no full files. */
@@ -236,9 +251,72 @@ export interface ModelAdapter {
   draft(request: ModelDraftRequest, signal: AbortSignal): Promise<ModelDraft>;
 }
 
-/** Placeholder contracts for later phases (R3–R6). Not implemented here. */
+/** One validated draft plus the finding it must clear, at the commit that was scanned. */
+export type VerifyCandidate = {
+  validated: ValidatedDraft;
+  ruleId: string;
+  /** Element HTML from the original finding; used to find the target in the pre-patch scan. */
+  targetHtml: string;
+  /** Optional axe selector of the target. Preferred over `targetHtml` when set. */
+  targetSelector?: string;
+  /** Full 40-hex SHA of the scanned commit. */
+  sourceCommit: string;
+};
+
+export type VerifyOutcome = 'verified' | 'rejected' | 'stale';
+
+export type VerifyReason =
+  | 'verified'
+  /** The expected head no longer points at the scanned commit. */
+  | 'head-moved'
+  /** The scanned commit is missing or not a full SHA. */
+  | 'commit-missing'
+  /** The file's blob at the scanned commit differs from the draft's `sourceBlobHash`. */
+  | 'blob-mismatch'
+  /** The original text at the range no longer matches exactly. */
+  | 'original-mismatch'
+  /** The draft failed re-validation against the pinned file. */
+  | 'invalid-draft'
+  /** Two candidates touch overlapping ranges of one file. */
+  | 'overlapping-candidates'
+  /** No candidates, or candidates pinned to different commits. */
+  | 'bad-input'
+  /** The local build/render or a scan failed. */
+  | 'render-failed'
+  /** The target finding was not in the pre-patch scan, so a fix cannot be shown. */
+  | 'target-not-reproduced'
+  /** The target finding is still reported after the patch. */
+  | 'target-persists'
+  /** The target check was inconclusive (axe "incomplete") after the patch. */
+  | 'target-inconclusive'
+  /** The target element no longer renders visibly after the patch. */
+  | 'target-missing'
+  /** A finding not in the pre-patch scan appeared after the patch. */
+  | 'new-finding'
+  /** Unexpected verifier error (sanitized). */
+  | 'error';
+
+export type CandidateVerification = {
+  verified: boolean;
+  outcome: VerifyOutcome;
+  reason: VerifyReason;
+  /** Sanitized one-line detail. Never contains draft text. */
+  detail: string;
+  /** Fingerprints covered by this verification. */
+  findingIds: string[];
+  /** Count of findings that appeared after the patch. */
+  newFindings: number;
+};
+
+/**
+ * Applies candidates in a disposable checkout pinned to the scanned commit and
+ * re-scans a local render with the same axe rules. Implemented in
+ * lib/modelfix-verify (kept out of this directory so drafting stays shell-free).
+ */
 export interface CandidateVerifier {
-  verify(draft: ModelDraft, sourceCommit: string): Promise<{ verified: boolean; reason: string }>;
+  verify(candidate: VerifyCandidate): Promise<CandidateVerification>;
+  /** Applies every candidate together and re-scans once. */
+  verifyCombined(candidates: readonly VerifyCandidate[]): Promise<CandidateVerification>;
 }
 
 export type ModelFixRun = {
@@ -246,6 +324,8 @@ export type ModelFixRun = {
   routes: RouteRecord[];
   /** Adapter `draft` calls made in this run. */
   modelRequests: number;
+  /** Combined re-verification of every individually verified candidate, when two or more verified. */
+  combined?: CandidateVerification | null;
   /** Sanitized one-line summary for logs. Contains no request or response content. */
   message: string;
 };

@@ -6,6 +6,8 @@ import { BUILTIN_ADAPTERS } from '@/lib/modelfix/adapters';
 import { gitBlobHash, validateDraft } from '@/lib/modelfix/validate';
 import {
   MODEL_ELIGIBLE_RULES,
+  type CandidateVerification,
+  type CandidateVerifier,
   type DraftRejectionCode,
   type ModelAdapter,
   type ModelDraftRequest,
@@ -14,6 +16,7 @@ import {
   type ModelOutcome,
   type ModelRunStatus,
   type RouteRecord,
+  type VerifyCandidate,
 } from '@/lib/modelfix/types';
 
 /** F1 skip reasons that mean "no deterministic patch" for a uniquely mapped, new finding. */
@@ -34,6 +37,12 @@ export type OrchestrateInput = {
   sourceCommit?: string | null;
   /** Repository root on disk. When set, the validator also rejects symlink escapes. */
   repoRoot?: string;
+  /**
+   * Isolated apply + re-scan verifier (lib/modelfix-verify). Without one, valid
+   * drafts are discarded as `unverified-discarded`. Verified drafts are only
+   * recorded; they are never merged into the F1 plan or published here.
+   */
+  verifier?: CandidateVerifier;
 };
 
 export type OrchestrateResult = {
@@ -119,14 +128,31 @@ const MESSAGES: Record<ModelRunStatus, string> = {
   'over-budget': 'Model drafting stopped: request budget used up. Rule-based suggestions only.',
   'adapters-failed': 'Model drafting skipped: every provider failed. Rule-based suggestions only.',
   'no-verified-candidate': 'Model drafting produced no verified candidate. Rule-based suggestions only.',
+  'verified-unpublished': 'Model drafting verified candidates in isolation; nothing was published. Rule-based suggestions only.',
   error: 'Model drafting skipped after an internal error. Rule-based suggestions only.',
 };
 
-function finish(status: ModelRunStatus, routes: RouteRecord[], modelRequests: number, outcome?: ModelOutcome): ModelFixRun {
+function finish(status: ModelRunStatus, routes: RouteRecord[], modelRequests: number, outcome?: ModelOutcome, combined?: CandidateVerification | null): ModelFixRun {
   if (outcome) {
     for (const route of routes) if (route.model && route.model.provider === null && route.model.outcome !== 'draft-rejected') route.model.outcome = outcome;
   }
-  return { status, routes, modelRequests, message: MESSAGES[status] };
+  const run: ModelFixRun = { status, routes, modelRequests, message: MESSAGES[status] };
+  if (combined !== undefined) run.combined = combined;
+  return run;
+}
+
+const VERIFY_OUTCOME: Record<CandidateVerification['outcome'], ModelOutcome> = {
+  verified: 'verified',
+  rejected: 'verify-rejected',
+  stale: 'stale-discarded',
+};
+
+async function safeVerify(run: () => Promise<CandidateVerification>, findingIds: string[]): Promise<CandidateVerification> {
+  try {
+    return await run();
+  } catch {
+    return { verified: false, outcome: 'rejected', reason: 'error', detail: 'verifier failed', findingIds, newFindings: 0 };
+  }
 }
 
 async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Promise<ModelFixRun> {
@@ -149,6 +175,7 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
   if (config.maxRequests <= 0 || config.timeoutMs <= 0) return finish('no-budget', routes, 0, 'no-budget');
 
   const failed = new Set<string>();
+  const verified: VerifyCandidate[] = [];
   let requests = 0;
   let overBudget = false;
   for (const route of eligible) {
@@ -172,8 +199,16 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
           rejections.push(result.rejection.code);
           continue;
         }
-        // No isolated apply or re-scan exists yet: discard, never publish.
-        route.model = { outcome: 'unverified-discarded', provider: adapter.id };
+        if (!input.verifier) {
+          // No verifier configured: discard, never publish.
+          route.model = { outcome: 'unverified-discarded', provider: adapter.id };
+          break;
+        }
+        const candidate: VerifyCandidate = { validated: result.value, ruleId: route.ruleId, targetHtml: findingHtml(input, route), sourceCommit: route.sourceCommit ?? '' };
+        const verifier = input.verifier;
+        const check = await safeVerify(() => verifier.verify(candidate), [route.fingerprint]);
+        route.model = { outcome: VERIFY_OUTCOME[check.outcome], provider: adapter.id, verification: check.reason };
+        if (check.verified) verified.push(candidate);
         break;
       } catch {
         // Circuit opens for the rest of the run; the error text is not logged.
@@ -187,7 +222,18 @@ async function runModelPath(input: OrchestrateInput, routes: RouteRecord[]): Pro
   }
   if (failed.size === adapters.length) return finish('adapters-failed', routes, requests, 'adapters-failed');
   if (overBudget) return finish('over-budget', routes, requests, 'over-budget');
-  return finish('no-verified-candidate', routes, requests);
+  if (verified.length === 0) return finish('no-verified-candidate', routes, requests);
+  // Candidates that pass alone must also pass together before any later publisher may use them.
+  let combined: CandidateVerification | null = null;
+  if (verified.length > 1 && input.verifier) {
+    const verifier = input.verifier;
+    combined = await safeVerify(() => verifier.verifyCombined(verified), verified.map((item) => item.validated.draft.findingId));
+  }
+  return finish('verified-unpublished', routes, requests, undefined, combined);
+}
+
+function findingHtml(input: OrchestrateInput, route: RouteRecord): string {
+  return input.findings.find((finding) => finding.fingerprint === route.fingerprint)?.html ?? '';
 }
 
 /**

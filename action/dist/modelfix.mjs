@@ -1112,13 +1112,28 @@ var MESSAGES = {
   "over-budget": "Model drafting stopped: request budget used up. Rule-based suggestions only.",
   "adapters-failed": "Model drafting skipped: every provider failed. Rule-based suggestions only.",
   "no-verified-candidate": "Model drafting produced no verified candidate. Rule-based suggestions only.",
+  "verified-unpublished": "Model drafting verified candidates in isolation; nothing was published. Rule-based suggestions only.",
   error: "Model drafting skipped after an internal error. Rule-based suggestions only."
 };
-function finish(status, routes, modelRequests, outcome) {
+function finish(status, routes, modelRequests, outcome, combined) {
   if (outcome) {
     for (const route of routes) if (route.model && route.model.provider === null && route.model.outcome !== "draft-rejected") route.model.outcome = outcome;
   }
-  return { status, routes, modelRequests, message: MESSAGES[status] };
+  const run = { status, routes, modelRequests, message: MESSAGES[status] };
+  if (combined !== void 0) run.combined = combined;
+  return run;
+}
+var VERIFY_OUTCOME = {
+  verified: "verified",
+  rejected: "verify-rejected",
+  stale: "stale-discarded"
+};
+async function safeVerify(run, findingIds) {
+  try {
+    return await run();
+  } catch {
+    return { verified: false, outcome: "rejected", reason: "error", detail: "verifier failed", findingIds, newFindings: 0 };
+  }
 }
 async function runModelPath(input, routes) {
   const { config } = input;
@@ -1138,6 +1153,7 @@ async function runModelPath(input, routes) {
   if (adapters.length === 0) return finish("no-provider", routes, 0, "no-provider");
   if (config.maxRequests <= 0 || config.timeoutMs <= 0) return finish("no-budget", routes, 0, "no-budget");
   const failed = /* @__PURE__ */ new Set();
+  const verified = [];
   let requests = 0;
   let overBudget = false;
   for (const route of eligible) {
@@ -1159,7 +1175,15 @@ async function runModelPath(input, routes) {
           rejections.push(result.rejection.code);
           continue;
         }
-        route.model = { outcome: "unverified-discarded", provider: adapter.id };
+        if (!input.verifier) {
+          route.model = { outcome: "unverified-discarded", provider: adapter.id };
+          break;
+        }
+        const candidate = { validated: result.value, ruleId: route.ruleId, targetHtml: findingHtml(input, route), sourceCommit: route.sourceCommit ?? "" };
+        const verifier = input.verifier;
+        const check = await safeVerify(() => verifier.verify(candidate), [route.fingerprint]);
+        route.model = { outcome: VERIFY_OUTCOME[check.outcome], provider: adapter.id, verification: check.reason };
+        if (check.verified) verified.push(candidate);
         break;
       } catch {
         failed.add(adapter.id);
@@ -1172,7 +1196,16 @@ async function runModelPath(input, routes) {
   }
   if (failed.size === adapters.length) return finish("adapters-failed", routes, requests, "adapters-failed");
   if (overBudget) return finish("over-budget", routes, requests, "over-budget");
-  return finish("no-verified-candidate", routes, requests);
+  if (verified.length === 0) return finish("no-verified-candidate", routes, requests);
+  let combined = null;
+  if (verified.length > 1 && input.verifier) {
+    const verifier = input.verifier;
+    combined = await safeVerify(() => verifier.verifyCombined(verified), verified.map((item) => item.validated.draft.findingId));
+  }
+  return finish("verified-unpublished", routes, requests, void 0, combined);
+}
+function findingHtml(input, route) {
+  return input.findings.find((finding) => finding.fingerprint === route.fingerprint)?.html ?? "";
 }
 async function planWithModelFixes(input) {
   const plan = input.f1Plan ?? planSuggestions(input.findings, input.files, input.options ?? {});
