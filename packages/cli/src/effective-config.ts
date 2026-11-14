@@ -13,6 +13,8 @@ const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
 export const CONFIG_WIRING: Record<string, Wiring> = {
+  keyboard: { flag: '--keyboard', commands: scan, default: false },
+  keyboardBudget: { flag: '--keyboard-budget', commands: scan, default: 100 },
   interactions: { flag: '--interactions', commands: scan, default: [] },
   autoInteractions: { flag: '--auto-interactions', commands: scan, default: false },
   interactionBudget: { flag: '--interaction-budget', commands: scan, default: 10 },
@@ -127,7 +129,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     else if (schema.type === 'boolean' && key !== 'modelFixes') text ??= 'true';
     else if (text === undefined) text = argv[++i];
     if (text === undefined) throw new Error(`${name} needs a value.`);
-    if (['ignoreRobots', 'autoInteractions'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
+    if (['ignoreRobots', 'autoInteractions', 'keyboard'].includes(key) && token.includes('=')) throw new Error(`${name} takes no value.`);
     let value = key === 'interactions' ? (() => {
       try { return parseInteractionStates(JSON.parse(text.trim().startsWith('[') ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), 'utf8'))); }
       catch { throw new Error('Invalid --interactions; provide a readable local JSON file containing route states.'); }

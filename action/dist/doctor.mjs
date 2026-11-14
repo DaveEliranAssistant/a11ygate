@@ -775,6 +775,8 @@ var a11ygate_schema_default = {
         }
       }
     },
+    keyboard: { type: "boolean", description: "Opt-in keyboard focus heuristics; needs human review.", "x-cli": ["--keyboard"] },
+    keyboardBudget: { type: "integer", minimum: 1, maximum: 1e3, description: "Maximum Tab presses per page (default 100).", "x-cli": ["--keyboard-budget"] },
     interactions: {
       description: "Opt-in route states. --interactions reads this list from a local JSON file.",
       type: "array",
@@ -1101,6 +1103,8 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  keyboard: { flag: "--keyboard", commands: scan, default: false },
+  keyboardBudget: { flag: "--keyboard-budget", commands: scan, default: 100 },
   interactions: { flag: "--interactions", commands: scan, default: [] },
   autoInteractions: { flag: "--auto-interactions", commands: scan, default: false },
   interactionBudget: { flag: "--interaction-budget", commands: scan, default: 10 },
@@ -1219,7 +1223,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     else if (schema.type === "boolean" && key !== "modelFixes") text ??= "true";
     else if (text === void 0) text = argv[++i];
     if (text === void 0) throw new Error(`${name} needs a value.`);
-    if (["ignoreRobots", "autoInteractions"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
+    if (["ignoreRobots", "autoInteractions", "keyboard"].includes(key) && token.includes("=")) throw new Error(`${name} takes no value.`);
     let value = key === "interactions" ? (() => {
       try {
         return parseInteractionStates(JSON.parse(text.trim().startsWith("[") ? text : readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8")));

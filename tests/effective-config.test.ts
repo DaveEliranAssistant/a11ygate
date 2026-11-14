@@ -28,6 +28,8 @@ function yamlEntry(key: string, value: unknown): string {
 }
 // Explicit expected destination, independent of the production wiring registry.
 const cases: [string, unknown, string, unknown][] = [
+  ['keyboard', true, 'keyboard', true],
+  ['keyboardBudget', 20, 'keyboardBudget', 20],
   ['interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }], 'interactions', [{ route: '/pricing', name: 'menu-open', steps: [{ action: 'click', selector: '#menu' }] }]],
   ['autoInteractions', true, 'autoInteractions', true],
   ['interactionBudget', 4, 'interactionBudget', 4],

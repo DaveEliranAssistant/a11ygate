@@ -83,7 +83,7 @@ Extra axe fields are ignored. Node `target` values may be strings or nested stri
 
 **Load demo data** fills both slots with the synthetic Demo Shop fixtures. The expected result is **2 new, 3 fixed, 5 still open, and FAIL**. One new finding is a serious `color-contrast` on `/products`. The other new finding is a moderate `region` result, below the default threshold. The files in `fixtures/` are marked `_fixture: SYNTHETIC` and are not a real audit.
 
-The `/report` view is an evidence report you can print from the browser. It records scope, engine version, mapped findings, and a manual-check list for keyboard, screen reader, and focus order. Those manual checks are not run by this tool. The standards table needs expert review before anyone treats it as compliance evidence.
+The `/report` view is an evidence report you can print from the browser. It records scope, engine version, mapped findings, and a manual-check list for keyboard, screen reader, and focus order. Full manual checks are not run by this tool; the opt-in keyboard heuristics described below cover a limited subset. The standards table needs expert review before anyone treats it as compliance evidence.
 
 The statement draft asks for an organisation name, a contact email, and a date, then copies Markdown. It is a draft, not a filed legal statement.
 
@@ -269,3 +269,40 @@ See [engine documentation](https://github.com/DaveEliranAssistant/a11ygate/blob/
 for offline behavior, licensing and the opt-in report fields.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Opt-in keyboard focus heuristics
+
+`a11ygate scan https://your-site.example --keyboard --keyboard-budget 100 --out-dir a11y`
+adds a headless forward-Tab probe to each loaded base page, without a model. It is off
+by default; `--keyboard-budget` alone does not enable it. The budget counts Tab
+presses per page (1–1000, default 100). The existing page timeout still applies.
+YAML keys `keyboard` / `keyboardBudget` and environment variables
+`A11YGATE_KEYBOARD` / `A11YGATE_KEYBOARD_BUDGET` use the shared configuration precedence.
+
+Every keyboard finding says **Needs human review**, with JSON
+`reviewStatus: "needs human review"`. Reports retain the automated-testing disclaimer.
+The JSON `keyboard` evidence records steps, focused selectors, interactive DOM
+indices, computed indicator changes, and whether probing ended at a document cycle,
+a suspected trap, or the budget. These findings have moderate impact and use the
+existing `--fail-on` threshold; `--fail-on none` is reporting only.
+
+The check compares computed outline and box-shadow against the unfocused style,
+flags the same element retaining focus for three further Tab presses, and flags
+backward jumps of more than three interactive DOM positions. Visible interactive
+candidates not reached in a completed traversal are flagged; budget exhaustion
+alone never creates unreachable findings. The existing `lib/mapping.ts` crosswalk
+and W3C Understanding links supply the mappings: 2.1.1 Keyboard, 2.1.2 No Keyboard
+Trap, 2.4.3 Focus Order, and 2.4.7 Focus Visible (and their existing EN clauses).
+
+These are heuristics requiring human review. Absence of findings does not confirm
+keyboard accessibility. Color/background/border/pseudo-element indicators,
+contrast, obscuration, CSS animation timing, shadow DOM, frames, reverse Tab,
+arrow-key composite widgets, multi-element traps and dynamic states beyond the
+loaded base page are unassessed or may produce false positives/negatives. Focus
+handlers may have side effects: use authorized test accounts. During the probe,
+form submission, document navigation, popups and non-read HTTP methods are blocked.
+R37 interaction states remain separate and are not keyboard-probed.
+
+Run the headless DOM fixtures explicitly with
+`A11YGATE_BROWSER_TESTS=1 npx vitest run tests/keyboard.test.ts`.
+Normal `npm test` skips browser fixtures.

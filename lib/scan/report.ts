@@ -1,3 +1,4 @@
+import { KEYBOARD_DISCLAIMER, type KeyboardResult } from './keyboard';
 import { normalizeUrl } from '@/lib/scan/url';
 import { attribution, dedupeFindings, engineSummary, type Agreement } from '@/lib/scan/engines/dedupe';
 import type { EnginePageResult } from '@/lib/scan/engines/types';
@@ -31,6 +32,7 @@ export const SCAN_BOUNDARIES = [
 export type ScanCriterion = Pick<Criterion, 'number' | 'name' | 'level' | 'wcag' | 'en301549'>;
 
 export type ScanFinding = Partial<Agreement> & {
+  reviewStatus?: 'needs human review';
   states?: string[];
   baselineStatus?: 'new' | 'existing';
   baselineFingerprint?: string;
@@ -72,6 +74,7 @@ export type CrawlControls = {
 };
 
 export type ScanReport = {
+  keyboard?: KeyboardResult[];
   baseline?: import('./baseline').BaselineSummary;
   engineResults?: EnginePageResult[];
   engines?: ReturnType<typeof engineSummary>;
@@ -150,6 +153,7 @@ export function buildScanReport(input: {
   userAgent: string;
   robotsNote: string;
   engineResults?: EnginePageResult[];
+  keyboardResults?: KeyboardResult[];
   authenticated?: boolean;
   interactions?: boolean;
   crawlControls?: CrawlControls;
@@ -223,6 +227,17 @@ export function buildScanReport(input: {
     for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] = 0;
     for (const finding of findings) totals[finding.impact ?? 'unknown']++;
   }
+  if (input.keyboardResults) {
+    for (const result of input.keyboardResults) {
+      findings.push(...result.findings);
+      const page = pages.find(p => p.url === result.url);
+      for (const finding of result.findings) {
+        totals[finding.impact ?? 'unknown']++;
+        if (page) { page.findings++; page.byImpact[finding.impact ?? 'unknown']++; }
+      }
+      if (page) page.violations += new Set(result.findings.map(f => f.ruleId)).size;
+    }
+  }
   const gating = gatingScanFindings(findings, input.failOn);
   const engineErrors = (input.engineResults ?? []).filter((e) => e.status === 'errored').length;
   const authenticationFailed = input.crawl.pages.some((p) => p.error?.startsWith('Not authenticated:'));
@@ -236,6 +251,7 @@ export function buildScanReport(input: {
         ? `No finding is at or above ${input.failOn}.`
         : `${gating.length} finding${gating.length === 1 ? '' : 's'} at or above ${input.failOn}: ${[...new Set(gating.map((f) => f.ruleId))].join(', ')}.`;
   return {
+    ...(input.keyboardResults ? { keyboard: input.keyboardResults, disclaimer: AUTOMATED_TESTING_DISCLAIMER + ' ' + KEYBOARD_DISCLAIMER } : {}),
     tool: 'a11ygate',
     kind: 'site-scan',
     schemaVersion: 1,
@@ -247,7 +263,7 @@ export function buildScanReport(input: {
     verdict,
     failOn: input.failOn,
     reason: stateFailed ? 'One or more interaction states were skipped; coverage is incomplete.' : authenticationFailed ? 'Not authenticated: protected content was not scanned.' : startFailed ? 'Start page could not be scanned; coverage is incomplete.' : engineErrors ? `${engineErrors} engine execution(s) errored; coverage is incomplete.` : reason,
-    ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER } : {}),
+    ...(extended ? { engineResults: input.engineResults, engines: engineSummary(input.engineResults ?? []), disclaimer: AUTOMATED_TESTING_DISCLAIMER + (input.keyboardResults ? ' ' + KEYBOARD_DISCLAIMER : '') } : {}),
     options: { maxPages: input.maxPages, delayMs: input.delayMs, tags: [...AXE_TAGS], userAgent: input.userAgent, robots: input.robotsNote, ...input.crawlControls },
     counts: {
       pagesScanned: input.crawl.pages.filter((p) => p.scanStatus === 'complete').length,
@@ -262,6 +278,7 @@ export function buildScanReport(input: {
     sharedComponentDisclaimer: SHARED_COMPONENT_DISCLAIMER,
     sharedComponentGroups: groupSharedComponents(findings),
     boundaries: SCAN_BOUNDARIES.map((boundary, index) => {
+      if (index === 2 && input.keyboardResults) return KEYBOARD_DISCLAIMER + ' Opt-in Tab probes were bounded per page; unvisited states remain unassessed.';
       if (index === 2 && input.interactions) return 'Opt-in interaction states were scanned with a per-route step budget. Forms, links and document navigation during steps were blocked. Unvisited states remain unassessed; use test accounts only.';
       if (index === 2 && input.authenticated) return 'Authentication was explicitly configured. Page analysis is read-only; interactions and dynamic states beyond the loaded pages are unassessed. Use test accounts only.';
       if (index === 3 && (input.maxPages > 20 || Object.values(input.crawlControls ?? {}).some((value) => value !== undefined))) {
