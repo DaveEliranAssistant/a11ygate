@@ -143,8 +143,8 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
               "properties": {
                 "tags": [
                   "accessibility",
-                  "wcag111",
-                  "WCAG 1.1.1"
+                  "WCAG 1.1.1",
+                  "wcag111"
                 ],
                 "impact": "serious"
               },
@@ -166,6 +166,9 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
             }
           ]
         }
+      },
+      "automationDetails": {
+        "id": "a11ygate/axe/"
       },
       "taxonomies": [
         {
@@ -194,7 +197,7 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "https://site.test/"
+                  "uri": "a11ygate-pages/site.test/index.html"
                 },
                 "region": {
                   "snippet": {
@@ -210,6 +213,11 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
                   "fullyQualifiedName": "main > img",
                   "kind": "element",
                   "name": "main > img"
+                },
+                {
+                  "fullyQualifiedName": "https://site.test/",
+                  "kind": "url",
+                  "name": "https://site.test/"
                 }
               ]
             }
@@ -218,6 +226,7 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
             "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
           },
           "partialFingerprints": {
+            "primaryLocationLineHash": "1f4c21e31824bae0:1",
             "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
           },
           "properties": {
@@ -258,6 +267,161 @@ Informational only. Not legal advice. Not a certification of EAA compliance.
         "verdict": "ERROR",
         "reason": "1 engine execution(s) errored; coverage is incomplete.",
         "command": "scan",
+        "engine": "axe",
+        "startUrl": "https://site.test/"
+      }
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "A11yGate",
+          "version": "0.1.0",
+          "informationUri": "https://a11ygate.vercel.app",
+          "rules": [
+            {
+              "id": "image-alt",
+              "name": "image-alt",
+              "shortDescription": {
+                "text": "image-alt"
+              },
+              "fullDescription": {
+                "text": "image-alt"
+              },
+              "helpUri": "https://site.test/rule",
+              "help": {
+                "text": "image-alt"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "WCAG 1.1.1",
+                  "wcag111"
+                ],
+                "impact": "serious"
+              },
+              "relationships": [
+                {
+                  "target": {
+                    "id": "1.1.1",
+                    "index": 0,
+                    "toolComponent": {
+                      "name": "WCAG",
+                      "index": 0
+                    }
+                  },
+                  "kinds": [
+                    "relevant"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "automationDetails": {
+        "id": "a11ygate/ibm/"
+      },
+      "taxonomies": [
+        {
+          "name": "WCAG",
+          "informationUri": "https://www.w3.org/WAI/standards-guidelines/wcag/",
+          "taxa": [
+            {
+              "id": "1.1.1",
+              "name": "Non-text Content",
+              "shortDescription": {
+                "text": "WCAG 2.1 1.1.1 Non-text Content (A)"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "image-alt (serious) at main > img on https://site.test/; detected by: axe, ibm; confirmed by 2 of 2 engines"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a11ygate-pages/site.test/index.html"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "<img src=\\"fixture.png\\">"
+                  },
+                  "message": {
+                    "text": "selector: main > img"
+                  }
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "main > img",
+                  "kind": "element",
+                  "name": "main > img"
+                },
+                {
+                  "fullyQualifiedName": "https://site.test/",
+                  "kind": "url",
+                  "name": "https://site.test/"
+                }
+              ]
+            }
+          ],
+          "fingerprints": {
+            "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "1f4c21e31824bae0:1",
+            "a11ygate": "[\\"https://site.test/\\",\\"main > img\\",[\\"1.1.1\\"],\\"\\"]"
+          },
+          "properties": {
+            "engines": [
+              "axe",
+              "ibm"
+            ],
+            "confidence": {
+              "confirmedBy": 2,
+              "enginesRan": 2,
+              "agreement": 1
+            },
+            "selector": "main > img",
+            "impact": "serious",
+            "tags": [
+              "wcag111"
+            ],
+            "wcag": [
+              "1.1.1"
+            ],
+            "pageUrl": "https://site.test/"
+          }
+        }
+      ],
+      "properties": {
+        "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+        "enginesUsed": [
+          "axe",
+          "ibm"
+        ],
+        "enginesErrored": [
+          {
+            "engine": "htmlcs",
+            "url": "https://site.test/",
+            "error": "<fixture failure>"
+          }
+        ],
+        "verdict": "ERROR",
+        "reason": "1 engine execution(s) errored; coverage is incomplete.",
+        "command": "scan",
+        "engine": "ibm",
         "startUrl": "https://site.test/"
       }
     }
