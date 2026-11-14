@@ -57,7 +57,10 @@ def verify(fixture):
         # A 404 or missing/empty suite is an error, even if BAD was already FAILURE.
         report = api(path + 'testReport/api/json')
         (output / f'{fixture}-junit.json').write_text(json.dumps(report, indent=2))
-        assert report['totalCount'] > 0, f'{fixture}: no JUnit testcases'
+        # TestResult exports these three counts, not totalCount (that belongs
+        # to the build's TestResultAction). Use the actual testReport API schema.
+        total = report['passCount'] + report['failCount'] + report['skipCount']
+        assert total > 0, f'{fixture}: no JUnit testcases'
         assert report['skipCount'] == 0, f'{fixture}: unexpectedly skipped JUnit tests'
         if fixture == 'bad':
             assert build['result'] in ('UNSTABLE', 'FAILURE'), build['result']
@@ -66,7 +69,7 @@ def verify(fixture):
             assert build['result'] == 'SUCCESS', build['result']
             assert report['failCount'] == 0, 'clean published failing JUnit tests'
         summary = (f"{fixture.upper()} → {build['result']}; "
-                   f"JUnit API: {report['totalCount']} tests, {report['failCount']} failures")
+                   f"JUnit API: {total} tests, {report['failCount']} failures")
         print(summary, flush=True)
         return summary
     finally:

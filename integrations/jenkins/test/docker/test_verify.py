@@ -23,7 +23,7 @@ class JenkinsApiAssertions(unittest.TestCase):
             if path.endswith('/testReport/api/json'):
                 if missing:
                     raise subprocess.CalledProcessError(22, ['curl'])
-                return json.dumps({'totalCount': total, 'failCount': failures, 'skipCount': skipped})
+                return json.dumps({'_class': 'hudson.tasks.junit.TestResult', 'passCount': total - failures - skipped, 'failCount': failures, 'skipCount': skipped})
             if path.endswith('/consoleText'):
                 return 'synthetic console'
             return json.dumps({'building': False, 'result': result})

@@ -41,8 +41,8 @@ local harness image are removed on exit, including failure.
   Docker Desktop), among other architectures. The API version assertion also
   checks the running controller's `X-Jenkins` header.
 
-Plugin versions and Node 22 follow their upstream distributions; plugin resolution
-and installed versions are recorded in the Docker build log. Jenkins core remains
+Plugin versions and Node 22 follow their upstream distributions; plugin
+installation output is captured in the Docker build log. Jenkins core remains
 pinned. Updating the pin must also update the verifier's expected core version.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
