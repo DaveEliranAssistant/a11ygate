@@ -34,7 +34,7 @@ The Demo Shop fixtures exit **1** with **2 new, 3 fixed, 5 still open**, and ver
 | `-m, --markdown <file>` | Also write the Markdown summary to a file. It is always printed. |
 | `-j, --json <file>` | Write the JSON result. Use `-` to print JSON instead of Markdown. |
 | `--update-baseline <file>` | Write the current results as a baseline file. The exit code is still the gate. |
-| `--format <fmt>` | `junit`, `sarif`, `json`, or `md`. Repeat the flag or comma-separate to write several. Requires `--out-dir`. Does not change the exit code. |
+| `--format <fmt>` | `junit`, `sarif`, `json`, `md`, or `gitlab-codequality`. Repeat the flag or comma-separate to write several. Requires `--out-dir`. Does not change the exit code. |
 | `--out-dir <dir>` | Write `a11ygate.json` and `a11ygate.md` here, plus any `--format` files (`a11ygate.junit.xml`, `a11ygate.sarif`). |
 | `-h, --help` | Show help. |
 | `--version` | Show the version. |
@@ -65,7 +65,7 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 | `--crawl [n]` | Breadth-first crawl of same-origin `a[href]` links, at most `n` pages. Bare `--crawl` and any larger value mean 20, the hard maximum. Without it, only `<url>` is scanned. |
 | `--fail-on <impact>` | `minor`, `moderate`, `serious` (default), `critical`, or `none`. |
 | `--out-dir <dir>` | Write `a11ygate-scan.json`, `.md` and `.html` into `<dir>`. |
-| `--format <fmt>` | Also write `junit`, `sarif`, `json`, or `md` into `--out-dir` (`a11ygate-scan.junit.xml`, `a11ygate-scan.sarif`). Repeat or comma-separate. Exit codes are unchanged. |
+| `--format <fmt>` | Also write `junit`, `sarif`, `json`, `md`, or `gitlab-codequality` into `--out-dir` (`a11ygate-scan.junit.xml`, `a11ygate-scan.sarif`). Repeat or comma-separate. Exit codes are unchanged. |
 | `--json` / `--markdown` / `--html <file>` | Write individual reports instead. `--json -` prints JSON to stdout; otherwise Markdown is printed. |
 | `--delay-ms <ms>` | Pause between page loads. Default 1000. |
 
@@ -158,3 +158,9 @@ non-interactive starter. Use `--target jenkins` for the shared-library pipeline.
 Existing files are skipped; `--force` replaces regular starter files. See the
 [init guide](../../docs/integrations/init.md) for flags, baseline opt-in, and local
 application startup prerequisites. Published 0.1.0 does not include this command.
+
+### GitLab Code Quality
+
+Use `--format gitlab-codequality,junit --out-dir a11y` to write GitLab Code Quality and JUnit artifacts. Scan/report write `a11ygate-scan.gitlab-codequality.json`; ci/gate writes `a11ygate.gitlab-codequality.json`. See the [includable GitLab CI template and format conventions](../../integrations/gitlab/README.md), including exact R18 fingerprints, severity mapping, and virtual locations for unmapped pages.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

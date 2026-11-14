@@ -19,6 +19,7 @@ import { parseAxeDocuments } from '@/lib/parse';
 import { inferProjectName } from '@/lib/project';
 import type { AxeResults, DiffedFinding, Impact, Verdict } from '@/lib/types';
 import { toJunit } from '@/lib/export-junit';
+import { toGitlabCodeQuality } from '@/lib/export-gitlab-codequality';
 import { toSarif } from '@/lib/export-sarif';
 import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
@@ -328,6 +329,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
       [formatFileName('ci', 'md'), markdown],
     ]);
     if (options.formats.includes('junit')) files.set(formatFileName('ci', 'junit'), toJunit(formatReport));
+    if (options.formats.includes('gitlab-codequality')) files.set(formatFileName('ci', 'gitlab-codequality'), toGitlabCodeQuality(formatReport));
     if (options.formats.includes('sarif')) files.set(formatFileName('ci', 'sarif'), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);

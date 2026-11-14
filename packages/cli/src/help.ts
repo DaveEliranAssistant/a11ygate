@@ -23,7 +23,7 @@ Options:
   -j, --json <file>            Write the JSON result to this file. Use - to print JSON instead of Markdown.
       --update-baseline <file> Write a proposed baseline and <file>.review.json with exact accepted findings.
       --manual-evidence <file> Import schemaVersion 1 human evidence separately from automated checks.
-      --format <fmt>           Output format: junit, sarif, json, or md. Repeat or comma-separate for several.
+      --format <fmt>           Output format: junit, sarif, json, md, or gitlab-codequality. Repeat or comma-separate for several.
                                Requires --out-dir. Exit codes are unchanged.
       --out-dir <dir>          Write a11ygate.json and a11ygate.md here, plus any --format files
                                (a11ygate.junit.xml, a11ygate.sarif).

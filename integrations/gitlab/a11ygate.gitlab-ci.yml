@@ -1,0 +1,25 @@
+# Include this file from a reviewed copy in your own repository.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+a11ygate:
+  stage: test
+  # Node + Chromium; keep the installed playwright version aligned with this tag.
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  variables:
+    # Start your authorized application in this job before scanning.
+    A11YGATE_URL: "http://127.0.0.1:3000"
+    A11YGATE_FAIL_ON: "serious"
+  before_script:
+    - npm ci
+  script:
+    - npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --format gitlab-codequality,junit --out-dir a11y
+  allow_failure: false
+  artifacts:
+    when: always
+    paths:
+      - a11y/
+    reports:
+      codequality: a11y/a11ygate-scan.gitlab-codequality.json
+      junit: a11y/a11ygate-scan.junit.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never

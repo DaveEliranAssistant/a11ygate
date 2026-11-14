@@ -13,10 +13,14 @@ export type FingerprintBaseline = {
 };
 export type BaselineSummary = { new: number; existing: number; fixed: number; unassessed: number };
 
+type BaselineIdentity = Pick<ScanFinding, 'engines' | 'fingerprint' | 'pageUrl' | 'selectors' | 'ruleId'> & {
+  wcag: readonly { number: string }[];
+};
+
 /** R12 identity: page + canonical element + SC (or unmapped engine/rule).
  * Legacy axe reports retain rule identity; HTML, severity and timestamps are excluded.
  */
-export function baselineFingerprint(finding: ScanFinding, occurrence = 0): string {
+export function baselineFingerprint(finding: BaselineIdentity, occurrence = 0): string {
   if (finding.engines) {
     const [page, locator, sc, rule] = JSON.parse(finding.fingerprint) as [string, string, string[], string];
     return JSON.stringify([normalizeUrl(page) ?? page, normalizeLocator(locator) || ['unlocated', occurrence], [...sc].sort(), rule]);
