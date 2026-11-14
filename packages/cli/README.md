@@ -100,6 +100,18 @@ Only these allowlisted files are read, so `.env` files, credentials and other fi
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
+## Trend report (`a11ygate trend`)
+
+Unreleased source build. Builds a history from a directory of evidence packs, for example one pack per monthly scan. It reads only `manifest.json` and `scan/a11ygate-scan.json` from each pack; it does not scan, crawl or use the network.
+
+```bash
+node packages/cli/dist/cli.mjs trend a11y-evidence/ --out-dir a11y-trend
+```
+
+Writes `a11ygate-trend.json` and `a11ygate-trend.html` (default `--out-dir` is the packs directory). See [Trend report](../../docs/trend-report.md) for how runs are ordered and counted.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## Jenkins
 
 See [Jenkins integration](../../docs/integrations/jenkins.md) for the shared library step, example `Jenkinsfile`s, JUnit/SARIF publishing, and agent requirements.

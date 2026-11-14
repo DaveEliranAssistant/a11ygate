@@ -15,6 +15,8 @@ Usage:
                        (see a11ygate scan --help)
   a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
                        (see a11ygate evidence --help)
+  a11ygate trend <dir-of-evidence-packs> [--out-dir <dir>]
+                       (see a11ygate trend --help)
 
 Options:
   -c, --current <file>         Current axe-core JSON. Repeat for more than one file.
