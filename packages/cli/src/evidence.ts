@@ -1,3 +1,4 @@
+import { AuthRedactor } from '@/lib/scan/redact';
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -112,6 +113,14 @@ async function collectInputs(dir: string, warn: (message: string) => void): Prom
 }
 
 export async function runEvidence(argv: readonly string[], io: EvidenceIo = {}): Promise<number> {
+  const redactor = new AuthRedactor();
+  for (const value of secretEnvValues(io.env ?? process.env, 1)) redactor.add(value);
+  const output = io.stdout ?? ((s: string) => process.stdout.write(s));
+  const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
+  return runEvidenceInternal(argv, { ...io, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) });
+}
+
+async function runEvidenceInternal(argv: readonly string[], io: EvidenceIo): Promise<number> {
   const stdout = io.stdout ?? ((chunk: string) => process.stdout.write(chunk));
   const stderr = io.stderr ?? ((chunk: string) => process.stderr.write(chunk));
   const cwd = io.cwd ?? process.cwd();

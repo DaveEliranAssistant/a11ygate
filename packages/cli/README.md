@@ -75,7 +75,7 @@ Exit codes: **0** no finding at or above `--fail-on`; **1** at least one is; **2
 
 The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` (URL, HTTP status, finding counts), `skipped[]` (external, robots, logout, non-HTML, cap), and `findings[]` (page URL, CSS selector(s), axe rule id, impact, mapped WCAG success criteria, help text and `helpUrl`). Its `results` array holds the raw per-page axe results, so the same file is valid `--current` input for the gate, for example `a11ygate --current a11y-scan/a11ygate-scan.json --baseline a11y/baseline.json`. The Markdown and self-contained HTML summaries group findings by WCAG criterion and by severity.
 
-**Boundaries.** Only scan sites you own or are explicitly authorized to test. The scanner is read-only: it does not log in, fill forms or click. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
+**Boundaries.** Only scan sites you own or are explicitly authorized to test. Page analysis is read-only. Authentication is opt-in; an explicitly configured login script may fill forms and click before analysis. Use test accounts only. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
 
 ## Evidence pack (`a11ygate evidence pack`)
 
@@ -163,4 +163,14 @@ application startup prerequisites. Published 0.1.0 does not include this command
 
 Use `--format gitlab-codequality,junit --out-dir a11y` to write GitLab Code Quality and JUnit artifacts. Scan/report write `a11ygate-scan.gitlab-codequality.json`; ci/gate writes `a11ygate.gitlab-codequality.json`. See the [includable GitLab CI template and format conventions](../../integrations/gitlab/README.md), including exact R18 fingerprints, severity mapping, and virtual locations for unmapped pages.
 
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Authenticated pages
+
+Use test accounts only. Scan with `--storage-state <file>`, a trusted
+`--login-script <file>` exporting `async (page, env)`, or repeatable
+`--cookie-env name=ENV_VAR_NAME` / `--header-env name=ENV_VAR_NAME`. Only environment
+variable names belong in arguments or configuration. Credentials are redacted
+from reports, native evidence, and logs; login failures/timeouts exit 2.
+See [authenticated page setup and limitations](../../docs/authenticated-pages.md).
 Automated testing only. Not a WCAG audit, certification or legal advice.

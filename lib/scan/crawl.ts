@@ -85,6 +85,10 @@ export async function crawl(options: CrawlOptions): Promise<CrawlResult> {
     options.log?.(`Scanning ${url}`);
     const outcome = await options.visit(url, crawling);
 
+    if (outcome.error?.startsWith('Not authenticated:')) {
+      pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'failed', error: outcome.error });
+      continue;
+    }
     if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
       skip({ url, reason: 'redirected-off-origin' });
       pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: 'skipped', error: 'Redirected to another origin; not scanned.' });
