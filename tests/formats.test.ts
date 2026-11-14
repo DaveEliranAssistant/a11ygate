@@ -208,11 +208,13 @@ describe('SARIF 2.1.0 output', () => {
     expect(run.results).toHaveLength(3);
     const first = run.results[0]!;
     expect(first.ruleId).toBe('image-alt');
-    expect(first.locations[0]?.physicalLocation.artifactLocation.uri).toBe('https://demo.shop/');
+    expect(first.locations[0]?.physicalLocation.artifactLocation.uri).toBe('a11ygate-pages/demo.shop/index.html');
+    expect(first.locations[0]?.logicalLocations?.[1]?.fullyQualifiedName).toBe('https://demo.shop/');
     expect(first.locations[0]?.logicalLocations?.[0]?.fullyQualifiedName).toBe('img.footer');
     expect(first.locations[0]?.physicalLocation.region?.message?.text).toBe('selector: img.footer');
     const contrast = run.results.find((item) => item.ruleId === 'color-contrast')!;
-    expect(contrast.locations[0]?.physicalLocation.artifactLocation.uri).toBe('https://demo.shop/about');
+    expect(contrast.locations[0]?.physicalLocation.artifactLocation.uri).toBe('a11ygate-pages/demo.shop/about/index.html');
+    expect(contrast.locations[0]?.logicalLocations?.[1]?.fullyQualifiedName).toBe('https://demo.shop/about');
     expect(contrast.locations[0]?.logicalLocations?.[0]?.fullyQualifiedName).toBe('.price-tag');
   });
 

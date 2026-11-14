@@ -132,16 +132,73 @@ export function automationDetailsId(engine: string): string {
  * exports produces the same value; generatedAt and help text are excluded.
  */
 export function primaryLocationLineHash(finding: FormatFinding): string {
-  const uri = artifactUri(finding);
+  const uri = identityUri(finding);
   const line = finding.source?.startLine ?? 1;
   const basis = finding.fingerprint ?? [finding.ruleId, uri, finding.selector, String(line)].join('\0');
   const hash = createHash('sha256').update(basis).digest('hex').slice(0, 16);
   return `${hash}:${line}`;
 }
 
-function artifactUri(finding: FormatFinding): string {
+/** Finding identity used in fingerprints: the real page URL or mapped source file. */
+export function identityUri(finding: FormatFinding): string {
   if (finding.source?.file) return finding.source.file.replace(/\\/g, '/');
   return finding.pageUrl;
+}
+
+function hasUriScheme(value: string): boolean {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value);
+}
+
+function sanitizePathSegment(segment: string): string {
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    decoded = segment;
+  }
+  const clean = decoded.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!clean || clean === '.' || clean === '..') return '_';
+  return clean;
+}
+
+/**
+ * GitHub code scanning rejects `https` (and other non-file) schemes in
+ * `physicalLocation.artifactLocation.uri` because it relativizes them
+ * against the Actions checkout (`file://`). See
+ * https://github.com/github/codeql-action/issues/754 and
+ * GITHUB_SARIF_LIMITS.docs.sarifSupport (`physicalLocation` object).
+ * Page URLs are rewritten to a stable repo-relative path; the real URL
+ * stays in the result message, logicalLocations, and properties.pageUrl.
+ */
+export function githubArtifactUri(finding: FormatFinding): string {
+  if (finding.source?.file) {
+    const file = finding.source.file.replace(/\\/g, '/');
+    if (!hasUriScheme(file)) return file.replace(/^\/+/, '');
+  }
+  return pageUrlToRepoRelativePath(finding.pageUrl);
+}
+
+export function pageUrlToRepoRelativePath(pageUrl: string): string {
+  try {
+    const url = new URL(pageUrl);
+    const host = sanitizePathSegment(url.host || 'page');
+    let pathname = url.pathname || '/';
+    if (pathname.endsWith('/')) pathname += 'index.html';
+    const last = pathname.split('/').filter(Boolean).pop() ?? '';
+    if (!last.includes('.')) pathname = `${pathname.replace(/\/$/, '')}/index.html`;
+    const segments = pathname.split('/').filter(Boolean).map(sanitizePathSegment);
+    const extra = `${url.search}${url.hash}`;
+    if (extra) {
+      const lastSeg = segments.pop() ?? 'index.html';
+      const dot = lastSeg.lastIndexOf('.');
+      const stem = dot > 0 ? lastSeg.slice(0, dot) : lastSeg;
+      const ext = dot > 0 ? lastSeg.slice(dot) : '.html';
+      segments.push(`${stem}-${createHash('sha256').update(extra).digest('hex').slice(0, 8)}${ext}`);
+    }
+    return ['a11ygate-pages', host, ...segments].join('/');
+  } catch {
+    return `a11ygate-pages/unknown/${createHash('sha256').update(pageUrl).digest('hex').slice(0, 16)}.html`;
+  }
 }
 
 function defaultEngine(report: FormatReport): string {
@@ -186,7 +243,7 @@ function uniqueRules(findings: readonly FormatFinding[]): FormatFinding[] {
 }
 
 function artifactLocation(finding: FormatFinding): { uri: string; uriBaseId?: string } {
-  return { uri: artifactUri(finding) };
+  return { uri: githubArtifactUri(finding) };
 }
 
 function region(finding: FormatFinding): SarifRegion {
@@ -257,6 +314,11 @@ function toSarifResult(finding: FormatFinding, ruleIndex: Map<string, number>): 
             fullyQualifiedName: finding.selector,
             kind: 'element',
             name: finding.selector,
+          },
+          {
+            fullyQualifiedName: finding.pageUrl,
+            kind: 'url',
+            name: finding.pageUrl,
           },
         ],
       },

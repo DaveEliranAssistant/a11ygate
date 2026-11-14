@@ -26,6 +26,8 @@ These come from GitHub’s documented SARIF support and upload troubleshooting p
 | Alert matching | `partialFingerprints.primaryLocationLineHash` | [SARIF support — fingerprint generation](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support) |
 | Per-engine category | `automationDetails.id` = `a11ygate/<engine>/` | [SARIF support — runAutomationDetails](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support) |
 
+Page URLs are written as repo-relative paths (`a11ygate-pages/<host>/…`) because GitHub code scanning rejects `https` artifact URIs (`SARIF URI scheme "https" did not match the checkout URI scheme "file"` — see [codeql-action#754](https://github.com/github/codeql-action/issues/754)). The real page URL stays in the result message, a `logicalLocations` entry, and `properties.pageUrl`. Mapped source files are left as relative paths.
+
 The same finding on two runs produces the same `primaryLocationLineHash`, so GitHub should not open a duplicate alert. Each engine gets its own analysis category (`a11ygate/axe`, `a11ygate/htmlcs`, …). The trailing slash sets the category without a distinct run id, so daily CI stays in one category per engine.
 
 ## Permissions

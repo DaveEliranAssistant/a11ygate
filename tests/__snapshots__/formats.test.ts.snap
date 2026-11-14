@@ -168,7 +168,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "https://demo.shop/"
+                  "uri": "a11ygate-pages/demo.shop/index.html"
                 },
                 "region": {
                   "snippet": {
@@ -184,6 +184,11 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
                   "fullyQualifiedName": "img.footer",
                   "kind": "element",
                   "name": "img.footer"
+                },
+                {
+                  "fullyQualifiedName": "https://demo.shop/",
+                  "kind": "url",
+                  "name": "https://demo.shop/"
                 }
               ]
             }
@@ -220,7 +225,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "https://demo.shop/"
+                  "uri": "a11ygate-pages/demo.shop/index.html"
                 },
                 "region": {
                   "snippet": {
@@ -236,6 +241,11 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
                   "fullyQualifiedName": "img.hero",
                   "kind": "element",
                   "name": "img.hero"
+                },
+                {
+                  "fullyQualifiedName": "https://demo.shop/",
+                  "kind": "url",
+                  "name": "https://demo.shop/"
                 }
               ]
             }
@@ -272,7 +282,7 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "https://demo.shop/about"
+                  "uri": "a11ygate-pages/demo.shop/about/index.html"
                 },
                 "region": {
                   "snippet": {
@@ -288,6 +298,11 @@ exports[`SARIF 2.1.0 output > validates against the official schema, has rule me
                   "fullyQualifiedName": ".price-tag",
                   "kind": "element",
                   "name": ".price-tag"
+                },
+                {
+                  "fullyQualifiedName": "https://demo.shop/about",
+                  "kind": "url",
+                  "name": "https://demo.shop/about"
                 }
               ]
             }

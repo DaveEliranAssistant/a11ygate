@@ -6,6 +6,7 @@ import addFormats from 'ajv-formats';
 import {
   GITHUB_SARIF_LIMITS,
   automationDetailsId,
+  githubArtifactUri,
   gzipByteLength,
   primaryLocationLineHash,
   toSarif,
@@ -207,6 +208,34 @@ describe('GitHub code scanning SARIF limits', () => {
     const log = JSON.parse(toSarif(report(findings))) as SarifLog;
     validateSarif(log);
     expect(log.runs.length).toBe(GITHUB_SARIF_LIMITS.maxRunsPerFile);
+  });
+
+
+  it('rewrites page URLs to repo-relative paths so GitHub does not reject the https scheme', () => {
+    // GitHub code scanning relativizes artifact URIs against the Actions
+    // checkout (file://). An https page URL is rejected:
+    // "SARIF URI scheme \"https\" did not match the checkout URI scheme \"file\"".
+    // https://github.com/github/codeql-action/issues/754
+    // https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support
+    const page = finding({ ruleId: 'image-alt', selector: 'img.hero', pageUrl: 'https://demo.shop/products?q=1' });
+    const mapped = finding({
+      ...page,
+      source: { file: 'app/hero.tsx', startLine: 24, startColumn: 5 },
+    });
+    expect(githubArtifactUri(page)).toBe('a11ygate-pages/demo.shop/products/index-b4811faa.html');
+    expect(githubArtifactUri(page)).not.toMatch(/^[a-zA-Z][a-zA-Z0-9+.-]*:/);
+    expect(githubArtifactUri(mapped)).toBe('app/hero.tsx');
+
+    const log = JSON.parse(toSarif(report([page, mapped]))) as SarifLog;
+    validateSarif(log);
+    const uris = log.runs.flatMap((run) =>
+      run.results.flatMap((result) => result.locations.map((location) => location.physicalLocation.artifactLocation.uri)),
+    );
+    expect(uris.some((uri) => uri.startsWith('https:'))).toBe(false);
+    expect(uris).toEqual(expect.arrayContaining(['a11ygate-pages/demo.shop/products/index-b4811faa.html', 'app/hero.tsx']));
+    const urlFinding = log.runs[0]!.results.find((result) => result.properties.pageUrl === 'https://demo.shop/products?q=1')!;
+    expect(urlFinding.locations[0]!.logicalLocations[1]!.fullyQualifiedName).toBe('https://demo.shop/products?q=1');
+    expect(urlFinding.message.text).toContain('https://demo.shop/products?q=1');
   });
 
   it('shrinks a SARIF payload until the gzip size is under GitHub’s 10 MB cap', () => {

@@ -1751,15 +1751,58 @@ function automationDetailsId(engine) {
   return `a11ygate/${slug}/`;
 }
 function primaryLocationLineHash(finding2) {
-  const uri = artifactUri(finding2);
+  const uri = identityUri(finding2);
   const line = finding2.source?.startLine ?? 1;
   const basis = finding2.fingerprint ?? [finding2.ruleId, uri, finding2.selector, String(line)].join("\0");
   const hash = createHash("sha256").update(basis).digest("hex").slice(0, 16);
   return `${hash}:${line}`;
 }
-function artifactUri(finding2) {
+function identityUri(finding2) {
   if (finding2.source?.file) return finding2.source.file.replace(/\\/g, "/");
   return finding2.pageUrl;
+}
+function hasUriScheme(value) {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value);
+}
+function sanitizePathSegment(segment) {
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    decoded = segment;
+  }
+  const clean = decoded.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!clean || clean === "." || clean === "..") return "_";
+  return clean;
+}
+function githubArtifactUri(finding2) {
+  if (finding2.source?.file) {
+    const file = finding2.source.file.replace(/\\/g, "/");
+    if (!hasUriScheme(file)) return file.replace(/^\/+/, "");
+  }
+  return pageUrlToRepoRelativePath(finding2.pageUrl);
+}
+function pageUrlToRepoRelativePath(pageUrl) {
+  try {
+    const url = new URL(pageUrl);
+    const host = sanitizePathSegment(url.host || "page");
+    let pathname = url.pathname || "/";
+    if (pathname.endsWith("/")) pathname += "index.html";
+    const last = pathname.split("/").filter(Boolean).pop() ?? "";
+    if (!last.includes(".")) pathname = `${pathname.replace(/\/$/, "")}/index.html`;
+    const segments = pathname.split("/").filter(Boolean).map(sanitizePathSegment);
+    const extra = `${url.search}${url.hash}`;
+    if (extra) {
+      const lastSeg = segments.pop() ?? "index.html";
+      const dot = lastSeg.lastIndexOf(".");
+      const stem = dot > 0 ? lastSeg.slice(0, dot) : lastSeg;
+      const ext = dot > 0 ? lastSeg.slice(dot) : ".html";
+      segments.push(`${stem}-${createHash("sha256").update(extra).digest("hex").slice(0, 8)}${ext}`);
+    }
+    return ["a11ygate-pages", host, ...segments].join("/");
+  } catch {
+    return `a11ygate-pages/unknown/${createHash("sha256").update(pageUrl).digest("hex").slice(0, 16)}.html`;
+  }
 }
 function defaultEngine(report) {
   const used = report.engines?.used ?? [];
@@ -1799,7 +1842,7 @@ function uniqueRules(findings) {
   return [...byId.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 }
 function artifactLocation(finding2) {
-  return { uri: artifactUri(finding2) };
+  return { uri: githubArtifactUri(finding2) };
 }
 function region(finding2) {
   if (finding2.source) {
@@ -1859,6 +1902,11 @@ function toSarifResult(finding2, ruleIndex) {
             fullyQualifiedName: finding2.selector,
             kind: "element",
             name: finding2.selector
+          },
+          {
+            fullyQualifiedName: finding2.pageUrl,
+            kind: "url",
+            name: finding2.pageUrl
           }
         ]
       }
