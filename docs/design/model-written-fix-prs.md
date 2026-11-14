@@ -108,7 +108,7 @@ If the original finding persists, any new finding appears, the scan fails, or re
 5. Re-verifies every individually verified candidate **together** in one worktree with one re-scan (`ModelFixRun.combined`) before a later publisher (R4) may use them.
 6. Removes the worktree and temp directory in a `finally`, including on errors.
 
-Verified drafts are recorded only (`verified-unpublished`). They are never merged into the F1 plan or published. A placeholder (`TODO(a11ygate)`) name can satisfy axe; it still carries `placeholder-accessible-name` and requires a person to write the wording. Automated testing only. Not a WCAG audit, certification or legal advice.
+Verified drafts are recorded (`verified-unpublished`) and never merged into the F1 plan; only the draft-only publisher (§6, R4) may publish them. A placeholder (`TODO(a11ygate)`) name can satisfy axe; it still carries `placeholder-accessible-name` and requires a person to write the wording. Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## 6. Human approval and publication
 
@@ -117,6 +117,17 @@ Fix PRs are always opened as **drafts**, never automatically marked ready, appro
 Include the finding/rule, source commit, model/provider provenance, bounded rationale, before/after scan evidence, tested routes/states, remaining findings, and an explicit review checklist in the PR or review comment. Alt text, accessible names, ARIA semantics, and color choices are judgment calls. Reviewers must confirm image purpose, actual interaction behavior, brand constraints, and contrast in relevant states/themes. Clearing axe alone cannot settle those questions.
 
 Use narrowly scoped publishing permissions in a trusted job. Keep provider credentials, GitHub write credentials, and the isolated application runtime separate; never expose secrets to fork-controlled code or use a privileged workflow to execute untrusted PR code. If safe execution or publication permissions are unavailable, retain the ordinary report/F1 behavior rather than escalating privileges.
+
+**Implementation (R4).** `publishModelDrafts` (`lib/modelfix/publish.ts`, pure apart from an injected GitHub request function) receives only the orchestrator's `verified` candidates:
+
+1. A candidate is eligible only when its verification is `verified` for that finding with zero new findings and a recorded tree, and, when more than one verified, the combined re-verify also passed. Rejected, stale, invalid or unverified drafts are never published.
+2. The verifier records `treeHash` (the scanned commit's tree with only the patched files staged, i.e. the tree that was re-scanned) and `patchedBlobs`. The publisher rebuilds the file with the same exact replacement, checks the blob id, builds the tree through the git data API on the scanned commit's tree, and refuses (`tree-mismatch`) unless the returned tree id equals `treeHash`. File mode is assumed `100644`; any other mode mismatches and is refused.
+3. Draft PR channel (default): commit with the scanned commit as parent, a deterministic `a11ygate/model-draft/<commit>-<id>` branch, then `POST /pulls` with `draft: true`. The base branch must still point at the scanned commit (otherwise `stale`). If drafts are unavailable (422) the branch is removed and, when a pull request exists, a labelled review suggestion is posted instead. Review-suggestion channel: a review comment labelled "model-drafted, needs human review" with a `suggestion` block.
+4. Both bodies carry the label, rule, finding fingerprint, file/range, source commit, provider, model (`stub` for the stub adapter), review flags, re-scan evidence (verified, target cleared, new findings, combined re-verify, verified tree, sanitized summary, tested routes), the neutralized rationale, a review checklist, and the disclaimer.
+5. Dedupe by a `<!-- a11ygate-model-draft:<commit>:<fingerprint> -->` marker. An open draft with the marker is left alone or updated in place (body only); one a person marked ready is not touched; a leftover branch (for example a closed draft) blocks a new PR.
+6. The publisher never marks ready, approves, merges, requests reviewers or sends `draft: false`. 401/403 stops publishing and falls back to report-only with a sanitized warning; 429 stops with `quota`. The exit code is unchanged. Status lines (`buildPublishStatus`) carry reason codes and fingerprints only, never patch, replacement or rationale text.
+
+The Action wires this behind the default-off `model-fixes` input (`model-fixes-publish`: `draft-pr` or `review-suggestion`). No verifier is wired into the Action yet, so in this phase it publishes nothing.
 
 ## 7. Alt-text and generated-content policy
 

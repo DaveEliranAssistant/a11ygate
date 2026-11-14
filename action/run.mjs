@@ -109,6 +109,15 @@ function warning(message) {
   process.stderr.write(`::warning::${String(message).replace(/\r?\n/g, ' ')}\n`);
 }
 
+/** Draft PRs target the scanned head branch only for same-repository pull requests (never forks). */
+function modelPublishOptions(repo) {
+  const mode = (process.env.A11Y_MODEL_PUBLISH || '').trim() === 'review-suggestion' ? 'review-suggestion' : 'draft-pr';
+  const headRepo = (process.env.A11Y_HEAD_REPO || '').trim();
+  const headRef = (process.env.A11Y_HEAD_REF || '').trim();
+  const baseBranch = headRepo === repo && /^[A-Za-z0-9._/-]+$/.test(headRef) ? headRef : null;
+  return { mode, baseBranch };
+}
+
 /** Rule-based suggested changes. Failures only warn; they never change the exit code. */
 async function suggestFixes(jsonPath) {
   const pr = (process.env.A11Y_PR_NUMBER || '').trim();
@@ -148,6 +157,9 @@ async function suggestFixes(jsonPath) {
     workspace,
     modelFixes,
     env: process.env,
+    // Draft-only publishing of verified drafts (draft PR, or labelled review suggestion). No verifier
+    // is wired into the Action yet, so nothing verifies and nothing is published in this phase.
+    modelPublish: modelPublishOptions(repo),
     lang: (process.env.A11Y_SUGGEST_LANG || '').trim() || 'en',
     github: (pathname, options = {}) => github(pathname, { ...options, token, api }),
     warn: warning,

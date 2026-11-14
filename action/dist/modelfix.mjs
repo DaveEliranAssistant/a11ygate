@@ -301,8 +301,8 @@ function validateDraft(input, context) {
     return { ok: false, rejection: { code: "schema", detail: "draft could not be read" } };
   }
 }
-function reject(code, detail) {
-  return { ok: false, rejection: { code, detail } };
+function reject(code2, detail) {
+  return { ok: false, rejection: { code: code2, detail } };
 }
 function validate(input, { request, content, repoRoot }) {
   const parsed = parseSchema(input);
@@ -1135,7 +1135,7 @@ async function safeVerify(run, findingIds) {
     return { verified: false, outcome: "rejected", reason: "error", detail: "verifier failed", findingIds, newFindings: 0 };
   }
 }
-async function runModelPath(input, routes) {
+async function runModelPath(input, routes, publishable) {
   const { config } = input;
   const eligible = routes.filter((route) => route.route === "model-eligible");
   if (!config.enabled) return finish("disabled", routes, 0, "models-off");
@@ -1183,7 +1183,10 @@ async function runModelPath(input, routes) {
         const verifier = input.verifier;
         const check = await safeVerify(() => verifier.verify(candidate), [route.fingerprint]);
         route.model = { outcome: VERIFY_OUTCOME[check.outcome], provider: adapter.id, verification: check.reason };
-        if (check.verified) verified.push(candidate);
+        if (check.verified) {
+          verified.push(candidate);
+          publishable.push({ candidate, verification: check, provider: adapter.id });
+        }
         break;
       } catch {
         failed.add(adapter.id);
@@ -1211,25 +1214,363 @@ async function planWithModelFixes(input) {
   const plan = input.f1Plan ?? planSuggestions(input.findings, input.files, input.options ?? {});
   const sourceCommit = input.sourceCommit ?? null;
   let routes = [];
+  const verified = [];
   try {
     routes = routeFindings(input.findings, input.files, plan, sourceCommit);
-    return { plan, model: await runModelPath(input, routes) };
+    return { plan, model: await runModelPath(input, routes, verified), verified };
   } catch {
-    return { plan, model: finish("error", routes, 0) };
+    return { plan, model: finish("error", routes, 0), verified: [] };
   }
+}
+
+// lib/modelfix/apply.ts
+function applyDrafts(content, drafts) {
+  const next = content.split("\n");
+  for (const draft of [...drafts].sort((a, b) => b.startLine - a.startLine)) {
+    next.splice(draft.startLine - 1, draft.endLine - draft.startLine + 1, ...draft.replacement);
+  }
+  return next.join("\n");
+}
+
+// lib/modelfix/publish.ts
+import { createHash as createHash2 } from "node:crypto";
+
+// lib/copy.ts
+var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+
+// lib/modelfix/publish.ts
+var MODEL_DRAFT_LABEL = "model-drafted, needs human review";
+var MODEL_DRAFT_MARKER_PREFIX = "<!-- a11ygate-model-draft:";
+var BRANCH_PREFIX = "a11ygate/model-draft/";
+var FULL_SHA = /^[0-9a-f]{40}$/;
+var MAX_PAGES = 10;
+function modelDraftMarker(sourceCommit, fingerprint) {
+  const safe = (value) => String(value ?? "").replace(/[^\w:.@/+=-]/g, "_").slice(0, 200);
+  return `${MODEL_DRAFT_MARKER_PREFIX}${safe(sourceCommit)}:${safe(fingerprint)} -->`;
+}
+function modelDraftBranch(sourceCommit, fingerprint) {
+  const id = createHash2("sha1").update(`${sourceCommit}\0${fingerprint}`).digest("hex").slice(0, 16);
+  return `${BRANCH_PREFIX}${sourceCommit.slice(0, 12)}-${id}`;
+}
+function statusOf(error) {
+  if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
+    return error.status;
+  }
+  const match = /\((\d{3})\)/.exec(error instanceof Error ? error.message : "");
+  return match ? Number(match[1]) : null;
+}
+function classify(error) {
+  const status = statusOf(error);
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (status === 429 || status === 403 && message.includes("rate limit")) return "quota";
+  if (status === 401 || status === 403) return "permission-denied";
+  return "error";
+}
+function plain(text, max = 1e3) {
+  return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, max).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] ?? c).replace(/@/g, "@\u200B").replace(/`/g, "'");
+}
+function code(text) {
+  return `\`${String(text ?? "").replace(/[`\r\n]/g, "")}\``;
+}
+var CHECKLIST = {
+  "generated-accessible-name": "The model wrote alt / accessible-name text. Confirm the image or control purpose and write the final wording yourself; do not accept it as is.",
+  "placeholder-accessible-name": "Replace every `TODO(a11ygate)` placeholder with wording a person has written.",
+  "visible-text-changed": "Visible text changed. Confirm the wording and that nothing else on the page depends on it.",
+  "visual-change": "Presentation changed. Confirm brand constraints and contrast in every relevant state and theme."
+};
+function modelOf(provider, models) {
+  return models?.[provider] ?? (provider === "stub" ? "stub" : "unspecified");
+}
+function provenance({ item, combined, model, routes }) {
+  const { candidate, verification, provider } = item;
+  const draft = candidate.validated.draft;
+  const flags = candidate.validated.humanReview;
+  const lines = [
+    `> **${MODEL_DRAFT_LABEL[0].toUpperCase()}${MODEL_DRAFT_LABEL.slice(1)}.** A language model wrote this change. A11yGate only checked it with an automated re-scan. A person must review, edit if needed, and decide whether to merge. A11yGate never marks it ready, approves or merges it.`,
+    "",
+    "**Finding**",
+    `- Rule: ${code(candidate.ruleId)}`,
+    `- Finding fingerprint: ${code(draft.findingId)}`,
+    `- File: ${code(draft.path)} lines ${draft.startLine}-${draft.endLine}`,
+    `- Source commit: ${code(candidate.sourceCommit)}`,
+    "",
+    "**Provenance**",
+    `- Provider: ${code(provider)}`,
+    `- Model: ${code(model)}`,
+    `- Review flags: ${flags.map(code).join(", ")}`,
+    "",
+    "**Re-scan evidence** (local render of an isolated checkout of the source commit, same axe rules before and after)",
+    `- Verified: ${verification.verified ? "yes" : "no"}`,
+    `- Target finding cleared: ${verification.reason === "verified" ? "yes" : "no"}`,
+    `- New findings in tested routes: ${verification.newFindings === 0 ? "none" : verification.newFindings}`,
+    `- Combined re-verify with other drafts: ${combined ? combined.verified ? "passed" : "failed" : "not needed (single draft)"}`,
+    `- Verified tree: ${code(verification.treeHash ?? "")}`,
+    `- Re-scan summary: ${plain(verification.detail, 200)}`
+  ];
+  if (routes.length > 0) lines.push(`- Tested routes: ${routes.slice(0, 20).map(code).join(", ")}`);
+  lines.push("", "**Rationale (model-written, unverified)**", `> ${plain(draft.rationale) || "none given"}`, "", "**Review checklist**");
+  lines.push("- [ ] The change does what the rationale says and nothing else.");
+  for (const flag of flags) if (CHECKLIST[flag]) lines.push(`- [ ] ${CHECKLIST[flag]}`);
+  lines.push("- [ ] Checked interaction behavior manually; clearing axe alone does not settle it.", "- [ ] Re-ran checks after any edit or base change.");
+  lines.push("", `_${AUTOMATED_TESTING_DISCLAIMER}_`);
+  return lines;
+}
+function buildDraftPullBody(context) {
+  const { candidate } = context.item;
+  return [modelDraftMarker(candidate.sourceCommit, candidate.validated.draft.findingId), `## A11yGate: ${MODEL_DRAFT_LABEL}`, "", ...provenance(context), ""].join("\n");
+}
+function fence(lines) {
+  let ticks = "```";
+  while (lines.some((line) => line.includes(ticks))) ticks += "`";
+  return ticks;
+}
+function buildModelSuggestionBody(context) {
+  const { candidate } = context.item;
+  const replacement = candidate.validated.draft.replacement;
+  const ticks = fence(replacement);
+  return [
+    modelDraftMarker(candidate.sourceCommit, candidate.validated.draft.findingId),
+    `**A11yGate: ${MODEL_DRAFT_LABEL}** for axe ${code(candidate.ruleId)}`,
+    "",
+    `${ticks}suggestion`,
+    ...replacement,
+    ticks,
+    "",
+    ...provenance(context),
+    ""
+  ].join("\n");
+}
+function eligibility(item, combined, total) {
+  const { verification, candidate } = item;
+  const fingerprint = candidate.validated.draft.findingId;
+  if (!verification || verification.verified !== true || verification.outcome !== "verified" || verification.reason !== "verified" || verification.newFindings !== 0 || !verification.findingIds.includes(fingerprint) || !FULL_SHA.test(verification.treeHash ?? "") || !FULL_SHA.test(candidate.sourceCommit) || candidate.validated.needsHumanReview !== true) {
+    return "not-verified";
+  }
+  if (total > 1 && (!combined || combined.verified !== true || combined.reason !== "verified" || !combined.findingIds.includes(fingerprint))) {
+    return "combined-not-verified";
+  }
+  return null;
+}
+async function paginate(github, pathname) {
+  const items = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const sep = pathname.includes("?") ? "&" : "?";
+    const batch = await github(`${pathname}${sep}per_page=100&page=${page}`);
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    items.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return items;
+}
+function withMarker(items, marker) {
+  for (const item of items) {
+    if (item && typeof item === "object" && typeof item.body === "string" && item.body.includes(marker)) {
+      return item;
+    }
+  }
+  return null;
+}
+function shaField(value, ...keys) {
+  let current = value;
+  for (const key of keys) current = current && typeof current === "object" ? current[key] : void 0;
+  return typeof current === "string" && FULL_SHA.test(current) ? current : "";
+}
+function patchedFile(item, files) {
+  const draft = item.candidate.validated.draft;
+  const original = files.find((file) => file.path === draft.path);
+  if (!original || gitBlobHash(original.content) !== draft.sourceBlobHash) return null;
+  const content = applyDrafts(original.content, [draft]);
+  const expected = item.verification.patchedBlobs?.find((blob) => blob.path === draft.path)?.blobHash;
+  if (!expected || item.verification.patchedBlobs?.length !== 1 || gitBlobHash(content) !== expected) return null;
+  return { path: draft.path, content };
+}
+async function refSha(github, repo, branch) {
+  try {
+    return shaField(await github(`/repos/${repo}/git/ref/heads/${encodeBranch(branch)}`), "object", "sha") || null;
+  } catch (error) {
+    if (statusOf(error) === 404) return null;
+    throw error;
+  }
+}
+function encodeBranch(branch) {
+  return branch.split("/").map(encodeURIComponent).join("/");
+}
+async function publishDraftPull(ctx, item, baseBranch, openPulls) {
+  const { github, repo } = ctx;
+  const { candidate, verification } = item;
+  const fingerprint = candidate.validated.draft.findingId;
+  const body = buildDraftPullBody({ item, combined: ctx.combined, model: modelOf(item.provider, ctx.models), routes: ctx.routes });
+  const existing = withMarker(await openPulls(), modelDraftMarker(candidate.sourceCommit, fingerprint));
+  if (existing) {
+    const number = typeof existing.number === "number" ? existing.number : null;
+    if (existing.draft !== true || existing.body === body || number === null) return { channel: "draft-pr", action: "unchanged", reason: null, id: number };
+    await github(`/repos/${repo}/pulls/${number}`, { method: "PATCH", body: { body } });
+    return { channel: "draft-pr", action: "updated", reason: null, id: number };
+  }
+  const branch = modelDraftBranch(candidate.sourceCommit, fingerprint);
+  if (await refSha(github, repo, branch) !== null) return { channel: "draft-pr", action: "skipped", reason: "branch-exists", id: null };
+  if (await refSha(github, repo, baseBranch) !== candidate.sourceCommit) return { channel: "draft-pr", action: "skipped", reason: "stale", id: null };
+  const file = patchedFile(item, ctx.files);
+  if (!file) return { channel: "draft-pr", action: "skipped", reason: "tree-mismatch", id: null };
+  const baseTree = shaField(await github(`/repos/${repo}/git/commits/${candidate.sourceCommit}`), "tree", "sha");
+  if (!baseTree) return { channel: "draft-pr", action: "skipped", reason: "error", id: null };
+  const tree = shaField(
+    await github(`/repos/${repo}/git/trees`, {
+      method: "POST",
+      body: { base_tree: baseTree, tree: [{ path: file.path, mode: "100644", type: "blob", content: file.content }] }
+    }),
+    "sha"
+  );
+  if (!tree || tree !== verification.treeHash) return { channel: "draft-pr", action: "skipped", reason: "tree-mismatch", id: null };
+  const commit = shaField(
+    await github(`/repos/${repo}/git/commits`, {
+      method: "POST",
+      body: { message: `a11ygate: model-drafted fix for ${candidate.ruleId} (needs human review)
+
+Finding: ${fingerprint}
+Source commit: ${candidate.sourceCommit}`, tree, parents: [candidate.sourceCommit] }
+    }),
+    "sha"
+  );
+  if (!commit) return { channel: "draft-pr", action: "skipped", reason: "error", id: null };
+  await github(`/repos/${repo}/git/refs`, { method: "POST", body: { ref: `refs/heads/${branch}`, sha: commit } });
+  try {
+    const pull = await github(`/repos/${repo}/pulls`, {
+      method: "POST",
+      body: { title: `[A11yGate draft] ${candidate.ruleId}: ${MODEL_DRAFT_LABEL}`, head: branch, base: baseBranch, body, draft: true, maintainer_can_modify: false }
+    });
+    const number = pull && typeof pull.number === "number" ? pull.number : null;
+    return { channel: "draft-pr", action: "created", reason: null, id: number };
+  } catch (error) {
+    await github(`/repos/${repo}/git/refs/heads/${encodeBranch(branch)}`, { method: "DELETE" }).catch(() => void 0);
+    if (statusOf(error) === 422) return { channel: "draft-pr", action: "skipped", reason: "draft-unavailable", id: null };
+    throw error;
+  }
+}
+async function publishSuggestion(ctx, item, pull, comments) {
+  const { github, repo } = ctx;
+  const { candidate } = item;
+  const draft = candidate.validated.draft;
+  if (!patchedFile(item, ctx.files)) return { channel: "review-suggestion", action: "skipped", reason: "tree-mismatch", id: null };
+  const body = buildModelSuggestionBody({ item, combined: ctx.combined, model: modelOf(item.provider, ctx.models), routes: ctx.routes });
+  const existing = withMarker(await comments(), modelDraftMarker(candidate.sourceCommit, draft.findingId));
+  if (existing) {
+    const id2 = typeof existing.id === "number" ? existing.id : null;
+    if (existing.body === body || id2 === null) return { channel: "review-suggestion", action: "unchanged", reason: null, id: id2 };
+    await github(`/repos/${repo}/pulls/comments/${id2}`, { method: "PATCH", body: { body } });
+    return { channel: "review-suggestion", action: "updated", reason: null, id: id2 };
+  }
+  const payload = { body, commit_id: candidate.sourceCommit, path: draft.path, line: draft.endLine, side: "RIGHT" };
+  if (draft.startLine < draft.endLine) Object.assign(payload, { start_line: draft.startLine, start_side: "RIGHT" });
+  const created = await github(`/repos/${repo}/pulls/${pull}/comments`, { method: "POST", body: payload });
+  const id = created && typeof created.id === "number" ? created.id : null;
+  return { channel: "review-suggestion", action: "created", reason: null, id };
+}
+function lazy(load) {
+  let cached = null;
+  return () => cached ??= load();
+}
+async function publishModelDrafts(input) {
+  const summary = { records: [], created: 0, updated: 0, unchanged: 0, skipped: 0, permissionDenied: false };
+  const warn = input.warn ?? (() => {
+  });
+  const candidates = input.candidates ?? [];
+  const combined = input.combined ?? null;
+  const mode = input.mode === "review-suggestion" ? "review-suggestion" : "draft-pr";
+  const pull = input.pullNumber !== void 0 && input.pullNumber !== null && /^\d+$/.test(String(input.pullNumber)) ? String(input.pullNumber) : null;
+  const ctx = { github: input.github, repo: input.repo, files: input.files ?? [], combined, models: input.models, routes: input.rescanRoutes ?? [] };
+  const openPulls = lazy(() => paginate(input.github, `/repos/${input.repo}/pulls?state=open`));
+  const comments = lazy(() => pull ? paginate(input.github, `/repos/${input.repo}/pulls/${pull}/comments`) : Promise.resolve([]));
+  let stopped = null;
+  for (const item of candidates) {
+    const fingerprint = String(item?.candidate?.validated?.draft?.findingId ?? "");
+    const sourceCommit = String(item?.candidate?.sourceCommit ?? "");
+    const record = (rest) => {
+      summary.records.push({ fingerprint, sourceCommit, ...rest });
+      if (rest.action === "skipped") summary.skipped += 1;
+      else summary[rest.action] += 1;
+    };
+    if (stopped) {
+      record({ channel: null, action: "skipped", reason: stopped, id: null });
+      continue;
+    }
+    const blocked = eligibility(item, combined, candidates.length);
+    if (blocked) {
+      record({ channel: null, action: "skipped", reason: blocked, id: null });
+      continue;
+    }
+    try {
+      let outcome;
+      if (mode === "draft-pr" && input.baseBranch) {
+        outcome = await publishDraftPull(ctx, item, input.baseBranch, openPulls);
+        if (outcome.reason === "draft-unavailable" && pull) outcome = await publishSuggestion(ctx, item, pull, comments);
+      } else if (mode === "draft-pr") {
+        outcome = pull ? await publishSuggestion(ctx, item, pull, comments) : { channel: null, action: "skipped", reason: "no-base-branch", id: null };
+      } else {
+        outcome = pull ? await publishSuggestion(ctx, item, pull, comments) : { channel: null, action: "skipped", reason: "no-pull-request", id: null };
+      }
+      record(outcome);
+    } catch (error) {
+      const reason = classify(error);
+      record({ channel: null, action: "skipped", reason, id: null });
+      if (reason === "permission-denied" || reason === "quota") {
+        stopped = reason;
+        summary.permissionDenied = reason === "permission-denied";
+        warn(
+          reason === "permission-denied" ? "A11yGate could not publish model drafts: permission denied (needs pull-requests: write and contents: write). Falling back to report only." : "A11yGate stopped publishing model drafts: GitHub rate limit reached. Falling back to report only."
+        );
+      } else {
+        const status = statusOf(error);
+        warn(`A11yGate could not publish a model draft${status ? ` (GitHub status ${status})` : ""}. Report only for this finding.`);
+      }
+    }
+  }
+  return summary;
+}
+var ROUTE_NOTES = {
+  "draft-rejected": "draft rejected by the validator",
+  "unverified-discarded": "no verifier configured",
+  "verify-rejected": "rejected by the re-scan",
+  "stale-discarded": "stale (source changed)",
+  "over-budget": "request budget used up",
+  "adapters-failed": "provider failed",
+  "no-provider": "no provider configured",
+  "no-budget": "no request budget configured"
+};
+function buildPublishStatus(summary, routes = []) {
+  const lines = [];
+  for (const route of routes) {
+    const outcome = route.model?.outcome;
+    const note = outcome ? ROUTE_NOTES[outcome] : void 0;
+    if (note) lines.push(`Model draft for finding ${code(route.fingerprint)} not published: ${note}.`);
+  }
+  for (const record of summary?.records ?? []) {
+    if (record.action === "skipped") lines.push(`Model draft for finding ${code(record.fingerprint)} not published: ${record.reason ?? "error"}.`);
+    else lines.push(`Model draft for finding ${code(record.fingerprint)} ${record.action} as ${record.channel === "draft-pr" ? "a draft pull request" : "a labelled review suggestion"} (${MODEL_DRAFT_LABEL}).`);
+  }
+  return lines;
 }
 export {
   BUILTIN_ADAPTERS,
   DRAFT_LIMITS,
   HUMAN_REVIEW_FLAGS,
+  MODEL_DRAFT_LABEL,
+  MODEL_DRAFT_MARKER_PREFIX,
   MODEL_ELIGIBLE_RULES,
   MODEL_FIXES_OFF,
   REPO_CONFIG_FILE,
+  applyDrafts,
+  buildDraftPullBody,
+  buildModelSuggestionBody,
+  buildPublishStatus,
   failingAdapter,
   gitBlobHash,
+  modelDraftBranch,
+  modelDraftMarker,
   parseRepoConsent,
   parseSwitch,
   planWithModelFixes,
+  publishModelDrafts,
   requiredReviewFlags,
   resolveModelFixConfig,
   routeFindings,

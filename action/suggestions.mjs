@@ -7,7 +7,7 @@ import {
   planSuggestions,
   sourceKind,
 } from './dist/fix.mjs';
-import { planWithModelFixes } from './dist/modelfix.mjs';
+import { buildPublishStatus, planWithModelFixes, publishModelDrafts } from './dist/modelfix.mjs';
 
 export const MAX_SUGGESTIONS = 25;
 const MAX_FILE_BYTES = 1_000_000;
@@ -87,7 +87,7 @@ async function paginate(github, pathname, maxPages) {
  *
  * `github(pathname, { method, body })` returns parsed JSON or throws.
  */
-export async function postSuggestions({ report, github, repo, pr, headSha, workspace, lang, warn, info, readFile, modelFixes, modelAdapters, env }) {
+export async function postSuggestions({ report, github, repo, pr, headSha, workspace, lang, warn, info, readFile, modelFixes, modelAdapters, env, modelVerifier, modelPublish }) {
   const summary = { planned: 0, created: 0, updated: 0, unchanged: 0, failed: 0, skipped: [] };
   const log = info ?? (() => {});
   try {
@@ -108,9 +108,27 @@ export async function postSuggestions({ report, github, repo, pr, headSha, works
     summary.skipped = plan.skipped;
     if (modelFixes) {
       // Optional model path (off by default). It only records routing; the F1 plan is posted unchanged.
-      const routed = await planWithModelFixes({ findings, files, options: { lang }, config: modelFixes, f1Plan: plan, adapters: modelAdapters, env, sourceCommit: commitId });
+      const routed = await planWithModelFixes({ findings, files, options: { lang }, config: modelFixes, f1Plan: plan, adapters: modelAdapters, env, sourceCommit: commitId, verifier: modelVerifier });
       summary.model = routed.model;
       if (modelFixes.enabled) log(routed.model.message);
+      if (modelFixes.enabled && modelPublish && routed.verified.length > 0) {
+        // Verified drafts only, as a draft PR or a labelled review suggestion. Never ready/approve/merge.
+        // A denied publish falls back to report only and never changes the exit code.
+        summary.published = await publishModelDrafts({
+          github,
+          repo,
+          candidates: routed.verified,
+          combined: routed.model.combined ?? null,
+          files,
+          mode: modelPublish.mode,
+          baseBranch: modelPublish.baseBranch ?? null,
+          pullNumber: pr,
+          models: modelPublish.models,
+          rescanRoutes: modelPublish.routes,
+          warn,
+        });
+      }
+      if (modelFixes.enabled) for (const line of buildPublishStatus(summary.published ?? null, routed.model.routes)) log(line);
     }
     const suggestions = plan.suggestions.slice(0, MAX_SUGGESTIONS);
     summary.planned = suggestions.length;
