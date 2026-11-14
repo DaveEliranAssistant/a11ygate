@@ -15,7 +15,7 @@ Nothing beyond the proposed 0.2.0 set below. The following agreed batch-2 tasks 
 - A11Y-R17 live provider smoke workflow
 - A11Y-R18 baseline mode (`a11ygate baseline` / fail only on new violations)
 - A11Y-R19 `a11ygate init`
-- A11Y-R20 evidence pack export
+- A11Y-R20 evidence pack export (`a11ygate evidence pack`, branch `feat/evidence-pack`, pending review)
 
 ## [0.2.0] — proposed (not published)
 

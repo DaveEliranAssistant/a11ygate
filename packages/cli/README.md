@@ -77,6 +77,26 @@ The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` 
 
 **Boundaries.** Only scan sites you own or are explicitly authorized to test. The scanner is read-only: it does not log in, fill forms or click. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
 
+## Evidence pack (`a11ygate evidence pack`)
+
+Unreleased source build. Bundles one scan's local outputs into a single zip. It reads only files already written by `a11ygate scan --out-dir`; it does not scan, crawl or use the network.
+
+```bash
+node packages/cli/dist/cli.mjs evidence pack --from a11y-scan --out a11y-evidence.zip --commit "$(git rev-parse HEAD)"
+```
+
+| Path in zip | Contents |
+| --- | --- |
+| `manifest.json` | Tool version, commit SHA (or `"sha": null, "source": "unavailable"` with a note; none is invented), engines with versions and rule sets, UTC timestamps (`packedAt`, `scannedAt`), scope, and the SHA-256 and size of every other file. |
+| `report.md`, `report.html` | Front page: scope scanned, automated result, **what automated testing cannot cover**, and the disclaimer. |
+| `scan/a11ygate-scan.{json,md,html,sarif,junit.xml}` | Copied from `--from`; SARIF/JUnit/MD/HTML are regenerated from the JSON when absent (marked `"source": "generated"`). |
+| `engines/<axe\|htmlcs\|ibm\|lighthouse>.json` | Per-engine raw JSON, when present. |
+| `screenshots/*.png\|jpg\|webp` | When present; only real image files. |
+
+Only these allowlisted files are read, so `.env` files, credentials and other files in the directory are never packed. Packing exits 2 without writing if an included file looks like it holds a credential (tokens, private keys, URL credentials) or the value of a secret-named environment variable. Re-packing the same inputs gives identical files; only `manifest.json` timestamps change. Default `--out` is `<from>/a11ygate-evidence.zip`.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## Jenkins
 
 See [Jenkins integration](../../docs/integrations/jenkins.md) for the shared library step, example `Jenkinsfile`s, JUnit/SARIF publishing, and agent requirements.
