@@ -4,7 +4,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 A11yGate ships an example CircleCI config, [`integrations/circleci/config.yml`](../../integrations/circleci/config.yml). It runs in a `cimg/node` browsers image, installs your dependencies and Chromium, starts your application on loopback, scans it, stores JUnit results in the **Tests** tab, stores the HTML/JSON/Markdown reports, SARIF and an evidence pack as job artifacts, and fails the job according to a fail-on policy. An optional fingerprint baseline gates only new findings.
 
-Sibling guides: [GitHub Action](github-action.md), [Jenkins](jenkins.md), [Azure DevOps](azure-devops.md), [GitLab](../../integrations/gitlab/README.md).
+Sibling guides: [GitHub Action](github-action.md), [Jenkins](jenkins.md), [Azure DevOps](azure-devops.md), [GitLab](../../integrations/gitlab/README.md), [Bitbucket Pipelines](bitbucket.md).
 
 ## Use the config
 

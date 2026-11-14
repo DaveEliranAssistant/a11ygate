@@ -40,7 +40,7 @@ Next, point `--current` at your own axe JSON. One way to produce it is a Playwri
 
 ## CI matrix
 
-All five integrations are merged on `main`. "Tested how" states only what a test in this repository or a recorded run shows. Nothing in this table was run in a customer pipeline.
+All six integrations are merged on `main`. "Tested how" states only what a test in this repository or a recorded run shows. Nothing in this table was run in a customer pipeline.
 
 | CI | Guide and file | Tested how | Not verified |
 | --- | --- | --- | --- |
@@ -49,6 +49,7 @@ All five integrations are merged on `main`. "Tested how" states only what a test
 | GitLab | [Guide](integrations/gitlab/README.md), [`integrations/gitlab/a11ygate.gitlab-ci.yml`](integrations/gitlab/a11ygate.gitlab-ci.yml) | [`tests/gitlab-codequality.test.ts`](tests/gitlab-codequality.test.ts) checks the job structure and Code Quality output. [`integrations/gitlab/smoke-local.mjs`](integrations/gitlab/smoke-local.mjs) runs the template's exact `script` against a loopback fixture (manual, needs Chromium). | No GitLab runner run. Docker was unavailable, so the container image and `npm ci` were not executed; `gitlab-ci-local` is not installed here and validates configuration only. |
 | Azure DevOps | [Guide](docs/integrations/azure-devops.md), [`integrations/azure-devops/a11ygate.yml`](integrations/azure-devops/a11ygate.yml) | [`tests/azure-devops.test.ts`](tests/azure-devops.test.ts) checks task and input names and runs the template's rendered scan and evidence-pack lines through the CLI (and in `/bin/sh` when Chromium is installed). | No Azure DevOps organization was used; no pipeline run. The Windows cmd.exe path is not executed. |
 | CircleCI | [Guide](docs/integrations/circleci.md), [`integrations/circleci/config.yml`](integrations/circleci/config.yml) | [`tests/circleci.test.ts`](tests/circleci.test.ts) checks the config against the documented key subset and, when Chromium is installed, runs its wait, scan and evidence commands in bash against a loopback fixture. | `circleci config validate` has not been run: the CircleCI CLI and Docker were not available, and no CircleCI account was used. No orb is published (coming, owner action). |
+| Bitbucket Pipelines | [Guide](docs/integrations/bitbucket.md), [`integrations/bitbucket/bitbucket-pipelines.yml`](integrations/bitbucket/bitbucket-pipelines.yml) | [`tests/bitbucket-pipelines.test.ts`](tests/bitbucket-pipelines.test.ts) checks the YAML against the key lists in Atlassian's published schema, PR-only triggering and the JUnit `test-results/` path. It runs the step's own scan line (the checked-in [`a11ygate-scan.sh`](integrations/bitbucket/a11ygate-scan.sh)) in `dash` through the CLI and, when Chromium is installed, against a loopback fixture: exit 1 at `serious`, 0 at `none`, evidence pack after a failing scan. | No Bitbucket pipeline has run it and no Bitbucket account was used. Docker was unavailable, so the Playwright image was not run; Bitbucket's test-report scanner and artifact upload are not exercised. |
 
 ## Troubleshooting
 
