@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { runBaseline } from './baseline';
+import { SCHEMA_COMMENT } from './config';
 import { JENKINS_TEMPLATE } from './init-templates';
 import type { RunIo } from './run';
 
@@ -177,7 +178,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
       if (existing) stdout('Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n');
       else if (await runBaseline(['create', options.baseline, '--output', '.a11ygate-baseline.json'], io) !== 0) return 2;
     }
-    const config = `# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\nengines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
+    const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\nengines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
     await writeStarter(cwd, options.target === 'github' ? '.github/workflows/a11ygate.yml' : 'Jenkinsfile', options.target === 'github' ? githubStarter(options) : jenkinsStarter(options), options.force, stdout);
     stdout('Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n');

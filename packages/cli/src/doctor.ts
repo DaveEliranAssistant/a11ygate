@@ -5,6 +5,7 @@ import path from 'node:path';
 import { adaptersForEnv } from '@/lib/modelfix/adapters';
 import { resolveModelFixConfig } from '@/lib/modelfix/config';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { configProblems, SCHEMA_PATH } from './config';
 type Env = Readonly<Record<string, string | undefined>>;
 export type DoctorFinding = {
   check: string;
@@ -25,7 +26,7 @@ export type DoctorIo = {
   fetch?: typeof fetch;
 };
 const GUIDE = 'https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#';
-const sections: Record<string, string> = { checkout: 'doctor-checkout', permissions: 'doctor-permissions', 'pr-creation': 'doctor-pr-creation', browser: 'doctor-browser', node: 'doctor-node', engines: 'doctor-engines', provider: 'doctor-provider' };
+const sections: Record<string, string> = { config: 'doctor-config', checkout: 'doctor-checkout', permissions: 'doctor-permissions', 'pr-creation': 'doctor-pr-creation', browser: 'doctor-browser', node: 'doctor-node', engines: 'doctor-engines', provider: 'doctor-provider' };
 const PEERS: Record<string, string[]> = { axe: ['@axe-core/playwright'], htmlcs: ['html_codesniffer'], ibm: ['accessibility-checker-engine'], lighthouse: ['lighthouse', 'puppeteer-core'] };
 const yes = (value?: string) => /^(on|true|1|yes)$/i.test(value ?? '');
 // Only the small, documented engines list is read; no YAML tags, scripts or dependencies execute.
@@ -64,6 +65,8 @@ export async function doctorChecks(options: {
   const model = resolveModelFixConfig({ repoConfig: config, flag: options.modelFixes ?? env.A11Y_MODEL_FIXES, env });
   const findings: DoctorFinding[] = [];
   const add = (check: string, status: DoctorFinding['status'], message: string) => findings.push({ check, status, message, link: GUIDE + sections[check] });
+  const problems = config === null ? [] : configProblems(config);
+  add('config', config === null ? 'skipped' : problems.length ? 'fail' : 'pass', config === null ? 'No .a11ygate.yml; defaults apply.' : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join(' ')} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
   let head: string | null = null;
   try {
     head = io.head ? io.head() : execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();

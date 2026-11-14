@@ -48,6 +48,25 @@ Existing files are skipped individually and init exits successfully. `--force`
 replaces regular starter files; it refuses symlink destinations and parents.
 It never replaces a fingerprint baseline, even with `--force`.
 
+### Config schema and validation
+
+`.a11ygate.yml` is described by
+[`schema/a11ygate.schema.json`](../../schema/a11ygate.schema.json). The generated
+file starts with
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json
+```
+
+so editors with the YAML language server offer autocomplete and inline errors.
+Keys: `url`, `crawl`, `failOn`, `engines`, `modelFixes`, `baseline`, `formats`,
+`outDir`, `delayMs`, `reportVersion`, and `auth` (`storageState`, `loginScript`,
+`loginTimeoutMs`, `cookieEnv`, `headerEnv` — environment variable names only,
+never credentials). Each key notes its matching CLI flag (`x-cli`). Run
+`a11ygate config validate [file]` or `a11ygate doctor` to get plain-English
+errors such as `unknown key 'engine' — did you mean 'engines'?`. Validation
+checks the file's shape only; it is not an accessibility assessment.
+
 ## Finish GitHub setup
 
 The starter checks out the PR head SHA and declares the R13 permissions. It uses

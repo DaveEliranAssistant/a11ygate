@@ -8,6 +8,10 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
+### Added
+
+- `schema/a11ygate.schema.json` describes `.a11ygate.yml` (url, crawl, failOn, engines, modelFixes, baseline, formats, outDir, delayMs, reportVersion, auth). `a11ygate config validate [file]` and a new `doctor` config check report plain-English errors such as "unknown key 'engine' — did you mean 'engines'?". `a11ygate init` adds a `# yaml-language-server: $schema=` line for editor autocomplete (A11Y-R31).
+
 ### Changed
 
 - `a11ygate scan` HTML report v2 is the default: executive summary (pages, totals, new vs baseline, engines used/errored), top 10 fixes ordered by impact × pages affected, findings grouped by WCAG success criterion and by page, per-rule how-to-fix with links taken only from the finding's engine help URL and the W3C Understanding table in `lib/mapping.ts`, a "what automated testing does not cover" section, print CSS and a contrast-tested dark scheme. `--report-version 1` emits the previous HTML byte-for-byte (A11Y-R28).
