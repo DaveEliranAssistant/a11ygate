@@ -1,12 +1,14 @@
+import { freeTierAdapters } from '@/lib/modelfix/providers';
 import type { ModelAdapter, ModelDraft, ModelDraftRequest } from '@/lib/modelfix/types';
 
 /**
- * Built-in adapters. Empty in this phase: no live provider (Groq, Gemini,
- * Cloudflare Workers AI, paid fallbacks) is implemented, so a run with models
- * on always reports "no provider" and falls back to F1 with zero requests.
- * `stubAdapter` is exported for tests and later wiring, never used by default.
+ * Built-in adapters, in design order: Groq → Gemini → Cloudflare Workers AI.
+ * All free-tier; no paid adapter ships. Each is inert (`isConfigured` false,
+ * no request) unless its credentials and an explicit model ID are set, and the
+ * orchestrator only calls them with the repository opt-in, the provider
+ * allowlist and a request budget. `stubAdapter` is for tests, never a default.
  */
-export const BUILTIN_ADAPTERS: readonly ModelAdapter[] = [];
+export const BUILTIN_ADAPTERS: readonly ModelAdapter[] = freeTierAdapters();
 
 /** Stub adapter that is configured but always fails. For fallback tests; makes no network request. */
 export function failingAdapter(id: string, message = 'stub provider unavailable'): ModelAdapter {

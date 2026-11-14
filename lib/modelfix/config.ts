@@ -6,6 +6,7 @@ const ON = new Set(['on', 'true', '1', 'yes']);
 const OFF = new Set(['off', 'false', '0', 'no']);
 const MAX_REQUEST_CAP = 100;
 const MAX_TIMEOUT_MS = 120_000;
+const MAX_COST_USD = 100;
 
 /** Parses a flag/env switch. Empty means unset; anything unknown counts as an explicit off. */
 export function parseSwitch(value: string | undefined | null): { value: ModelFixSwitch | null; invalid: boolean } {
@@ -70,7 +71,15 @@ export function resolveModelFixConfig(input: { repoConfig?: string | null; flag?
   if (maxRequests === null) warnings.push(`A11YGATE_MODEL_MAX_REQUESTS must be an integer from 0 to ${MAX_REQUEST_CAP}; using 0.`);
   if (timeoutMs === null) warnings.push(`A11YGATE_MODEL_TIMEOUT_MS must be an integer from 0 to ${MAX_TIMEOUT_MS}; using 0.`);
 
-  const base = { repo, requested, providers, maxRequests: maxRequests ?? 0, timeoutMs: timeoutMs ?? 0, warnings };
+  const allowPaid = parseSwitch(env.A11YGATE_MODEL_ALLOW_PAID).value === 'on';
+  const costText = String(env.A11YGATE_MODEL_MAX_COST_USD ?? '').trim();
+  let maxCostUsd = 0;
+  if (costText) {
+    if (/^\d+(\.\d+)?$/.test(costText) && Number(costText) <= MAX_COST_USD) maxCostUsd = Number(costText);
+    else warnings.push(`A11YGATE_MODEL_MAX_COST_USD must be a number from 0 to ${MAX_COST_USD}; using 0.`);
+  }
+
+  const base = { repo, requested, providers, maxRequests: maxRequests ?? 0, timeoutMs: timeoutMs ?? 0, allowPaid, maxCostUsd, warnings };
   if (requested === null) return { ...base, enabled: false, reason: 'default-off' };
   if (requested === 'off') return { ...base, enabled: false, reason: 'turned-off' };
   if (repo === 'missing') return { ...base, enabled: false, reason: 'repo-missing' };

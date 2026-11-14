@@ -3,10 +3,12 @@ import type { SkipReason } from '@/lib/fix/types';
 /**
  * Types for the optional model-assisted fix path (design: docs/design/model-written-fix-prs.md).
  *
- * No live provider adapters exist yet. A validated draft may be applied in an
- * isolated worktree and re-scanned by an injected `CandidateVerifier`
- * (lib/modelfix-verify). Only verified drafts may be published, and only as a
- * draft pull request or a labelled review suggestion (lib/modelfix/publish.ts).
+ * Free-tier provider adapters (Groq, Gemini, Cloudflare Workers AI) live in
+ * `providers.ts` and stay inert without opt-in, credentials and a budget. A
+ * validated draft may be applied in an isolated worktree and re-scanned by an
+ * injected `CandidateVerifier` (lib/modelfix-verify). Only verified drafts may
+ * be published, and only as a draft pull request or a labelled review
+ * suggestion (lib/modelfix/publish.ts).
  */
 
 /** Exact repository config file name, read from the workspace root. */
@@ -42,6 +44,14 @@ export type ModelFixConfig = {
   maxRequests: number;
   /** `A11YGATE_MODEL_TIMEOUT_MS`. 0 (the default) means no deadline was set, so no request is made. */
   timeoutMs: number;
+  /**
+   * `A11YGATE_MODEL_ALLOW_PAID`. Default false. A separate opt-in from
+   * `modelFixes`; paid adapters are skipped unless this is true AND
+   * `maxCostUsd` is positive. No paid adapter ships today.
+   */
+  allowPaid: boolean;
+  /** `A11YGATE_MODEL_MAX_COST_USD`. Default 0: no paid spend. */
+  maxCostUsd: number;
   /** Sanitized notes about ignored or invalid settings. Never contains secrets. */
   warnings: string[];
 };
@@ -227,7 +237,9 @@ export type DraftRejectionCode =
   /** Empty or whitespace-only replacement (deletion). */
   | 'empty-replacement'
   /** Replacement equals the original. */
-  | 'no-change';
+  | 'no-change'
+  /** A provider reply wrote alt / label / accessible-name text instead of a TODO(a11ygate) placeholder. */
+  | 'generated-name';
 
 export type DraftRejection = { code: DraftRejectionCode; detail: string };
 
@@ -244,9 +256,17 @@ export type ValidatedDraft = {
 
 export type DraftValidation = { ok: true; value: ValidatedDraft } | { ok: false; rejection: DraftRejection };
 
-/** Provider adapter contract. Live adapters (Groq, Gemini, Cloudflare) are later tasks. */
+/** Provider adapter contract. Live free-tier adapters are in `providers.ts`. */
 export interface ModelAdapter {
   readonly id: string;
+  /**
+   * Billing class. `paid` adapters need the separate paid opt-in
+   * (`A11YGATE_MODEL_ALLOW_PAID`) plus a positive cost budget. Unset means a
+   * local/offline adapter (stubs) that never bills.
+   */
+  readonly billing?: 'free-tier' | 'paid';
+  /** Optional pre-flight: false when the request must not be sent (sanitization). Not counted as a request. */
+  accepts?(request: ModelDraftRequest): boolean;
   /** True only when the adapter's own credentials/model settings are present. Must not make requests. */
   isConfigured(env: Readonly<Record<string, string | undefined>>): boolean;
   draft(request: ModelDraftRequest, signal: AbortSignal): Promise<ModelDraft>;
@@ -336,11 +356,22 @@ export type PublishableCandidate = {
   provider: string;
 };
 
+export type ProviderRunState = {
+  id: string;
+  /** `ready`: usable; `cooldown`: rate/quota limited until `cooldownUntil`; `circuit-open`: failed for this run. */
+  state: 'ready' | 'cooldown' | 'circuit-open';
+  /** Epoch ms when a cooldown ends, from Retry-After / reset signals. */
+  cooldownUntil: number | null;
+  requests: number;
+};
+
 export type ModelFixRun = {
   status: ModelRunStatus;
   routes: RouteRecord[];
-  /** Adapter `draft` calls made in this run. */
+  /** Adapter `draft` calls made in this run (including retries). */
   modelRequests: number;
+  /** Per-provider state at the end of the run. Sanitized; no response content. */
+  providers?: ProviderRunState[];
   /** Combined re-verification of every individually verified candidate, when two or more verified. */
   combined?: CandidateVerification | null;
   /** Sanitized one-line summary for logs. Contains no request or response content. */

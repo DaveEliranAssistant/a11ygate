@@ -100,7 +100,9 @@ describe('no-model fallback equals F1-only output', () => {
     const env = { ...BUDGET, A11YGATE_MODEL_PROVIDERS: 'groq,gemini,cloudflare' };
     const config = resolveModelFixConfig({ repoConfig: OPTED_IN, flag: 'on', env });
     expect(config.enabled).toBe(true);
-    expect(BUILTIN_ADAPTERS).toHaveLength(0);
+    // The three free-tier adapters are listed but inert without credentials and a model ID.
+    expect(BUILTIN_ADAPTERS.map((adapter) => adapter.id)).toEqual(['groq', 'gemini', 'cloudflare']);
+    expect(BUILTIN_ADAPTERS.every((adapter) => adapter.isConfigured(env) === false)).toBe(true);
     const result = await planWithModelFixes({ findings: FINDINGS, files: FILES, options: { lang: 'en' }, config, env, sourceCommit: 'a'.repeat(40) });
     expect(result.plan).toEqual(F1_ONLY);
     expect(result.model.status).toBe('no-provider');
