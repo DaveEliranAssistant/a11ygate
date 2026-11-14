@@ -119,10 +119,10 @@ test.describe('a11ygate scan against a local fixture site', () => {
 
   });
 
-  test('opt-in engines share one visit and report their findings separately', async () => {
+  test('opt-in engines share one visit, merge evidence and archive native outputs', async () => {
     server.requests.length = 0;
     const out = path.join(dir, 'engines');
-    const result = await runCli(['scan', `${server.origin}/`, '--engines', 'axe,htmlcs,ibm,lighthouse', '--out-dir', out]);
+    const result = await runCli(['scan', `${server.origin}/`, '--engines', 'axe,htmlcs,ibm,lighthouse', '--out-dir', out, '--format', 'junit,sarif']);
     expect(result.code, result.stderr).toBe(1);
     const report = JSON.parse(await readFile(path.join(out, 'a11ygate-scan.json'), 'utf8'));
     expect(report.engineResults.map((e: { engine: string }) => e.engine)).toEqual(['axe', 'htmlcs', 'ibm', 'lighthouse']);
@@ -130,10 +130,26 @@ test.describe('a11ygate scan against a local fixture site', () => {
       expect(execution.status, execution.error).toBe('complete');
       expect(execution.findings.length).toBeGreaterThan(0);
     }
+    expect(report.counts.findings).toBe(report.findings.length);
+    expect(report.pages[0].findings).toBe(report.findings.length);
+    const image = report.findings.filter((f: { wcag: { number: string }[]; html: string }) => f.wcag.some((c) => c.number === '1.1.1') && f.html.includes('<img'));
+    expect(image).toHaveLength(1);
+    expect(image[0].engines).toEqual(['axe', 'htmlcs', 'ibm', 'lighthouse']);
+    expect(image[0].confidence).toEqual({ confirmedBy: 4, enginesRan: 4, agreement: 1 });
+    for (const id of ['axe', 'htmlcs', 'ibm', 'lighthouse']) {
+      const archive = JSON.parse(await readFile(path.join(out, 'engines', `${id}.json`), 'utf8'));
+      expect(archive[0]).toMatchObject({ engine: id, status: 'complete' });
+      expect(archive[0].native).toBeTruthy();
+      if (id === 'axe') expect(archive[0].native.passes.length).toBeGreaterThan(0);
+      else expect(archive[0].native.raw).toBeTruthy();
+    }
+    for (const file of ['a11ygate-scan.junit.xml', 'a11ygate-scan.sarif']) {
+      expect(await readFile(path.join(out, file), 'utf8')).toContain('detected by: axe, htmlcs, ibm, lighthouse');
+    }
     expect(server.requests.filter((r) => r.path === '/')).toHaveLength(1);
-    expect(result.stdout).toContain('Engine results (separate, not deduplicated)');
+    expect(result.stdout).toContain('Engines used / engines errored');
     const html = await readFile(path.join(out, 'a11ygate-scan.html'), 'utf8');
-    expect(html).toContain('Engine results (separate, not deduplicated)');
+    expect(html).toContain('Engines used / engines errored');
     expect(html).not.toContain('<script');
     const only = await runCli(['scan', `${server.origin}/`, '--engines', 'ibm', '--json', '-']);
     expect(only.code, only.stderr).toBe(1);
