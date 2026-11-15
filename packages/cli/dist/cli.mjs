@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path17 = parsed.pathname || "/";
-    if (path17.length > 1 && path17.endsWith("/")) path17 = path17.slice(0, -1);
-    return path17 || "/";
+    let path18 = parsed.pathname || "/";
+    if (path18.length > 1 && path18.endsWith("/")) path18 = path18.slice(0, -1);
+    return path18 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path17 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path17.length > 1 && path17.endsWith("/")) path17 = path17.slice(0, -1);
-    return path17;
+    let path18 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path18.length > 1 && path18.endsWith("/")) path18 = path18.slice(0, -1);
+    return path18;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path17 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path18 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path17, html, !html || path17.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path18, html, !html || path18.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir6, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile8 } from "node:fs/promises";
-import path16 from "node:path";
+import { mkdir as mkdir7, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile9 } from "node:fs/promises";
+import path17 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -645,21 +645,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path17) {
+function readImpact(value, path18) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path17} must be minor, moderate, serious, critical, or null`
+    error: `${path18} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path17) {
+function readTarget(value, path18) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path17}.target must be an array of strings`;
+    return `${path18}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path17}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path18}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -667,52 +667,52 @@ function readTarget(value, path17) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path17}.target must be an array of strings`;
+    return `${path18}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path17) {
-  if (!isRecord(value)) return `${path17} must be an object`;
-  const target = readTarget(value.target, path17);
+function validateNode(value, path18) {
+  if (!isRecord(value)) return `${path18} must be an object`;
+  const target = readTarget(value.target, path18);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path17}.html must be a string`;
+  if (typeof value.html !== "string") return `${path18}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path17}.impact`);
+    const impact = readImpact(value.impact, `${path18}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path17) {
-  if (!isRecord(value)) return `${path17} must be an object`;
+function validateViolation(value, path18) {
+  if (!isRecord(value)) return `${path18} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path17}.id must be a non-empty string`;
+    return `${path18}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path17}.impact is missing`;
+    return `${path18}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path17}.impact`);
+  const impact = readImpact(value.impact, `${path18}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path17}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path18}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path17}.tags must be an array of strings`;
+    return `${path18}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path17}.help must be a non-empty string`;
+    return `${path18}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path17}.helpUrl must be a non-empty string`;
+    return `${path18}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path17}.nodes must contain at least one node`;
+    return `${path18}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path17}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path18}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -728,37 +728,37 @@ function validateViolation(value, path17) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path17) {
-  if (!isRecord(value)) return `${path17} must be an axe result object`;
+function validateResult(value, path18) {
+  if (!isRecord(value)) return `${path18} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path17}.url must be a non-empty string`;
+    return `${path18}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path17}.timestamp must be an ISO date string`;
+    return `${path18}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path17}.testEngine.version must be a non-empty string`;
+    return `${path18}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path17}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path18}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path17}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path18}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path17}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path17}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path17}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path17}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path18}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path18}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path18}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path18}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path17}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path18}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path17}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path18}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path17}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path18}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -859,7 +859,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path17 = pagePath(result.url);
+    const path18 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -874,7 +874,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path17,
+          path: path18,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1757,6 +1757,7 @@ Usage:
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
   a11ygate evidence pack --from <scan-out-dir> [--out <file.zip>] [--commit <sha>]
@@ -2027,7 +2028,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path17) => {
+  const run2 = async (name, steps, index, path18) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2057,8 +2058,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path17) {
-        for (const control of path17) {
+      else if (path18) {
+        for (const control of path18) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2068,7 +2069,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path17 && path17.length < depth) children = (await revealedControls(page, path17.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path18 && path18.length < depth) children = (await revealedControls(page, path18.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2085,11 +2086,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path17) => {
-      if (autoUsed >= maxStates || used + path17.length > options.budget) return;
+    const explore = async (path18) => {
+      if (autoUsed >= maxStates || used + path18.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path17.map((c) => c.name).join(">"), void 0, void 0, path17);
-      for (const child of children) await explore([...path17, child]);
+      const children = await run2(path18.map((c) => c.name).join(">"), void 0, void 0, path18);
+      for (const child of children) await explore([...path18, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -6321,8 +6322,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path17) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path17);
+function shouldStore(path18) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path18);
 }
 function createZip(entries2) {
   const local = [];
@@ -6524,8 +6525,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path17) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path17);
+function isTextPath(path18) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path18);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -6674,8 +6675,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path17, make] of generated) {
-    if (!files.has(path17)) files.set(path17, { path: path17, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path18, make] of generated) {
+    if (!files.has(path18)) files.set(path18, { path: path18, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -7486,8 +7487,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path17) {
-  const match = /\.([a-z0-9]+)$/i.exec(path17);
+function fileKind(path18) {
+  const match = /\.([a-z0-9]+)$/i.exec(path18);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -7798,8 +7799,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path17, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path17) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path18, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path18) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -8487,9 +8488,514 @@ function inferProjectName(results) {
   return "Imported scan";
 }
 
+// packages/cli/src/estimate.ts
+import { mkdir as mkdir6, writeFile as writeFile8 } from "node:fs/promises";
+import path16 from "node:path";
+
+// docs/perf/chromium-bench-axe-500.json
+var chromium_bench_axe_500_default = {
+  name: "chromium-bench-axe-500",
+  recordedAt: "2026-11-14T13:23:01.270Z",
+  argv: [
+    "--pages",
+    "500",
+    "--engines",
+    "axe",
+    "--concurrency",
+    "1,2,4",
+    "--name",
+    "chromium-bench-axe-500"
+  ],
+  machine: {
+    model: "MacBookPro16,1",
+    cpu: "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    logicalCpus: 16,
+    ramBytes: 34359738368,
+    os: "macOS 15.7.4 (24G517)",
+    node: "v20.19.6",
+    chromium: "156.0.8078.4 (Playwright headless shell)",
+    playwright: "1.64.1",
+    axeCore: "4.14.0"
+  },
+  fixture: {
+    pages: 500,
+    loopback: true
+  },
+  runs: [
+    {
+      engines: "axe",
+      engineIds: "axe",
+      concurrency: 1,
+      recycleEvery: null,
+      pagesRequested: 500,
+      exitCode: 0,
+      timedOut: false,
+      elapsedMs: 392518,
+      pagesRecorded: 500,
+      pagesComplete: 500,
+      pageFailures: 0,
+      engineErrors: 0,
+      pagesPerMinute: 76.4,
+      peakRssBytes: {
+        node: 471855104,
+        browser: 503717888,
+        total: 789991424
+      },
+      peakProcesses: 5,
+      browserRssEarlyMeanBytes: 250207347,
+      browserRssLateMeanBytes: 249213578,
+      browserRssGrowthBytes: -993770,
+      samples: 1563,
+      errorKinds: {}
+    },
+    {
+      engines: "axe",
+      engineIds: "axe",
+      concurrency: 2,
+      recycleEvery: null,
+      pagesRequested: 500,
+      exitCode: 0,
+      timedOut: false,
+      elapsedMs: 267298,
+      pagesRecorded: 500,
+      pagesComplete: 500,
+      pageFailures: 0,
+      engineErrors: 0,
+      pagesPerMinute: 112.2,
+      peakRssBytes: {
+        node: 503971840,
+        browser: 508104704,
+        total: 986828800
+      },
+      peakProcesses: 7,
+      browserRssEarlyMeanBytes: 334703795,
+      browserRssLateMeanBytes: 322511877,
+      browserRssGrowthBytes: -12191918,
+      samples: 1023,
+      errorKinds: {}
+    },
+    {
+      engines: "axe",
+      engineIds: "axe",
+      concurrency: 4,
+      recycleEvery: null,
+      pagesRequested: 500,
+      exitCode: 0,
+      timedOut: false,
+      elapsedMs: 152726,
+      pagesRecorded: 500,
+      pagesComplete: 500,
+      pageFailures: 0,
+      engineErrors: 0,
+      pagesPerMinute: 196.4,
+      peakRssBytes: {
+        node: 511823872,
+        browser: 889352192,
+        total: 1368244224
+      },
+      peakProcesses: 11,
+      browserRssEarlyMeanBytes: 544728245,
+      browserRssLateMeanBytes: 531968873,
+      browserRssGrowthBytes: -12759371,
+      samples: 608,
+      errorKinds: {}
+    }
+  ]
+};
+
+// docs/perf/chromium-bench-all-40.json
+var chromium_bench_all_40_default = {
+  name: "chromium-bench-all-40",
+  recordedAt: "2026-11-14T13:30:57.666Z",
+  argv: [
+    "--pages",
+    "40",
+    "--engines",
+    "all",
+    "--concurrency",
+    "1,2,4",
+    "--name",
+    "chromium-bench-all-40"
+  ],
+  machine: {
+    model: "MacBookPro16,1",
+    cpu: "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    logicalCpus: 16,
+    ramBytes: 34359738368,
+    os: "macOS 15.7.4 (24G517)",
+    node: "v20.19.6",
+    chromium: "156.0.8078.4 (Playwright headless shell)",
+    playwright: "1.64.1",
+    axeCore: "4.14.0"
+  },
+  fixture: {
+    pages: 40,
+    loopback: true
+  },
+  runs: [
+    {
+      engines: "all",
+      engineIds: "axe,htmlcs,ibm,lighthouse",
+      concurrency: 1,
+      recycleEvery: null,
+      pagesRequested: 40,
+      exitCode: 0,
+      timedOut: false,
+      elapsedMs: 162120,
+      pagesRecorded: 40,
+      pagesComplete: 40,
+      pageFailures: 0,
+      engineErrors: 0,
+      pagesPerMinute: 14.8,
+      peakRssBytes: {
+        node: 542523392,
+        browser: 338706432,
+        total: 830898176
+      },
+      peakProcesses: 5,
+      browserRssEarlyMeanBytes: 280588536,
+      browserRssLateMeanBytes: 253777316,
+      browserRssGrowthBytes: -26811220,
+      samples: 645,
+      errorKinds: {}
+    },
+    {
+      engines: "all",
+      engineIds: "axe,htmlcs,ibm,lighthouse",
+      concurrency: 2,
+      recycleEvery: null,
+      pagesRequested: 40,
+      exitCode: 2,
+      timedOut: false,
+      elapsedMs: 94911,
+      pagesRecorded: 40,
+      pagesComplete: 40,
+      pageFailures: 0,
+      engineErrors: 19,
+      pagesPerMinute: 25.3,
+      peakRssBytes: {
+        node: 560033792,
+        browser: 507064320,
+        total: 1054507008
+      },
+      peakProcesses: 7,
+      browserRssEarlyMeanBytes: 388565637,
+      browserRssLateMeanBytes: 342773885,
+      browserRssGrowthBytes: -45791752,
+      samples: 377,
+      errorKinds: {
+        'lighthouse: The "start lh:runner:gather" performance mark has not been set': 19
+      }
+    },
+    {
+      engines: "all",
+      engineIds: "axe,htmlcs,ibm,lighthouse",
+      concurrency: 4,
+      recycleEvery: null,
+      pagesRequested: 40,
+      exitCode: 2,
+      timedOut: false,
+      elapsedMs: 60660,
+      pagesRecorded: 40,
+      pagesComplete: 40,
+      pageFailures: 0,
+      engineErrors: 29,
+      pagesPerMinute: 39.6,
+      peakRssBytes: {
+        node: 764841984,
+        browser: 887590912,
+        total: 1504194560
+      },
+      peakProcesses: 11,
+      browserRssEarlyMeanBytes: 500938380,
+      browserRssLateMeanBytes: 546153776,
+      browserRssGrowthBytes: 45215397,
+      samples: 241,
+      errorKinds: {
+        'lighthouse: The "start lh:runner:gather" performance mark has not been set': 29
+      }
+    }
+  ]
+};
+
+// docs/perf/chromium-bench-r47-all-40-followup.json
+var chromium_bench_r47_all_40_followup_default = {
+  name: "chromium-bench-r47-all-40-followup",
+  recordedAt: "2026-11-14T16:08:43.311Z",
+  argv: [
+    "--pages",
+    "40",
+    "--engines",
+    "all",
+    "--concurrency",
+    "4",
+    "--name",
+    "chromium-bench-r47-all-40-followup"
+  ],
+  machine: {
+    model: "MacBookPro16,1",
+    cpu: "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    logicalCpus: 16,
+    ramBytes: 34359738368,
+    os: "macOS 15.7.4 (24G517)",
+    node: "v20.19.6",
+    chromium: "156.0.8078.4 (Playwright headless shell)",
+    playwright: "1.64.1",
+    axeCore: "4.14.0"
+  },
+  fixture: {
+    pages: 40,
+    loopback: true
+  },
+  runs: [
+    {
+      engines: "all",
+      engineIds: "axe,htmlcs,ibm,lighthouse",
+      concurrency: 4,
+      recycleEvery: null,
+      pagesRequested: 40,
+      exitCode: 0,
+      timedOut: false,
+      elapsedMs: 153971,
+      pagesRecorded: 40,
+      pagesComplete: 40,
+      pageFailures: 0,
+      engineErrors: 0,
+      pagesPerMinute: 15.6,
+      peakRssBytes: {
+        node: 583245824,
+        browser: 883564544,
+        total: 1348579328
+      },
+      peakProcesses: 11,
+      browserRssEarlyMeanBytes: 430138225,
+      browserRssLateMeanBytes: 460541663,
+      browserRssGrowthBytes: 30403437,
+      samples: 589,
+      errorKinds: {}
+    }
+  ]
+};
+
+// packages/cli/src/estimate.ts
+var DISCLAIMER2 = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+var NO_BENCHMARK = "no benchmark for this configuration";
+var AGENT = "A11yGate estimate (crawl-only)";
+var LOGIN = /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:[/.]|$)/i;
+function clusterUrls(urls) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const url of urls) {
+    const pattern = new URL(url).pathname.split("/").map((s) => /^(?:\d+|[\da-f]{8}-[\da-f-]{27,})$/i.test(s) ? ":id" : s).join("/");
+    groups.set(pattern, [...groups.get(pattern) ?? [], url]);
+  }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([pattern, pages]) => ({ pattern, pages }));
+}
+function estimateTime(pages, engines, concurrency, delayMs) {
+  const key = engines.split(",").sort().join(",");
+  for (const bench of [chromium_bench_r47_all_40_followup_default, chromium_bench_axe_500_default, chromium_bench_all_40_default]) {
+    const index = bench.runs.findIndex((r) => r.engineIds.split(",").sort().join(",") === key && r.concurrency === concurrency && r.recycleEvery === null && r.exitCode === 0 && !r.pageFailures && !r.engineErrors && !r.timedOut);
+    if (delayMs !== 0 || index < 0) continue;
+    const row = bench.runs[index];
+    return {
+      engines: key,
+      concurrency,
+      delayMs,
+      estimatedSeconds: pages / row.pagesPerMinute * 60,
+      source: `docs/perf/${bench.name}.json`,
+      rowIndex: index,
+      recordedAt: bench.recordedAt,
+      row,
+      note: "Linear extrapolation from recorded local-fixture throughput; site and hardware differences are unmeasured."
+    };
+  }
+  return { engines: key, concurrency, delayMs, estimatedSeconds: null, note: NO_BENCHMARK };
+}
+async function estimateSite(options, fetchImpl = fetch) {
+  const origin = new URL(options.url).origin;
+  const robots = await fetchRobots(origin, AGENT, fetchImpl, options.timeoutMs);
+  const warnings = [];
+  const sitemap = options.sitemap ?? `${origin}/sitemap.xml`;
+  let seeds = [];
+  if (robotsAllowsUrl(robots.rules, sitemap)) {
+    const guarded = (url, init) => {
+      if (!robotsAllowsUrl(robots.rules, url)) throw new Error("Sitemap excluded by robots.txt.");
+      return fetchImpl(url, init);
+    };
+    try {
+      seeds = await fetchSitemap(sitemap, origin, AGENT, guarded, options.timeoutMs);
+    } catch (error) {
+      warnings.push(`Sitemap unavailable: ${error.message}`);
+    }
+  } else warnings.push("Sitemap excluded by robots.txt.");
+  const signals = [];
+  const result = await crawl({
+    ...options,
+    startUrl: options.url,
+    pageLimit: options.maxPages,
+    robots: robots.rules,
+    seedUrls: seeds,
+    visit: async (url, _collect, signal) => {
+      let current = url;
+      const login = [];
+      for (let hop = 0; hop <= 5; hop++) {
+        if (!robotsAllowsUrl(robots.rules, current)) throw new Error("Redirect excluded by robots.txt.");
+        const response = await fetchImpl(current, { headers: { "user-agent": AGENT }, signal, redirect: "manual" });
+        if (response.status >= 300 && response.status < 400) {
+          const location2 = response.headers?.get("location");
+          await response.body?.cancel();
+          const next = location2 && normalizeUrl(location2, current);
+          if (!next) throw new Error("Invalid redirect.");
+          if (LOGIN.test(new URL(next).pathname)) login.push("auth redirect");
+          if (new URL(next).origin !== origin) {
+            signals.push({ url, login, spa: [] });
+            return { status: response.status, finalUrl: next, links: [] };
+          }
+          current = next;
+          continue;
+        }
+        const contentType = response.headers?.get("content-type");
+        let html = "";
+        if (isHtmlContentType(contentType)) {
+          if (response.body) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let bytes = 0;
+            try {
+              while (true) {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                  html += decoder.decode();
+                  break;
+                }
+                bytes += chunk.value.byteLength;
+                if (bytes > 2 * 1024 * 1024) throw new Error("HTML exceeds 2 MiB.");
+                html += decoder.decode(chunk.value, { stream: true });
+              }
+            } finally {
+              await reader.cancel().catch(() => void 0);
+            }
+          } else {
+            html = await response.text();
+            if (Buffer.byteLength(html) > 2 * 1024 * 1024) throw new Error("HTML exceeds 2 MiB.");
+          }
+        } else await response.body?.cancel();
+        if (/<form\b[\s\S]*?<input\b[^>]*\btype\s*=\s*["']?password\b/i.test(html)) login.push("password login form");
+        if (response.status === 401 || response.status === 403) login.push(`HTTP ${response.status}`);
+        const spa = [];
+        if (/\bid\s*=\s*["'](?:root|app|__next)["']/i.test(html)) spa.push("application root element");
+        if (/<script\b[^>]*\btype\s*=\s*["']module["']/i.test(html)) spa.push("module script");
+        if (/__NEXT_DATA__|__NUXT__|data-reactroot/.test(html)) spa.push("framework marker");
+        signals.push({ url, login, spa });
+        const links = [...html.matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)].slice(0, 1e4).map((m) => normalizeUrl((m[1] ?? m[2] ?? m[3]).replace(/&amp;/g, "&"), current)).filter((u) => !!u);
+        return { status: response.status, finalUrl: current, contentType, links, analysed: response.ok, ...response.ok ? {} : { error: `HTTP ${response.status}` } };
+      }
+      throw new Error("Too many redirects.");
+    }
+  });
+  const pages = result.pages;
+  return {
+    schemaVersion: 1,
+    disclaimer: DISCLAIMER2,
+    mode: "crawl-only; no engines",
+    pagesFound: pages.length,
+    pages,
+    templateGroups: clusterUrls(pages.map((p) => p.url)),
+    loginNeeded: signals.some((s) => s.login.length) ? "likely" : "unknown",
+    signals,
+    robots: { note: robots.note, exclusions: result.skipped.filter((s) => s.reason === "robots") },
+    skipped: result.skipped,
+    limits: options,
+    warnings,
+    estimates: (options.engines === "all" ? ["axe,htmlcs,ibm,lighthouse"] : [options.engines]).map((e) => estimateTime(pages.length, e, options.concurrency, options.delayMs)),
+    limitations: "Static HTML heuristics only. JavaScript routes, hidden login requirements, slug-based templates and authenticated content may be missed. Pages found is bounded, not a site total. Timing excludes undiscovered pages and is not a promise."
+  };
+}
+function estimateMarkdown(report) {
+  return `# Pilot scope estimate
+
+${DISCLAIMER2}
+
+Crawl only; no engines. Pages found (within limits): ${report.pagesFound}. Login needed: ${report.loginNeeded}.
+
+Limits: ${report.limits.maxPages} pages, depth ${report.limits.maxDepth}, concurrency ${report.limits.concurrency}, delay ${report.limits.delayMs}ms, per-page timeout ${report.limits.timeoutMs}ms.
+
+${report.limitations}
+
+## Likely template groups
+
+${report.templateGroups.map((g) => `- ${JSON.stringify(g.pattern)}: ${g.pages.length} pages`).join("\n")}
+
+## Login and SPA signals
+
+${report.signals.filter((s) => s.login.length || s.spa.length).map((s) => `- ${JSON.stringify(s.url)}: ${[...s.login, ...s.spa].join(", ")}`).join("\n") || "No signals detected; login requirements remain unknown."}
+
+## Robots and discovery
+
+${report.robots.note}
+
+${report.skipped.map((s) => `- ${s.reason}: ${JSON.stringify(s.url)}`).join("\n")}
+${report.warnings.join("\n")}
+
+## Scan time estimates
+
+${report.estimates.map((e) => `- ${e.engines}, concurrency ${e.concurrency}, delay ${e.delayMs}ms: ${e.estimatedSeconds === null ? e.note : `${e.estimatedSeconds.toFixed(1)} seconds (extrapolated). Source: ${e.source}, runs[${e.rowIndex}], recorded ${e.recordedAt}; source row: ${JSON.stringify(e.row)}. ${e.note}`}`).join("\n")}
+`;
+}
+async function runEstimate(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(`a11ygate estimate <url> [--sitemap <url>] [--max-pages 1-1000] [--max-depth 0-1000] [--concurrency 1-8] [--delay-ms 0-60000] [--timeout-ms 1-300000] [--engines axe|all|comma-list] [--out-dir <dir>]
+Defaults: 20 pages, depth 1000, concurrency 1, delay 1000ms, timeout 10000ms, axe, out-dir estimate-out. Fetches /sitemap.xml automatically. No config or auth scripts loaded. Only use on authorized sites.
+${DISCLAIMER2}
+`);
+    return 0;
+  }
+  try {
+    const url = normalizeUrl(argv2[0] ?? "");
+    if (!url) throw new Error("estimate requires an http(s) URL without credentials.");
+    const options = { url, maxPages: 20, maxDepth: 1e3, concurrency: 1, delayMs: 1e3, timeoutMs: 1e4, engines: "axe" };
+    let outDir = "estimate-out";
+    const numeric = { "--max-pages": ["maxPages", 1, 1e3], "--max-depth": ["maxDepth", 0, 1e3], "--concurrency": ["concurrency", 1, 8], "--delay-ms": ["delayMs", 0, 6e4], "--timeout-ms": ["timeoutMs", 1, 3e5] };
+    for (let i = 1; i < argv2.length; i++) {
+      const flag = argv2[i];
+      const value = argv2[++i];
+      if (!value) throw new Error(`${flag} needs a value.`);
+      if (flag in numeric) {
+        const [key, min, max] = numeric[flag];
+        if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) throw new Error(`${flag} must be ${min}\u2013${max}.`);
+        options[key] = Number(value);
+      } else if (flag === "--out-dir") outDir = value;
+      else if (flag === "--sitemap") {
+        const sitemap = normalizeUrl(value, url);
+        if (!sitemap || new URL(sitemap).origin !== new URL(url).origin) throw new Error("--sitemap must be same-origin.");
+        options.sitemap = sitemap;
+      } else if (flag === "--engines") {
+        if (value !== "all" && (!value.split(",").every((e) => ["axe", "htmlcs", "ibm", "lighthouse"].includes(e)) || new Set(value.split(",")).size !== value.split(",").length)) throw new Error("Unknown or duplicate engine.");
+        options.engines = value;
+      } else throw new Error(`Unknown estimate option: ${flag}`);
+    }
+    const dir = path16.resolve(io.cwd ?? process.cwd(), outDir);
+    await mkdir6(dir, { recursive: true });
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path16.join(dir, name));
+    await assertSafeOutputs(dir, [], outputs);
+    const report = await estimateSite(options);
+    await writeFile8(outputs[0], JSON.stringify(report, null, 2) + "\n");
+    const md = estimateMarkdown(report);
+    await writeFile8(outputs[1], md);
+    stdout(md);
+    return report.pages.some((p) => p.scanStatus === "failed" || p.scanStatus === "skipped") ? 2 : 0;
+  } catch (error) {
+    stderr(`Estimate: ${error.message}
+${DISCLAIMER2}
+`);
+    return 2;
+  }
+}
+
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path16.resolve(cwd, file);
+  return path17.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -8518,10 +9024,10 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path16.dirname(fileURLToPath(import.meta.url));
+  const here = path17.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path16.join(here, "..", "package.json"),
-    path16.join(here, "..", "..", "packages", "cli", "package.json")
+    path17.join(here, "..", "package.json"),
+    path17.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
@@ -8596,6 +9102,7 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "baseline") return runBaseline(argv2.slice(1), io);
   if (argv2[0] === "review") return runReview(argv2.slice(1), io);
   if (argv2[0] === "report") return runReport(argv2.slice(1), io);
+  if (argv2[0] === "estimate") return runEstimate(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
@@ -8640,7 +9147,7 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path16.join(await realpath3(path16.dirname(absolute)).catch(() => path16.dirname(absolute)), path16.basename(absolute));
+        return path17.join(await realpath3(path17.dirname(absolute)).catch(() => path17.dirname(absolute)), path17.basename(absolute));
       });
       const info = await stat5(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -8648,9 +9155,9 @@ ${debugDetail(error)}`);
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path16.join(options.outDir, formatFileName("ci", "json")),
-      path16.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path16.join(options.outDir, formatFileName("ci", format)))
+      path17.join(options.outDir, formatFileName("ci", "json")),
+      path17.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path17.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -8738,8 +9245,8 @@ ${debugDetail(error)}`);
       return 2;
     }
     try {
-      await writeFile8(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile8(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile9(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile9(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -8750,7 +9257,7 @@ ${debugDetail(error)}`);
   }
   if (options.markdown) {
     try {
-      await writeFile8(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile9(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -8759,7 +9266,7 @@ ${debugDetail(error)}`);
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile8(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile9(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -8785,9 +9292,9 @@ ${debugDetail(error)}`);
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir6(dir, { recursive: true });
+      await mkdir7(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile8(path16.join(dir, name), content, "utf8");
+        await writeFile9(path17.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

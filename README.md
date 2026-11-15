@@ -151,6 +151,16 @@ npx @qe-atlas/a11ygate --current home.json --current cart.json --threshold criti
 
 `--update-baseline` writes the current results as the next baseline and still uses the gate's exit code, so a run with new violations does not pass just because the file was updated. More detail is in `packages/cli/README.md`.
 
+### Pilot scope estimate
+
+`a11ygate estimate <url>` produces Markdown and JSON from a bounded static-HTML
+sitemap and crawl pass without running engines. It reports likely URL templates,
+login/SPA signals, robots exclusions and scan-time extrapolations with the exact
+recorded `docs/perf` source row, or “no benchmark for this configuration”. It never
+estimates price. JavaScript-only and authenticated routes may be missed. See
+[CLI options and limits](packages/cli/README.md#pilot-scoping-dry-run-a11y-r55).
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ### Live-site scan
 
 The source build also has `a11ygate scan <url>`. It loads one page, or with `--crawl [n]` up to 20 same-origin pages, in headless Chromium and runs axe-core. It writes JSON, Markdown and HTML reports grouped by WCAG criterion and severity, and exits 1 when a finding meets `--fail-on` (default `serious`). It needs the optional peers `playwright` and `@axe-core/playwright`. The JSON report is also valid `--current` input for the gate. Only scan sites you own or are authorized to test. Page analysis is read-only; [explicit authentication](docs/authenticated-pages.md) supports test accounts through storage state, a login script, or environment-referenced cookies/headers. The scanner honours robots.txt, paces page loads, and identifies itself as A11yGate. Automated testing only. Details are in `packages/cli/README.md`.
