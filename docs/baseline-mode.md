@@ -85,6 +85,8 @@ a11ygate review next-scan --baseline .a11ygate-baseline.json \
   --reason "Vendor widget; tracked in TICKET-12" --expires 2027-03-31
 
 # In a terminal, omit --list/--group to step through groups interactively.
+# [r] removes a group's existing decision; Ctrl+C quits without writing anything.
+# Without a terminal (CI, piped stdin) this form exits 2 and asks for --list or --group.
 a11ygate review next-scan --baseline .a11ygate-baseline.json
 ```
 

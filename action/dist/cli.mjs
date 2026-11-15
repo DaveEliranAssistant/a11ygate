@@ -7332,12 +7332,14 @@ Record a reviewer decision once for a likely shared component group instead of p
 Decisions are stored in the fingerprint baseline (groupDecisions) and shown in reports.
 
   --baseline <file>        Fingerprint baseline from baseline create. Updated in place.
-  --list                   List likely shared component groups and current decisions (default without a TTY).
+  --list                   List likely shared component groups and current decisions.
   --group <id>             Group id from --list (g-...). Requires --decision.
   --decision <kind>        to-fix, accepted-risk or false-positive.
   --reason <text>          Required for accepted-risk and false-positive.
   --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
-Without --list or --group in a terminal, review groups interactively.
+Without --list or --group, review groups interactively; this needs a terminal (stdin and stdout).
+In the prompt, [r] removes a group's existing decision. Nothing is written until you finish or
+quit with [q]; Ctrl+C leaves the baseline unchanged.
 ${REVIEW_MANAGE_HELP}
 The reviewer is git config user.name; A11yGate never invents a name. Remove and prune
 history entries record "unknown" when user.name is not set.
@@ -7345,6 +7347,13 @@ Accepted-risk and false-positive decisions exclude matching findings from the ga
 finding stays listed in the report. Groupings are heuristic: review examples before deciding.
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
+var NOT_A_TTY = "interactive review needs a terminal (stdin and stdout must be a TTY). Use --list to list groups, or --group <id> --decision <kind> [--reason <text>] [--expires <YYYY-MM-DD>] to record a decision.";
+var ReviewInterrupted = class extends Error {
+  constructor() {
+    super("Review interrupted.");
+    this.name = "ReviewInterrupted";
+  }
+};
 function parseReviewArgs(argv2) {
   const args = { list: false };
   for (let i = 0; i < argv2.length; i++) {
@@ -7439,10 +7448,12 @@ async function runReview(argv2, io = {}) {
       await save();
       stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
 Matching findings on new pages inherit this decision. Findings stay listed in reports.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       return 0;
     }
     const interactive = !args.list && (io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY));
+    if (!args.list && !interactive) throw new Error(NOT_A_TTY);
     if (!interactive) {
       stdout(`${REVIEW_DECISION_NOTICE}
 
@@ -7462,22 +7473,40 @@ ${AUTOMATED_TESTING_DISCLAIMER}
     let ask = io.prompt;
     if (!ask) {
       const rl = createInterface2({ input: process.stdin, output: process.stdout });
-      ask = (q) => rl.question(q);
+      const abort = new AbortController();
+      rl.on("SIGINT", () => abort.abort());
+      rl.on("close", () => abort.abort());
+      ask = (q) => abort.signal.aborted ? Promise.reject(new ReviewInterrupted()) : rl.question(q, { signal: abort.signal }).catch((error) => {
+        throw abort.signal.aborted ? new ReviewInterrupted() : error;
+      });
       close = () => rl.close();
     }
     try {
       stdout(`${REVIEW_DECISION_NOTICE}
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       if (!shared.length) {
         stdout("No likely shared components detected across pages.\n");
         return 0;
       }
       const by = await reviewer();
+      stdout(`
+${shared.length} likely shared component group(s) to review. Nothing is written until you finish or quit with [q]; Ctrl+C leaves ${args.baseline} unchanged.
+`);
       let changed = 0;
       for (const g of shared) {
         stdout("\n" + describeGroup(g, decisions));
-        const choice = (await ask("[f] to-fix  [a] accepted-risk  [p] false-positive  [s] skip  [q] quit: ")).trim().toLowerCase();
+        const existing = decisions.find((d) => d.groupKey === g.key);
+        const choice = (await ask(`[f] to-fix  [a] accepted-risk  [p] false-positive${existing ? "  [r] remove decision" : ""}  [s] skip  [q] quit: `)).trim().toLowerCase();
         if (choice === "q") break;
+        if (choice === "r" && existing) {
+          history2.push({ action: "remove", by, at: now.toISOString(), group: existing.group, previous: existing });
+          decisions = decisions.filter((d) => d !== existing);
+          stdout(`Removed the ${existing.decision} decision for ${existing.group}; it is kept in history[].
+`);
+          changed++;
+          continue;
+        }
         const kind = { f: "to-fix", a: "accepted-risk", p: "false-positive" }[choice];
         if (!kind) continue;
         let reason;
@@ -7505,12 +7534,19 @@ ${AUTOMATED_TESTING_DISCLAIMER}
       if (changed) await save();
       stdout(`
 Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       return 0;
     } finally {
       close();
     }
   } catch (error) {
+    if (error instanceof ReviewInterrupted) {
+      stderr(`
+Review interrupted. Nothing was written to the baseline.
+`);
+      return 130;
+    }
     stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}
 ${debugDetail(error)}`);
     return 2;
