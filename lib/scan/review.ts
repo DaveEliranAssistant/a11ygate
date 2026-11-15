@@ -76,6 +76,35 @@ export function createGroupDecision(group: Pick<SharedComponentGroup, 'key' | 'r
   });
 }
 
+/** Audit trail entry kept in the baseline's history[] (R44). Entries are appended, never rewritten. */
+export const DECISION_HISTORY_ACTIONS = ['record', 'remove', 'prune'] as const;
+export type DecisionHistoryAction = (typeof DECISION_HISTORY_ACTIONS)[number];
+export type DecisionHistoryEntry = {
+  action: DecisionHistoryAction;
+  /** git user.name from local config, else "unknown". */
+  by: string;
+  /** ISO 8601 timestamp of the change. */
+  at: string;
+  group: string;
+  /** The decision recorded by this change (action "record" only). */
+  decision?: GroupDecision;
+  /** The earlier decision this change replaced or removed, kept verbatim. */
+  previous?: GroupDecision;
+};
+
+export function validateHistoryEntry(value: unknown): DecisionHistoryEntry {
+  const h = value as Partial<DecisionHistoryEntry> | null;
+  if (!h || typeof h !== 'object' || !(DECISION_HISTORY_ACTIONS as readonly string[]).includes(h.action as string) ||
+      typeof h.by !== 'string' || !h.by.trim() || typeof h.at !== 'string' || Number.isNaN(Date.parse(h.at)) || typeof h.group !== 'string' || !h.group) {
+    throw new Error('Invalid group decision history entry.');
+  }
+  if (h.decision !== undefined) validateGroupDecision(h.decision);
+  if (h.previous !== undefined) validateGroupDecision(h.previous);
+  if (h.action === 'record' && !h.decision) throw new Error('A record history entry needs its decision.');
+  if (h.action !== 'record' && !h.previous) throw new Error(`A ${h.action} history entry needs the removed decision.`);
+  return h as DecisionHistoryEntry;
+}
+
 /** Replace any earlier decision for the same group; keeps a stable order. */
 export function upsertGroupDecision(decisions: readonly GroupDecision[], decision: GroupDecision): GroupDecision[] {
   return [...decisions.filter((d) => d.groupKey !== decision.groupKey), decision].sort((a, b) => a.group.localeCompare(b.group));

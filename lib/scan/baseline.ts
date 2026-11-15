@@ -2,7 +2,7 @@ import { normalizeLocator } from './engines/dedupe';
 import { normalizeUrl } from './url';
 import { gatingScanFindings, type ScanFinding, type ScanReport } from './report';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
-import { applyGroupDecisions, validateGroupDecision, type GroupDecision } from './review';
+import { applyGroupDecisions, validateGroupDecision, validateHistoryEntry, type DecisionHistoryEntry, type GroupDecision } from './review';
 
 export type BaselineEntry = { fingerprint: string; pageUrl: string; ruleId: string; selector: string };
 export type FingerprintBaseline = {
@@ -13,6 +13,8 @@ export type FingerprintBaseline = {
   findings: BaselineEntry[];
   /** Optional reviewer decisions keyed by component group (R39). Absent unless a11ygate review wrote one. */
   groupDecisions?: GroupDecision[];
+  /** Append-only audit trail of decision changes (R44). Absent until a review change is written. */
+  history?: DecisionHistoryEntry[];
 };
 export type BaselineSummary = { new: number; existing: number; fixed: number; unassessed: number };
 
@@ -63,6 +65,10 @@ export function parseFingerprintBaseline(value: unknown): FingerprintBaseline {
       try { validateGroupDecision(decision); } catch (error) { throw new Error(`${(error as Error).message.replace(/\.$/, '')} (field groupDecisions[${index}]).`); }
     });
     if (new Set(b.groupDecisions.map((d) => d.groupKey)).size !== b.groupDecisions.length) throw new Error('Duplicate group decisions (field groupDecisions[].groupKey).');
+  }
+  if (b.history !== undefined) {
+    if (!Array.isArray(b.history)) throw new Error('Invalid baseline decision history.');
+    b.history.forEach(validateHistoryEntry);
   }
   return b as FingerprintBaseline;
 }

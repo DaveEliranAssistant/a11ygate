@@ -150,6 +150,8 @@ describe('(c) schema covers every CLI option', () => {
     '--debug': 'all commands: per-run diagnostics switch that prints stack traces',
     '--projects': 'multi-project ci: per-run projects file, validated by the separate projects schema',
     '--parallel': 'multi-project ci: per-run scheduling limit',
+    '--status': 'review list: per-run filter', '--expired': 'review list: per-run filter', '--all-expired': 'review remove: per-run target',
+    '-y': 'review remove: per-run confirmation (alias of --yes)', '--dry-run': 'review prune: per-run preview switch',
   };
 
   function schemaFlags(node: JsonSchema, out = new Set<string>()): Set<string> {

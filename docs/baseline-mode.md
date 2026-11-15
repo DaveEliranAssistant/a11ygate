@@ -109,3 +109,30 @@ Code Quality report and records their finding and decision metadata in
 To-fix and expired decisions remain normal findings in all three formats.
 Existing fingerprint-baseline behavior is unchanged.
 Baselines without `groupDecisions` produce unchanged output.
+
+### Listing, removing and pruning decisions
+
+```sh
+# List decisions; filter by kind and/or expiry; --json for machine output.
+a11ygate review list --baseline .a11ygate-baseline.json [--status accepted-risk] [--expired] [--json]
+
+# Remove one decision (group id from review list), or every expired accepted-risk one.
+a11ygate review remove g-0123456789abcdef --baseline .a11ygate-baseline.json --yes
+a11ygate review remove --all-expired --baseline .a11ygate-baseline.json --yes
+
+# Remove decisions whose group has no finding in the latest scan. Check first with --dry-run.
+a11ygate review prune latest-scan --baseline .a11ygate-baseline.json --dry-run
+a11ygate review prune latest-scan --baseline .a11ygate-baseline.json
+```
+
+`remove` needs `--yes`, or a "y" at the confirmation prompt in a terminal.
+`prune` warns when some pages in the scan did not complete, because decisions
+for components only on those pages would also be pruned; use `--dry-run` first.
+Every change to the baseline (record, remove, prune) is written to a temp file in
+the same directory and renamed over the baseline, so a failed write leaves the
+previous file intact. Each change appends an entry to `history[]` in the baseline
+with `action` (`record`, `remove` or `prune`), `by` (`git config user.name`, or
+`"unknown"` for remove/prune when it is not set), `at` (ISO timestamp), `group`,
+the new `decision` (record) and the replaced or removed `previous` decision.
+Existing entries are copied unchanged; A11yGate only appends. Baselines without
+`history` still load.

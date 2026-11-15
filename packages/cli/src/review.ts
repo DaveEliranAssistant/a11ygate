@@ -1,16 +1,15 @@
 import { debugDetail } from './fatal';
-import { execFile } from 'node:child_process';
-import { rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { SharedComponentGroup } from '@/lib/group';
 import { applyFingerprintBaseline, parseFingerprintBaseline, type FingerprintBaseline } from '@/lib/scan/baseline';
 import {
   createGroupDecision, groupId, REVIEW_DECISION_NOTICE, isIsoDate, REVIEW_DECISIONS, reviewableGroups, today, upsertGroupDecision,
-  type GroupDecision, type ReviewDecisionKind,
+  type DecisionHistoryEntry, type GroupDecision, type ReviewDecisionKind,
 } from '@/lib/scan/review';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { readScanInput } from './baseline';
+import { gitUserName, REVIEW_MANAGE_HELP, runReviewList, runReviewPrune, runReviewRemove, saveReviewBaseline } from './review-manage';
 import type { RunIo } from './run';
 import { readJsonInput } from './input-file';
 
@@ -25,7 +24,9 @@ Decisions are stored in the fingerprint baseline (groupDecisions) and shown in r
   --reason <text>          Required for accepted-risk and false-positive.
   --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
 Without --list or --group in a terminal, review groups interactively.
-The reviewer is git config user.name; A11yGate never invents a name.
+${REVIEW_MANAGE_HELP}
+The reviewer is git config user.name; A11yGate never invents a name. Remove and prune
+history entries record "unknown" when user.name is not set.
 Accepted-risk and false-positive decisions exclude matching findings from the gate, but every
 finding stays listed in the report. Groupings are heuristic: review examples before deciding.
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -37,13 +38,9 @@ export type ReviewIo = RunIo & {
   /** Test seam for interactive mode; defaults to a readline prompt when stdin/stdout are TTYs. */
   prompt?: (question: string) => Promise<string>;
   interactive?: boolean;
+  /** Test seam for the atomic baseline write; defaults to fs.promises.rename. */
+  rename?: (from: string, to: string) => Promise<void>;
 };
-
-function gitUserName(cwd: string): Promise<string> {
-  return new Promise((resolve) => {
-    execFile('git', ['config', 'user.name'], { cwd, timeout: 5000 }, (error, stdout) => resolve(error ? '' : String(stdout).trim()));
-  });
-}
 
 type ReviewArgs = { input?: string; baseline?: string; list: boolean; group?: string; decision?: ReviewDecisionKind; reason?: string; expires?: string };
 
@@ -100,6 +97,9 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (argv.includes('--help') || argv.includes('-h')) { stdout(REVIEW_HELP); return 0; }
+  if (argv[0] === 'list') return runReviewList(argv.slice(1), io);
+  if (argv[0] === 'remove') return runReviewRemove(argv.slice(1), io);
+  if (argv[0] === 'prune') return runReviewPrune(argv.slice(1), io);
   const cwd = io.cwd ?? process.cwd();
   const now = (io.now ?? (() => new Date()))();
   try {
@@ -111,14 +111,13 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
     let decisions = baseline.groupDecisions ?? [];
     const groups = reviewableGroups(report.findings);
     const shared = groups.filter((g) => g.likelySharedComponent);
-    const save = async (next: GroupDecision[]) => {
-      // Write a sibling temp file and rename it over the baseline so an interrupted write never leaves a partial file.
-      const temp = `${baselinePath}.${process.pid}.tmp`;
-      try {
-        await writeFile(temp, JSON.stringify({ ...baseline, groupDecisions: next }, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
-        await rename(temp, baselinePath);
-      } catch (error) { await rm(temp, { force: true }); throw error; }
+    const history: DecisionHistoryEntry[] = [];
+    const record = (decision: GroupDecision) => {
+      const previous = decisions.find((d) => d.groupKey === decision.groupKey);
+      history.push({ action: 'record', by: decision.by, at: now.toISOString(), group: decision.group, decision, ...(previous ? { previous } : {}) });
+      decisions = upsertGroupDecision(decisions, decision);
     };
+    const save = async () => saveReviewBaseline(baselinePath, baseline, decisions, history, io);
     const reviewer = async () => {
       const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
       if (!name) throw new Error('git config user.name is not set. A11yGate records the reviewer from git config and never invents a name.');
@@ -129,8 +128,8 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
       const group = groups.find((g) => groupId(g.key) === args.group);
       if (!group) throw new Error(`No component group ${args.group} in this scan. Run a11ygate review ${args.input} --baseline ${args.baseline} --list.`);
       const decision = createGroupDecision(group, { decision: args.decision!, reason: args.reason, expires: args.expires, by: await reviewer(), now });
-      decisions = upsertGroupDecision(decisions, decision);
-      await save(decisions);
+      record(decision);
+      await save();
       stdout(`Recorded ${decision.decision} for ${decision.group} (${group.findingCount} finding(s) on ${group.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.\n` +
         'Matching findings on new pages inherit this decision. Findings stay listed in reports.\n');
       return 0;
@@ -176,10 +175,10 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
             try { checkDecision(kind, reason, value, now); expires = value; break; } catch (error) { stderr(`${(error as Error).message}\n`); }
           }
         }
-        decisions = upsertGroupDecision(decisions, createGroupDecision(g, { decision: kind, reason, expires, by, now }));
+        record(createGroupDecision(g, { decision: kind, reason, expires, by, now }));
         changed++;
       }
-      if (changed) await save(decisions);
+      if (changed) await save();
       stdout(`\nRecorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ''}.\n`);
       return 0;
     } finally { close(); }
