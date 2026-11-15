@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`a11ygate review in a real pseudo-TTY (A11Y-R51) > lists groups, records accepted-risk with reason and expiry, removes one, quits; baseline matches the snapshot 1`] = `
+{
+  "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "engines": [
+    "axe",
+  ],
+  "findings": [],
+  "groupDecisions": [
+    {
+      "at": "<today>",
+      "by": "PTY Reviewer",
+      "decision": "accepted-risk",
+      "expires": "2099-12-31",
+      "group": "g-5d2f954d4c2f899f",
+      "groupKey": "["button-name",["header > button.menu"],"<button [[\\"class\\",\\".menu\\"]]></button>",""]",
+      "normalizedSelector": "header > button.menu",
+      "reason": "Third-party widget; vendor ticket VND-42",
+      "ruleId": "button-name",
+    },
+  ],
+  "history": [
+    {
+      "action": "record",
+      "at": "<timestamp>",
+      "by": "PTY Reviewer",
+      "decision": {
+        "at": "<today>",
+        "by": "PTY Reviewer",
+        "decision": "accepted-risk",
+        "expires": "2099-12-31",
+        "group": "g-5d2f954d4c2f899f",
+        "groupKey": "["button-name",["header > button.menu"],"<button [[\\"class\\",\\".menu\\"]]></button>",""]",
+        "normalizedSelector": "header > button.menu",
+        "reason": "Third-party widget; vendor ticket VND-42",
+        "ruleId": "button-name",
+      },
+      "group": "g-5d2f954d4c2f899f",
+    },
+    {
+      "action": "remove",
+      "at": "<timestamp>",
+      "by": "PTY Reviewer",
+      "group": "g-cfc743b3bcffe3e1",
+      "previous": {
+        "at": "2026-10-01",
+        "by": "Earlier Reviewer",
+        "decision": "false-positive",
+        "group": "g-cfc743b3bcffe3e1",
+        "groupKey": "["image-alt",["footer > img.logo"],"<img [[\\"class\\",\\".logo\\"],[\\"src\\",\\"*\\"]]>",""]",
+        "normalizedSelector": "footer > img.logo",
+        "reason": "Earlier triage note",
+        "ruleId": "image-alt",
+      },
+    },
+  ],
+  "kind": "a11ygate-fingerprint-baseline",
+  "schemaVersion": 1,
+}
+`;
