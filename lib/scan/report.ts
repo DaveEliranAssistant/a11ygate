@@ -3,7 +3,6 @@ import { normalizeUrl } from '@/lib/scan/url';
 import { attribution, dedupeFindings, engineSummary, type Agreement } from '@/lib/scan/engines/dedupe';
 import type { EnginePageResult } from '@/lib/scan/engines/types';
 import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
-import { cell } from '@/lib/export-markdown';
 import { impactRank, meetsThreshold } from '@/lib/gate';
 import { SHARED_COMPONENT_DISCLAIMER, groupSharedComponents, type SharedComponentGroup, groupFindings } from '@/lib/group';
 import { CRITERIA, en301549Inline, lookupStandards, type Criterion } from '@/lib/mapping';
@@ -343,90 +342,16 @@ export function groupBySeverity(findings: readonly ScanFinding[]): ScanGroup[] {
   }));
 }
 
-function sortFindings(findings: readonly ScanFinding[]): ScanFinding[] {
+export function sortFindings(findings: readonly ScanFinding[]): ScanFinding[] {
   return [...findings].sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId));
 }
 
-/** Inside a code span only backticks and line breaks need neutralising. */
-function code(value: string): string {
-  return '`' + value.replace(/`/g, "'").replace(/[\r\n|]/g, ' ') + '`';
-}
-
-function heading(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\r\n]/g, ' ');
-}
-
-function mdFinding(f: ScanFinding): string {
-  return `-${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''}${f.reviewDecision ? ' [review: ' + decisionLabel(f.reviewDecision) + ']' : ''} **${cell(f.ruleId)}** (${f.impact ?? 'unspecified'}) on ${code(f.pageUrl)} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — states: ' + f.states.map(code).join(', ') : ''} — [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
-}
-
-export function scanMarkdown(report: ScanReport): string {
-  const lines = [
-    `# A11yGate site scan — ${cell(report.startUrl)}`,
-    '',
-    `**Verdict: ${report.verdict}** (fail on: ${report.failOn})`,
-    '',
-    cell(report.reason),
-    '',
-    '| Severity | Findings |',
-    '| --- | --- |',
-    ...(['critical', 'serious', 'moderate', 'minor', 'unknown'] as const).map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
-    '',
-    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== undefined ? '; not authenticated: ' + report.counts.pagesNotAuthenticated : ''}. axe-core ${report.axeVersion ?? 'n/a'}; A11yGate ${report.version}.`,
-    '',
-    ...(report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, '', AUTOMATED_TESTING_DISCLAIMER, ''] : []),
-    '## Pages',
-    '',
-    '| Page | HTTP | Status | Findings |',
-    '| --- | --- | --- | --- |',
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? '—'} | ${p.scanStatus}${p.error ? ' — ' + cell(p.error) : ''} | ${p.findings} |`),
-    '',
-    '## Findings by WCAG criterion',
-    '',
-  ];
-  const byCriterion = groupByCriterion(report.findings);
-  if (byCriterion.length === 0) lines.push('None detected.', '');
-  for (const group of byCriterion) {
-    lines.push(`### ${heading(group.label)}`, '', ...sortFindings(group.findings).map(mdFinding), '');
-  }
-  lines.push('## Findings by severity', '');
-  const bySeverity = groupBySeverity(report.findings);
-  if (bySeverity.length === 0) lines.push('None detected.', '');
-  for (const group of bySeverity) {
-    lines.push(`### ${heading(group.label)} (${group.findings.length})`, '', ...group.findings.map(mdFinding), '');
-  }
-  lines.push(...reviewMarkdown(report));
-  const robotsSkipped = report.skipped.filter((s) => s.reason === 'robots' || s.reason === 'cap');
-  if (robotsSkipped.length > 0) {
-    lines.push('## Not scanned', '', ...robotsSkipped.map((s) => `- ${cell(s.url)} — ${s.reason === 'robots' ? 'disallowed by robots.txt' : 'page cap reached'}`), '');
-  }
-  const otherSkipped = report.skipped.filter((s) => s.reason !== 'robots' && s.reason !== 'cap');
-  if (otherSkipped.length) lines.push('## Skipped pages', '', ...otherSkipped.map((s) => `- ${cell(s.url)} — ${cell(s.reason)}`), '');
-  if (report.engines) lines.push('## Engines used / engines errored', '',
-    `Engines used: ${report.engines.used.join(', ') || 'none'}.`,
-    `Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} — ${code(e.url)} — ${cell(e.error)}`).join('; ') : 'none'}.`,
-    '', AUTOMATED_TESTING_DISCLAIMER, '');
-  lines.push('## Scope and boundaries', '', ...report.boundaries.map((b) => `- ${cell(b)}`), '', DISCLAIMER, LEGAL_DISCLAIMER, '');
-  return lines.join('\n');
-}
+export { scanMarkdown } from './report-markdown';
 
 export function gateEffect(d: AppliedReviewDecision): string {
   if (d.suppressesGate) return 'excluded from the gate by this decision; still listed for review';
   if (d.expired) return 'decision expired; findings gate again';
   return 'still gated';
-}
-
-/** R39: decided findings keep their own section, so no decision hides a finding. Empty without decisions. */
-function reviewMarkdown(report: ScanReport): string[] {
-  const groups = reviewedGroups(report.findings);
-  if (!groups.length) return [];
-  return ['## Review decisions (likely shared components)', '', cell(REVIEW_DECISION_NOTICE), '',
-    ...groups.flatMap(({ decision: d, findings }) => [
-      `### ${code(d.group)} — ${heading(d.ruleId)} — ${findings.length} finding${findings.length === 1 ? '' : 's'} on ${new Set(findings.map((f) => f.pageUrl)).size} page(s)`, '',
-      `Normalized selector: ${code(d.normalizedSelector)}`, '',
-      `Decision: ${cell(decisionSummary(d))}. Gate: ${gateEffect(d)}.`, '',
-      ...sortFindings(findings).map(mdFinding), '']),
-    AUTOMATED_TESTING_DISCLAIMER, ''];
 }
 
 function reviewHtml(report: ScanReport): string {

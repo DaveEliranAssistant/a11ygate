@@ -15,7 +15,7 @@ const atAlias = {
   setup(buildContext) {
     buildContext.onResolve({ filter: /^@\// }, (args) => {
       const base = path.join(repoRoot, args.path.slice(2));
-      return { path: existsSync(`${base}.ts`) ? `${base}.ts` : base };
+      return { path: existsSync(`${base}.ts`) ? `${base}.ts` : existsSync(path.join(base, 'index.ts')) ? path.join(base, 'index.ts') : base };
     });
   },
 };

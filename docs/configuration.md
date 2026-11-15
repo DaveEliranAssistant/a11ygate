@@ -54,6 +54,7 @@ entire list; repeatable flags still collect within the CLI source.
 | `outDir` | scan/ci/Action report directory | `A11YGATE_OUT_DIR` | absent |
 | `delayMs` | scan global crawl start delay | `A11YGATE_DELAY_MS` | 1000 |
 | `reportVersion` | scan HTML layout | `A11YGATE_REPORT_VERSION` | 2 |
+| `reportLang` | scan HTML v2 / Markdown language (`en` only shipped; `en-XA`, `ar-XB` pseudo-locales) | `A11YGATE_REPORT_LANG` | en |
 | `interactions` | scan route state list; `--interactions <file>` reads JSON | `A11YGATE_INTERACTIONS` (JSON) | [] |
 | `autoInteractions` | scan `--auto-interactions` | `A11YGATE_AUTO_INTERACTIONS` | false |
 | `interactionBudget` | scan `--interaction-budget` per route | `A11YGATE_INTERACTION_BUDGET` | 10 |
