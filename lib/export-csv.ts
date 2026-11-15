@@ -15,7 +15,7 @@ const COLUMNS = [
   'fingerprint',
 ] as const;
 
-function csvField(value: string): string {
+export function csvField(value: string): string {
   const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   return `"${safe.replace(/"/g, '""')}"`;
 }

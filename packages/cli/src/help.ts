@@ -14,6 +14,8 @@ Usage:
   a11ygate report pdf <scan.json|out-dir> [-o <file.pdf>] [--commit <sha>]  Print report v2 to PDF
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
+                       (see a11ygate export --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)

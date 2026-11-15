@@ -209,7 +209,7 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir8, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile10 } from "node:fs/promises";
+import { mkdir as mkdir7, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile10 } from "node:fs/promises";
 import path18 from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -1163,19 +1163,7 @@ var en_default = {
   "review.findingStates": "States: {states}",
   "review.ruleGuidance": "Rule guidance",
   "review.ruleGuidanceFor": " for {ruleId}",
-  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines",
-  "pdf.cover.site": "Site",
-  "pdf.cover.scanDate": "Scan date",
-  "pdf.cover.commit": "Commit",
-  "pdf.cover.commitUnknown": "not recorded",
-  "pdf.cover.engines": "Engines",
-  "pdf.cover.scope": "Scope",
-  "pdf.cover.scopeValue": "{pages} scanned (at most {maxPages}), {failed} failed, {skipped} links skipped; same origin as {origin}",
-  "pdf.cover.verdict": "Verdict",
-  "pdf.cover.tool": "Tool",
-  "pdf.toc.heading": "Contents",
-  "pdf.toc.page": "page {page}",
-  "pdf.footer.page": "Page {page} of {total}"
+  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines"
 };
 
 // lib/i18n/index.ts
@@ -2049,9 +2037,10 @@ Usage:
   a11ygate review list|remove|prune --baseline <fingerprints.json> ...  Manage recorded decisions
                        (see a11ygate review --help)
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
-  a11ygate report pdf <scan.json|out-dir> [-o <file.pdf>] [--commit <sha>]  Print report v2 to PDF
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
+                       (see a11ygate export --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
@@ -6204,130 +6193,423 @@ ${AUTOMATED_TESTING_DISCLAIMER}
   }
 }
 
-// packages/cli/src/report-pdf.ts
-import { mkdir as mkdir4, rename, unlink, writeFile as writeFile5 } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
-import path9 from "node:path";
+// packages/cli/src/review.ts
+import path10 from "node:path";
+import { createInterface as createInterface2 } from "node:readline/promises";
 
-// lib/scan/pdf-dests.ts
-function objectBody(pdf, num) {
-  const start = new RegExp(`(?:^|[\\r\\n\\s])${num} 0 obj\\b`).exec(pdf);
-  if (!start) return null;
-  const end = pdf.indexOf("endobj", start.index);
-  return end < 0 ? null : pdf.slice(start.index, end);
+// packages/cli/src/review-manage.ts
+import { execFile } from "node:child_process";
+import { readFile as readFile4 } from "node:fs/promises";
+import path9 from "node:path";
+import { createInterface } from "node:readline/promises";
+
+// packages/cli/src/atomic-write.ts
+import { randomBytes } from "node:crypto";
+import { rename as fsRename, unlink, writeFile as writeFile4 } from "node:fs/promises";
+import path8 from "node:path";
+async function writeFileAtomic(file, data, deps = {}) {
+  const tmp = path8.join(path8.dirname(file), `.${path8.basename(file)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    await writeFile4(tmp, data, { encoding: "utf8", flag: "wx" });
+    await (deps.rename ?? fsRename)(tmp, file);
+  } catch (error) {
+    await unlink(tmp).catch(() => {
+    });
+    throw error;
+  }
 }
-function ref(text, key) {
-  const m = new RegExp(`/${key}\\s+(\\d+)\\s+0\\s+R`).exec(text);
-  return m ? Number(m[1]) : null;
+
+// packages/cli/src/review-manage.ts
+var REVIEW_MANAGE_HELP = `
+Manage recorded decisions (R44):
+  a11ygate review list --baseline <file> [--status <kind>] [--expired] [--json]
+      List decisions. --status keeps one kind (to-fix, accepted-risk, false-positive);
+      --expired keeps accepted-risk decisions past their expiry date.
+  a11ygate review remove <group-id|--all-expired> --baseline <file> [--yes]
+      Remove one decision, or every expired accepted-risk decision. Needs --yes,
+      or answer the confirmation prompt in a terminal.
+  a11ygate review prune <scan.json|out-dir> --baseline <file> [--dry-run]
+      Remove decisions whose component group has no finding in that (latest) scan.
+      --dry-run lists what would be removed and writes nothing.
+Every change is written atomically (temp file + rename). Earlier decisions are kept in the
+baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
+function gitUserName(cwd) {
+  return new Promise((resolve) => {
+    execFile("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+  });
 }
-function pageOrder(pdf, node, seen = /* @__PURE__ */ new Set()) {
-  if (seen.has(node)) return [];
-  seen.add(node);
-  const body = objectBody(pdf, node);
-  if (!body) return [];
-  const dict = body.split(/\bstream\b/)[0] ?? "";
-  if (/\/Type\s*\/Page\b(?!s)/.test(dict)) return [node];
-  const kids = /\/Kids\s*\[([^\]]*)\]/.exec(dict);
-  if (!kids) return [];
-  return [...(kids[1] ?? "").matchAll(/(\d+)\s+0\s+R/g)].flatMap((m) => pageOrder(pdf, Number(m[1]), seen));
+async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {
+  const next = { ...baseline, groupDecisions: decisions, history: [...baseline.history ?? [], ...entries2] };
+  await writeFileAtomic(file, JSON.stringify(next, null, 2) + "\n", { rename: io.rename });
 }
-function decodeName(name) {
-  return name.replace(/#([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-}
-function namedDestinationPages(pdfBytes) {
-  const out = /* @__PURE__ */ new Map();
-  const pdf = Buffer.from(pdfBytes).toString("latin1");
-  const rootNum = [...pdf.matchAll(/\/Root\s+(\d+)\s+0\s+R/g)].at(-1)?.[1];
-  const catalog = rootNum ? objectBody(pdf, Number(rootNum)) : null;
-  if (!catalog) return out;
-  const pagesNum = ref(catalog, "Pages");
-  const pages = pagesNum === null ? [] : pageOrder(pdf, pagesNum);
-  const destsNum = ref(catalog, "Dests");
-  const dests = destsNum === null ? null : objectBody(pdf, destsNum);
-  if (!dests || pages.length === 0) return out;
-  for (const m of dests.matchAll(/\/([^\s/[\]<>()]+)\s*\[\s*(\d+)\s+0\s+R/g)) {
-    const index = pages.indexOf(Number(m[2]));
-    if (index >= 0) out.set(decodeName(m[1]), index + 1);
+function parseFlags(argv2, valued, switches) {
+  const out = { positional: [], values: /* @__PURE__ */ new Map(), switches: /* @__PURE__ */ new Set() };
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (switches.includes(name) && eq < 0) {
+      out.switches.add(name);
+      continue;
+    }
+    if (valued.includes(name)) {
+      const value = eq > 0 ? token.slice(eq + 1) : argv2[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      out.values.set(name, value);
+      continue;
+    }
+    if (!token.startsWith("-")) {
+      out.positional.push(token);
+      continue;
+    }
+    throw new Error(`Unexpected review argument ${token}.`);
   }
   return out;
 }
-
-// lib/scan/report-pdf.ts
-var PDF_PAGE = { format: "A4", margin: { top: "14mm", bottom: "22mm", left: "14mm", right: "14mm" } };
-function esc3(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+function context(io) {
+  return {
+    stdout: io.stdout ?? ((s) => process.stdout.write(s)),
+    stderr: io.stderr ?? ((s) => process.stderr.write(s)),
+    cwd: io.cwd ?? process.cwd(),
+    now: (io.now ?? (() => /* @__PURE__ */ new Date()))()
+  };
 }
-function verbatimAttrs2(t) {
-  return t.lang === "en" ? "" : ' lang="en" dir="ltr"';
+async function loadBaseline(flags, cwd) {
+  const value = flags.values.get("--baseline");
+  if (!value) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
+  const file = path9.resolve(cwd, value);
+  return { file, baseline: parseFingerprintBaseline(JSON.parse(await readFile4(file, "utf8"))) };
 }
-var HEADER = /<header>\n[\s\S]*?\n<\/header>\n/;
-var NAV_ITEM = /<li><a href="#([\w-]+)">([^<]*)<\/a><\/li>/g;
-function tocEntries(v2Html) {
-  const header = v2Html.match(HEADER)?.[0] ?? "";
-  return [...header.matchAll(NAV_ITEM)].map((m) => ({ id: m[1], text: m[2] }));
-}
-function coverFacts(t, report, meta) {
-  const engines = report.engines?.used.length ? esc3(report.engines.used.join(", ")) : t.t("summary.axeEngine", { version: report.axeVersion === null ? t.t("summary.notAvailable") : esc3(report.axeVersion) });
-  const c = report.counts;
-  return [
-    [t.t("pdf.cover.site"), `<code>${esc3(report.startUrl)}</code>`],
-    [t.t("pdf.cover.scanDate"), esc3(report.scannedAt)],
-    [t.t("pdf.cover.commit"), meta.commit ? `<code>${esc3(meta.commit)}</code>` : t.t("pdf.cover.commitUnknown")],
-    [t.t("pdf.cover.engines"), engines],
-    [t.t("pdf.cover.scope"), t.t("pdf.cover.scopeValue", { pages: t.plural("plural.page", c.pagesScanned), maxPages: report.options.maxPages, failed: c.pagesFailed, skipped: c.skippedLinks, origin: `<code>${esc3(report.origin)}</code>` })],
-    [t.t("pdf.cover.verdict"), t.t("summary.verdict", { verdict: esc3(report.verdict) })],
-    [t.t("pdf.cover.tool"), t.t("summary.scannedWith", { scannedAt: esc3(report.scannedAt), version: esc3(report.version) })]
-  ];
-}
-var PDF_STYLE = `
-@page{size:A4}
-@media print{
-body{font-size:10.5pt}
-.cover{break-after:page;padding-top:30mm}
-.cover h1{font-size:24pt;margin-bottom:12mm}
-.cover dl{display:grid;grid-template-columns:auto 1fr;gap:2mm 6mm;margin:0 0 12mm}
-.cover dt{font-weight:700}.cover dd{margin:0}
-nav.toc{display:block;break-after:page}
-.toc ol{list-style:none;padding:0}
-.toc a{display:flex;gap:2mm;text-decoration:none}
-.toc .fill{flex:1;border-bottom:1px dotted #000;margin-bottom:1.2mm}
-.toc .num{font-variant-numeric:tabular-nums}
-#summary{break-before:auto}
-}`;
-function pdfSourceHtml(report, meta = {}, options = {}) {
-  const { tocPages, ...htmlOptions } = options;
-  const v2 = scanHtmlV2(report, htmlOptions);
-  const t = htmlTranslator(htmlOptions.lang ?? DEFAULT_REPORT_LANG);
-  const facts = coverFacts(t, report, meta).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("\n");
-  const toc = tocEntries(v2).map((e) => `<li><a href="#${e.id}"><span>${e.text}</span><span class="fill"></span><span class="num">${t.t("pdf.toc.page", { page: tocPages?.[e.id] ?? 0 })}</span></a></li>`).join("\n");
-  const front = `<header class="cover">
-<h1>${t.t("html.heading")}</h1>
-<dl>
-${facts}
-</dl>
-<p class="disclaimer" id="disclaimer"${verbatimAttrs2(t)}>${esc3(AUTOMATED_TESTING_DISCLAIMER)}</p>
-</header>
-<nav class="toc" aria-labelledby="toc-h">
-<h2 id="toc-h">${t.t("pdf.toc.heading")}</h2>
-<ol>
-${toc}
-</ol>
-</nav>
+function describe(d, now) {
+  const expired = isExpired(d, now);
+  return `${d.group}  ${d.ruleId}  ${d.decision}${expired ? " (expired)" : ""} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}
+  normalized selector: ${d.normalizedSelector}
 `;
-  return v2.replace(HEADER, () => front).replace("\n</style>", () => `${PDF_STYLE}
-</style>`);
 }
-function pdfFooterTemplate(lang = DEFAULT_REPORT_LANG) {
-  const t = htmlTranslator(lang);
-  const page = t.t("pdf.footer.page", { page: '<span class="pageNumber"></span>', total: '<span class="totalPages"></span>' });
-  return `<div style="font:8pt system-ui,sans-serif;color:#000;width:100%;margin:0 14mm;display:flex;justify-content:space-between;gap:6mm"${t.dir === "rtl" ? ' dir="rtl"' : ""}><span${verbatimAttrs2(t)}>${esc3(AUTOMATED_TESTING_DISCLAIMER)}</span><span>${page}</span></div>`;
+async function who(io, cwd) {
+  const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
+  return name || "unknown";
 }
-var PDF_HEADER_TEMPLATE = "<span></span>";
+function entries(action, removed, by, now) {
+  return removed.map((previous) => ({ action, by, at: now.toISOString(), group: previous.group, previous }));
+}
+async function runReviewList(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline", "--status"], ["--expired", "--json"]);
+    if (flags.positional.length) throw new Error(`Unexpected review list argument ${flags.positional[0]}.`);
+    const status = flags.values.get("--status");
+    if (status !== void 0 && !REVIEW_DECISIONS.includes(status)) throw new Error(`Unknown status "${status}". Use ${REVIEW_DECISIONS.join(", ")}.`);
+    const { baseline } = await loadBaseline(flags, cwd);
+    const decisions = (baseline.groupDecisions ?? []).filter((d) => !status || d.decision === status).filter((d) => !flags.switches.has("--expired") || isExpired(d, now));
+    if (flags.switches.has("--json")) {
+      stdout(JSON.stringify({
+        kind: "a11ygate-review-decisions",
+        disclaimer: AUTOMATED_TESTING_DISCLAIMER,
+        filters: { ...status ? { status } : {}, ...flags.switches.has("--expired") ? { expired: true } : {} },
+        decisions: decisions.map((d) => ({ ...d, expired: isExpired(d, now) }))
+      }, null, 2) + "\n");
+      return 0;
+    }
+    stdout(decisions.length ? decisions.map((d) => describe(d, now)).join("\n") : "No matching review decisions.\n");
+    stdout(`
+${decisions.length} decision(s).
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
+    return 2;
+  }
+}
+async function confirm(io, question) {
+  const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
+  if (!interactive) return false;
+  if (io.prompt) return /^y(es)?$/i.test((await io.prompt(question)).trim());
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
+async function runReviewRemove(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline"], ["--all-expired", "--yes", "-y"]);
+    const allExpired = flags.switches.has("--all-expired");
+    if (allExpired && flags.positional.length) throw new Error("Pass either a group id or --all-expired, not both.");
+    if (!allExpired && flags.positional.length !== 1) throw new Error("Pass one group id (g-... from review list) or --all-expired.");
+    const { file, baseline } = await loadBaseline(flags, cwd);
+    const decisions = baseline.groupDecisions ?? [];
+    const target = flags.positional[0];
+    const removed = allExpired ? decisions.filter((d) => isExpired(d, now)) : decisions.filter((d) => d.group === target || d.groupKey === target);
+    if (!removed.length) {
+      if (allExpired) {
+        stdout(`No expired decisions in ${flags.values.get("--baseline")}. Nothing written.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+        return 0;
+      }
+      throw new Error(`No decision for group ${target} in the baseline. Run a11ygate review list --baseline <file>.`);
+    }
+    stdout(removed.map((d) => describe(d, now)).join(""));
+    if (!flags.switches.has("--yes") && !flags.switches.has("-y") && !await confirm(io, `Remove ${removed.length} decision(s)? [y/N] `)) {
+      const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
+      if (!interactive) throw new Error("Removing decisions needs --yes outside a terminal.");
+      stdout(`Nothing removed.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+      return 0;
+    }
+    const keep = decisions.filter((d) => !removed.includes(d));
+    await saveReviewBaseline(file, baseline, keep, entries("remove", removed, await who(io, cwd), now), io);
+    stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
+    return 2;
+  }
+}
+async function runReviewPrune(argv2, io = {}) {
+  const { stdout, stderr, cwd, now } = context(io);
+  try {
+    const flags = parseFlags(argv2, ["--baseline"], ["--dry-run"]);
+    if (flags.positional.length !== 1) throw new Error("Pass the latest saved scan report (a11ygate-scan.json or its out-dir).");
+    const report = await readScanInput(flags.positional[0], cwd);
+    const { file, baseline } = await loadBaseline(flags, cwd);
+    const decisions = baseline.groupDecisions ?? [];
+    const present2 = new Set(report.findings.map((f) => componentGroupKey(f)));
+    const stale = decisions.filter((d) => !present2.has(d.groupKey));
+    const dry = flags.switches.has("--dry-run");
+    const incomplete = report.pages.filter((p) => p.scanStatus !== "complete").length;
+    if (incomplete) stdout(`Warning: ${incomplete} page(s) in this scan did not complete; decisions for components only on those pages may be pruned. Use --dry-run to check.
+`);
+    if (!stale.length) {
+      stdout(`Every decision still matches a finding in this scan. Nothing to prune.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+      return 0;
+    }
+    stdout(`${stale.length} decision(s) match no finding in this scan${dry ? " and would be removed" : ""}:
+` + stale.map((d) => describe(d, now)).join(""));
+    if (dry) {
+      stdout(`Dry run: nothing written.
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+      return 0;
+    }
+    await saveReviewBaseline(file, baseline, decisions.filter((d) => present2.has(d.groupKey)), entries("prune", stale, await who(io, cwd), now), io);
+    stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
+    return 2;
+  }
+}
+
+// packages/cli/src/review.ts
+var REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
+Record a reviewer decision once for a likely shared component group instead of per finding.
+Decisions are stored in the fingerprint baseline (groupDecisions) and shown in reports.
+
+  --baseline <file>        Fingerprint baseline from baseline create. Updated in place.
+  --list                   List likely shared component groups and current decisions (default without a TTY).
+  --group <id>             Group id from --list (g-...). Requires --decision.
+  --decision <kind>        to-fix, accepted-risk or false-positive.
+  --reason <text>          Required for accepted-risk and false-positive.
+  --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
+Without --list or --group in a terminal, review groups interactively.
+${REVIEW_MANAGE_HELP}
+The reviewer is git config user.name; A11yGate never invents a name. Remove and prune
+history entries record "unknown" when user.name is not set.
+Accepted-risk and false-positive decisions exclude matching findings from the gate, but every
+finding stays listed in the report. Groupings are heuristic: review examples before deciding.
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+function parseReviewArgs(argv2) {
+  const args = { list: false };
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (name === "--list") {
+      args.list = true;
+      continue;
+    }
+    if (["--baseline", "--group", "--decision", "--reason", "--expires"].includes(name)) {
+      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv2[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      if (name === "--baseline") args.baseline = value;
+      else if (name === "--group") args.group = value;
+      else if (name === "--reason") args.reason = value;
+      else if (name === "--expires") args.expires = value;
+      else {
+        if (!REVIEW_DECISIONS.includes(value)) throw new Error(`Unknown decision "${value}". Use ${REVIEW_DECISIONS.join(", ")}.`);
+        args.decision = value;
+      }
+      continue;
+    }
+    if (!token.startsWith("-") && !args.input) {
+      args.input = token;
+      continue;
+    }
+    throw new Error(`Unexpected review argument ${token}.`);
+  }
+  if (!args.input) throw new Error("Pass a saved scan report (a11ygate-scan.json or its out-dir).");
+  if (!args.baseline) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
+  if (args.group && !args.decision) throw new Error("--group needs --decision.");
+  if (args.decision && !args.group) throw new Error("--decision needs --group.");
+  if (args.list && args.group) throw new Error("Use either --list or --group.");
+  if ((args.reason !== void 0 || args.expires !== void 0) && !args.group) throw new Error("--reason and --expires need --group.");
+  return args;
+}
+function checkDecision(decision, reason, expires, now) {
+  if (decision !== "to-fix" && !reason?.trim()) throw new Error(`${decision} needs --reason.`);
+  if (expires !== void 0) {
+    if (decision !== "accepted-risk") throw new Error("--expires applies only to accepted-risk.");
+    if (!isIsoDate(expires)) throw new Error("--expires must be a date in YYYY-MM-DD form.");
+    if (expires < today(now)) throw new Error("--expires is already in the past.");
+  }
+}
+function describeGroup(g, decisions) {
+  const d = decisions.find((x) => x.groupKey === g.key);
+  return `${groupId(g.key)}  ${g.ruleId} \u2014 likely shared component on ${g.pageCount} page(s), ${g.findingCount} finding(s)
+  normalized selector: ${g.normalizedSelector}
+` + g.examples.map((e) => `  example: ${e.pageUrl} \u2014 ${e.selector}
+`).join("") + `  decision: ${d ? `${d.decision} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}` : "none"}
+`;
+}
+async function runReview(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(REVIEW_HELP);
+    return 0;
+  }
+  if (argv2[0] === "list") return runReviewList(argv2.slice(1), io);
+  if (argv2[0] === "remove") return runReviewRemove(argv2.slice(1), io);
+  if (argv2[0] === "prune") return runReviewPrune(argv2.slice(1), io);
+  const cwd = io.cwd ?? process.cwd();
+  const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
+  try {
+    const args = parseReviewArgs(argv2);
+    if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
+    const report = await readScanInput(args.input, cwd);
+    const baselinePath = path10.resolve(cwd, args.baseline);
+    const baseline = await readJsonInput(cwd, args.baseline, parseFingerprintBaseline);
+    let decisions = baseline.groupDecisions ?? [];
+    const groups = reviewableGroups(report.findings);
+    const shared = groups.filter((g) => g.likelySharedComponent);
+    const history2 = [];
+    const record = (decision) => {
+      const previous = decisions.find((d) => d.groupKey === decision.groupKey);
+      history2.push({ action: "record", by: decision.by, at: now.toISOString(), group: decision.group, decision, ...previous ? { previous } : {} });
+      decisions = upsertGroupDecision(decisions, decision);
+    };
+    const save = async () => saveReviewBaseline(baselinePath, baseline, decisions, history2, io);
+    const reviewer = async () => {
+      const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
+      if (!name) throw new Error("git config user.name is not set. A11yGate records the reviewer from git config and never invents a name.");
+      return name;
+    };
+    if (args.group) {
+      const group2 = groups.find((g) => groupId(g.key) === args.group);
+      if (!group2) throw new Error(`No component group ${args.group} in this scan. Run a11ygate review ${args.input} --baseline ${args.baseline} --list.`);
+      const decision = createGroupDecision(group2, { decision: args.decision, reason: args.reason, expires: args.expires, by: await reviewer(), now });
+      record(decision);
+      await save();
+      stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
+Matching findings on new pages inherit this decision. Findings stay listed in reports.
+`);
+      return 0;
+    }
+    const interactive = !args.list && (io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY));
+    if (!interactive) {
+      stdout(`${REVIEW_DECISION_NOTICE}
+
+`);
+      stdout(shared.length ? shared.map((g) => describeGroup(g, decisions)).join("\n") : "No likely shared components detected across pages.\n");
+      const applied = applyFingerprintBaseline(report, baseline, now).findings.filter((f) => f.reviewDecision?.expired);
+      if (applied.length) stdout(`
+${applied.length} finding(s) match an expired accepted-risk decision and gate again.
+`);
+      stdout(`
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+      return 0;
+    }
+    let close = () => {
+    };
+    let ask = io.prompt;
+    if (!ask) {
+      const rl = createInterface2({ input: process.stdin, output: process.stdout });
+      ask = (q) => rl.question(q);
+      close = () => rl.close();
+    }
+    try {
+      stdout(`${REVIEW_DECISION_NOTICE}
+`);
+      if (!shared.length) {
+        stdout("No likely shared components detected across pages.\n");
+        return 0;
+      }
+      const by = await reviewer();
+      let changed = 0;
+      for (const g of shared) {
+        stdout("\n" + describeGroup(g, decisions));
+        const choice = (await ask("[f] to-fix  [a] accepted-risk  [p] false-positive  [s] skip  [q] quit: ")).trim().toLowerCase();
+        if (choice === "q") break;
+        const kind = { f: "to-fix", a: "accepted-risk", p: "false-positive" }[choice];
+        if (!kind) continue;
+        let reason;
+        let expires;
+        if (kind !== "to-fix") {
+          while (!reason) reason = (await ask("Reason (required): ")).trim() || void 0;
+        } else reason = (await ask("Reason (optional): ")).trim() || void 0;
+        if (kind === "accepted-risk") {
+          for (; ; ) {
+            const value = (await ask("Expires YYYY-MM-DD (optional, blank for none): ")).trim();
+            if (!value) break;
+            try {
+              checkDecision(kind, reason, value, now);
+              expires = value;
+              break;
+            } catch (error) {
+              stderr(`${error.message}
+`);
+            }
+          }
+        }
+        record(createGroupDecision(g, { decision: kind, reason, expires, by, now }));
+        changed++;
+      }
+      if (changed) await save();
+      stdout(`
+Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
+`);
+      return 0;
+    } finally {
+      close();
+    }
+  } catch (error) {
+    stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
+    return 2;
+  }
+}
 
 // packages/cli/src/evidence.ts
-import { execFile } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import { execFile as execFile2 } from "node:child_process";
+import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile5, writeFile as writeFile5 } from "node:fs/promises";
+import path11 from "node:path";
 
 // lib/evidence/pack.ts
 import { createHash as createHash3 } from "node:crypto";
@@ -6567,7 +6849,7 @@ function findSecret(files, envValues) {
   }
   return null;
 }
-function esc4(value) {
+function esc3(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function code2(value) {
@@ -6633,14 +6915,14 @@ function frontPageMarkdown({ report, engines, commit, contents }) {
 }
 function frontPageHtml({ report, engines, commit, contents }) {
   const severities2 = ["critical", "serious", "moderate", "minor", "unknown"];
-  const pages = report.pages.map((p) => `<tr><td><code>${esc4(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc4(p.scanStatus)}${p.error ? " \u2014 " + esc4(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
+  const pages = report.pages.map((p) => `<tr><td><code>${esc3(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc3(p.scanStatus)}${p.error ? " \u2014 " + esc3(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>A11yGate evidence pack \u2014 ${esc4(report.startUrl)}</title>
+<title>A11yGate evidence pack \u2014 ${esc3(report.startUrl)}</title>
 <style>
 body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fff}
 code{background:#f2f2f2;padding:0 .2em;word-break:break-all}
@@ -6652,31 +6934,31 @@ a{color:#0b57d0}
 <body>
 <main>
 <h1>A11yGate evidence pack</h1>
-<p class="disclaimer">${esc4(EVIDENCE_DISCLAIMER)}</p>
+<p class="disclaimer">${esc3(EVIDENCE_DISCLAIMER)}</p>
 <h2>Scope scanned</h2>
 <ul>
-<li>Start URL: <code>${esc4(report.startUrl)}</code></li>
-<li>Origin: <code>${esc4(report.origin)}</code></li>
-<li>Scanned at (UTC): ${esc4(toUtcIso(report.scannedAt) ?? "not recorded")}</li>
-<li>Commit: ${esc4(commitText(commit))}</li>
+<li>Start URL: <code>${esc3(report.startUrl)}</code></li>
+<li>Origin: <code>${esc3(report.origin)}</code></li>
+<li>Scanned at (UTC): ${esc3(toUtcIso(report.scannedAt) ?? "not recorded")}</li>
+<li>Commit: ${esc3(commitText(commit))}</li>
 <li>Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}; links not followed: ${report.counts.skippedLinks}; crawl cap: ${report.options.maxPages}</li>
-<li>robots.txt: ${esc4(report.options.robots)}</li>
-<li>Engines and rule sets: ${engines.length ? engines.map((e) => esc4(engineText(e))).join("; ") : "none recorded"}</li>
+<li>robots.txt: ${esc3(report.options.robots)}</li>
+<li>Engines and rule sets: ${engines.length ? engines.map((e) => esc3(engineText(e))).join("; ") : "none recorded"}</li>
 </ul>
 <table><caption>Pages</caption><thead><tr><th scope="col">Page</th><th scope="col">HTTP</th><th scope="col">Status</th><th scope="col">Findings</th></tr></thead><tbody>${pages}</tbody></table>
 <h2>Automated result</h2>
-<p>Verdict: <strong>${esc4(report.verdict)}</strong> (fail on: ${esc4(report.failOn)}). ${esc4(report.reason)}</p>
+<p>Verdict: <strong>${esc3(report.verdict)}</strong> (fail on: ${esc3(report.failOn)}). ${esc3(report.reason)}</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${severities2.map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("")}</tbody></table>
 <p>Full findings: <a href="scan/a11ygate-scan.html">detailed scan report (HTML)</a> and <code>scan/a11ygate-scan.md</code>.</p>
 <h2>What automated testing cannot cover</h2>
 <p>This pack records what automated rules detected on the pages listed above. It does not assess:</p>
-<ul>${AUTOMATED_LIMITS.map((item) => `<li>${esc4(item)}</li>`).join("")}</ul>
+<ul>${AUTOMATED_LIMITS.map((item) => `<li>${esc3(item)}</li>`).join("")}</ul>
 <p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
 <h2>Scope boundaries</h2>
-<ul>${report.boundaries.map((b) => `<li>${esc4(b)}</li>`).join("")}</ul>
+<ul>${report.boundaries.map((b) => `<li>${esc3(b)}</li>`).join("")}</ul>
 <h2>Contents of this pack</h2>
-<ul>${contents.map((file) => `<li><code>${esc4(file)}</code></li>`).join("")}<li><code>manifest.json</code> \u2014 versions, commit, UTC timestamps and the SHA-256 of every other file</li></ul>
-<p>${esc4(EVIDENCE_DISCLAIMER)}</p>
+<ul>${contents.map((file) => `<li><code>${esc3(file)}</code></li>`).join("")}<li><code>manifest.json</code> \u2014 versions, commit, UTC timestamps and the SHA-256 of every other file</li></ul>
+<p>${esc3(EVIDENCE_DISCLAIMER)}</p>
 </main>
 </body>
 </html>
@@ -6802,7 +7084,7 @@ function parseEvidenceArgs(argv2) {
 }
 function git(cwd, args) {
   return new Promise((resolve) => {
-    execFile("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile2("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       resolve(error ? null : String(stdout ?? "").trim());
     });
   });
@@ -6821,7 +7103,7 @@ async function defaultGitCommitMeta(cwd, sha) {
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
-    execFile("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile2("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       const sha = String(stdout ?? "").trim();
       resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
     });
@@ -6838,8 +7120,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn, omitImages = false) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path8.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile4(file), source: "copied" });
+    const file = path11.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -6853,15 +7135,15 @@ async function collectInputs(dir, warn, omitImages = false) {
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
     if (sub === "screenshots" && omitImages) continue;
-    const names = await readdir(path8.join(dir, sub)).catch(() => []);
+    const names = await readdir(path11.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path8.join(dir, sub, name);
+      const file = path11.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile4(file);
+      const data = await readFile5(file);
       if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -6895,15 +7177,15 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path8.resolve(cwd, options.from);
-  const scanJsonPath = path8.join(dir, "a11ygate-scan.json");
+  const dir = path11.resolve(cwd, options.from);
+  const scanJsonPath = path11.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile4(scanJsonPath, "utf8");
-  const omitImages = await lstat2(path8.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
+  const scanJson = await readFile5(scanJsonPath, "utf8");
+  const omitImages = await lstat2(path11.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `), omitImages);
   let commit;
@@ -6930,10 +7212,10 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path8.resolve(cwd, options.out ?? path8.join(options.from, "a11ygate-evidence.zip"));
+  const out = path11.resolve(cwd, options.out ?? path11.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir3(path8.dirname(out), { recursive: true });
-    await writeFile4(out, result.zip);
+    await mkdir3(path11.dirname(out), { recursive: true });
+    await writeFile5(out, result.zip);
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the evidence pack${code3 ? ` (${code3})` : ""}.
@@ -6941,583 +7223,14 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path8.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path11.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
 
-// packages/cli/src/report-pdf.ts
-var DEFAULT_PDF_OUT = "a11ygate-report.pdf";
-function reportPdfHelpText() {
-  return `Usage: a11ygate report pdf <scan.json|out-dir> [-o <file.pdf>] [--commit <sha>] [--report-lang <lang>] [--en301549-ref]
-
-Print HTML report v2 of a saved scan to PDF with the local Chromium (Playwright).
-The PDF has a cover page (site, scan date, commit, engines, scope), a table of
-contents with page numbers, page numbers and the disclaimer in every page footer.
-Text stays selectable; the PDF is tagged and its title and language are set.
-No network access: the report is self-contained and every request is blocked.
-
-  -o, --out <file>      Output file. Default: ${DEFAULT_PDF_OUT}
-  --commit <sha>        Commit shown on the cover. Default: git HEAD of the current
-                        directory; "not recorded" outside a git work tree.
-  --report-lang <lang>  ${REPORT_LANGS.join(", ")} (only en is a shipped language).
-  --en301549-ref        Include the opt-in EN 301 549 reference column.
-
-Needs playwright and its Chromium: npm install --save-dev playwright && npx playwright install chromium
-
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-}
-function parseReportPdfArgs(argv2) {
-  const options = { out: DEFAULT_PDF_OUT, help: false, warnings: [] };
-  for (let i = 0; i < argv2.length; i++) {
-    const token = argv2[i];
-    if (token === "--help" || token === "-h") {
-      options.help = true;
-      continue;
-    }
-    if (token === "--en301549-ref") {
-      options.en301549Ref = true;
-      continue;
-    }
-    const eq = token.startsWith("--") ? token.indexOf("=") : -1;
-    const name = eq > 0 ? token.slice(0, eq) : token;
-    if (["-o", "--out", "--commit", "--report-lang"].includes(name)) {
-      const value = eq > 0 ? token.slice(eq + 1) : argv2[++i];
-      if (!value || eq < 0 && value.startsWith("-")) return { ok: false, error: `${name} needs a value.` };
-      if (name === "--commit") {
-        if (!/^[0-9a-f]{7,64}$/i.test(value)) return { ok: false, error: "--commit must be a hexadecimal commit SHA (7 to 64 characters)." };
-        options.commit = value.toLowerCase();
-      } else if (name === "--report-lang") {
-        if (!isReportLang(value)) return { ok: false, error: `Unknown --report-lang "${value}". Use ${REPORT_LANGS.join(", ")} (only en is a shipped language).` };
-        if (isPseudoReportLang(value)) options.warnings.push(`--report-lang ${value} is a pseudo-locale for layout testing only, not a translation.`);
-        options.lang = value;
-      } else options.out = value;
-      continue;
-    }
-    if (token.startsWith("-")) return { ok: false, error: `Unknown option ${token}.` };
-    if (options.input) return { ok: false, error: `Unexpected argument ${token}.` };
-    options.input = token;
-  }
-  if (!options.help && !options.input) return { ok: false, error: "Missing <scan.json|out-dir>." };
-  return { ok: true, options };
-}
-async function renderReportPdf(browser, report, meta, options = {}) {
-  const htmlOptions = { ...options.lang ? { lang: options.lang } : {}, ...options.en301549Ref ? { en301549Ref: true } : {} };
-  const context2 = await browser.newContext({ javaScriptEnabled: false, colorScheme: "light" });
-  try {
-    await context2.route("**/*", (route) => route.abort());
-    const page = await context2.newPage();
-    const print = async (html2) => {
-      await page.setContent(html2, { waitUntil: "load" });
-      return page.pdf({
-        format: PDF_PAGE.format,
-        margin: PDF_PAGE.margin,
-        printBackground: true,
-        tagged: true,
-        outline: true,
-        displayHeaderFooter: true,
-        headerTemplate: PDF_HEADER_TEMPLATE,
-        footerTemplate: pdfFooterTemplate(options.lang)
-      });
-    };
-    const ids = tocEntries(scanHtmlV2(report, htmlOptions)).map((e) => e.id);
-    const draft = await print(pdfSourceHtml(report, meta, htmlOptions));
-    const found = namedDestinationPages(draft);
-    const tocPages = Object.fromEntries(ids.flatMap((id) => found.has(id) ? [[id, found.get(id)]] : []));
-    const html = pdfSourceHtml(report, meta, { ...htmlOptions, tocPages });
-    return { pdf: await print(html), html, tocPages };
-  } finally {
-    await context2.close();
-  }
-}
-async function writeBinaryAtomic(file, data) {
-  await mkdir4(path9.dirname(file), { recursive: true });
-  const tmp = path9.join(path9.dirname(file), `.${path9.basename(file)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
-  try {
-    await writeFile5(tmp, data, { flag: "wx" });
-    await rename(tmp, file);
-  } catch (error) {
-    await unlink(tmp).catch(() => {
-    });
-    throw error;
-  }
-}
-async function runReportPdf(argv2, io = {}) {
-  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
-  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  const cwd = io.cwd ?? process.cwd();
-  const parsed = parseReportPdfArgs(argv2);
-  if (!parsed.ok) {
-    stderr(`${parsed.error}
-${reportPdfHelpText()}`);
-    return 2;
-  }
-  const options = parsed.options;
-  if (options.help) {
-    stdout(reportPdfHelpText());
-    return 0;
-  }
-  for (const warning of options.warnings) stderr(`Warning: ${warning}
-`);
-  let report;
-  try {
-    report = await readScanInput(options.input, cwd);
-  } catch (error) {
-    stderr(`Could not read report: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  }
-  const commit = options.commit ?? await (io.gitHead ?? defaultGitHead)(cwd).catch(() => null);
-  let playwright;
-  try {
-    playwright = await import("playwright");
-  } catch {
-    stderr("Playwright or its Chromium executable is missing.\nInstall it with: npm install --save-dev playwright && npx playwright install chromium\n");
-    return 2;
-  }
-  let browser;
-  try {
-    browser = await playwright.chromium.launch({ headless: true });
-  } catch (error) {
-    stderr(`Could not launch headless Chromium (${error instanceof Error ? error.message.split("\n")[0] : String(error)}).
-Install it with: npx playwright install chromium
-${debugDetail(error)}`);
-    return 2;
-  }
-  try {
-    const { pdf } = await renderReportPdf(browser, report, { commit }, { lang: options.lang, en301549Ref: options.en301549Ref });
-    const out = path9.resolve(cwd, options.out);
-    await writeBinaryAtomic(out, pdf);
-    stdout(`Wrote ${path9.relative(cwd, out) || out}
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Could not write PDF: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  } finally {
-    await browser.close();
-  }
-}
-
-// packages/cli/src/review.ts
-import path12 from "node:path";
-import { createInterface as createInterface2 } from "node:readline/promises";
-
-// packages/cli/src/review-manage.ts
-import { execFile as execFile2 } from "node:child_process";
-import { readFile as readFile5 } from "node:fs/promises";
-import path11 from "node:path";
-import { createInterface } from "node:readline/promises";
-
-// packages/cli/src/atomic-write.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { rename as fsRename, unlink as unlink2, writeFile as writeFile6 } from "node:fs/promises";
-import path10 from "node:path";
-async function writeFileAtomic(file, data, deps = {}) {
-  const tmp = path10.join(path10.dirname(file), `.${path10.basename(file)}.${process.pid}.${randomBytes2(6).toString("hex")}.tmp`);
-  try {
-    await writeFile6(tmp, data, { encoding: "utf8", flag: "wx" });
-    await (deps.rename ?? fsRename)(tmp, file);
-  } catch (error) {
-    await unlink2(tmp).catch(() => {
-    });
-    throw error;
-  }
-}
-
-// packages/cli/src/review-manage.ts
-var REVIEW_MANAGE_HELP = `
-Manage recorded decisions (R44):
-  a11ygate review list --baseline <file> [--status <kind>] [--expired] [--json]
-      List decisions. --status keeps one kind (to-fix, accepted-risk, false-positive);
-      --expired keeps accepted-risk decisions past their expiry date.
-  a11ygate review remove <group-id|--all-expired> --baseline <file> [--yes]
-      Remove one decision, or every expired accepted-risk decision. Needs --yes,
-      or answer the confirmation prompt in a terminal.
-  a11ygate review prune <scan.json|out-dir> --baseline <file> [--dry-run]
-      Remove decisions whose component group has no finding in that (latest) scan.
-      --dry-run lists what would be removed and writes nothing.
-Every change is written atomically (temp file + rename). Earlier decisions are kept in the
-baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
-function gitUserName(cwd) {
-  return new Promise((resolve) => {
-    execFile2("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
-  });
-}
-async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {
-  const next = { ...baseline, groupDecisions: decisions, history: [...baseline.history ?? [], ...entries2] };
-  await writeFileAtomic(file, JSON.stringify(next, null, 2) + "\n", { rename: io.rename });
-}
-function parseFlags(argv2, valued, switches) {
-  const out = { positional: [], values: /* @__PURE__ */ new Map(), switches: /* @__PURE__ */ new Set() };
-  for (let i = 0; i < argv2.length; i++) {
-    const token = argv2[i];
-    const eq = token.indexOf("=");
-    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
-    if (switches.includes(name) && eq < 0) {
-      out.switches.add(name);
-      continue;
-    }
-    if (valued.includes(name)) {
-      const value = eq > 0 ? token.slice(eq + 1) : argv2[++i];
-      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
-      out.values.set(name, value);
-      continue;
-    }
-    if (!token.startsWith("-")) {
-      out.positional.push(token);
-      continue;
-    }
-    throw new Error(`Unexpected review argument ${token}.`);
-  }
-  return out;
-}
-function context(io) {
-  return {
-    stdout: io.stdout ?? ((s) => process.stdout.write(s)),
-    stderr: io.stderr ?? ((s) => process.stderr.write(s)),
-    cwd: io.cwd ?? process.cwd(),
-    now: (io.now ?? (() => /* @__PURE__ */ new Date()))()
-  };
-}
-async function loadBaseline(flags, cwd) {
-  const value = flags.values.get("--baseline");
-  if (!value) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
-  const file = path11.resolve(cwd, value);
-  return { file, baseline: parseFingerprintBaseline(JSON.parse(await readFile5(file, "utf8"))) };
-}
-function describe(d, now) {
-  const expired = isExpired(d, now);
-  return `${d.group}  ${d.ruleId}  ${d.decision}${expired ? " (expired)" : ""} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}
-  normalized selector: ${d.normalizedSelector}
-`;
-}
-async function who(io, cwd) {
-  const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
-  return name || "unknown";
-}
-function entries(action, removed, by, now) {
-  return removed.map((previous) => ({ action, by, at: now.toISOString(), group: previous.group, previous }));
-}
-async function runReviewList(argv2, io = {}) {
-  const { stdout, stderr, cwd, now } = context(io);
-  try {
-    const flags = parseFlags(argv2, ["--baseline", "--status"], ["--expired", "--json"]);
-    if (flags.positional.length) throw new Error(`Unexpected review list argument ${flags.positional[0]}.`);
-    const status = flags.values.get("--status");
-    if (status !== void 0 && !REVIEW_DECISIONS.includes(status)) throw new Error(`Unknown status "${status}". Use ${REVIEW_DECISIONS.join(", ")}.`);
-    const { baseline } = await loadBaseline(flags, cwd);
-    const decisions = (baseline.groupDecisions ?? []).filter((d) => !status || d.decision === status).filter((d) => !flags.switches.has("--expired") || isExpired(d, now));
-    if (flags.switches.has("--json")) {
-      stdout(JSON.stringify({
-        kind: "a11ygate-review-decisions",
-        disclaimer: AUTOMATED_TESTING_DISCLAIMER,
-        filters: { ...status ? { status } : {}, ...flags.switches.has("--expired") ? { expired: true } : {} },
-        decisions: decisions.map((d) => ({ ...d, expired: isExpired(d, now) }))
-      }, null, 2) + "\n");
-      return 0;
-    }
-    stdout(decisions.length ? decisions.map((d) => describe(d, now)).join("\n") : "No matching review decisions.\n");
-    stdout(`
-${decisions.length} decision(s).
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Could not list review decisions: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  }
-}
-async function confirm(io, question) {
-  const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
-  if (!interactive) return false;
-  if (io.prompt) return /^y(es)?$/i.test((await io.prompt(question)).trim());
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    return /^y(es)?$/i.test((await rl.question(question)).trim());
-  } finally {
-    rl.close();
-  }
-}
-async function runReviewRemove(argv2, io = {}) {
-  const { stdout, stderr, cwd, now } = context(io);
-  try {
-    const flags = parseFlags(argv2, ["--baseline"], ["--all-expired", "--yes", "-y"]);
-    const allExpired = flags.switches.has("--all-expired");
-    if (allExpired && flags.positional.length) throw new Error("Pass either a group id or --all-expired, not both.");
-    if (!allExpired && flags.positional.length !== 1) throw new Error("Pass one group id (g-... from review list) or --all-expired.");
-    const { file, baseline } = await loadBaseline(flags, cwd);
-    const decisions = baseline.groupDecisions ?? [];
-    const target = flags.positional[0];
-    const removed = allExpired ? decisions.filter((d) => isExpired(d, now)) : decisions.filter((d) => d.group === target || d.groupKey === target);
-    if (!removed.length) {
-      if (allExpired) {
-        stdout(`No expired decisions in ${flags.values.get("--baseline")}. Nothing written.
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-        return 0;
-      }
-      throw new Error(`No decision for group ${target} in the baseline. Run a11ygate review list --baseline <file>.`);
-    }
-    stdout(removed.map((d) => describe(d, now)).join(""));
-    if (!flags.switches.has("--yes") && !flags.switches.has("-y") && !await confirm(io, `Remove ${removed.length} decision(s)? [y/N] `)) {
-      const interactive = io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY);
-      if (!interactive) throw new Error("Removing decisions needs --yes outside a terminal.");
-      stdout(`Nothing removed.
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-      return 0;
-    }
-    const keep = decisions.filter((d) => !removed.includes(d));
-    await saveReviewBaseline(file, baseline, keep, entries("remove", removed, await who(io, cwd), now), io);
-    stdout(`Removed ${removed.length} decision(s). The earlier decision(s) are kept in history[]. Matching findings gate as usual again.
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Could not remove review decision: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  }
-}
-async function runReviewPrune(argv2, io = {}) {
-  const { stdout, stderr, cwd, now } = context(io);
-  try {
-    const flags = parseFlags(argv2, ["--baseline"], ["--dry-run"]);
-    if (flags.positional.length !== 1) throw new Error("Pass the latest saved scan report (a11ygate-scan.json or its out-dir).");
-    const report = await readScanInput(flags.positional[0], cwd);
-    const { file, baseline } = await loadBaseline(flags, cwd);
-    const decisions = baseline.groupDecisions ?? [];
-    const present2 = new Set(report.findings.map((f) => componentGroupKey(f)));
-    const stale = decisions.filter((d) => !present2.has(d.groupKey));
-    const dry = flags.switches.has("--dry-run");
-    const incomplete = report.pages.filter((p) => p.scanStatus !== "complete").length;
-    if (incomplete) stdout(`Warning: ${incomplete} page(s) in this scan did not complete; decisions for components only on those pages may be pruned. Use --dry-run to check.
-`);
-    if (!stale.length) {
-      stdout(`Every decision still matches a finding in this scan. Nothing to prune.
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-      return 0;
-    }
-    stdout(`${stale.length} decision(s) match no finding in this scan${dry ? " and would be removed" : ""}:
-` + stale.map((d) => describe(d, now)).join(""));
-    if (dry) {
-      stdout(`Dry run: nothing written.
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-      return 0;
-    }
-    await saveReviewBaseline(file, baseline, decisions.filter((d) => present2.has(d.groupKey)), entries("prune", stale, await who(io, cwd), now), io);
-    stdout(`Pruned ${stale.length} decision(s). The earlier decision(s) are kept in history[].
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Could not prune review decisions: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  }
-}
-
-// packages/cli/src/review.ts
-var REVIEW_HELP = `a11ygate review <scan.json|out-dir> --baseline <fingerprints.json> [options]
-Record a reviewer decision once for a likely shared component group instead of per finding.
-Decisions are stored in the fingerprint baseline (groupDecisions) and shown in reports.
-
-  --baseline <file>        Fingerprint baseline from baseline create. Updated in place.
-  --list                   List likely shared component groups and current decisions (default without a TTY).
-  --group <id>             Group id from --list (g-...). Requires --decision.
-  --decision <kind>        to-fix, accepted-risk or false-positive.
-  --reason <text>          Required for accepted-risk and false-positive.
-  --expires <YYYY-MM-DD>   Optional last day an accepted-risk decision applies; afterwards findings gate again.
-Without --list or --group in a terminal, review groups interactively.
-${REVIEW_MANAGE_HELP}
-The reviewer is git config user.name; A11yGate never invents a name. Remove and prune
-history entries record "unknown" when user.name is not set.
-Accepted-risk and false-positive decisions exclude matching findings from the gate, but every
-finding stays listed in the report. Groupings are heuristic: review examples before deciding.
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-function parseReviewArgs(argv2) {
-  const args = { list: false };
-  for (let i = 0; i < argv2.length; i++) {
-    const token = argv2[i];
-    const eq = token.indexOf("=");
-    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
-    if (name === "--list") {
-      args.list = true;
-      continue;
-    }
-    if (["--baseline", "--group", "--decision", "--reason", "--expires"].includes(name)) {
-      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv2[++i];
-      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
-      if (name === "--baseline") args.baseline = value;
-      else if (name === "--group") args.group = value;
-      else if (name === "--reason") args.reason = value;
-      else if (name === "--expires") args.expires = value;
-      else {
-        if (!REVIEW_DECISIONS.includes(value)) throw new Error(`Unknown decision "${value}". Use ${REVIEW_DECISIONS.join(", ")}.`);
-        args.decision = value;
-      }
-      continue;
-    }
-    if (!token.startsWith("-") && !args.input) {
-      args.input = token;
-      continue;
-    }
-    throw new Error(`Unexpected review argument ${token}.`);
-  }
-  if (!args.input) throw new Error("Pass a saved scan report (a11ygate-scan.json or its out-dir).");
-  if (!args.baseline) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
-  if (args.group && !args.decision) throw new Error("--group needs --decision.");
-  if (args.decision && !args.group) throw new Error("--decision needs --group.");
-  if (args.list && args.group) throw new Error("Use either --list or --group.");
-  if ((args.reason !== void 0 || args.expires !== void 0) && !args.group) throw new Error("--reason and --expires need --group.");
-  return args;
-}
-function checkDecision(decision, reason, expires, now) {
-  if (decision !== "to-fix" && !reason?.trim()) throw new Error(`${decision} needs --reason.`);
-  if (expires !== void 0) {
-    if (decision !== "accepted-risk") throw new Error("--expires applies only to accepted-risk.");
-    if (!isIsoDate(expires)) throw new Error("--expires must be a date in YYYY-MM-DD form.");
-    if (expires < today(now)) throw new Error("--expires is already in the past.");
-  }
-}
-function describeGroup(g, decisions) {
-  const d = decisions.find((x) => x.groupKey === g.key);
-  return `${groupId(g.key)}  ${g.ruleId} \u2014 likely shared component on ${g.pageCount} page(s), ${g.findingCount} finding(s)
-  normalized selector: ${g.normalizedSelector}
-` + g.examples.map((e) => `  example: ${e.pageUrl} \u2014 ${e.selector}
-`).join("") + `  decision: ${d ? `${d.decision} by ${d.by} on ${d.at}${d.expires ? `; expires ${d.expires}` : ""}${d.reason ? `; reason: ${d.reason}` : ""}` : "none"}
-`;
-}
-async function runReview(argv2, io = {}) {
-  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
-  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(REVIEW_HELP);
-    return 0;
-  }
-  if (argv2[0] === "list") return runReviewList(argv2.slice(1), io);
-  if (argv2[0] === "remove") return runReviewRemove(argv2.slice(1), io);
-  if (argv2[0] === "prune") return runReviewPrune(argv2.slice(1), io);
-  const cwd = io.cwd ?? process.cwd();
-  const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
-  try {
-    const args = parseReviewArgs(argv2);
-    if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
-    const report = await readScanInput(args.input, cwd);
-    const baselinePath = path12.resolve(cwd, args.baseline);
-    const baseline = await readJsonInput(cwd, args.baseline, parseFingerprintBaseline);
-    let decisions = baseline.groupDecisions ?? [];
-    const groups = reviewableGroups(report.findings);
-    const shared = groups.filter((g) => g.likelySharedComponent);
-    const history2 = [];
-    const record = (decision) => {
-      const previous = decisions.find((d) => d.groupKey === decision.groupKey);
-      history2.push({ action: "record", by: decision.by, at: now.toISOString(), group: decision.group, decision, ...previous ? { previous } : {} });
-      decisions = upsertGroupDecision(decisions, decision);
-    };
-    const save = async () => saveReviewBaseline(baselinePath, baseline, decisions, history2, io);
-    const reviewer = async () => {
-      const name = (await (io.gitUserName ?? (() => gitUserName(cwd)))()).trim();
-      if (!name) throw new Error("git config user.name is not set. A11yGate records the reviewer from git config and never invents a name.");
-      return name;
-    };
-    if (args.group) {
-      const group2 = groups.find((g) => groupId(g.key) === args.group);
-      if (!group2) throw new Error(`No component group ${args.group} in this scan. Run a11ygate review ${args.input} --baseline ${args.baseline} --list.`);
-      const decision = createGroupDecision(group2, { decision: args.decision, reason: args.reason, expires: args.expires, by: await reviewer(), now });
-      record(decision);
-      await save();
-      stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
-Matching findings on new pages inherit this decision. Findings stay listed in reports.
-`);
-      return 0;
-    }
-    const interactive = !args.list && (io.interactive ?? (!!process.stdin.isTTY && !!process.stdout.isTTY));
-    if (!interactive) {
-      stdout(`${REVIEW_DECISION_NOTICE}
-
-`);
-      stdout(shared.length ? shared.map((g) => describeGroup(g, decisions)).join("\n") : "No likely shared components detected across pages.\n");
-      const applied = applyFingerprintBaseline(report, baseline, now).findings.filter((f) => f.reviewDecision?.expired);
-      if (applied.length) stdout(`
-${applied.length} finding(s) match an expired accepted-risk decision and gate again.
-`);
-      stdout(`
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-      return 0;
-    }
-    let close = () => {
-    };
-    let ask = io.prompt;
-    if (!ask) {
-      const rl = createInterface2({ input: process.stdin, output: process.stdout });
-      ask = (q) => rl.question(q);
-      close = () => rl.close();
-    }
-    try {
-      stdout(`${REVIEW_DECISION_NOTICE}
-`);
-      if (!shared.length) {
-        stdout("No likely shared components detected across pages.\n");
-        return 0;
-      }
-      const by = await reviewer();
-      let changed = 0;
-      for (const g of shared) {
-        stdout("\n" + describeGroup(g, decisions));
-        const choice = (await ask("[f] to-fix  [a] accepted-risk  [p] false-positive  [s] skip  [q] quit: ")).trim().toLowerCase();
-        if (choice === "q") break;
-        const kind = { f: "to-fix", a: "accepted-risk", p: "false-positive" }[choice];
-        if (!kind) continue;
-        let reason;
-        let expires;
-        if (kind !== "to-fix") {
-          while (!reason) reason = (await ask("Reason (required): ")).trim() || void 0;
-        } else reason = (await ask("Reason (optional): ")).trim() || void 0;
-        if (kind === "accepted-risk") {
-          for (; ; ) {
-            const value = (await ask("Expires YYYY-MM-DD (optional, blank for none): ")).trim();
-            if (!value) break;
-            try {
-              checkDecision(kind, reason, value, now);
-              expires = value;
-              break;
-            } catch (error) {
-              stderr(`${error.message}
-`);
-            }
-          }
-        }
-        record(createGroupDecision(g, { decision: kind, reason, expires, by, now }));
-        changed++;
-      }
-      if (changed) await save();
-      stdout(`
-Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
-`);
-      return 0;
-    } finally {
-      close();
-    }
-  } catch (error) {
-    stderr(`Could not record review: ${error instanceof Error ? error.message : String(error)}
-${debugDetail(error)}`);
-    return 2;
-  }
-}
-
 // packages/cli/src/trend.ts
-import { lstat as lstat3, mkdir as mkdir5, readdir as readdir2, readFile as readFile6, writeFile as writeFile7 } from "node:fs/promises";
-import path13 from "node:path";
+import { lstat as lstat3, mkdir as mkdir4, readdir as readdir2, readFile as readFile6, writeFile as writeFile6 } from "node:fs/promises";
+import path12 from "node:path";
 
 // lib/trend.ts
 var TREND_ORDERED_BY = {
@@ -7619,7 +7332,7 @@ function buildTrend(inputs, requested = "auto") {
     notes
   };
 }
-function esc5(value) {
+function esc4(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function shortSha(sha) {
@@ -7655,7 +7368,7 @@ function chartSvg(runs, order) {
     const gap = existingH > 0 && newH > 0 ? 2 : 0;
     const existing = existingH > 0 ? `<rect class="s-existing" x="${x}" y="${y(run2.existing)}" width="${barW}" height="${existingH}"/>` : "";
     const added = newH > 0 ? `<rect class="s-new" x="${x}" y="${y(run2.total)}" width="${barW}" height="${Math.max(0, newH - gap)}"/>` : "";
-    return `<g><title>${esc5(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/><text class="value" x="${x + barW / 2}" y="${y(run2.total) - 4}" text-anchor="middle">${run2.total}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc5(runLabel(run2, order))}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc5(shortSha(run2.commit))}</text></g>`;
+    return `<g><title>${esc4(tip)}</title>${existing}${added}<rect class="hit" x="${left + slot * i}" y="${top}" width="${slot}" height="${plotH}"/><text class="value" x="${x + barW / 2}" y="${y(run2.total) - 4}" text-anchor="middle">${run2.total}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 16}" text-anchor="middle">${esc4(runLabel(run2, order))}</text><text class="axis" x="${x + barW / 2}" y="${height - bottom + 30}" text-anchor="middle">${esc4(shortSha(run2.commit))}</text></g>`;
   }).join("");
   return `<svg role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet"><title id="chart-title">Findings per run</title><desc id="chart-desc">Stacked bars of existing and new findings for each run, oldest first. The same numbers are in the table below.</desc>${grid}${bars}</svg>`;
 }
@@ -7663,11 +7376,11 @@ function renderTrendHtml(trend) {
   const runs = trend.runs;
   const order = trend.ordering?.used ?? "scan";
   const byCommit = order === "commit";
-  const commitCells = (r) => byCommit ? `<td>${esc5(r.committedAt ?? "")}</td><td>${r.branch ? `<code>${esc5(r.branch)}</code>` : "not recorded"}</td>` : "";
-  const runRows = runs.map((r) => `<tr><th scope="row">${esc5(r.timestamp)}</th><td><code>${esc5(shortSha(r.commit))}</code></td>${commitCells(r)}<td>${esc5(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc5(r.verdict)}</td></tr>`).join("");
-  const ruleHead = runs.map((r) => `<th scope="col">${esc5(runLabel(r, order))} <span class="muted">${esc5(shortSha(r.commit))}</span></th>`).join("");
-  const ruleRows = trend.topRules.map((rule) => `<tr><th scope="row"><code>${esc5(rule.ruleId)}</code></th>${rule.perRun.map((n) => `<td>${n}</td>`).join("")}<td>${rule.total}</td></tr>`).join("");
-  const pageRows = trend.regressionPages.map((p) => `<tr><th scope="row"><code>${esc5(p.pageUrl)}</code></th><td>${p.regressions}</td><td>${p.runsWithRegressions}</td></tr>`).join("");
+  const commitCells = (r) => byCommit ? `<td>${esc4(r.committedAt ?? "")}</td><td>${r.branch ? `<code>${esc4(r.branch)}</code>` : "not recorded"}</td>` : "";
+  const runRows = runs.map((r) => `<tr><th scope="row">${esc4(r.timestamp)}</th><td><code>${esc4(shortSha(r.commit))}</code></td>${commitCells(r)}<td>${esc4(r.source)}</td><td>${r.total}</td><td>${r.new}</td><td>${r.existing}</td><td>${r.fixed}</td><td>${r.unassessed}</td><td>${esc4(r.verdict)}</td></tr>`).join("");
+  const ruleHead = runs.map((r) => `<th scope="col">${esc4(runLabel(r, order))} <span class="muted">${esc4(shortSha(r.commit))}</span></th>`).join("");
+  const ruleRows = trend.topRules.map((rule) => `<tr><th scope="row"><code>${esc4(rule.ruleId)}</code></th>${rule.perRun.map((n) => `<td>${n}</td>`).join("")}<td>${rule.total}</td></tr>`).join("");
+  const pageRows = trend.regressionPages.map((p) => `<tr><th scope="row"><code>${esc4(p.pageUrl)}</code></th><td>${p.regressions}</td><td>${p.runsWithRegressions}</td></tr>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -7696,9 +7409,9 @@ svg .s-existing{fill:var(--existing)}svg .s-new{fill:var(--new)}svg .hit{fill:tr
 <body>
 <main>
 <h1>A11yGate trend report</h1>
-<p class="disclaimer">${esc5(trend.disclaimer)}</p>
+<p class="disclaimer">${esc4(trend.disclaimer)}</p>
 <p>${runs.length} run${runs.length === 1 ? "" : "s"}, oldest first, ordered by the ${byCommit ? "commit time (git committer date)" : "scan timestamp (UTC)"} recorded in each evidence pack manifest.</p>
-${trend.ordering?.note ? `<p class="note"><strong>Note:</strong> ${esc5(trend.ordering.note)}</p>` : ""}
+${trend.ordering?.note ? `<p class="note"><strong>Note:</strong> ${esc4(trend.ordering.note)}</p>` : ""}
 <h2>Findings per run</h2>
 <ul class="legend"><li><span class="swatch sw-existing"></span>Existing (also in the previous run)</li><li><span class="swatch sw-new"></span>New since the previous run</li></ul>
 <figure>${chartSvg(runs, order)}</figure>
@@ -7708,8 +7421,8 @@ ${trend.topRules.length ? `<div class="scroll"><table><caption>Findings per rule
 <h2>Pages with the most regressions</h2>
 ${trend.regressionPages.length ? `<div class="scroll"><table><caption>New findings compared with the previous run (top ${TREND_TOP_LIMIT})</caption><thead><tr><th scope="col">Page</th><th scope="col">New findings</th><th scope="col">Runs with new findings</th></tr></thead><tbody>${pageRows}</tbody></table></div>` : "<p>No page had new findings compared with its previous run.</p>"}
 <h2>How to read this</h2>
-<ul>${trend.notes.map((n) => `<li>${esc5(n)}</li>`).join("")}<li>Findings are deduplicated with the same fingerprints as <code>a11ygate baseline create</code>. Fixed means a finding from the previous run was not detected on a page this run scanned completely; it is not proof the issue is resolved.</li></ul>
-<p>${esc5(trend.disclaimer)}</p>
+<ul>${trend.notes.map((n) => `<li>${esc4(n)}</li>`).join("")}<li>Findings are deduplicated with the same fingerprints as <code>a11ygate baseline create</code>. Fixed means a finding from the previous run was not detected on a page this run scanned completely; it is not proof the issue is resolved.</li></ul>
+<p>${esc4(trend.disclaimer)}</p>
 </main>
 </body>
 </html>
@@ -7848,7 +7561,7 @@ function scanReportFieldHint(text) {
 async function loadPacks(dir, warn) {
   const inputs = [];
   for (const name of (await readdir2(dir)).sort()) {
-    const full = path13.join(dir, name);
+    const full = path12.join(dir, name);
     const info = await lstat3(full);
     let files = null;
     if (info.isFile() && name.toLowerCase().endsWith(".zip")) {
@@ -7863,8 +7576,8 @@ async function loadPacks(dir, warn) {
         continue;
       }
     } else if (info.isDirectory()) {
-      const manifest = path13.join(full, "manifest.json");
-      const scan2 = path13.join(full, ...SCAN_PATH.split("/"));
+      const manifest = path12.join(full, "manifest.json");
+      const scan2 = path12.join(full, ...SCAN_PATH.split("/"));
       const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
       if (!await isFile(manifest) || !await isFile(scan2)) continue;
       files = /* @__PURE__ */ new Map([["manifest.json", await readFile6(manifest)], [SCAN_PATH, await readFile6(scan2)]]);
@@ -7890,7 +7603,7 @@ Run a11ygate trend --help for usage.
     stdout(trendHelpText());
     return 0;
   }
-  const dir = path13.resolve(cwd, parsed.options.dir);
+  const dir = path12.resolve(cwd, parsed.options.dir);
   const info = await lstat3(dir).catch(() => null);
   if (!info?.isDirectory()) {
     stderr(`${parsed.options.dir}: not a directory.
@@ -7907,20 +7620,20 @@ Run a11ygate trend --help for usage.
   const trend = buildTrend(inputs, parsed.options.order ?? "auto");
   if (parsed.options.order === "commit" && trend.ordering.note) stderr(`Note: ${trend.ordering.note}
 `);
-  const outDir = path13.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
+  const outDir = path12.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
   try {
-    await mkdir5(outDir, { recursive: true });
-    await writeFile7(path13.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
+    await mkdir4(outDir, { recursive: true });
+    await writeFile6(path12.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
 `, "utf8");
-    await writeFile7(path13.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
+    await writeFile6(path12.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the trend report${code3 ? ` (${code3})` : ""}.
 `);
     return 2;
   }
-  const rel = path13.relative(cwd, outDir) || ".";
-  stdout(`Wrote ${path13.join(rel, TREND_JSON)} and ${path13.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
+  const rel = path12.relative(cwd, outDir) || ".";
+  stdout(`Wrote ${path12.join(rel, TREND_JSON)} and ${path12.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
 `);
   return 0;
 }
@@ -7929,7 +7642,7 @@ Run a11ygate trend --help for usage.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire as createRequire3 } from "node:module";
-import path14 from "node:path";
+import path13 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -8455,7 +8168,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path14.join(cwd, "package.json"));
+  const require3 = createRequire3(path13.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -8467,7 +8180,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path14.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync2(path13.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -8636,13 +8349,13 @@ async function runDoctor(argv2, io = {}) {
 }
 
 // packages/cli/src/init.ts
-import { lstat as lstat4, mkdir as mkdir6, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
-import path16 from "node:path";
+import { lstat as lstat4, mkdir as mkdir5, realpath as realpath2, writeFile as writeFile7 } from "node:fs/promises";
+import path15 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
 import { readFile as readFile7 } from "node:fs/promises";
-import path15 from "node:path";
+import path14 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -8697,7 +8410,7 @@ ${debugDetail(error)}`);
   const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
   let text;
   try {
-    text = await readFile7(path15.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile7(path14.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -8812,14 +8525,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path16.join(parent, part);
-    await mkdir6(parent).catch((error) => {
+    parent = path15.join(parent, part);
+    await mkdir5(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path16.join(parent, parts.at(-1));
+  const destination = path15.join(parent, parts.at(-1));
   const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -8831,7 +8544,7 @@ async function writeStarter(cwd, file, content, force, stdout) {
   }
   if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   try {
-    await writeFile8(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
+    await writeFile7(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
   } catch (error) {
     if (!force && error.code === "EEXIST") {
       stdout(`Skipped existing ${file}.
@@ -8895,7 +8608,7 @@ async function runInit(argv2, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path15.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -9087,8 +8800,8 @@ function inferProjectName(results) {
 }
 
 // packages/cli/src/estimate.ts
-import { mkdir as mkdir7, writeFile as writeFile9 } from "node:fs/promises";
-import path17 from "node:path";
+import { mkdir as mkdir6, writeFile as writeFile8 } from "node:fs/promises";
+import path16 from "node:path";
 
 // docs/perf/chromium-bench-axe-500.json
 var chromium_bench_axe_500_default = {
@@ -9573,20 +9286,277 @@ ${DISCLAIMER2}
         options.engines = value;
       } else throw new Error(`Unknown estimate option: ${flag}`);
     }
-    const dir = path17.resolve(io.cwd ?? process.cwd(), outDir);
-    await mkdir7(dir, { recursive: true });
-    const outputs = ["estimate.json", "estimate.md"].map((name) => path17.join(dir, name));
+    const dir = path16.resolve(io.cwd ?? process.cwd(), outDir);
+    await mkdir6(dir, { recursive: true });
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path16.join(dir, name));
     await assertSafeOutputs(dir, [], outputs);
     const report = await estimateSite(options);
-    await writeFile9(outputs[0], JSON.stringify(report, null, 2) + "\n");
+    await writeFile8(outputs[0], JSON.stringify(report, null, 2) + "\n");
     const md = estimateMarkdown(report);
-    await writeFile9(outputs[1], md);
+    await writeFile8(outputs[1], md);
     stdout(md);
     return report.pages.some((p) => p.scanStatus === "failed" || p.scanStatus === "skipped") ? 2 : 0;
   } catch (error) {
     stderr(`Estimate: ${error.message}
 ${DISCLAIMER2}
 `);
+    return 2;
+  }
+}
+
+// packages/cli/src/export.ts
+import { writeFile as writeFile9 } from "node:fs/promises";
+import path17 from "node:path";
+
+// lib/export-csv.ts
+function csvField(value) {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+var CSV_EN301549_HEADER = `${EN301549_COLUMN} (${EN301549_LABEL})`;
+
+// lib/export-tickets.ts
+var TICKET_FORMATS = ["csv", "jira-csv", "gh-md"];
+var JIRA_CSV_IMPORT_DOC = "https://support.atlassian.com/jira-cloud-administration/docs/import-data-from-a-csv-file/";
+var TICKET_MAX_URLS = 5;
+var TICKET_FINGERPRINT_PREFIX = "a11ygate-";
+var EN301549_HEADER = `${EN301549_COLUMN} (${EN301549_LABEL})`;
+function compareText2(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function openTicketFindings(findings, now) {
+  return findings.filter((f) => !f.reviewDecision || f.reviewDecision.decision === "to-fix" || isExpired(f.reviewDecision, now));
+}
+function buildTickets(report, now = /* @__PURE__ */ new Date()) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding2 of openTicketFindings(report.findings, now)) {
+    const key = componentGroupKey(finding2);
+    groups.set(key, [...groups.get(key) ?? [], finding2]);
+  }
+  const tickets = [...groups].map(([key, members]) => {
+    const sorted = [...members].sort((a, b) => compareText2(JSON.stringify([a.pageUrl, a.selector, a.html]), JSON.stringify([b.pageUrl, b.selector, b.html])));
+    const first = sorted[0];
+    const pages = [...new Set(sorted.map((f) => f.pageUrl))].sort(compareText2);
+    const impact = sorted.reduce((best, f) => f.impact && (!best || impactRank(f.impact) > impactRank(best)) ? f.impact : best, null);
+    const criteria = [...new Map(sorted.flatMap((f) => f.wcag).map((c) => [c.number, c])).values()];
+    const links = criteria.map((c) => understandingUrl(c)).filter((u) => !!u);
+    const decision = first.reviewDecision;
+    return {
+      fingerprint: `${TICKET_FINGERPRINT_PREFIX}${groupId(key)}`,
+      title: `${first.help || first.ruleId} (${first.ruleId}) on ${pages.length} page${pages.length === 1 ? "" : "s"}`,
+      ruleId: first.ruleId,
+      impact,
+      wcag: criteria.map((c) => `${c.number} ${c.name} (${c.level})`),
+      en301549: criteria.map((c) => `${c.number}: ${en301549Ref(c.number)}`),
+      pageCount: pages.length,
+      findingCount: members.length,
+      pages: pages.slice(0, TICKET_MAX_URLS),
+      selector: first.selector,
+      snippet: first.html,
+      help: first.help,
+      howToFix: links.length ? [...new Set(links)] : first.helpUrl ? [first.helpUrl] : [],
+      ...decision ? { decision: decision.decision === "accepted-risk" ? `accepted-risk (expired ${decision.expires})` : decision.decision } : {}
+    };
+  });
+  const rank = (t) => t.impact ? impactRank(t.impact) : 0;
+  return tickets.sort((a, b) => rank(b) - rank(a) || b.pageCount - a.pageCount || compareText2(a.fingerprint, b.fingerprint));
+}
+var join = (values, empty = "") => values.length ? values.join(" | ") : empty;
+var wcagText = (t) => join(t.wcag, "best practice (no WCAG success criterion mapped)");
+function plainBody(t) {
+  return [
+    `Rule: ${t.ruleId}`,
+    `WCAG SC: ${wcagText(t)}`,
+    `${EN301549_COLUMN}: ${join(t.en301549, "none")} (${EN301549_LABEL})`,
+    `Impact: ${t.impact ?? "unknown"}`,
+    `Pages affected: ${t.pageCount} (${t.findingCount} finding${t.findingCount === 1 ? "" : "s"})`,
+    ...t.pages.map((u) => `- ${u}`),
+    ...t.pageCount > t.pages.length ? [`- \u2026 and ${t.pageCount - t.pages.length} more`] : [],
+    `Selector: ${t.selector}`,
+    `Snippet: ${t.snippet}`,
+    `How to fix: ${join(t.howToFix, "none")}`,
+    ...t.decision ? [`Review decision: ${t.decision}`] : [],
+    `A11yGate fingerprint: ${t.fingerprint}`,
+    "",
+    AUTOMATED_TESTING_DISCLAIMER
+  ].join("\n");
+}
+var TICKET_CSV_COLUMNS = [
+  "title",
+  "wcag_sc",
+  EN301549_HEADER,
+  "impact",
+  "rule",
+  "pages_affected",
+  "findings",
+  "first_urls",
+  "selector",
+  "snippet",
+  "how_to_fix",
+  "review_decision",
+  "fingerprint"
+];
+function ticketsToCsv(tickets) {
+  const rows = tickets.map((t) => [
+    t.title,
+    wcagText(t),
+    join(t.en301549),
+    t.impact ?? "",
+    t.ruleId,
+    String(t.pageCount),
+    String(t.findingCount),
+    t.pages.join("\n"),
+    t.selector,
+    t.snippet,
+    t.howToFix.join("\n"),
+    t.decision ?? "",
+    t.fingerprint
+  ]);
+  const footer = [AUTOMATED_TESTING_DISCLAIMER, ...TICKET_CSV_COLUMNS.slice(1).map(() => "")];
+  return `\uFEFF${[[...TICKET_CSV_COLUMNS], ...rows, footer].map((r) => r.map(csvField).join(",")).join("\n")}
+`;
+}
+var JIRA_PRIORITY = { critical: "Highest", serious: "High", moderate: "Medium", minor: "Low" };
+function ticketsToJiraCsv(tickets) {
+  const header = ["Summary", "Issue Type", "Priority", "Description", "Labels", "Labels", "Labels"];
+  const rows = tickets.map((t) => [t.title, "Bug", t.impact ? JIRA_PRIORITY[t.impact] : "", plainBody(t), "accessibility", "a11ygate", t.fingerprint]);
+  return `${[header, ...rows].map((r) => r.map(csvField).join(",")).join("\n")}
+`;
+}
+var mdCell = (value) => value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>").replace(/</g, "&lt;");
+var mdTitle = (value) => value.replace(/\s+/g, " ").replace(/</g, "&lt;").trim();
+function fence(code3, lang = "") {
+  const longest = Math.max(2, ...[...code3.matchAll(/`+/g)].map((m) => m[0].length));
+  const ticks = "`".repeat(longest + 1);
+  return `${ticks}${lang}
+${code3}
+${ticks}`;
+}
+function ticketsToGithubMarkdown(tickets) {
+  const sections2 = tickets.map((t) => [
+    `### ${mdTitle(t.title)}`,
+    "",
+    `<!-- ${t.fingerprint} -->`,
+    "| Field | Value |",
+    "| --- | --- |",
+    `| WCAG SC | ${mdCell(wcagText(t))} |`,
+    `| ${EN301549_COLUMN} | ${mdCell(join(t.en301549, "none"))} |`,
+    `| Impact | ${mdCell(t.impact ?? "unknown")} |`,
+    `| Rule | \`${mdCell(t.ruleId)}\` |`,
+    `| Pages affected | ${t.pageCount} (${t.findingCount} finding${t.findingCount === 1 ? "" : "s"}) |`,
+    ...t.decision ? [`| Review decision | ${mdCell(t.decision)} |`] : [],
+    `| Fingerprint | \`${t.fingerprint}\` |`,
+    "",
+    `${EN301549_COLUMN}: ${EN301549_LABEL}`,
+    "",
+    `**Affected pages${t.pageCount > t.pages.length ? ` (first ${t.pages.length} of ${t.pageCount})` : ""}**`,
+    "",
+    ...t.pages.map((u) => `- <${u.replace(/[<>\s]/g, (c) => encodeURIComponent(c))}>`),
+    ...t.pageCount > t.pages.length ? [`- \u2026 and ${t.pageCount - t.pages.length} more`] : [],
+    "",
+    "**Selector**",
+    "",
+    fence(t.selector),
+    "",
+    "**Snippet**",
+    "",
+    fence(t.snippet, "html"),
+    "",
+    "**How to fix**",
+    "",
+    ...t.howToFix.length ? t.howToFix.map((u) => `- <${u.replace(/[<>\s]/g, (c) => encodeURIComponent(c))}>`) : ["- No reference link mapped."],
+    "",
+    `_${AUTOMATED_TESTING_DISCLAIMER}_`
+  ].join("\n"));
+  const intro = tickets.length ? `${tickets.length} ticket${tickets.length === 1 ? "" : "s"}; each "###" section is one GitHub issue (title, then body). Groups are heuristic likely shared components; review examples before filing.` : "No open findings to export.";
+  return `# A11yGate tickets
+
+${intro}
+
+${sections2.join("\n\n---\n\n")}${sections2.length ? "\n\n---\n\n" : ""}${AUTOMATED_TESTING_DISCLAIMER}
+`;
+}
+function exportTickets(report, format, now = /* @__PURE__ */ new Date()) {
+  const tickets = buildTickets(report, now);
+  return format === "csv" ? ticketsToCsv(tickets) : format === "jira-csv" ? ticketsToJiraCsv(tickets) : ticketsToGithubMarkdown(tickets);
+}
+
+// packages/cli/src/export.ts
+var EXPORT_HELP = `a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [options]
+Developer handoff: one ticket per likely shared component group, or per finding when
+it has no group. Export only; A11yGate makes no calls to Jira, GitHub or any other API.
+
+  --format <fmt>       csv (generic, UTF-8), jira-csv (Jira CSV import) or gh-md (GitHub issue Markdown).
+  --baseline <file>    Fingerprint baseline with review decisions. Accepted-risk and false-positive
+                       groups are skipped; expired accepted-risk decisions count as open.
+  --output <file>      Write here instead of printing to stdout.
+
+Fields: title, WCAG SC, EN 301 549 ref. (reference mapping only; does not indicate conformance),
+impact, pages affected (count and first 5 URLs), selector, snippet, how-to-fix link and a
+stable fingerprint (a11ygate-g-...) to deduplicate on re-import.
+jira-csv follows ${JIRA_CSV_IMPORT_DOC}
+Groupings are heuristic: review examples before filing.
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+function parseExportArgs(argv2) {
+  const args = {};
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (["--format", "--baseline", "--output"].includes(name)) {
+      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv2[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      if (name === "--format") {
+        if (!TICKET_FORMATS.includes(value)) throw new Error(`Unknown ticket format "${value}". Use ${TICKET_FORMATS.join(", ")}.`);
+        args.format = value;
+      } else if (name === "--baseline") args.baseline = value;
+      else args.output = value;
+      continue;
+    }
+    if (!token.startsWith("-") && !args.input) {
+      args.input = token;
+      continue;
+    }
+    throw new Error(`Unexpected export argument ${token}.`);
+  }
+  if (!args.input) throw new Error("Pass a saved scan report (a11ygate-scan.json or its out-dir).");
+  if (!args.format) throw new Error(`--format is required: ${TICKET_FORMATS.join(", ")}.`);
+  return args;
+}
+async function runExport(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(EXPORT_HELP);
+    return 0;
+  }
+  if (argv2[0] !== "tickets") {
+    stderr(EXPORT_HELP);
+    return 2;
+  }
+  try {
+    const args = parseExportArgs(argv2.slice(1));
+    const cwd = io.cwd ?? process.cwd();
+    const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
+    let report = await readScanInput(args.input, cwd);
+    if (args.baseline) report = applyFingerprintBaseline(report, await readJsonInput(cwd, args.baseline, parseFingerprintBaseline), now);
+    const text = exportTickets(report, args.format, now);
+    if (!args.output) {
+      stdout(text);
+      return 0;
+    }
+    const inputs = [args.input, path17.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    await assertSafeOutputs(cwd, inputs, [args.output]);
+    await writeFile9(path17.resolve(cwd, args.output), text, "utf8");
+    const count = buildTickets(report, now).length;
+    stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not export tickets: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
     return 2;
   }
 }
@@ -9699,9 +9669,9 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "config") return runConfig(argv2.slice(1), io);
   if (argv2[0] === "baseline") return runBaseline(argv2.slice(1), io);
   if (argv2[0] === "review") return runReview(argv2.slice(1), io);
-  if (argv2[0] === "report" && argv2[1] === "pdf") return runReportPdf(argv2.slice(2), io);
   if (argv2[0] === "report") return runReport(argv2.slice(1), io);
   if (argv2[0] === "estimate") return runEstimate(argv2.slice(1), io);
+  if (argv2[0] === "export") return runExport(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
@@ -9891,7 +9861,7 @@ ${debugDetail(error)}`);
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir8(dir, { recursive: true });
+      await mkdir7(dir, { recursive: true });
       for (const [name, content] of files) {
         await writeFile10(path18.join(dir, name), content, "utf8");
       }

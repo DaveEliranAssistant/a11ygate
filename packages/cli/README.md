@@ -363,6 +363,40 @@ Screenshots are off by default. `scan --screenshots --out-dir out` captures mask
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
+## Developer handoff tickets (A11Y-R54)
+
+```bash
+a11ygate export tickets a11ygate-out --format jira-csv --baseline .a11ygate-baseline.json --output a11y-tickets.csv
+a11ygate export tickets a11ygate-out/a11ygate-scan.json --format gh-md > a11y-issues.md
+```
+
+Reads a saved site-scan report (`a11ygate-scan.json` or its out-dir) and makes one
+ticket per likely shared component group (same grouping as `review`), or one per
+finding when it has no group. With `--baseline`, groups with an active
+`accepted-risk` or `false-positive` decision are skipped; `to-fix` and expired
+accepted-risk decisions stay in, with the decision noted. Groupings are heuristic:
+review the examples before filing. Output goes to stdout unless `--output` is given.
+
+Every ticket carries: title (the engine's rule help text, rule id and page count),
+WCAG SC, EN 301 549 ref. (reference mapping only; does not indicate conformance),
+impact, pages affected (count plus the first 5 URLs, sorted), the first example's
+selector and HTML snippet, how-to-fix links (W3C Understanding pages from
+`lib/mapping.ts`; the engine's rule page for best-practice rules) and a fingerprint
+`a11ygate-g-<16 hex>`. The fingerprint is derived from the component group key
+(rule, normalized selector, normalized HTML), so re-exporting the same scan, or a
+later scan where the component is still failing on different pages, gives the same
+value. Use it to find existing tickets before re-importing.
+
+| Format | Shape | Disclaimer |
+| --- | --- | --- |
+| `csv` | UTF-8 with BOM, every field quoted, one row per ticket, multi-value cells newline-separated. Cells starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'`. | Final row: disclaimer in the first column, other columns empty. |
+| `jira-csv` | Columns `Summary`, `Issue Type` (`Bug`), `Priority` (critical→Highest, serious→High, moderate→Medium, minor→Low), `Description`, and three `Labels` columns (`accessibility`, `a11ygate`, the fingerprint), following Atlassian's [CSV import guide](https://support.atlassian.com/jira-cloud-administration/docs/import-data-from-a-csv-file/). No BOM. | Last line of every Description (a trailing row would import as an issue). |
+| `gh-md` | One `###` section per issue (heading = issue title, rest = body) with the fingerprint as a hidden HTML comment and a table row. | Footer of every issue body and of the file. |
+
+Export only: A11yGate never calls the Jira or GitHub APIs. Map the columns in
+Jira's import wizard; check priorities and issue types against your project.
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## Pilot scoping dry run (A11Y-R55)
 
 `a11ygate estimate <url>` fetches static HTML only, with no accessibility engines,
