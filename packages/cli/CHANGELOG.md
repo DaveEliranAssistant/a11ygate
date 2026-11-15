@@ -10,6 +10,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ### Added
 
+- `a11ygate report pdf <scan.json|out-dir> [-o report.pdf] [--commit <sha>]` prints HTML report v2 to PDF with the local Playwright Chromium (`page.pdf`): a cover page (site, scan date, commit, engines, scope), a table of contents with page numbers, page numbers and the disclaimer in the footer of every page. Text stays selectable; the PDF is tagged (Chromium `tagged: true`) with an outline, and its title and language are set from the report. Output is deterministic apart from the PDF creation timestamps. New cover/TOC/footer strings are in `locales/en.json`; the disclaimer is verbatim from `lib/copy.ts`. Existing report outputs are unchanged (A11Y-R53).
+
 - `a11ygate estimate <url>` adds a bounded crawl-only pilot scope report (Markdown + JSON): sitemap/crawl union, likely numeric/UUID URL templates, login/SPA signals, robots exclusions, and scan-time extrapolation quoting successful recorded benchmark rows. No engines, model or pricing; static HTML limitations are explicit (A11Y-R55).
 
 - `a11ygate ci --projects <file>` runs isolated live-scan configs sequentially or with `--parallel 1–8`, writes per-project outputs and combined JSON/Markdown/HTML/JUnit summaries, and returns the worst project exit code. Startup errors do not stop other projects. Projects schema and `config validate --projects` diagnostics are included; single-project output stays unchanged (A11Y-R56).

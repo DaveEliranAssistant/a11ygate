@@ -196,6 +196,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 Use `a11ygate baseline create <scan.json|out-dir>` to record existing findings,
 then `a11ygate scan <url> --baseline .a11ygate-baseline.json` to gate new findings.
 Saved scans can be compared with `a11ygate report <scan.json|out-dir> --baseline <file>`.
+
+`a11ygate report pdf <scan.json|out-dir> -o report.pdf` prints HTML report v2 to a PDF with the local Playwright Chromium: a cover page (site, scan date, commit, engines, scope), a table of contents with page numbers, and the disclaimer on the cover and in the footer of every page. Text stays selectable and the PDF is tagged. The commit defaults to the git HEAD of the current directory (`--commit <sha>` overrides it). No network access is used. Automated testing only. Not a WCAG audit, certification or legal advice.
 See [baseline mode](../../docs/baseline-mode.md) for examples and exporter behavior.
 The separate `a11ygate [ci] --baseline <axe.json>` format remains unchanged.
 
