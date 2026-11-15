@@ -11,6 +11,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 ### Added
 
 - Opt-in diff-aware PR scans (`scan --changed-since <ref>`, config `routes` / `changedSince`) select mapped URL paths from committed `<ref>...HEAD` changes. Unmapped files, shared `"*"` mappings or no changes retain the normal full scan. Reports record mode, reason and scanned/skipped routes; skipped baseline pages remain unassessed and review decisions still apply. No-flag report output is unchanged (A11Y-R57).
+- Opt-in keyboard checks traverse open shadow roots and same-origin frames, report cross-origin frames as not assessed, compare Shift+Tab order, probe roving-tabindex composites with arrow keys, detect cycles among 2–5 controls, and fall back to an in-memory focus pixel diff (`--keyboard-pixel-threshold`, default 0.01). Findings remain heuristics needing human review (A11Y-R46).
 
 - `a11ygate report pdf <scan.json|out-dir> [-o report.pdf] [--commit <sha>]` prints HTML report v2 to PDF with the local Playwright Chromium (`page.pdf`): a cover page (site, scan date, commit, engines, scope), a table of contents with page numbers, page numbers and the disclaimer in the footer of every page. Text stays selectable; the PDF is tagged (Chromium `tagged: true`) with an outline, and its title and language are set from the report. Output is deterministic apart from the PDF creation timestamps. New cover/TOC/footer strings are in `locales/en.json`; the disclaimer is verbatim from `lib/copy.ts`. Existing report outputs are unchanged (A11Y-R53).
 

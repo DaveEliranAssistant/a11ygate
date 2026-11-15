@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
+import { guardLocalhostNetwork } from './network-guard';
 import type { Page } from 'playwright';
 import { scanKeyboard, KEYBOARD_DISCLAIMER, type KeyboardResult } from '@/lib/scan/keyboard';
 import { buildScanReport, scanMarkdown } from '@/lib/scan/report';
@@ -10,12 +11,13 @@ import { parseScanArgs, runScan } from '@/packages/cli/src/scan';
 // State-machine tests never launch a browser; real DOM fixtures are separately opt-in.
 function mockPage(sequence: (number | null)[], indicatorChanged = true) {
   let tabs = 0;
+  let position = -1;
   const candidates = Array.from({ length: 6 }, (_, i) => ({ selector: `button:nth-child(${i + 1})`, html: '<button>Control</button>', outline: 'none|0px|black', shadow: 'none' }));
   return { get tabs() { return tabs; }, page: {
-    keyboard: { press: async () => { tabs++; } },
+    keyboard: { press: async (key: string) => { tabs++; position += key === 'Shift+Tab' ? -1 : 1; } },
     evaluate: async (_fn: unknown, items?: unknown) => {
       if (!items) return candidates;
-      const domIndex = sequence[(tabs - 1) % sequence.length];
+      const domIndex = sequence[(position + sequence.length) % sequence.length];
       return { domIndex, selector: domIndex === null ? null : candidates[domIndex].selector, indicatorChanged: domIndex === null ? null : indicatorChanged };
     },
   } as unknown as Page };
@@ -29,6 +31,14 @@ it('detects stuck focus after three repeated tabs', async () => {
   const mock = mockPage([0]);
   const result = await scanKeyboard(mock.page, 'https://fixture.test/', { budget: 20 });
   expect(mock.tabs).toBe(4); expect(result.stopReason).toBe('trap'); expect(result.findings[0]).toMatchObject({ ruleId: 'keyboard-trap', reviewStatus: 'needs human review', tags: ['wcag212'] });
+});
+it.each([2, 3, 4, 5])('detects a repeated %i-element focus cycle', async size => {
+  const sequence = Array.from({ length: size }, (_, index) => index);
+  const result = await scanKeyboard(mockPage(sequence).page, 'https://fixture.test/', { budget: 20 });
+  expect(result.stopReason).toBe('trap');
+  expect(result.steps).toBe(size * 3);
+  expect(result.findings).toHaveLength(1);
+  expect(result.findings[0]).toMatchObject({ ruleId: 'keyboard-trap', tags: ['wcag212'], reviewStatus: 'needs human review' });
 });
 it('detects missing style changes, backward jumps and unreached candidates with existing mappings', async () => {
   const mock = mockPage([5, 0, null], false);
@@ -44,6 +54,9 @@ it('validates budgets and leaves the feature disabled without the flag', async (
   expect(parseScanArgs(['https://fixture.test/'])).not.toHaveProperty('options.keyboard');
   for (const budget of ['0', '-1', '1001', '1.5']) expect(parseScanArgs(['https://fixture.test/', '--keyboard-budget', budget]).ok).toBe(false);
   expect(parseScanArgs(['https://fixture.test/', '--keyboard=true']).ok).toBe(false);
+  for (const value of ['-0.1', '1.1', 'NaN', 'Infinity', '']) expect(parseScanArgs(['https://fixture.test/', '--keyboard-pixel-threshold', value]).ok).toBe(false);
+  expect(parseScanArgs(['https://fixture.test/', '--keyboard-pixel-threshold', '0.25'])).not.toHaveProperty('options.keyboard');
+  expect(parseScanArgs(['https://fixture.test/', '--keyboard', '--keyboard-pixel-threshold', '0.25'])).toMatchObject({ ok: true, options: { keyboardPixelThreshold: 0.25 } });
   await expect(scanKeyboard(mockPage([]).page, 'https://fixture.test/', { budget: 0 })).rejects.toThrow();
 });
 function report(keyboardResults?: KeyboardResult[]) {
@@ -77,13 +90,26 @@ it('wires opt-in keyboard options through runScan without a model', async () => 
 
 // Normal npm test never starts Chromium. Explicitly enable for headless fixture acceptance.
 describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('keyboard browser fixtures', () => {
-  async function scan(name: string, budget = 20) {
+  async function scan(name: string, budget = 20, pixelThreshold?: number) {
     const { chromium } = await import('playwright');
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage();
-      await page.setContent(await readFile(`tests/fixtures/keyboard/${name}.html`, 'utf8'));
-      return await scanKeyboard(page, 'https://fixture.test/', { budget });
+      const guard = guardLocalhostNetwork();
+      const server = createServer(async (req, res) => {
+        try {
+          const file = req.url === '/frame.html' ? 'iframe-trap-inner' : name;
+          const html = await readFile(`tests/fixtures/keyboard/${file}.html`, 'utf8');
+          res.writeHead(200, { 'content-type': 'text/html' }); res.end(html.replaceAll('CROSS_ORIGIN_URL', `http://localhost:${(server.address() as import('node:net').AddressInfo).port}/frame.html`));
+        } catch { res.writeHead(404); res.end(); }
+      });
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+      try {
+        const url = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/`;
+        await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+        await page.goto(url);
+        return await scanKeyboard(page, url, { budget, pixelThreshold });
+      } finally { await new Promise<void>(resolve => server.close(() => resolve())); guard.restore(); }
     } finally { await browser.close(); }
   }
   it('runs the shipped CLI browser adapter and includes labelled keyboard evidence', async () => {
@@ -102,6 +128,38 @@ describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('keyboard browser fi
       expect(result.findings.find(f => f.ruleId === 'keyboard-focus-indicator')).toMatchObject({ reviewStatus: 'needs human review', tags: ['wcag247'] });
       expect(result.disclaimer).toContain(KEYBOARD_DISCLAIMER);
     } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+  }, 30_000);
+  it.each([
+    ['shadow-no-focus', 'keyboard-focus-indicator'],
+    ['iframe-trap', 'keyboard-trap'],
+    ['reverse-order', 'keyboard-reverse-order'],
+    ['broken-tablist', 'keyboard-composite'],
+    ['cycle-trap', 'keyboard-trap'],
+  ])('%s needs labelled human review', async (name, ruleId) => {
+    const result = await scan(name, 40);
+    expect(result.findings.some(f => f.ruleId === ruleId)).toBe(true);
+    if (name === 'iframe-trap') expect(result.findings.find(f => f.ruleId === ruleId)?.selector).toContain('>> frame >>');
+    if (name === 'shadow-no-focus') expect(result.findings.find(f => f.ruleId === ruleId)?.selector).toContain(' >>> ');
+    expect(result.findings.every(f => f.reviewStatus === 'needs human review' && f.help.startsWith('Needs human review:'))).toBe(true);
+  }, 30_000);
+  it('does not report failed arrow movement when the budget prevents probing', async () => {
+    expect((await scan('correct-tablist', 1)).findings).toEqual([]);
+  }, 30_000);
+  it('a correct roving tablist is one Tab stop and has no findings', async () => { expect((await scan('correct-tablist', 40)).findings).toEqual([]); }, 30_000);
+  it('background-only focus is detected by pixel comparison', async () => {
+    const result = await scan('background-focus');
+    expect(result.observations[0].indicatorChanged).toBe(true);
+    expect(result.findings).toEqual([]);
+  }, 30_000);
+  it('reports cross-origin frames as not assessed', async () => {
+    const result = await scan('cross-origin');
+    expect(result.notAssessedFrames).toHaveLength(1);
+    expect(result.notAssessedFrames![0]).toContain('not assessed: http://localhost:');
+    expect(result.findings.some(f => f.selector.includes('>> frame >>'))).toBe(false);
+  }, 30_000);
+  it('honours the configured pixel threshold', async () => {
+    expect((await scan('small-background-focus', 20, 0.001)).findings).toEqual([]);
+    expect((await scan('small-background-focus', 20, 1)).findings.some(f => f.ruleId === 'keyboard-focus-indicator')).toBe(true);
   }, 30_000);
   it('no focus style needs review', async () => { expect((await scan('no-focus-style')).findings.some(f => f.ruleId === 'keyboard-focus-indicator')).toBe(true); }, 30_000);
   it('a keyboard trap needs review', async () => { expect((await scan('trap')).findings.some(f => f.ruleId === 'keyboard-trap')).toBe(true); }, 30_000);
