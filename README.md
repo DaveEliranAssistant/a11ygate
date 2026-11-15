@@ -161,6 +161,16 @@ estimates price. JavaScript-only and authenticated routes may be missed. See
 [CLI options and limits](packages/cli/README.md#pilot-scoping-dry-run-a11y-r55).
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
+### Developer handoff tickets
+
+`a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md` turns a
+saved scan into one ticket per likely shared component group (or per finding when
+ungrouped). Pass `--baseline` to skip accepted-risk and false-positive groups;
+expired decisions count as open. Each ticket has a stable fingerprint for dedupe on
+re-import. Files are written locally only; nothing is sent to Jira or GitHub. See
+[ticket export](packages/cli/README.md#developer-handoff-tickets-a11y-r54).
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ### Live-site scan
 
 The source build also has `a11ygate scan <url>`. It loads one page, or with `--crawl [n]` up to 20 same-origin pages, in headless Chromium and runs axe-core. It writes JSON, Markdown and HTML reports grouped by WCAG criterion and severity, and exits 1 when a finding meets `--fail-on` (default `serious`). It needs the optional peers `playwright` and `@axe-core/playwright`. The JSON report is also valid `--current` input for the gate. Only scan sites you own or are authorized to test. Page analysis is read-only; [explicit authentication](docs/authenticated-pages.md) supports test accounts through storage state, a login script, or environment-referenced cookies/headers. The scanner honours robots.txt, paces page loads, and identifies itself as A11yGate. Automated testing only. Details are in `packages/cli/README.md`.

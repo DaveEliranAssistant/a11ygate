@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path19 = parsed.pathname || "/";
-    if (path19.length > 1 && path19.endsWith("/")) path19 = path19.slice(0, -1);
-    return path19 || "/";
+    let path20 = parsed.pathname || "/";
+    if (path20.length > 1 && path20.endsWith("/")) path20 = path20.slice(0, -1);
+    return path20 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path19 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path19.length > 1 && path19.endsWith("/")) path19 = path19.slice(0, -1);
-    return path19;
+    let path20 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path20.length > 1 && path20.endsWith("/")) path20 = path20.slice(0, -1);
+    return path20;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path19 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path20 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path19, html, !html || path19.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path20, html, !html || path20.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir8, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile10 } from "node:fs/promises";
-import path18 from "node:path";
+import { mkdir as mkdir8, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
+import path19 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -576,21 +576,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path19) {
+function readImpact(value, path20) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path19} must be minor, moderate, serious, critical, or null`
+    error: `${path20} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path19) {
+function readTarget(value, path20) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path19}.target must be an array of strings`;
+    return `${path20}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path19}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path20}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -598,52 +598,52 @@ function readTarget(value, path19) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path19}.target must be an array of strings`;
+    return `${path20}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path19) {
-  if (!isRecord(value)) return `${path19} must be an object`;
-  const target = readTarget(value.target, path19);
+function validateNode(value, path20) {
+  if (!isRecord(value)) return `${path20} must be an object`;
+  const target = readTarget(value.target, path20);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path19}.html must be a string`;
+  if (typeof value.html !== "string") return `${path20}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path19}.impact`);
+    const impact = readImpact(value.impact, `${path20}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path19) {
-  if (!isRecord(value)) return `${path19} must be an object`;
+function validateViolation(value, path20) {
+  if (!isRecord(value)) return `${path20} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path19}.id must be a non-empty string`;
+    return `${path20}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path19}.impact is missing`;
+    return `${path20}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path19}.impact`);
+  const impact = readImpact(value.impact, `${path20}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path19}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path20}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path19}.tags must be an array of strings`;
+    return `${path20}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path19}.help must be a non-empty string`;
+    return `${path20}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path19}.helpUrl must be a non-empty string`;
+    return `${path20}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path19}.nodes must contain at least one node`;
+    return `${path20}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path19}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path20}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -659,37 +659,37 @@ function validateViolation(value, path19) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path19) {
-  if (!isRecord(value)) return `${path19} must be an axe result object`;
+function validateResult(value, path20) {
+  if (!isRecord(value)) return `${path20} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path19}.url must be a non-empty string`;
+    return `${path20}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path19}.timestamp must be an ISO date string`;
+    return `${path20}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path19}.testEngine.version must be a non-empty string`;
+    return `${path20}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path19}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path20}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path19}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path20}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path19}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path19}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path19}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path19}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path20}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path20}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path20}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path20}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path19}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path20}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path19}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path20}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path19}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path20}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -790,7 +790,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path19 = pagePath(result.url);
+    const path20 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -805,7 +805,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path19,
+          path: path20,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -2052,6 +2052,8 @@ Usage:
   a11ygate report pdf <scan.json|out-dir> [-o <file.pdf>] [--commit <sha>]  Print report v2 to PDF
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
+  a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
+                       (see a11ygate export --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
@@ -2323,7 +2325,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path19) => {
+  const run2 = async (name, steps, index, path20) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2353,8 +2355,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path19) {
-        for (const control of path19) {
+      else if (path20) {
+        for (const control of path20) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2364,7 +2366,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path19 && path19.length < depth) children = (await revealedControls(page, path19.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path20 && path20.length < depth) children = (await revealedControls(page, path20.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2381,11 +2383,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path19) => {
-      if (autoUsed >= maxStates || used + path19.length > options.budget) return;
+    const explore = async (path20) => {
+      if (autoUsed >= maxStates || used + path20.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path19.map((c) => c.name).join(">"), void 0, void 0, path19);
-      for (const child of children) await explore([...path19, child]);
+      const children = await run2(path20.map((c) => c.name).join(">"), void 0, void 0, path20);
+      for (const child of children) await explore([...path20, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -6351,8 +6353,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path19) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path19);
+function shouldStore(path20) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path20);
 }
 function createZip(entries2) {
   const local = [];
@@ -6554,8 +6556,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path19) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path19);
+function isTextPath(path20) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path20);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -6704,8 +6706,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path19, make] of generated) {
-    if (!files.has(path19)) files.set(path19, { path: path19, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path20, make] of generated) {
+    if (!files.has(path20)) files.set(path20, { path: path20, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -8085,8 +8087,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path19) {
-  const match = /\.([a-z0-9]+)$/i.exec(path19);
+function fileKind(path20) {
+  const match = /\.([a-z0-9]+)$/i.exec(path20);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -8397,8 +8399,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path19, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path19) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path20, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path20) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -9591,9 +9593,280 @@ ${DISCLAIMER2}
   }
 }
 
+// packages/cli/src/export.ts
+import { writeFile as writeFile10 } from "node:fs/promises";
+import path18 from "node:path";
+
+// lib/export-csv.ts
+function csvField(value) {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+var CSV_EN301549_HEADER = `${EN301549_COLUMN} (${EN301549_LABEL})`;
+
+// lib/export-tickets.ts
+var TICKET_FORMATS = ["csv", "jira-csv", "gh-md"];
+var JIRA_CSV_IMPORT_DOC = "https://support.atlassian.com/jira-cloud-administration/docs/import-data-from-a-csv-file/";
+var TICKET_MAX_URLS = 5;
+var TICKET_FINGERPRINT_PREFIX = "a11ygate-";
+var EN301549_HEADER = `${EN301549_COLUMN} (${EN301549_LABEL})`;
+function compareText2(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function openTicketFindings(findings, now) {
+  return findings.filter((f) => !f.reviewDecision || f.reviewDecision.decision === "to-fix" || isExpired(f.reviewDecision, now));
+}
+function buildTickets(report, now = /* @__PURE__ */ new Date()) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const finding2 of openTicketFindings(report.findings, now)) {
+    const key = componentGroupKey(finding2);
+    groups.set(key, [...groups.get(key) ?? [], finding2]);
+  }
+  const tickets = [...groups].map(([key, members]) => {
+    const sorted = [...members].sort((a, b) => compareText2(JSON.stringify([a.pageUrl, a.selector, a.html]), JSON.stringify([b.pageUrl, b.selector, b.html])));
+    const first = sorted[0];
+    const pages = [...new Set(sorted.map((f) => f.pageUrl))].sort(compareText2);
+    const impact = sorted.reduce((best, f) => f.impact && (!best || impactRank(f.impact) > impactRank(best)) ? f.impact : best, null);
+    const criteria = [...new Map(sorted.flatMap((f) => f.wcag).map((c) => [c.number, c])).values()];
+    const links = criteria.map((c) => understandingUrl(c)).filter((u) => !!u);
+    const decision = first.reviewDecision;
+    return {
+      fingerprint: `${TICKET_FINGERPRINT_PREFIX}${groupId(key)}`,
+      title: `${first.help || first.ruleId} (${first.ruleId}) on ${pages.length} page${pages.length === 1 ? "" : "s"}`,
+      ruleId: first.ruleId,
+      impact,
+      wcag: criteria.map((c) => `${c.number} ${c.name} (${c.level})`),
+      en301549: criteria.map((c) => `${c.number}: ${en301549Ref(c.number)}`),
+      pageCount: pages.length,
+      findingCount: members.length,
+      pages: pages.slice(0, TICKET_MAX_URLS),
+      selector: first.selector,
+      snippet: first.html,
+      help: first.help,
+      howToFix: links.length ? [...new Set(links)] : first.helpUrl ? [first.helpUrl] : [],
+      ...decision ? { decision: decision.decision === "accepted-risk" ? `accepted-risk (expired ${decision.expires})` : decision.decision } : {}
+    };
+  });
+  const rank = (t) => t.impact ? impactRank(t.impact) : 0;
+  return tickets.sort((a, b) => rank(b) - rank(a) || b.pageCount - a.pageCount || compareText2(a.fingerprint, b.fingerprint));
+}
+var join = (values, empty = "") => values.length ? values.join(" | ") : empty;
+var wcagText = (t) => join(t.wcag, "best practice (no WCAG success criterion mapped)");
+function plainBody(t) {
+  return [
+    `Rule: ${t.ruleId}`,
+    `WCAG SC: ${wcagText(t)}`,
+    `${EN301549_COLUMN}: ${join(t.en301549, "none")} (${EN301549_LABEL})`,
+    `Impact: ${t.impact ?? "unknown"}`,
+    `Pages affected: ${t.pageCount} (${t.findingCount} finding${t.findingCount === 1 ? "" : "s"})`,
+    ...t.pages.map((u) => `- ${u}`),
+    ...t.pageCount > t.pages.length ? [`- \u2026 and ${t.pageCount - t.pages.length} more`] : [],
+    `Selector: ${t.selector}`,
+    `Snippet: ${t.snippet}`,
+    `How to fix: ${join(t.howToFix, "none")}`,
+    ...t.decision ? [`Review decision: ${t.decision}`] : [],
+    `A11yGate fingerprint: ${t.fingerprint}`,
+    "",
+    AUTOMATED_TESTING_DISCLAIMER
+  ].join("\n");
+}
+var TICKET_CSV_COLUMNS = [
+  "title",
+  "wcag_sc",
+  EN301549_HEADER,
+  "impact",
+  "rule",
+  "pages_affected",
+  "findings",
+  "first_urls",
+  "selector",
+  "snippet",
+  "how_to_fix",
+  "review_decision",
+  "fingerprint"
+];
+function ticketsToCsv(tickets) {
+  const rows = tickets.map((t) => [
+    t.title,
+    wcagText(t),
+    join(t.en301549),
+    t.impact ?? "",
+    t.ruleId,
+    String(t.pageCount),
+    String(t.findingCount),
+    t.pages.join("\n"),
+    t.selector,
+    t.snippet,
+    t.howToFix.join("\n"),
+    t.decision ?? "",
+    t.fingerprint
+  ]);
+  const footer = [AUTOMATED_TESTING_DISCLAIMER, ...TICKET_CSV_COLUMNS.slice(1).map(() => "")];
+  return `\uFEFF${[[...TICKET_CSV_COLUMNS], ...rows, footer].map((r) => r.map(csvField).join(",")).join("\n")}
+`;
+}
+var JIRA_EMPTY_NOTICE_SUMMARY = "A11yGate notice: no open findings (do not import)";
+var JIRA_PRIORITY = { critical: "Highest", serious: "High", moderate: "Medium", minor: "Low" };
+function ticketsToJiraCsv(tickets) {
+  const header = ["Summary", "Issue Type", "Priority", "Description", "Labels", "Labels", "Labels"];
+  const rows = tickets.map((t) => [t.title, "Bug", t.impact ? JIRA_PRIORITY[t.impact] : "", plainBody(t), "accessibility", "a11ygate", t.fingerprint]);
+  if (!rows.length) {
+    rows.push([
+      JIRA_EMPTY_NOTICE_SUMMARY,
+      "Task",
+      "",
+      `A11yGate found no open findings to export. Do not import this notice row.
+
+${AUTOMATED_TESTING_DISCLAIMER}`,
+      "a11ygate",
+      "a11ygate-notice",
+      ""
+    ]);
+  }
+  return `${[header, ...rows].map((r) => r.map(csvField).join(",")).join("\n")}
+`;
+}
+var mdCell = (value) => value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>").replace(/</g, "&lt;");
+var mdTitle = (value) => value.replace(/\s+/g, " ").replace(/</g, "&lt;").trim();
+function fence(code3, lang = "") {
+  const longest = Math.max(2, ...[...code3.matchAll(/`+/g)].map((m) => m[0].length));
+  const ticks = "`".repeat(longest + 1);
+  return `${ticks}${lang}
+${code3}
+${ticks}`;
+}
+function ticketsToGithubMarkdown(tickets) {
+  const sections2 = tickets.map((t) => [
+    `### ${mdTitle(t.title)}`,
+    "",
+    `<!-- ${t.fingerprint} -->`,
+    "| Field | Value |",
+    "| --- | --- |",
+    `| WCAG SC | ${mdCell(wcagText(t))} |`,
+    `| ${EN301549_COLUMN} | ${mdCell(join(t.en301549, "none"))} |`,
+    `| Impact | ${mdCell(t.impact ?? "unknown")} |`,
+    `| Rule | \`${mdCell(t.ruleId)}\` |`,
+    `| Pages affected | ${t.pageCount} (${t.findingCount} finding${t.findingCount === 1 ? "" : "s"}) |`,
+    ...t.decision ? [`| Review decision | ${mdCell(t.decision)} |`] : [],
+    `| Fingerprint | \`${t.fingerprint}\` |`,
+    "",
+    `${EN301549_COLUMN}: ${EN301549_LABEL}`,
+    "",
+    `**Affected pages${t.pageCount > t.pages.length ? ` (first ${t.pages.length} of ${t.pageCount})` : ""}**`,
+    "",
+    ...t.pages.map((u) => `- <${u.replace(/[<>\s]/g, (c) => encodeURIComponent(c))}>`),
+    ...t.pageCount > t.pages.length ? [`- \u2026 and ${t.pageCount - t.pages.length} more`] : [],
+    "",
+    "**Selector**",
+    "",
+    fence(t.selector),
+    "",
+    "**Snippet**",
+    "",
+    fence(t.snippet, "html"),
+    "",
+    "**How to fix**",
+    "",
+    ...t.howToFix.length ? t.howToFix.map((u) => `- <${u.replace(/[<>\s]/g, (c) => encodeURIComponent(c))}>`) : ["- No reference link mapped."],
+    "",
+    `_${AUTOMATED_TESTING_DISCLAIMER}_`
+  ].join("\n"));
+  const intro = tickets.length ? `${tickets.length} ticket${tickets.length === 1 ? "" : "s"}; each "###" section is one GitHub issue (title, then body). Groups are heuristic likely shared components; review examples before filing.` : "No open findings to export.";
+  return `# A11yGate tickets
+
+${intro}
+
+${sections2.join("\n\n---\n\n")}${sections2.length ? "\n\n---\n\n" : ""}${AUTOMATED_TESTING_DISCLAIMER}
+`;
+}
+function exportTickets(report, format, now = /* @__PURE__ */ new Date()) {
+  const tickets = buildTickets(report, now);
+  return format === "csv" ? ticketsToCsv(tickets) : format === "jira-csv" ? ticketsToJiraCsv(tickets) : ticketsToGithubMarkdown(tickets);
+}
+
+// packages/cli/src/export.ts
+var EXPORT_HELP = `a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [options]
+Developer handoff: one ticket per likely shared component group, or per finding when
+it has no group. Export only; A11yGate makes no calls to Jira, GitHub or any other API.
+
+  --format <fmt>       csv (generic, UTF-8), jira-csv (Jira CSV import) or gh-md (GitHub issue Markdown).
+  --baseline <file>    Fingerprint baseline with review decisions. Accepted-risk and false-positive
+                       groups are skipped; expired accepted-risk decisions count as open.
+  --output <file>      Write here instead of printing to stdout.
+
+Fields: title, WCAG SC, EN 301 549 ref. (reference mapping only; does not indicate conformance),
+impact, pages affected (count and first 5 URLs), selector, snippet, how-to-fix link and a
+stable fingerprint (a11ygate-g-...) to deduplicate on re-import.
+jira-csv follows ${JIRA_CSV_IMPORT_DOC}
+Groupings are heuristic: review examples before filing.
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+function parseExportArgs(argv2) {
+  const args = {};
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const name = token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
+    if (["--format", "--baseline", "--output"].includes(name)) {
+      const value = eq > 0 && token.startsWith("--") ? token.slice(eq + 1) : argv2[++i];
+      if (value === void 0 || value === "" || eq < 0 && value.startsWith("--")) throw new Error(`${name} needs a value.`);
+      if (name === "--format") {
+        if (!TICKET_FORMATS.includes(value)) throw new Error(`Unknown ticket format "${value}". Use ${TICKET_FORMATS.join(", ")}.`);
+        args.format = value;
+      } else if (name === "--baseline") args.baseline = value;
+      else args.output = value;
+      continue;
+    }
+    if (!token.startsWith("-") && !args.input) {
+      args.input = token;
+      continue;
+    }
+    throw new Error(`Unexpected export argument ${token}.`);
+  }
+  if (!args.input) throw new Error("Pass a saved scan report (a11ygate-scan.json or its out-dir).");
+  if (!args.format) throw new Error(`--format is required: ${TICKET_FORMATS.join(", ")}.`);
+  return args;
+}
+async function runExport(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(EXPORT_HELP);
+    return 0;
+  }
+  if (argv2[0] !== "tickets") {
+    stderr(EXPORT_HELP);
+    return 2;
+  }
+  try {
+    const args = parseExportArgs(argv2.slice(1));
+    const cwd = io.cwd ?? process.cwd();
+    const now = (io.now ?? (() => /* @__PURE__ */ new Date()))();
+    let report = await readScanInput(args.input, cwd);
+    if (args.baseline) report = applyFingerprintBaseline(report, await readJsonInput(cwd, args.baseline, parseFingerprintBaseline), now);
+    const text = exportTickets(report, args.format, now);
+    if (!args.output) {
+      stdout(text);
+      return 0;
+    }
+    const inputs = [args.input, path18.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    await assertSafeOutputs(cwd, inputs, [args.output]);
+    await writeFile10(path18.resolve(cwd, args.output), text, "utf8");
+    const count = buildTickets(report, now).length;
+    stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not export tickets: ${error instanceof Error ? error.message : String(error)}
+${debugDetail(error)}`);
+    return 2;
+  }
+}
+
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path18.resolve(cwd, file);
+  return path19.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -9622,10 +9895,10 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path18.dirname(fileURLToPath(import.meta.url));
+  const here = path19.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path18.join(here, "..", "package.json"),
-    path18.join(here, "..", "..", "packages", "cli", "package.json")
+    path19.join(here, "..", "package.json"),
+    path19.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
@@ -9702,6 +9975,7 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "report" && argv2[1] === "pdf") return runReportPdf(argv2.slice(2), io);
   if (argv2[0] === "report") return runReport(argv2.slice(1), io);
   if (argv2[0] === "estimate") return runEstimate(argv2.slice(1), io);
+  if (argv2[0] === "export") return runExport(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
@@ -9746,7 +10020,7 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path18.join(await realpath3(path18.dirname(absolute)).catch(() => path18.dirname(absolute)), path18.basename(absolute));
+        return path19.join(await realpath3(path19.dirname(absolute)).catch(() => path19.dirname(absolute)), path19.basename(absolute));
       });
       const info = await stat5(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -9754,9 +10028,9 @@ ${debugDetail(error)}`);
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path18.join(options.outDir, formatFileName("ci", "json")),
-      path18.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path18.join(options.outDir, formatFileName("ci", format)))
+      path19.join(options.outDir, formatFileName("ci", "json")),
+      path19.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path19.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -9844,8 +10118,8 @@ ${debugDetail(error)}`);
       return 2;
     }
     try {
-      await writeFile10(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
-      await writeFile10(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
+      await writeFile11(resolveInput(cwd, options.updateBaseline + ".review.json"), JSON.stringify(baselineReview(current.results, diff), null, 2) + "\n", "utf8");
+      await writeFile11(resolveInput(cwd, options.updateBaseline), baselineDocument(current.results), "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.updateBaseline, error)}
 `);
@@ -9856,7 +10130,7 @@ ${debugDetail(error)}`);
   }
   if (options.markdown) {
     try {
-      await writeFile10(resolveInput(cwd, options.markdown), markdown, "utf8");
+      await writeFile11(resolveInput(cwd, options.markdown), markdown, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.markdown, error)}
 `);
@@ -9865,7 +10139,7 @@ ${debugDetail(error)}`);
   }
   if (options.json && options.json !== "-") {
     try {
-      await writeFile10(resolveInput(cwd, options.json), json, "utf8");
+      await writeFile11(resolveInput(cwd, options.json), json, "utf8");
     } catch (error) {
       stderr(`${writeFailure(options.json, error)}
 `);
@@ -9893,7 +10167,7 @@ ${debugDetail(error)}`);
       const dir = resolveInput(cwd, options.outDir);
       await mkdir8(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile10(path18.join(dir, name), content, "utf8");
+        await writeFile11(path19.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}
