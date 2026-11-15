@@ -7448,6 +7448,7 @@ async function runReview(argv2, io = {}) {
       await save();
       stdout(`Recorded ${decision.decision} for ${decision.group} (${group2.findingCount} finding(s) on ${group2.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.
 Matching findings on new pages inherit this decision. Findings stay listed in reports.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       return 0;
     }
@@ -7482,6 +7483,7 @@ ${AUTOMATED_TESTING_DISCLAIMER}
     }
     try {
       stdout(`${REVIEW_DECISION_NOTICE}
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       if (!shared.length) {
         stdout("No likely shared components detected across pages.\n");
@@ -7532,6 +7534,7 @@ ${shared.length} likely shared component group(s) to review. Nothing is written 
       if (changed) await save();
       stdout(`
 Recorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ""}.
+${AUTOMATED_TESTING_DISCLAIMER}
 `);
       return 0;
     } finally {

@@ -140,7 +140,8 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
       record(decision);
       await save();
       stdout(`Recorded ${decision.decision} for ${decision.group} (${group.findingCount} finding(s) on ${group.pageCount} page(s)) by ${decision.by} on ${decision.at} in ${args.baseline}.\n` +
-        'Matching findings on new pages inherit this decision. Findings stay listed in reports.\n');
+        'Matching findings on new pages inherit this decision. Findings stay listed in reports.\n' +
+        `${AUTOMATED_TESTING_DISCLAIMER}\n`);
       return 0;
     }
 
@@ -169,7 +170,7 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
       close = () => rl.close();
     }
     try {
-      stdout(`${REVIEW_DECISION_NOTICE}\n`);
+      stdout(`${REVIEW_DECISION_NOTICE}\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
       if (!shared.length) { stdout('No likely shared components detected across pages.\n'); return 0; }
       const by = await reviewer();
       stdout(`\n${shared.length} likely shared component group(s) to review. Nothing is written until you finish or quit with [q]; Ctrl+C leaves ${args.baseline} unchanged.\n`);
@@ -204,7 +205,7 @@ export async function runReview(argv: readonly string[], io: ReviewIo = {}): Pro
         changed++;
       }
       if (changed) await save();
-      stdout(`\nRecorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ''}.\n`);
+      stdout(`\nRecorded ${changed} decision(s)${changed ? ` in ${args.baseline}` : ''}.\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
       return 0;
     } finally { close(); }
   } catch (error) {

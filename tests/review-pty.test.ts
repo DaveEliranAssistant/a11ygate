@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { createFingerprintBaseline } from '@/lib/scan/baseline';
 import { buildScanReport } from '@/lib/scan/report';
 import { createGroupDecision, groupId, reviewableGroups } from '@/lib/scan/review';
@@ -187,6 +188,7 @@ describe('a11ygate review in a real pseudo-TTY (A11Y-R51)', () => {
     try {
       const first = await s.expect(PROMPT);
       expect(first).toContain('3 likely shared component group(s) to review');
+      expect(first).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(first).toContain(groupId(shared[0]!.key));
       expect(first).toContain('decision: none');
       expect(first).not.toContain('[r] remove decision');
@@ -210,6 +212,7 @@ describe('a11ygate review in a real pseudo-TTY (A11Y-R51)', () => {
       expect(third).toContain(groupId(shared[2]!.key));
       s.send('q\r');
       await s.expect('Recorded 2 decision(s) in baseline.json.');
+      await s.expect(AUTOMATED_TESTING_DISCLAIMER);
       expect((await s.exited).exitCode).toBe(0);
     } finally { s.kill(); }
 
