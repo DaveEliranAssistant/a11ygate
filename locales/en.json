@@ -136,5 +136,17 @@
   "review.findingStates": "States: {states}",
   "review.ruleGuidance": "Rule guidance",
   "review.ruleGuidanceFor": " for {ruleId}",
-  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines"
+  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines",
+  "pdf.cover.site": "Site",
+  "pdf.cover.scanDate": "Scan date",
+  "pdf.cover.commit": "Commit",
+  "pdf.cover.commitUnknown": "not recorded",
+  "pdf.cover.engines": "Engines",
+  "pdf.cover.scope": "Scope",
+  "pdf.cover.scopeValue": "{pages} scanned (at most {maxPages}), {failed} failed, {skipped} links skipped; same origin as {origin}",
+  "pdf.cover.verdict": "Verdict",
+  "pdf.cover.tool": "Tool",
+  "pdf.toc.heading": "Contents",
+  "pdf.toc.page": "page {page}",
+  "pdf.footer.page": "Page {page} of {total}"
 }

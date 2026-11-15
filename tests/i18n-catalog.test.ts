@@ -24,7 +24,7 @@ import { parseScanArgs } from '@/packages/cli/src/scan';
 
 const ROOT = path.resolve(__dirname, '..');
 /** Report templates whose user-visible strings must come from the catalog. */
-const TEMPLATES = ['lib/scan/report-html-v2.ts', 'lib/scan/report-markdown.ts'];
+const TEMPLATES = ['lib/scan/report-html-v2.ts', 'lib/scan/report-markdown.ts', 'lib/scan/report-pdf.ts'];
 const source = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
 
 type Literal = { text: string; line: number; ignored: boolean; start: number; end: number };

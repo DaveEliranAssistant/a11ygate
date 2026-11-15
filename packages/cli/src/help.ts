@@ -11,6 +11,7 @@ Usage:
   a11ygate review list|remove|prune --baseline <fingerprints.json> ...  Manage recorded decisions
                        (see a11ygate review --help)
   a11ygate report <scan.json|out-dir> [--baseline <fingerprints.json>] [--out-dir <dir>]
+  a11ygate report pdf <scan.json|out-dir> [-o <file.pdf>] [--commit <sha>]  Print report v2 to PDF
   a11ygate ci --projects <projects.yml> [--parallel 1-8] [--out-dir <dir>]
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
