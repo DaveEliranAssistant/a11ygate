@@ -10,7 +10,7 @@ The HTML report (version 2) and the Markdown / CLI summary written by `a11ygate 
 a11ygate scan https://localhost:3000 --out-dir a11y --report-lang en
 ```
 
-`--report-lang en` is the default. Its output is byte-identical to the output without the flag.
+`--report-lang en` is the default. Its output is byte-identical to the output without the flag. In `.a11ygate.yml` the same setting is `reportLang` (environment variable `A11YGATE_REPORT_LANG`).
 
 Two **pseudo-locales** are built from the English catalog. They are for layout testing only and are not translations:
 

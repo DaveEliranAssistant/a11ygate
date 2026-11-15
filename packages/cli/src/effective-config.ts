@@ -40,6 +40,7 @@ export const CONFIG_WIRING: Record<string, Wiring> = {
   outDir: { flag: '--out-dir', commands: reports, default: null },
   delayMs: { flag: '--delay-ms', commands: scan, default: 1000 },
   reportVersion: { flag: '--report-version', commands: scan, default: 2 },
+  reportLang: { flag: '--report-lang', commands: scan, default: 'en' },
   'auth.check.url': { flag: '--auth-check-url', commands: scan, default: null },
   'auth.check.mustHaveSelector': { flag: '--auth-check-must-have-selector', commands: scan, default: null },
   'auth.check.mustNotHaveSelector': { flag: '--auth-check-must-not-have-selector', commands: scan, default: null },

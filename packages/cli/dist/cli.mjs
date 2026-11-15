@@ -553,75 +553,6 @@ async function scanKeyboard(page, url, options) {
   return { url, steps: observations.length, stopReason, observations, findings };
 }
 
-// lib/guidance.ts
-var rules = {
-  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
-  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
-  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
-  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
-};
-function findingGuidance(f) {
-  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
-}
-
-// lib/export-markdown.ts
-function cell(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
-}
-function findingLine(finding2) {
-  const selector = finding2.selector.replace(/`/g, "'");
-  const impact = finding2.impact ?? "unspecified";
-  const guidance = findingGuidance(finding2);
-  return `- **${cell(finding2.ruleId)}** (${impact}) on \`${cell(finding2.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding2.help)} \u2014 ${cell(formatStandards(finding2.tags))}
-  - Affected element: \`${cell(finding2.html)}\`; fingerprint: \`${cell(finding2.fingerprint)}\`.
-  - User impact: ${cell(guidance.userImpact)}
-  - Remediation: ${cell(guidance.remediation)}
-  - Verification: ${guidance.verification.map(cell).join(" ")}${finding2.assessmentReason ? "\n  - Assessment: " + cell(finding2.assessmentReason) : ""}`;
-}
-function section(title, findings) {
-  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
-  return [`## ${title}`, "", ...findings.map(findingLine), ""];
-}
-function prSummaryMarkdown(input) {
-  const lines = [
-    `# A11yGate \u2014 ${cell(input.projectName)}`,
-    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
-    "",
-    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
-    "",
-    input.reason,
-    "",
-    "| Status | Count |",
-    "| --- | --- |",
-    `| New | ${input.diff.newFindings.length} |`,
-    `| Fixed | ${input.diff.fixedFindings.length} |`,
-    `| Still open | ${input.diff.stillOpen.length} |`,
-    "",
-    `Generated: ${input.generatedAt}`,
-    "",
-    "## Scan coverage and existing debt",
-    "",
-    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
-    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
-    "",
-    "### Unassessed scope",
-    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
-    "",
-    ...section("New", input.diff.newFindings),
-    ...section("Fixed", input.diff.fixedFindings),
-    ...section("Still open", input.diff.stillOpen),
-    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
-    "## Manual evidence \u2014 separate from automated checks",
-    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
-    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
-    "",
-    DISCLAIMER,
-    LEGAL_DISCLAIMER,
-    ""
-  ];
-  return lines.join("\n");
-}
-
 // lib/limits.ts
 var MAX_AXE_JSON_BYTES = 8 * 1024 * 1024;
 function axeJsonByteLength(text) {
@@ -1024,6 +955,401 @@ function reviewableGroups(findings) {
   return groupSharedComponents(findings);
 }
 
+// lib/guidance.ts
+var rules = {
+  "color-contrast": { userImpact: "People with low vision or color-vision differences may not be able to read the affected content.", remediation: "Adjust foreground/background colors to meet the applicable contrast ratio; include hover, focus and disabled states where relevant.", verification: ["Re-run axe on the same page/state and affected selector.", "Measure rendered contrast (normally 4.5:1 text or 3:1 large text); review gradients and dynamic states manually."] },
+  "image-alt": { userImpact: "People using screen readers may miss the purpose or information conveyed by the image.", remediation: "Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.", verification: ["Re-run axe on the same page/state and selector.", "Listen with a screen reader and confirm the alternative conveys the same purpose without redundant detail."] },
+  "button-name": { userImpact: "Screen-reader and voice-control users may not know the purpose of this button.", remediation: "Give the button a clear accessible name matching its visible purpose; prefer visible text.", verification: ["Inspect its computed accessible name and re-run axe.", "Operate it by keyboard and verify the announced name and resulting state with assistive technology."] },
+  "label": { userImpact: "People using assistive technology may not know what input is expected.", remediation: "Associate a visible label with the control and expose instructions/errors programmatically.", verification: ["Inspect the accessible name and label association; re-run axe.", "Navigate and complete the field using keyboard and a screen reader, including validation errors."] }
+};
+function findingGuidance(f) {
+  return { ...rules[f.ruleId] ?? { userImpact: `The affected element may prevent people using assistive technology from perceiving or operating the content (${f.ruleId}); assess the actual user journey.`, remediation: f.help + " Consult the rule guidance and review the actual component; automated advice is not a verified fix.", verification: ["Inspect the affected element and applicable rule guidance.", "Re-run the same rule on the same page/state and manually verify the relevant keyboard/screen-reader journey."] }, source: "Rule-based guidance; contextual human review required, not legal advice or certification." };
+}
+
+// lib/export-markdown.ts
+function cell(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_\[\]()!|]/g, "\\$&").replace(/[\r\n]/g, " ");
+}
+function findingLine(finding2) {
+  const selector = finding2.selector.replace(/`/g, "'");
+  const impact = finding2.impact ?? "unspecified";
+  const guidance = findingGuidance(finding2);
+  return `- **${cell(finding2.ruleId)}** (${impact}) on \`${cell(finding2.url)}\` \u2014 \`${cell(selector)}\` \u2014 ${cell(finding2.help)} \u2014 ${cell(formatStandards(finding2.tags))}
+  - Affected element: \`${cell(finding2.html)}\`; fingerprint: \`${cell(finding2.fingerprint)}\`.
+  - User impact: ${cell(guidance.userImpact)}
+  - Remediation: ${cell(guidance.remediation)}
+  - Verification: ${guidance.verification.map(cell).join(" ")}${finding2.assessmentReason ? "\n  - Assessment: " + cell(finding2.assessmentReason) : ""}`;
+}
+function section(title, findings) {
+  if (findings.length === 0) return [`## ${title}`, "", "None.", ""];
+  return [`## ${title}`, "", ...findings.map(findingLine), ""];
+}
+function prSummaryMarkdown(input) {
+  const lines = [
+    `# A11yGate \u2014 ${cell(input.projectName)}`,
+    ...input.synthetic ? ["SYNTHETIC evidence \u2014 not a real audit or customer assessment."] : [],
+    "",
+    `**Verdict: ${input.verdict}** (impact threshold: ${input.threshold})`,
+    "",
+    input.reason,
+    "",
+    "| Status | Count |",
+    "| --- | --- |",
+    `| New | ${input.diff.newFindings.length} |`,
+    `| Fixed | ${input.diff.fixedFindings.length} |`,
+    `| Still open | ${input.diff.stillOpen.length} |`,
+    "",
+    `Generated: ${input.generatedAt}`,
+    "",
+    "## Scan coverage and existing debt",
+    "",
+    `Coverage: ${input.diff.coverage?.status ?? "unverified"}. Existing debt: ${input.diff.stillOpen.length}; previously reported findings now unassessed: ${input.diff.unassessed?.length ?? 0}. PASS means no detected new threshold violation, not an accessible or certified service.`,
+    ...(input.diff.coverage?.issues ?? []).map((i) => `- ${i.code === "missing-page" ? "Missing page" : cell(i.code)}: ${cell(i.page)} \u2014 ${cell(i.detail)}`),
+    "",
+    "### Unassessed scope",
+    ...(input.diff.coverage?.unassessedScope ?? ["Scan coverage was not supplied."]).map((x) => "- " + cell(x)),
+    "",
+    ...section("New", input.diff.newFindings),
+    ...section("Fixed", input.diff.fixedFindings),
+    ...section("Still open", input.diff.stillOpen),
+    ...section("Unassessed \u2014 not verified fixed", input.diff.unassessed ?? []),
+    "## Manual evidence \u2014 separate from automated checks",
+    "Self-reported, editable human assertions. Reviewer identity and freshness are not verified. These records do not improve the automated gate; absent evidence is unassessed.",
+    ...input.manualChecks?.length ? input.manualChecks.map((c) => `- ${cell(c.id)}: ${cell(c.check)}; scope ${cell(c.scope)}; reviewer ${cell(c.reviewer)}; date ${cell(c.date)}; status **${c.status}**; notes ${cell(c.notes)}`) : ["No manual evidence recorded."],
+    "",
+    DISCLAIMER,
+    LEGAL_DISCLAIMER,
+    ""
+  ];
+  return lines.join("\n");
+}
+
+// locales/en.json
+var en_default = {
+  "html.title": "A11yGate accessibility scan report \u2014 {startUrl}",
+  "html.heading": "A11yGate accessibility scan report",
+  "html.startUrl": "Start URL: {startUrl}",
+  "html.navLabel": "Report sections",
+  "impact.critical": "critical",
+  "impact.serious": "serious",
+  "impact.moderate": "moderate",
+  "impact.minor": "minor",
+  "impact.unknown": "unspecified",
+  "plural.rule.one": "{n} rule",
+  "plural.rule.other": "{n} rules",
+  "plural.page.one": "{n} page",
+  "plural.page.other": "{n} pages",
+  "plural.occurrence.one": "{n} occurrence",
+  "plural.occurrence.other": "{n} occurrences",
+  "plural.finding.one": "{n} finding",
+  "plural.finding.other": "{n} findings",
+  "summary.heading": "Executive summary",
+  "summary.verdict": "Gate verdict: {verdict}",
+  "summary.failOn": "(fail on: {failOn})",
+  "summary.baseline": "Compared with baseline: {new}; {existing} existing; {fixed} fixed; {unassessed} unassessed.",
+  "summary.baselineNew": "{n} new",
+  "summary.noBaseline": "Compared with baseline: no baseline was supplied, so every finding is reported without new/existing status.",
+  "summary.enginesUsed": "Engines used: {engines}.",
+  "summary.enginesErrored": "Engines errored: {errors}.",
+  "summary.enginesNone": "none",
+  "summary.axeEngine": "axe-core {version}",
+  "summary.notAvailable": "n/a",
+  "summary.pages": "Pages scanned: {scanned}; pages that failed to load: {failed};{notAuthenticated} links not scanned: {skipped}.",
+  "summary.notAuthenticated": " not authenticated: {n};",
+  "summary.totalFindings": "Total findings: {findings} across {rules}.",
+  "summary.scannedWith": "Scanned {scannedAt} with A11yGate {version}.",
+  "summary.severityCaption": "Findings by severity",
+  "summary.severityColumn": "Severity",
+  "summary.findingsColumn": "Findings",
+  "topFixes.heading": "Top {limit} fixes",
+  "topFixes.ordering": "Ordered by impact weight \xD7 pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Review likely shared components below to assess whether one fix may address multiple pages.",
+  "topFixes.empty": "No automated findings to prioritise. This does not mean the pages are accessible; see what automated testing does not cover.",
+  "topFixes.stats": "{pages} affected; {occurrences}{newCount}; priority score {score}. {criteria}.",
+  "topFixes.newCount": "; {n} new",
+  "topFixes.wcag": "WCAG {numbers}",
+  "topFixes.bestPractice": "Best practice",
+  "shared.heading": "Likely shared components",
+  "shared.groupHeading": "{ruleId} \u2014 likely shared component on {pages}",
+  "shared.groupSummary": "{findings}; normalized selector: {selector}",
+  "shared.examplePage": "Example page: {url}",
+  "shared.selector": "Selector: {selector}",
+  "shared.html": "HTML: {html}",
+  "shared.none": "No likely shared components detected across pages.",
+  "nav.reviewDecisions": "Review decisions",
+  "wcag.heading": "Findings by WCAG success criterion",
+  "wcag.note": "A finding mapped to two criteria is listed under both. The criterion mapping is a static crosswalk and needs expert review before it is used as evidence.",
+  "wcag.bestPracticeGroup": "Best practice (no WCAG success criterion mapped)",
+  "wcag.criterionGroup": "WCAG {number} {name} ({level}); {en301549}",
+  "wcag.ruleLine": "{ruleId} \u2014 {occurrences} on {pages}",
+  "wcag.none": "None detected.",
+  "en301549.criterionColumn": "WCAG success criterion",
+  "en301549.versionColumn": "WCAG version",
+  "en301549.source": "Source: {link}, clause 9.",
+  "en301549.empty": "No WCAG success criterion mapped in this scan.",
+  "page.heading": "Findings by page",
+  "page.status": "HTTP {status}; {scanStatus}{error}",
+  "page.noStatus": "\u2014",
+  "page.selector": "Selector: {selector}",
+  "page.none": "No automated findings on this page.",
+  "page.noPages": "No pages were scanned.",
+  "fix.heading": "How to fix, by rule",
+  "fix.noInventedText": "A11yGate does not write alternative text, labels or accessible names. Any such text is a TODO for a person who knows the content, followed by human review.",
+  "fix.engineHelp": "Engine rule help",
+  "fix.engineHelpFor": " for {ruleId}",
+  "fix.understanding": "W3C Understanding {criterion}",
+  "fix.whoAffected": "Who is affected:",
+  "fix.howToFix": "How to fix:",
+  "fix.howToVerify": "How to verify:",
+  "fix.references": "References:",
+  "fix.noReference": "No reference link was recorded for this rule.",
+  "fix.none": "None detected.",
+  "limits.heading": "What automated testing does not cover",
+  "limits.intro": "This report records what automated rules detected on the pages listed above. It does not assess:",
+  "limits.manual": "Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.",
+  "limits.scope": "Scope and boundaries of this scan",
+  "limits.notScanned": "Not scanned",
+  "limits.skipped": "Skipped pages",
+  "skip.robots": "disallowed by robots.txt",
+  "skip.cap": "page cap reached",
+  "md.title": "A11yGate site scan \u2014 {startUrl}",
+  "md.verdict": "Verdict: {verdict}",
+  "md.failOn": "(fail on: {failOn})",
+  "md.severityColumn": "Severity",
+  "md.findingsColumn": "Findings",
+  "md.impact.critical": "critical",
+  "md.impact.serious": "serious",
+  "md.impact.moderate": "moderate",
+  "md.impact.minor": "minor",
+  "md.impact.unknown": "unknown",
+  "md.impactGroup.unknown": "unknown impact",
+  "md.findingImpact.unknown": "unspecified",
+  "md.scanned": "Scanned: {scannedAt}. Pages analysed: {scanned}; failed: {failed}{notAuthenticated}. axe-core {axeVersion}; A11yGate {version}.",
+  "md.notAuthenticated": "; not authenticated: {n}",
+  "md.baseline": "Baseline: {new} new; {existing} existing; {fixed} fixed; {unassessed} unassessed.",
+  "md.pagesHeading": "Pages",
+  "md.pageColumn": "Page",
+  "md.httpColumn": "HTTP",
+  "md.statusColumn": "Status",
+  "md.byCriterionHeading": "Findings by WCAG criterion",
+  "md.bySeverityHeading": "Findings by severity",
+  "md.none": "None detected.",
+  "md.notScannedHeading": "Not scanned",
+  "md.skippedHeading": "Skipped pages",
+  "md.enginesHeading": "Engines used / engines errored",
+  "md.scopeHeading": "Scope and boundaries",
+  "md.reviewTag": "review: {decision}",
+  "md.findingLocation": "({impact}) on {page}",
+  "md.states": "states: {states}",
+  "md.ruleGuidance": "rule guidance",
+  "md.reviewHeading": "Review decisions (likely shared components)",
+  "md.reviewGroupPages": "{findings} on {pageCount} page(s)",
+  "md.normalizedSelector": "Normalized selector: {selector}",
+  "md.decision": "Decision: {summary}. Gate: {effect}."
+};
+
+// lib/i18n/index.ts
+var EN_CATALOG = en_default;
+var SHIPPED_REPORT_LANGS = ["en"];
+var PSEUDO_REPORT_LANGS = ["en-XA", "ar-XB"];
+var REPORT_LANGS = [...SHIPPED_REPORT_LANGS, ...PSEUDO_REPORT_LANGS];
+var DEFAULT_REPORT_LANG = "en";
+function isReportLang(value) {
+  return REPORT_LANGS.includes(value);
+}
+function isPseudoReportLang(lang) {
+  return PSEUDO_REPORT_LANGS.includes(lang);
+}
+function reportDir(lang) {
+  return lang === "ar-XB" ? "rtl" : "ltr";
+}
+var PLACEHOLDER = /\{(\w+)\}/g;
+function formatMessage(template, vars = {}) {
+  return template.replace(PLACEHOLDER, (_, name) => {
+    if (!(name in vars)) throw new Error(`Missing message variable {${name}}`);
+    return String(vars[name]);
+  });
+}
+var ACCENTS = {
+  a: "\xE5",
+  b: "\u0180",
+  c: "\xE7",
+  d: "\xF0",
+  e: "\xE9",
+  f: "\u0192",
+  g: "\u011D",
+  h: "\u0125",
+  i: "\xEE",
+  j: "\u0135",
+  k: "\u0137",
+  l: "\u013C",
+  m: "\u0271",
+  n: "\xF1",
+  o: "\xF6",
+  p: "\xFE",
+  q: "\u01EB",
+  r: "\u0155",
+  s: "\u0161",
+  t: "\u0163",
+  u: "\xFB",
+  v: "\u1E7D",
+  w: "\u0175",
+  x: "\u1E8B",
+  y: "\xFD",
+  z: "\u017E",
+  A: "\xC5",
+  B: "\u0181",
+  C: "\xC7",
+  D: "\xD0",
+  E: "\xC9",
+  F: "\u0191",
+  G: "\u011C",
+  H: "\u0124",
+  I: "\xCE",
+  J: "\u0134",
+  K: "\u0136",
+  L: "\u013B",
+  M: "\u1E40",
+  N: "\xD1",
+  O: "\xD6",
+  P: "\xDE",
+  Q: "\u01EA",
+  R: "\u0154",
+  S: "\u0160",
+  T: "\u0162",
+  U: "\xDB",
+  V: "\u1E7C",
+  W: "\u0174",
+  X: "\u1E8A",
+  Y: "\xDD",
+  Z: "\u017D"
+};
+function mapText(template, fn) {
+  return template.split(/(\{\w+\})/).map((part) => /^\{\w+\}$/.test(part) ? part : fn(part)).join("");
+}
+function pseudoAccent(template) {
+  const letters = template.replace(PLACEHOLDER, "").replace(/[^A-Za-z]/g, "").length;
+  if (letters === 0) return template;
+  const accented = mapText(template, (text) => text.replace(/[A-Za-z]/g, (c) => ACCENTS[c] ?? c));
+  return `[${accented} ${"\xB7".repeat(Math.max(1, Math.ceil(letters * 0.4)))}]`;
+}
+function pseudoBidi(template) {
+  if (!/[A-Za-z]/.test(template.replace(PLACEHOLDER, ""))) return template;
+  return mapText(template, (text) => /[A-Za-z]/.test(text) ? `\u202E${text}\u202C` : text);
+}
+function catalogFor(lang) {
+  if (lang === "en") return EN_CATALOG;
+  const transform = lang === "en-XA" ? pseudoAccent : pseudoBidi;
+  return Object.fromEntries(Object.entries(EN_CATALOG).map(([k, v]) => [k, transform(v)]));
+}
+function translator(lang = DEFAULT_REPORT_LANG, catalog = catalogFor(lang)) {
+  const lookup = (key) => {
+    const message = catalog[key];
+    if (message === void 0) throw new Error(`Missing message key "${key}" in report catalog (${lang})`);
+    return message;
+  };
+  return {
+    lang,
+    dir: reportDir(lang),
+    t: (key, vars) => formatMessage(lookup(key), vars),
+    plural: (key, n, vars = {}) => formatMessage(lookup(`${key}.${n === 1 ? "one" : "other"}`), { n, ...vars })
+  };
+}
+
+// lib/scan/report-markdown.ts
+var IMPACT_KEYS = ["critical", "serious", "moderate", "minor", "unknown"];
+function code(value) {
+  return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
+}
+function heading(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
+}
+function mdFinding(t, f) {
+  const tags = `${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [" + t.t("md.reviewTag", { decision: decisionLabel(f.reviewDecision) }) + "]" : ""}`;
+  const impact = f.impact ?? t.t("md.findingImpact.unknown");
+  return `-${tags} **${cell(f.ruleId)}** ${t.t("md.findingLocation", { impact, page: code(f.pageUrl) })} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 " + t.t("md.states", { states: f.states.map(code).join(", ") }) : ""} \u2014 [${t.t("md.ruleGuidance")}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+}
+function severityGroupLabel(t, key) {
+  return key === "unknown" ? t.t("md.impactGroup.unknown") : IMPACT_KEYS.includes(key) ? t.t(`md.impact.${key}`) : key;
+}
+function reviewMarkdown(t, report) {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return [];
+  return [
+    `## ${t.t("md.reviewHeading")}`,
+    "",
+    cell(REVIEW_DECISION_NOTICE),
+    "",
+    ...groups.flatMap(({ decision: d, findings }) => [
+      `### ${code(d.group)} \u2014 ${heading(d.ruleId)} \u2014 ${t.t("md.reviewGroupPages", { findings: t.plural("plural.finding", findings.length), pageCount: new Set(findings.map((f) => f.pageUrl)).size })}`,
+      "",
+      t.t("md.normalizedSelector", { selector: code(d.normalizedSelector) }),
+      "",
+      t.t("md.decision", { summary: cell(decisionSummary(d)), effect: gateEffect(d) }),
+      "",
+      ...sortFindings(findings).map((f) => mdFinding(t, f)),
+      ""
+    ]),
+    AUTOMATED_TESTING_DISCLAIMER,
+    ""
+  ];
+}
+function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
+  const t = translator(lang);
+  const c = report.counts;
+  const lines = [
+    `# ${t.t("md.title", { startUrl: cell(report.startUrl) })}`,
+    "",
+    `**${t.t("md.verdict", { verdict: report.verdict })}** ${t.t("md.failOn", { failOn: report.failOn })}`,
+    "",
+    cell(report.reason),
+    "",
+    `| ${t.t("md.severityColumn")} | ${t.t("md.findingsColumn")} |`,
+    "| --- | --- |",
+    ...IMPACT_KEYS.map((k) => `| ${t.t(`md.impact.${k}`)} | ${c.byImpact[k]} |`),
+    "",
+    t.t("md.scanned", { scannedAt: report.scannedAt, scanned: c.pagesScanned, failed: c.pagesFailed, notAuthenticated: c.pagesNotAuthenticated !== void 0 ? t.t("md.notAuthenticated", { n: c.pagesNotAuthenticated }) : "", axeVersion: report.axeVersion ?? t.t("summary.notAvailable"), version: report.version }),
+    "",
+    ...report.baseline ? [t.t("md.baseline", { new: report.baseline.new, existing: report.baseline.existing, fixed: report.baseline.fixed, unassessed: report.baseline.unassessed }), "", AUTOMATED_TESTING_DISCLAIMER, ""] : [],
+    `## ${t.t("md.pagesHeading")}`,
+    "",
+    `| ${t.t("md.pageColumn")} | ${t.t("md.httpColumn")} | ${t.t("md.statusColumn")} | ${t.t("md.findingsColumn")} |`,
+    "| --- | --- | --- | --- |",
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
+    "",
+    `## ${t.t("md.byCriterionHeading")}`,
+    ""
+  ];
+  const byCriterion = groupByCriterion(report.findings);
+  if (byCriterion.length === 0) lines.push(t.t("md.none"), "");
+  for (const group2 of byCriterion) {
+    lines.push(`### ${heading(group2.label)}`, "", ...sortFindings(group2.findings).map((f) => mdFinding(t, f)), "");
+  }
+  lines.push(`## ${t.t("md.bySeverityHeading")}`, "");
+  const bySeverity = groupBySeverity(report.findings);
+  if (bySeverity.length === 0) lines.push(t.t("md.none"), "");
+  for (const group2 of bySeverity) {
+    lines.push(`### ${heading(severityGroupLabel(t, group2.key))} (${group2.findings.length})`, "", ...group2.findings.map((f) => mdFinding(t, f)), "");
+  }
+  lines.push(...reviewMarkdown(t, report));
+  const robotsSkipped = report.skipped.filter((s) => s.reason === "robots" || s.reason === "cap");
+  if (robotsSkipped.length > 0) {
+    lines.push(`## ${t.t("md.notScannedHeading")}`, "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? t.t("skip.robots") : t.t("skip.cap")}`), "");
+  }
+  const otherSkipped = report.skipped.filter((s) => s.reason !== "robots" && s.reason !== "cap");
+  if (otherSkipped.length) lines.push(`## ${t.t("md.skippedHeading")}`, "", ...otherSkipped.map((s) => `- ${cell(s.url)} \u2014 ${cell(s.reason)}`), "");
+  if (report.engines) lines.push(
+    `## ${t.t("md.enginesHeading")}`,
+    "",
+    t.t("summary.enginesUsed", { engines: report.engines.used.join(", ") || t.t("summary.enginesNone") }),
+    t.t("summary.enginesErrored", { errors: report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} \u2014 ${code(e.url)} \u2014 ${cell(e.error)}`).join("; ") : t.t("summary.enginesNone") }),
+    "",
+    AUTOMATED_TESTING_DISCLAIMER,
+    ""
+  );
+  lines.push(`## ${t.t("md.scopeHeading")}`, "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
+  return lines.join("\n");
+}
+
 // lib/scan/report.ts
 var FAIL_ON_VALUES = [...IMPACTS, "none"];
 function isFailOn(value) {
@@ -1253,95 +1579,10 @@ function groupBySeverity(findings) {
 function sortFindings(findings) {
   return [...findings].sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId));
 }
-function code(value) {
-  return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
-}
-function heading(value) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
-}
-function mdFinding(f) {
-  return `-${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [review: " + decisionLabel(f.reviewDecision) + "]" : ""} **${cell(f.ruleId)}** (${f.impact ?? "unspecified"}) on ${code(f.pageUrl)} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 states: " + f.states.map(code).join(", ") : ""} \u2014 [rule guidance](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
-}
-function scanMarkdown(report) {
-  const lines = [
-    `# A11yGate site scan \u2014 ${cell(report.startUrl)}`,
-    "",
-    `**Verdict: ${report.verdict}** (fail on: ${report.failOn})`,
-    "",
-    cell(report.reason),
-    "",
-    "| Severity | Findings |",
-    "| --- | --- |",
-    ...["critical", "serious", "moderate", "minor", "unknown"].map((k) => `| ${k} | ${report.counts.byImpact[k]} |`),
-    "",
-    `Scanned: ${report.scannedAt}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== void 0 ? "; not authenticated: " + report.counts.pagesNotAuthenticated : ""}. axe-core ${report.axeVersion ?? "n/a"}; A11yGate ${report.version}.`,
-    "",
-    ...report.baseline ? [`Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.`, "", AUTOMATED_TESTING_DISCLAIMER, ""] : [],
-    "## Pages",
-    "",
-    "| Page | HTTP | Status | Findings |",
-    "| --- | --- | --- | --- |",
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
-    "",
-    "## Findings by WCAG criterion",
-    ""
-  ];
-  const byCriterion = groupByCriterion(report.findings);
-  if (byCriterion.length === 0) lines.push("None detected.", "");
-  for (const group2 of byCriterion) {
-    lines.push(`### ${heading(group2.label)}`, "", ...sortFindings(group2.findings).map(mdFinding), "");
-  }
-  lines.push("## Findings by severity", "");
-  const bySeverity = groupBySeverity(report.findings);
-  if (bySeverity.length === 0) lines.push("None detected.", "");
-  for (const group2 of bySeverity) {
-    lines.push(`### ${heading(group2.label)} (${group2.findings.length})`, "", ...group2.findings.map(mdFinding), "");
-  }
-  lines.push(...reviewMarkdown(report));
-  const robotsSkipped = report.skipped.filter((s) => s.reason === "robots" || s.reason === "cap");
-  if (robotsSkipped.length > 0) {
-    lines.push("## Not scanned", "", ...robotsSkipped.map((s) => `- ${cell(s.url)} \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}`), "");
-  }
-  const otherSkipped = report.skipped.filter((s) => s.reason !== "robots" && s.reason !== "cap");
-  if (otherSkipped.length) lines.push("## Skipped pages", "", ...otherSkipped.map((s) => `- ${cell(s.url)} \u2014 ${cell(s.reason)}`), "");
-  if (report.engines) lines.push(
-    "## Engines used / engines errored",
-    "",
-    `Engines used: ${report.engines.used.join(", ") || "none"}.`,
-    `Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => `${cell(e.engine)} \u2014 ${code(e.url)} \u2014 ${cell(e.error)}`).join("; ") : "none"}.`,
-    "",
-    AUTOMATED_TESTING_DISCLAIMER,
-    ""
-  );
-  lines.push("## Scope and boundaries", "", ...report.boundaries.map((b) => `- ${cell(b)}`), "", DISCLAIMER, LEGAL_DISCLAIMER, "");
-  return lines.join("\n");
-}
 function gateEffect(d) {
   if (d.suppressesGate) return "excluded from the gate by this decision; still listed for review";
   if (d.expired) return "decision expired; findings gate again";
   return "still gated";
-}
-function reviewMarkdown(report) {
-  const groups = reviewedGroups(report.findings);
-  if (!groups.length) return [];
-  return [
-    "## Review decisions (likely shared components)",
-    "",
-    cell(REVIEW_DECISION_NOTICE),
-    "",
-    ...groups.flatMap(({ decision: d, findings }) => [
-      `### ${code(d.group)} \u2014 ${heading(d.ruleId)} \u2014 ${findings.length} finding${findings.length === 1 ? "" : "s"} on ${new Set(findings.map((f) => f.pageUrl)).size} page(s)`,
-      "",
-      `Normalized selector: ${code(d.normalizedSelector)}`,
-      "",
-      `Decision: ${cell(decisionSummary(d))}. Gate: ${gateEffect(d)}.`,
-      "",
-      ...sortFindings(findings).map(mdFinding),
-      ""
-    ]),
-    AUTOMATED_TESTING_DISCLAIMER,
-    ""
-  ];
 }
 function reviewHtml(report) {
   const groups = reviewedGroups(report.findings);
@@ -2315,6 +2556,12 @@ var a11ygate_schema_default = {
       enum: [1, 2],
       "x-cli": ["--report-version"]
     },
+    reportLang: {
+      description: "Report language for scan HTML v2 and Markdown. Only en is shipped; en-XA and ar-XB are pseudo-locales for layout testing, not translations.",
+      type: "string",
+      enum: ["en", "en-XA", "ar-XB"],
+      "x-cli": ["--report-lang"]
+    },
     auth: {
       description: "Authenticated scans. Never put credentials here: name environment variables instead.",
       type: "object",
@@ -2862,6 +3109,7 @@ var CONFIG_WIRING = {
   outDir: { flag: "--out-dir", commands: reports, default: null },
   delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
   reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  reportLang: { flag: "--report-lang", commands: scan, default: "en" },
   "auth.check.url": { flag: "--auth-check-url", commands: scan, default: null },
   "auth.check.mustHaveSelector": { flag: "--auth-check-must-have-selector", commands: scan, default: null },
   "auth.check.mustNotHaveSelector": { flag: "--auth-check-must-not-have-selector", commands: scan, default: null },
@@ -4070,12 +4318,16 @@ function safeHref2(url) {
 function impactKey(impact) {
   return impact ?? "unknown";
 }
-function badge(impact) {
+function badge(t, impact) {
   const key = impactKey(impact);
-  return `<span class="impact ${key}">${key === "unknown" ? "unspecified" : key}</span>`;
+  return `<span class="impact ${key}">${t.t(`impact.${key}`)}</span>`;
 }
-function plural(n, word) {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+function htmlTranslator(lang = DEFAULT_REPORT_LANG) {
+  const catalog = Object.fromEntries(Object.entries(catalogFor(lang)).map(([k, v]) => [k, esc2(v)]));
+  return translator(lang, catalog);
+}
+function verbatimAttrs(t) {
+  return t.lang === "en" ? "" : ' lang="en" dir="ltr"';
 }
 function summarizeRules(findings) {
   const byRule = /* @__PURE__ */ new Map();
@@ -4125,40 +4377,41 @@ function asGuidanceInput(rule) {
     timestamp: ""
   };
 }
-function summarySection(report) {
+function summarySection(t, report) {
   const c = report.counts;
-  const rows = IMPACT_ORDER.map((k) => `<tr><th scope="row">${k === "unknown" ? "unspecified" : k}</th><td>${c.byImpact[k]}</td></tr>`).join("");
-  const baseline = report.baseline ? `<li>Compared with baseline: <strong>${report.baseline.new} new</strong>; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</li>` : "<li>Compared with baseline: no baseline was supplied, so every finding is reported without new/existing status.</li>";
-  const engines = report.engines ? `<li>Engines used: ${esc2(report.engines.used.join(", ") || "none")}.</li><li>Engines errored: ${report.engines.errored.length ? report.engines.errored.map((e) => esc2(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : "none"}.</li>` : `<li>Engines used: axe-core ${esc2(report.axeVersion ?? "n/a")}.</li><li>Engines errored: none.</li>`;
+  const rows = IMPACT_ORDER.map((k) => `<tr><th scope="row">${t.t(`impact.${k}`)}</th><td>${c.byImpact[k]}</td></tr>`).join("");
+  const baseline = report.baseline ? `<li>${t.t("summary.baseline", { new: `<strong>${t.t("summary.baselineNew", { n: report.baseline.new })}</strong>`, existing: report.baseline.existing, fixed: report.baseline.fixed, unassessed: report.baseline.unassessed })}</li>` : `<li>${t.t("summary.noBaseline")}</li>`;
+  const none = t.t("summary.enginesNone");
+  const engines = report.engines ? `<li>${t.t("summary.enginesUsed", { engines: report.engines.used.length ? esc2(report.engines.used.join(", ")) : none })}</li><li>${t.t("summary.enginesErrored", { errors: report.engines.errored.length ? report.engines.errored.map((e) => esc2(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : none })}</li>` : `<li>${t.t("summary.enginesUsed", { engines: t.t("summary.axeEngine", { version: report.axeVersion === null ? t.t("summary.notAvailable") : esc2(report.axeVersion) }) })}</li><li>${t.t("summary.enginesErrored", { errors: none })}</li>`;
   return `<section id="summary" aria-labelledby="summary-h">
-<h2 id="summary-h">Executive summary</h2>
-<p class="verdict">Gate verdict: ${esc2(report.verdict)} <span class="muted">(fail on: ${esc2(report.failOn)})</span></p>
+<h2 id="summary-h">${t.t("summary.heading")}</h2>
+<p class="verdict">${t.t("summary.verdict", { verdict: esc2(report.verdict) })} <span class="muted">${t.t("summary.failOn", { failOn: esc2(report.failOn) })}</span></p>
 <p>${esc2(report.reason)}</p>
 <ul class="facts">
-<li>Pages scanned: <strong>${c.pagesScanned}</strong>; pages that failed to load: ${c.pagesFailed};${c.pagesNotAuthenticated !== void 0 ? " not authenticated: " + c.pagesNotAuthenticated + ";" : ""} links not scanned: ${c.skippedLinks}.</li>
-<li>Total findings: <strong>${c.findings}</strong> across ${plural(new Set(report.findings.map((f) => f.ruleId)).size, "rule")}.</li>
+<li>${t.t("summary.pages", { scanned: `<strong>${c.pagesScanned}</strong>`, failed: c.pagesFailed, notAuthenticated: c.pagesNotAuthenticated !== void 0 ? t.t("summary.notAuthenticated", { n: c.pagesNotAuthenticated }) : "", skipped: c.skippedLinks })}</li>
+<li>${t.t("summary.totalFindings", { findings: `<strong>${c.findings}</strong>`, rules: t.plural("plural.rule", new Set(report.findings.map((f) => f.ruleId)).size) })}</li>
 ${baseline}
 ${engines}
-<li>Scanned ${esc2(report.scannedAt)} with A11yGate ${esc2(report.version)}.</li>
+<li>${t.t("summary.scannedWith", { scannedAt: esc2(report.scannedAt), version: esc2(report.version) })}</li>
 </ul>
-<table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${rows}</tbody></table>
+<table><caption>${t.t("summary.severityCaption")}</caption><thead><tr><th scope="col">${t.t("summary.severityColumn")}</th><th scope="col">${t.t("summary.findingsColumn")}</th></tr></thead><tbody>${rows}</tbody></table>
 </section>`;
 }
-function topFixesSection(rules2) {
+function topFixesSection(t, rules2) {
   const top = rules2.slice(0, TOP_FIXES_LIMIT);
-  const body = top.length === 0 ? "<p>No automated findings to prioritise. This does not mean the pages are accessible; see what automated testing does not cover.</p>" : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc2(r.ruleId)}</strong></a> ${badge(r.impact)} \u2014 ${esc2(r.help)}<br><span class="muted">${plural(r.pages.length, "page")} affected; ${plural(r.occurrences, "occurrence")}${r.newOccurrences ? `; ${r.newOccurrences} new` : ""}; priority score ${r.score}. ${r.wcag.length ? "WCAG " + esc2(r.wcag.map((c) => c.number).join(", ")) : "Best practice"}.</span></li>`).join("")}</ol>`;
+  const body = top.length === 0 ? `<p>${t.t("topFixes.empty")}</p>` : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc2(r.ruleId)}</strong></a> ${badge(t, r.impact)} \u2014 ${esc2(r.help)}<br><span class="muted">${t.t("topFixes.stats", { pages: t.plural("plural.page", r.pages.length), occurrences: t.plural("plural.occurrence", r.occurrences), newCount: r.newOccurrences ? t.t("topFixes.newCount", { n: r.newOccurrences }) : "", score: r.score, criteria: r.wcag.length ? t.t("topFixes.wcag", { numbers: esc2(r.wcag.map((c) => c.number).join(", ")) }) : t.t("topFixes.bestPractice") })}</span></li>`).join("")}</ol>`;
   return `<section id="top-fixes" aria-labelledby="top-fixes-h">
-<h2 id="top-fixes-h">Top ${TOP_FIXES_LIMIT} fixes</h2>
-<p class="muted">Ordered by impact weight \xD7 pages affected (critical 4, serious 3, moderate 2, minor or unspecified 1). Review likely shared components below to assess whether one fix may address multiple pages.</p>
+<h2 id="top-fixes-h">${t.t("topFixes.heading", { limit: TOP_FIXES_LIMIT })}</h2>
+<p class="muted">${t.t("topFixes.ordering")}</p>
 ${body}
 </section>`;
 }
-function sharedComponentsSection(report) {
+function sharedComponentsSection(t, report) {
   const groups = groupSharedComponents(report.findings).filter((g) => g.likelySharedComponent);
   return `<section id="shared-components" aria-labelledby="shared-components-h">
-<h2 id="shared-components-h">Likely shared components</h2>
-<p>${esc2(SHARED_COMPONENT_DISCLAIMER)}</p>
-${groups.length ? groups.map((g) => `<section><h3>${esc2(g.ruleId)} \u2014 likely shared component on ${plural(g.pageCount, "page")}</h3><p>${plural(g.findingCount, "finding")}; normalized selector: <code>${esc2(g.normalizedSelector)}</code></p><ul>${g.examples.map((f) => `<li>Example page: <code>${esc2(f.pageUrl)}</code><br>Selector: <code>${esc2(f.selector)}</code><br>HTML: <code>${esc2(f.html)}</code></li>`).join("")}</ul></section>`).join("") : "<p>No likely shared components detected across pages.</p>"}
+<h2 id="shared-components-h">${t.t("shared.heading")}</h2>
+<p${verbatimAttrs(t)}>${esc2(SHARED_COMPONENT_DISCLAIMER)}</p>
+${groups.length ? groups.map((g) => `<section><h3>${t.t("shared.groupHeading", { ruleId: esc2(g.ruleId), pages: t.plural("plural.page", g.pageCount) })}</h3><p>${t.t("shared.groupSummary", { findings: t.plural("plural.finding", g.findingCount), selector: `<code>${esc2(g.normalizedSelector)}</code>` })}</p><ul>${g.examples.map((f) => `<li>${t.t("shared.examplePage", { url: `<code>${esc2(f.pageUrl)}</code>` })}<br>${t.t("shared.selector", { selector: `<code>${esc2(f.selector)}</code>` })}<br>${t.t("shared.html", { html: `<code>${esc2(f.html)}</code>` })}</li>`).join("")}</ul></section>`).join("") : `<p>${t.t("shared.none")}</p>`}
 </section>`;
 }
 function reviewSection(report) {
@@ -4168,78 +4421,83 @@ function reviewSection(report) {
 ${body.replace("<h2>", '<h2 id="review-decisions-h">')}</section>
 `;
 }
-function en301549RefTable(report) {
+function en301549RefTable(report, t = htmlTranslator()) {
   const criteria = /* @__PURE__ */ new Map();
   for (const f of report.findings) for (const c of f.wcag) criteria.set(c.number, c);
   const rows = [...criteria.values()].sort((a, b) => a.number.localeCompare(b.number, "en", { numeric: true })).map((c) => `<tr><th scope="row">${esc2(wcagLabel(c))}</th><td>${esc2(c.wcag)}</td><td>${esc2(en301549Ref(c.number))}</td></tr>`).join("");
-  return `<table id="en301549-ref"><caption>${esc2(EN301549_COLUMN)} \u2014 ${esc2(EN301549_LABEL)} Source: <a href="${esc2(EN301549_SOURCE.url)}">${esc2(EN301549_SOURCE.title)}</a>, clause 9.</caption>
-<thead><tr><th scope="col">WCAG success criterion</th><th scope="col">WCAG version</th><th scope="col">${esc2(EN301549_COLUMN)}</th></tr></thead>
-<tbody>${rows || `<tr><td colspan="3">No WCAG success criterion mapped in this scan.</td></tr>`}</tbody></table>
+  return `<table id="en301549-ref"><caption>${esc2(EN301549_COLUMN)} \u2014 ${esc2(EN301549_LABEL)} ${t.t("en301549.source", { link: `<a href="${esc2(EN301549_SOURCE.url)}">${esc2(EN301549_SOURCE.title)}</a>` })}</caption>
+<thead><tr><th scope="col">${t.t("en301549.criterionColumn")}</th><th scope="col">${t.t("en301549.versionColumn")}</th><th scope="col">${esc2(EN301549_COLUMN)}</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="3">${t.t("en301549.empty")}</td></tr>`}</tbody></table>
 <p class="muted">${esc2(EN301549_LABEL)}</p>`;
 }
-function byWcagSection(report, rules2, options = {}) {
+function criterionGroupLabel(t, key, findings) {
+  if (key === "best-practice") return t.t("wcag.bestPracticeGroup");
+  const c = findings.flatMap((f) => f.wcag).find((x) => x.number === key);
+  return t.t("wcag.criterionGroup", { number: esc2(c.number), name: esc2(c.name), level: esc2(c.level), en301549: esc2(en301549Inline(c.number)) });
+}
+function byWcagSection(t, report, rules2, options = {}) {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules2.map((r, i) => [r.ruleId, ruleAnchor(i)]));
-  const body = groups.length === 0 ? "<p>None detected.</p>" : groups.map((g) => {
+  const body = groups.length === 0 ? `<p>${t.t("wcag.none")}</p>` : groups.map((g) => {
     const perRule = /* @__PURE__ */ new Map();
     for (const f of g.findings) perRule.set(f.ruleId, [...perRule.get(f.ruleId) ?? [], f]);
-    const items = [...perRule.entries()].sort((a, b) => rules2.findIndex((r) => r.ruleId === a[0]) - rules2.findIndex((r) => r.ruleId === b[0])).map(([ruleId, list]) => `<li><a href="#${anchor.get(ruleId)}">${esc2(ruleId)}</a> \u2014 ${plural(list.length, "occurrence")} on ${plural(new Set(list.map((f) => f.pageUrl)).size, "page")}</li>`).join("");
-    return `<section><h3>${esc2(g.label)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
+    const items = [...perRule.entries()].sort((a, b) => rules2.findIndex((r) => r.ruleId === a[0]) - rules2.findIndex((r) => r.ruleId === b[0])).map(([ruleId, list]) => `<li>${t.t("wcag.ruleLine", { ruleId: `<a href="#${anchor.get(ruleId)}">${esc2(ruleId)}</a>`, occurrences: t.plural("plural.occurrence", list.length), pages: t.plural("plural.page", new Set(list.map((f) => f.pageUrl)).size) })}</li>`).join("");
+    return `<section><h3>${criterionGroupLabel(t, g.key, g.findings)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
   }).join("\n");
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
-<h2 id="by-wcag-h">Findings by WCAG success criterion</h2>
-<p class="muted">A finding mapped to two criteria is listed under both. The criterion mapping is a static crosswalk and needs expert review before it is used as evidence.</p>
-${options.en301549Ref ? en301549RefTable(report) + "\n" : ""}${body}
+<h2 id="by-wcag-h">${t.t("wcag.heading")}</h2>
+<p class="muted">${t.t("wcag.note")}</p>
+${options.en301549Ref ? en301549RefTable(report, t) + "\n" : ""}${body}
 </section>`;
 }
-function pageFinding(f) {
-  return `<li>${f.baselineStatus ? `<span class="tag">${esc2(f.baselineStatus)}</span> ` : ""}<strong>${esc2(f.ruleId)}</strong> ${badge(f.impact)} \u2014 ${esc2(f.help)}<br>Selector: <code>${esc2(f.selector)}</code>${f.engines ? '<br><span class="muted">' + esc2(attribution(f)) + "</span>" : ""}</li>`;
+function pageFinding(t, f) {
+  return `<li>${f.baselineStatus ? `<span class="tag">${esc2(f.baselineStatus)}</span> ` : ""}<strong>${esc2(f.ruleId)}</strong> ${badge(t, f.impact)} \u2014 ${esc2(f.help)}<br>${t.t("page.selector", { selector: `<code>${esc2(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + esc2(attribution(f)) + "</span>" : ""}</li>`;
 }
-function byPageSection(report) {
+function byPageSection(t, report) {
   const body = report.pages.map((p) => {
     const list = report.findings.filter((f) => [p.url, p.finalUrl, normalizeUrl(p.url)].includes(f.pageUrl)).sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.ruleId.localeCompare(b.ruleId));
-    const status = `HTTP ${p.status ?? "\u2014"}; ${esc2(p.scanStatus)}${p.error ? " \u2014 " + esc2(p.error) : ""}`;
-    return `<section><h3><code>${esc2(p.url)}</code> (${p.findings})</h3><p class="muted">${status}</p>${list.length ? `<ul>${list.map(pageFinding).join("")}</ul>` : "<p>No automated findings on this page.</p>"}</section>`;
+    const status = t.t("page.status", { status: p.status ?? t.t("page.noStatus"), scanStatus: esc2(p.scanStatus), error: p.error ? " \u2014 " + esc2(p.error) : "" });
+    return `<section><h3><code>${esc2(p.url)}</code> (${p.findings})</h3><p class="muted">${status}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join("")}</ul>` : `<p>${t.t("page.none")}</p>`}</section>`;
   }).join("\n");
   return `<section id="by-page" aria-labelledby="by-page-h">
-<h2 id="by-page-h">Findings by page</h2>
-${body || "<p>No pages were scanned.</p>"}
+<h2 id="by-page-h">${t.t("page.heading")}</h2>
+${body || `<p>${t.t("page.noPages")}</p>`}
 </section>`;
 }
-function howToFixSection(rules2) {
-  const body = rules2.length === 0 ? "<p>None detected.</p>" : rules2.map((r, i) => {
+function howToFixSection(t, rules2) {
+  const body = rules2.length === 0 ? `<p>${t.t("fix.none")}</p>` : rules2.map((r, i) => {
     const g = findingGuidance(asGuidanceInput(r));
     const links = [
-      ...r.helpUrls.map((u) => `<li><a href="${safeHref2(u)}">Engine rule help<span class="sr"> for ${esc2(r.ruleId)}</span></a></li>`),
+      ...r.helpUrls.map((u) => `<li><a href="${safeHref2(u)}">${t.t("fix.engineHelp")}<span class="sr">${t.t("fix.engineHelpFor", { ruleId: esc2(r.ruleId) })}</span></a></li>`),
       ...r.wcag.flatMap((c) => {
         const url = understandingUrl(c);
-        return url ? [`<li><a href="${esc2(url)}">W3C Understanding ${esc2(wcagLabel(c))}</a></li>`] : [];
+        return url ? [`<li><a href="${esc2(url)}">${t.t("fix.understanding", { criterion: esc2(wcagLabel(c)) })}</a></li>`] : [];
       })
     ];
-    return `<section id="${ruleAnchor(i)}"><h3>${esc2(r.ruleId)} ${badge(r.impact)}</h3>
+    return `<section id="${ruleAnchor(i)}"><h3>${esc2(r.ruleId)} ${badge(t, r.impact)}</h3>
 <p>${esc2(r.help)}</p>
-<p><strong>Who is affected:</strong> ${esc2(g.userImpact)}</p>
-<p><strong>How to fix:</strong> ${esc2(g.remediation)}</p>
-<p><strong>How to verify:</strong></p><ul>${g.verification.map((v) => `<li>${esc2(v)}</li>`).join("")}</ul>
-${links.length ? `<p><strong>References:</strong></p><ul>${links.join("")}</ul>` : "<p>No reference link was recorded for this rule.</p>"}
+<p><strong>${t.t("fix.whoAffected")}</strong> ${esc2(g.userImpact)}</p>
+<p><strong>${t.t("fix.howToFix")}</strong> ${esc2(g.remediation)}</p>
+<p><strong>${t.t("fix.howToVerify")}</strong></p><ul>${g.verification.map((v) => `<li>${esc2(v)}</li>`).join("")}</ul>
+${links.length ? `<p><strong>${t.t("fix.references")}</strong></p><ul>${links.join("")}</ul>` : `<p>${t.t("fix.noReference")}</p>`}
 <p class="muted">${esc2(g.source)}</p></section>`;
   }).join("\n");
   return `<section id="how-to-fix" aria-labelledby="how-to-fix-h">
-<h2 id="how-to-fix-h">How to fix, by rule</h2>
-<p class="muted">A11yGate does not write alternative text, labels or accessible names. Any such text is a TODO for a person who knows the content, followed by human review.</p>
+<h2 id="how-to-fix-h">${t.t("fix.heading")}</h2>
+<p class="muted">${t.t("fix.noInventedText")}</p>
 ${body}
 </section>`;
 }
-function limitsSection(report) {
+function limitsSection(t, report) {
   const notScanned = report.skipped.filter((s) => s.reason === "robots" || s.reason === "cap");
   return `<section id="limits" aria-labelledby="limits-h">
-<h2 id="limits-h">What automated testing does not cover</h2>
-<p>This report records what automated rules detected on the pages listed above. It does not assess:</p>
-<ul>${AUTOMATED_LIMITS.map((l) => `<li>${esc2(l)}</li>`).join("")}</ul>
-<p>Manual testing by people, including people with disabilities and assistive technology users, is needed for these areas.</p>
-<h3>Scope and boundaries of this scan</h3>
-<ul>${report.boundaries.map((b) => `<li>${esc2(b)}</li>`).join("")}</ul>
-${notScanned.length ? `<h3>Not scanned</h3><ul>${notScanned.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${s.reason === "robots" ? "disallowed by robots.txt" : "page cap reached"}</li>`).join("")}</ul>` : ""}${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? `<h3>Skipped pages</h3><ul>${report.skipped.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${esc2(s.reason)}</li>`).join("")}</ul>` : ""}
+<h2 id="limits-h">${t.t("limits.heading")}</h2>
+<p>${t.t("limits.intro")}</p>
+<ul${verbatimAttrs(t)}>${AUTOMATED_LIMITS.map((l) => `<li>${esc2(l)}</li>`).join("")}</ul>
+<p>${t.t("limits.manual")}</p>
+<h3>${t.t("limits.scope")}</h3>
+<ul${verbatimAttrs(t)}>${report.boundaries.map((b) => `<li>${esc2(b)}</li>`).join("")}</ul>
+${notScanned.length ? `<h3>${t.t("limits.notScanned")}</h3><ul>${notScanned.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${s.reason === "robots" ? t.t("skip.robots") : t.t("skip.cap")}</li>`).join("")}</ul>` : ""}${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? `<h3>${t.t("limits.skipped")}</h3><ul>${report.skipped.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${esc2(s.reason)}</li>`).join("")}</ul>` : ""}
 </section>`;
 }
 var STYLE = `:root{color-scheme:light dark;${cssVars("light")}}
@@ -4264,45 +4522,48 @@ a{color:#000;text-decoration:underline}
 h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
 #top-fixes,#how-to-fix,#limits{break-before:page}
 }`;
+var RTL_STYLE = `th,td,caption{text-align:right}`;
 function scanHtmlV2(report, options = {}) {
   const rules2 = summarizeRules(report.findings);
+  const t = htmlTranslator(options.lang ?? DEFAULT_REPORT_LANG);
   return `<!doctype html>
-<html lang="en">
+<html lang="${t.lang}"${t.dir === "rtl" ? ' dir="rtl"' : ""}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>A11yGate accessibility scan report \u2014 ${esc2(report.startUrl)}</title>
+<title>${t.t("html.title", { startUrl: esc2(report.startUrl) })}</title>
 <style>
-${STYLE}
+${STYLE}${t.dir === "rtl" ? "\n" + RTL_STYLE : ""}
 </style>
 </head>
 <body>
 <header>
-<h1>A11yGate accessibility scan report</h1>
-<p>Start URL: <code>${esc2(report.startUrl)}</code></p>
-<p class="disclaimer" id="disclaimer">${esc2(AUTOMATED_TESTING_DISCLAIMER)}</p>
-<nav aria-label="Report sections"><ul>
-<li><a href="#summary">Executive summary</a></li>
-<li><a href="#top-fixes">Top ${TOP_FIXES_LIMIT} fixes</a></li>
-<li><a href="#shared-components">Likely shared components</a></li>
-${report.findings.some((f) => f.reviewDecision) ? '<li><a href="#review-decisions">Review decisions</a></li>\n' : ""}<li><a href="#by-wcag">Findings by WCAG success criterion</a></li>
-<li><a href="#by-page">Findings by page</a></li>
-<li><a href="#how-to-fix">How to fix, by rule</a></li>
-<li><a href="#limits">What automated testing does not cover</a></li>
+<h1>${t.t("html.heading")}</h1>
+<p>${t.t("html.startUrl", { startUrl: `<code>${esc2(report.startUrl)}</code>` })}</p>
+<p class="disclaimer" id="disclaimer"${verbatimAttrs(t)}>${esc2(AUTOMATED_TESTING_DISCLAIMER)}</p>
+<nav aria-label="${t.t("html.navLabel")}"><ul>
+<li><a href="#summary">${t.t("summary.heading")}</a></li>
+<li><a href="#top-fixes">${t.t("topFixes.heading", { limit: TOP_FIXES_LIMIT })}</a></li>
+<li><a href="#shared-components">${t.t("shared.heading")}</a></li>
+${report.findings.some((f) => f.reviewDecision) ? `<li><a href="#review-decisions">${t.t("nav.reviewDecisions")}</a></li>
+` : ""}<li><a href="#by-wcag">${t.t("wcag.heading")}</a></li>
+<li><a href="#by-page">${t.t("page.heading")}</a></li>
+<li><a href="#how-to-fix">${t.t("fix.heading")}</a></li>
+<li><a href="#limits">${t.t("limits.heading")}</a></li>
 </ul></nav>
 </header>
 <main>
-${summarySection(report)}
-${topFixesSection(rules2)}
-${sharedComponentsSection(report)}
-${reviewSection(report)}${byWcagSection(report, rules2, options)}
-${byPageSection(report)}
-${howToFixSection(rules2)}
-${limitsSection(report)}
+${summarySection(t, report)}
+${topFixesSection(t, rules2)}
+${sharedComponentsSection(t, report)}
+${reviewSection(report)}${byWcagSection(t, report, rules2, options)}
+${byPageSection(t, report)}
+${howToFixSection(t, rules2)}
+${limitsSection(t, report)}
 </main>
-<footer>
+<footer${verbatimAttrs(t)}>
 <p>${esc2(AUTOMATED_TESTING_DISCLAIMER)}</p>
 <p>${esc2(DISCLAIMER)}</p>
 <p>${esc2(LEGAL_DISCLAIMER)}</p>
@@ -4990,7 +5251,7 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-have-selector": "mustNotHaveSelector",
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
 function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -5115,6 +5376,10 @@ function parseScanArgs(argv2) {
     } else if (name === "--report-version") {
       if (!/^\d+$/.test(value) || !isReportVersion(Number(value))) return { ok: false, error: `Unknown --report-version "${value}". Use 1 or 2.` };
       options.reportVersion = Number(value);
+    } else if (name === "--report-lang") {
+      if (!isReportLang(value)) return { ok: false, error: `Unknown --report-lang "${value}". Use ${REPORT_LANGS.join(", ")} (only en is a shipped language).` };
+      if (isPseudoReportLang(value)) options.warnings.push(`--report-lang ${value} is a pseudo-locale for layout testing only, not a translation.`);
+      if (value !== "en") options.reportLang = value;
     } else if (name === "--baseline") options.baseline = value;
     else if (name === "--out-dir") options.outDir = value;
     else if (name === "--json") options.json = value;
@@ -5212,6 +5477,9 @@ Options:
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
                        grouping, how-to-fix links. 1: the previous HTML, byte-for-byte.
+  --report-lang <lang> Report language for HTML v2 and Markdown. Shipped: en (default).
+                       en-XA and ar-XB (right-to-left) are pseudo-locales for layout
+                       testing only. The disclaimer always stays in English.
   --en301549-ref       Opt in: add an "EN 301 549 ref." column (ETSI EN 301 549 V3.2.1
                        clause 9) to HTML v2 and SARIF rule properties. Reference mapping
                        only; does not indicate conformance. Default off.
@@ -5640,7 +5908,7 @@ async function writeScanReport(report, options, io, engine) {
   report = redactor.object(report);
   const json = `${JSON.stringify(report, null, 2)}
 `;
-  const markdown = scanMarkdown(report);
+  const markdown = scanMarkdown(report, options.reportLang);
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
@@ -5657,13 +5925,13 @@ async function writeScanReport(report, options, io, engine) {
   const targets = options.outDir ? [
     [path6.join(options.outDir, "a11ygate-scan.json"), json],
     [path6.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path6.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true })],
+    [path6.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...options.reportLang ? { lang: options.reportLang } : {} })],
     ...options.noScreenshots ? [[path6.join(options.outDir, ".a11ygate-no-screenshots"), "Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n"]] : [],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
     [options.markdown, markdown],
-    [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true }) : ""]
+    [options.html, options.html ? renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...options.reportLang ? { lang: options.reportLang } : {} }) : ""]
   ];
   try {
     if (typeof options.interactions === "string" || options.baseline || io.reportInput || options.storageState || options.sessionStorage || options.loginScript) {
@@ -7373,7 +7641,7 @@ var DRAFT_LIMITS = {
 };
 
 // lib/modelfix/validate.ts
-var PLACEHOLDER = "TODO(a11ygate)";
+var PLACEHOLDER2 = "TODO(a11ygate)";
 var NAME_ATTRS = ["alt", "aria-label", "aria-labelledby", "aria-description", "aria-describedby", "title", "label"];
 var NAME_ATTR = new RegExp(`(?:^|[\\s<])(${NAME_ATTRS.join("|")})\\s*=\\s*("[^"]*"|'[^']*'|\\{[^}]*\\}|[^\\s>]+)`, "gi");
 var PRESENTATION_ATTR = /(?:^|[\s<])(style|class|className|color|bgcolor|background)\s*=\s*("[^"]*"|'[^']*'|\{[^}]*\}|[^\s>]+)/gi;
@@ -7394,7 +7662,7 @@ function presentation(text) {
 }
 function requiredReviewFlags(original, replacement) {
   const flags = /* @__PURE__ */ new Set(["model-drafted"]);
-  const nameFlag = (text) => text.includes(PLACEHOLDER) ? "placeholder-accessible-name" : "generated-accessible-name";
+  const nameFlag = (text) => text.includes(PLACEHOLDER2) ? "placeholder-accessible-name" : "generated-accessible-name";
   const before = attrValues(original, NAME_ATTR);
   for (const [name, values] of attrValues(replacement, NAME_ATTR)) {
     const previous = before.get(name) ?? [];
@@ -7436,7 +7704,7 @@ var PROVIDER_LIMITS = {
   /** Longest cooldown honoured from a provider signal. */
   maxCooldownMs: 24 * 60 * 60 * 1e3
 };
-var PLACEHOLDER2 = "TODO(a11ygate)";
+var PLACEHOLDER3 = "TODO(a11ygate)";
 var NAME_RULE = /^(image-alt|aria-[a-z]+-name)$/;
 var DENIED_PATH = [
   /(^|\/)\.env(\.|$)/i,
@@ -7483,7 +7751,7 @@ var SYSTEM_PROMPT = [
   'Reply with JSON only: {"replacement": string[], "rationale": string}.',
   '"replacement" replaces every line of the snippet; keep indentation and keep all other attributes and text.',
   "Do not add scripts, event handlers, comments that suppress checks, aria-hidden, or hidden content.",
-  `Never write alt, aria-label, title or visible wording yourself. For image-alt and accessible-name rules use a placeholder value that starts with "${PLACEHOLDER2}:" so a person writes the text.`,
+  `Never write alt, aria-label, title or visible wording yourself. For image-alt and accessible-name rules use a placeholder value that starts with "${PLACEHOLDER3}:" so a person writes the text.`,
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");

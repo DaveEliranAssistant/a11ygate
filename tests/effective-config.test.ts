@@ -49,6 +49,7 @@ const cases: [string, unknown, string, unknown][] = [
   ['formats', ['sarif', 'junit'], 'formats', ['sarif', 'junit']],
   ['outDir', 'custom-reports', 'outDir', 'custom-reports'], ['delayMs', 25, 'delayMs', 25],
   ['reportVersion', 1, 'reportVersion', 1],
+  ['reportLang', 'ar-XB', 'reportLang', 'ar-XB'],
   ['auth.check.url', '/probe', 'authCheck', { url: '/probe' }],
   ['auth.check.mustHaveSelector', '#member', 'authCheck', { mustHaveSelector: '#member' }],
   ['auth.check.mustNotHaveSelector', '#login', 'authCheck', { mustNotHaveSelector: '#login' }],
@@ -102,7 +103,7 @@ describe('precedence, validation and unchanged defaults', () => {
     else if (schema.type === 'array') envValue = key === 'engines' ? ['axe'] : key === 'formats' ? ['json'] : key.startsWith('auth.') ? ['other=OTHER'] : ['/environment/**'];
     else if (schema.type === 'integer') envValue = key === 'reportVersion' ? 2 : key === 'concurrency' ? 2 : 2;
     else if (schema.type === 'boolean') envValue = false;
-    else envValue = key === 'url' ? 'https://env.test/' : key === 'failOn' ? 'critical' : 'environment';
+    else envValue = key === 'url' ? 'https://env.test/' : key === 'failOn' ? 'critical' : key === 'reportLang' ? 'en-XA' : 'environment';
     const env = { [configEnvName(key)]: typeof envValue === 'object' ? JSON.stringify(envValue) : String(envValue) };
     const repoConfig = yamlEntry(key, yamlValue);
     expect(loadEffectiveConfig('scan', [], { repoConfig, env }).values[key]).toEqual(envValue);

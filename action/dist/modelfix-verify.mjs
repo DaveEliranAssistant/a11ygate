@@ -549,6 +549,11 @@ var IMPACTS = ["minor", "moderate", "serious", "critical"];
 // lib/limits.ts
 var MAX_AXE_JSON_BYTES = 8 * 1024 * 1024;
 
+// lib/i18n/index.ts
+var SHIPPED_REPORT_LANGS = ["en"];
+var PSEUDO_REPORT_LANGS = ["en-XA", "ar-XB"];
+var REPORT_LANGS = [...SHIPPED_REPORT_LANGS, ...PSEUDO_REPORT_LANGS];
+
 // lib/scan/report.ts
 var FAIL_ON_VALUES = [...IMPACTS, "none"];
 var AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa", "best-practice"];

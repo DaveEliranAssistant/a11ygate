@@ -760,6 +760,12 @@ var a11ygate_schema_default = {
       enum: [1, 2],
       "x-cli": ["--report-version"]
     },
+    reportLang: {
+      description: "Report language for scan HTML v2 and Markdown. Only en is shipped; en-XA and ar-XB are pseudo-locales for layout testing, not translations.",
+      type: "string",
+      enum: ["en", "en-XA", "ar-XB"],
+      "x-cli": ["--report-lang"]
+    },
     auth: {
       description: "Authenticated scans. Never put credentials here: name environment variables instead.",
       type: "object",
@@ -1307,6 +1313,7 @@ var CONFIG_WIRING = {
   outDir: { flag: "--out-dir", commands: reports, default: null },
   delayMs: { flag: "--delay-ms", commands: scan, default: 1e3 },
   reportVersion: { flag: "--report-version", commands: scan, default: 2 },
+  reportLang: { flag: "--report-lang", commands: scan, default: "en" },
   "auth.check.url": { flag: "--auth-check-url", commands: scan, default: null },
   "auth.check.mustHaveSelector": { flag: "--auth-check-must-have-selector", commands: scan, default: null },
   "auth.check.mustNotHaveSelector": { flag: "--auth-check-must-not-have-selector", commands: scan, default: null },
