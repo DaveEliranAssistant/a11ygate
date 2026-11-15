@@ -30,6 +30,7 @@ import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
 import { loadEffectiveConfig } from './effective-config';
 import { debugDetail } from './fatal';
+import { runEstimate } from './estimate';
 
 export type RunIo = {
   cwd?: string;
@@ -168,6 +169,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   if (argv[0] === 'baseline') return runBaseline(argv.slice(1), io);
   if (argv[0] === 'review') return runReview(argv.slice(1), io);
   if (argv[0] === 'report') return runReport(argv.slice(1), io);
+  if (argv[0] === 'estimate') return runEstimate(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === 'evidence') return runEvidence(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === 'trend') return runTrend(argv.slice(1), io);

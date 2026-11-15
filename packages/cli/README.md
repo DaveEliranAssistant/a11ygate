@@ -359,3 +359,43 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 Screenshots are off by default. `scan --screenshots --out-dir out` captures masked viewport PNGs. Use `--no-screenshots` for authenticated scans; it also excludes existing images from subsequent evidence packs for that output directory. Add CSS selectors with `redact.selectors` in YAML or repeat `--redact-selector`. See [authenticated scans](../../docs/authenticated-pages.md) for defaults and limitations.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Pilot scoping dry run (A11Y-R55)
+
+`a11ygate estimate <url>` fetches static HTML only, with no accessibility engines,
+JavaScript execution, login script, model, or loaded project configuration. It
+unions the start URL, `/sitemap.xml` (including bounded sitemap indexes), and
+same-origin anchor links within the crawl limits. Use only on authorized sites.
+It writes `estimate-out/estimate.md` and `estimate-out/estimate.json`, and prints
+Markdown. `--out-dir` changes the destination. Exit 2 indicates invalid arguments,
+output failure, or failed/skipped page fetches; consult the report's warnings and
+skipped URLs for incomplete discovery (including robots, depth and page caps).
+
+Options: `--sitemap <same-origin-url-or-path>`, `--max-pages 1-1000` (default 20),
+`--max-depth 0-1000` (default 1000), `--concurrency 1-8` (default 1),
+`--delay-ms 0-60000` (default 1000), `--timeout-ms 1-300000` (default 10000),
+`--engines axe|all|comma-list` (default axe). Engine selection describes the future
+scan configuration only; no engine runs. Robots rules apply to crawl URLs,
+redirect destinations and sitemap requests. Off-origin redirects are reported,
+never followed. Missing/unreachable robots files follow the existing scanner
+policy: proceed with a visible note. HTML responses are bounded to 2 MiB.
+
+Likely templates group numeric/UUID path segments as `:id`, ignoring query values;
+slugs remain separate. Password forms, login redirects and HTTP 401/403 are login
+signals; absence means **unknown**, not that login is unnecessary. Application
+roots, module scripts and framework markers are SPA signals only. JavaScript-only
+links, authenticated content, base-element links, unquoted/encoded HTML variations,
+and hidden requirements can be missed. Counts reflect bounded fetched URLs,
+including failures and redirect aliases, rather than the entire site's page count.
+
+Timing is linear extrapolation from successful recorded `docs/perf` rows, with the
+source file, zero-based row index, recording date and full row in both outputs.
+Only exact engine-set, concurrency, no-recycling and zero-delay configurations
+match available rows. The R47 successful follow-up supersedes the earlier
+all-engine concurrency-4 row; failed rows are excluded. For example, axe at
+concurrency 2 and delay 0 uses `chromium-bench-axe-500.json` row 1 (112.2 pages/min).
+The default delay has **no benchmark for this configuration**. These local-fixture
+rates are hardware/site dependent, include scan startup, and provide no measured
+variance. The output never estimates price.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
