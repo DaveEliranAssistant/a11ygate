@@ -14,17 +14,16 @@
  * `--report-version 1`.
  */
 import { normalizeUrl } from '@/lib/scan/url';
-import { attribution } from '@/lib/scan/engines/dedupe';
 import { AUTOMATED_LIMITS, AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { impactRank } from '@/lib/gate';
 import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { findingGuidance } from '@/lib/guidance';
-import { EN301549_COLUMN, EN301549_LABEL, EN301549_SOURCE, en301549Inline, en301549Ref, understandingUrl } from '@/lib/mapping';
+import { EN301549_COLUMN, EN301549_LABEL, EN301549_SOURCE, en301549Ref, understandingUrl } from '@/lib/mapping';
 import { groupByCriterion, scanHtml, sortFindings, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 import type { Finding, Impact } from '@/lib/types';
 import { catalogFor, DEFAULT_REPORT_LANG, translator, type Catalog, type ReportLang, type Translator } from '@/lib/i18n';
 import { REVIEW_DECISION_NOTICE, reviewedGroups } from '@/lib/scan/review';
-import { reviewDecisionLabel, reviewDecisionSummary, reviewGateEffect } from '@/lib/scan/report-markdown';
+import { criterionGroupLabel, engineAttribution, reviewDecisionLabel, reviewDecisionSummary, reviewGateEffect } from '@/lib/scan/report-markdown';
 
 export const REPORT_VERSIONS = [1, 2] as const;
 export type ReportVersion = (typeof REPORT_VERSIONS)[number];
@@ -219,7 +218,7 @@ ${groups.length ? groups.map((g) => `<section><h3>${t.t('shared.groupHeading', {
 
 function reviewFinding(t: Translator, f: ScanFinding): string {
   const href = safeHref(f.helpUrl) ?? '#';
-  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ': ' : ''}${f.reviewDecision ? t.t('review.findingTag', { decision: reviewDecisionLabel(t, f.reviewDecision, esc) }) : ''}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${f.impact ? esc(f.impact) : t.t('review.findingImpactUnknown')}</span><br>${t.t('review.findingPage', { url: `<code>${esc(f.pageUrl)}</code>` })}<br>${t.t('review.findingSelector', { selector: `<code>${esc(f.selector)}</code>` })}<br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''}${f.states?.length ? '<br>' + t.t('review.findingStates', { states: f.states.map(esc).join(', ') }) : ''} — <a href="${href}">${t.t('review.ruleGuidance')}<span class="sr">${t.t('review.ruleGuidanceFor', { ruleId: esc(f.ruleId) })}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ': ' : ''}${f.reviewDecision ? t.t('review.findingTag', { decision: reviewDecisionLabel(t, f.reviewDecision, esc) }) : ''}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${f.impact ? esc(f.impact) : t.t('review.findingImpactUnknown')}</span><br>${t.t('review.findingPage', { url: `<code>${esc(f.pageUrl)}</code>` })}<br>${t.t('review.findingSelector', { selector: `<code>${esc(f.selector)}</code>` })}<br>${esc(f.help)}${f.engines ? '<br>' + engineAttribution(t, f, esc) : ''}${f.states?.length ? '<br>' + t.t('review.findingStates', { states: f.states.map(esc).join(', ') }) : ''} — <a href="${href}">${t.t('review.ruleGuidance')}<span class="sr">${t.t('review.ruleGuidanceFor', { ruleId: esc(f.ruleId) })}</span></a></li>`;
 }
 
 /** R39 decided groups; empty without decisions so existing output is unchanged. */
@@ -252,12 +251,6 @@ export function en301549RefTable(report: ScanReport, t: Translator = htmlTransla
 <p class="muted">${esc(EN301549_LABEL)}</p>`;
 }
 
-function criterionGroupLabel(t: Translator, key: string, findings: readonly ScanFinding[]): string {
-  if (key === 'best-practice') return t.t('wcag.bestPracticeGroup');
-  const c = findings.flatMap((f) => f.wcag).find((x) => x.number === key) as ScanCriterion;
-  return t.t('wcag.criterionGroup', { number: esc(c.number), name: esc(c.name), level: esc(c.level), en301549: esc(en301549Inline(c.number)) });
-}
-
 function byWcagSection(t: Translator, report: ScanReport, rules: RuleSummary[], options: ScanHtmlOptions = {}): string {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules.map((r, i) => [r.ruleId, ruleAnchor(i)]));
@@ -270,7 +263,7 @@ function byWcagSection(t: Translator, report: ScanReport, rules: RuleSummary[], 
         .sort((a, b) => (rules.findIndex((r) => r.ruleId === a[0]) - rules.findIndex((r) => r.ruleId === b[0])))
         .map(([ruleId, list]) => `<li>${t.t('wcag.ruleLine', { ruleId: `<a href="#${anchor.get(ruleId)}">${esc(ruleId)}</a>`, occurrences: t.plural('plural.occurrence', list.length), pages: t.plural('plural.page', new Set(list.map((f) => f.pageUrl)).size) })}</li>`)
         .join('');
-      return `<section><h3>${criterionGroupLabel(t, g.key, g.findings)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
+      return `<section><h3>${criterionGroupLabel(t, g.key, g.findings, esc)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
     }).join('\n');
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
 <h2 id="by-wcag-h">${t.t('wcag.heading')}</h2>
@@ -280,7 +273,7 @@ ${options.en301549Ref ? en301549RefTable(report, t) + '\n' : ''}${body}
 }
 
 function pageFinding(t: Translator, f: ScanFinding): string {
-  return `<li>${f.baselineStatus ? `<span class="tag">${esc(f.baselineStatus)}</span> ` : ''}<strong>${esc(f.ruleId)}</strong> ${badge(t, f.impact)} — ${esc(f.help)}<br>${t.t('page.selector', { selector: `<code>${esc(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + esc(attribution(f)) + '</span>' : ''}</li>`;
+  return `<li>${f.baselineStatus ? `<span class="tag">${esc(f.baselineStatus)}</span> ` : ''}<strong>${esc(f.ruleId)}</strong> ${badge(t, f.impact)} — ${esc(f.help)}<br>${t.t('page.selector', { selector: `<code>${esc(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + engineAttribution(t, f, esc) + '</span>' : ''}</li>`;
 }
 
 function byPageSection(t: Translator, report: ScanReport): string {

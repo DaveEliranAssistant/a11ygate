@@ -1162,7 +1162,8 @@ var en_default = {
   "review.findingSelector": "Selector: {selector}",
   "review.findingStates": "States: {states}",
   "review.ruleGuidance": "Rule guidance",
-  "review.ruleGuidanceFor": " for {ruleId}"
+  "review.ruleGuidanceFor": " for {ruleId}",
+  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines"
 };
 
 // lib/i18n/index.ts
@@ -1291,6 +1292,15 @@ function reviewDecisionSummary(t, d, escape = raw) {
 function reviewGateEffect(t, d) {
   return t.t(d.suppressesGate ? "review.gate.excluded" : d.expired ? "review.gate.expired" : "review.gate.gated");
 }
+function criterionGroupLabel(t, key, findings, escape = raw) {
+  if (key === "best-practice") return t.t("wcag.bestPracticeGroup");
+  const c = findings.flatMap((f) => f.wcag).find((x) => x.number === key);
+  return t.t("wcag.criterionGroup", { number: escape(c.number), name: escape(c.name), level: escape(c.level), en301549: escape(en301549Inline(c.number)) });
+}
+function engineAttribution(t, f, escape = raw) {
+  if (!f.engines || !f.confidence) return "";
+  return t.t("engines.attribution", { engines: escape(f.engines.join(", ")), confirmedBy: f.confidence.confirmedBy, enginesRan: f.confidence.enginesRan });
+}
 function code(value) {
   return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
 }
@@ -1300,7 +1310,7 @@ function heading(value) {
 function mdFinding(t, f) {
   const tags = `${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [" + t.t("md.reviewTag", { decision: reviewDecisionLabel(t, f.reviewDecision) }) + "]" : ""}`;
   const impact = f.impact ?? t.t("md.findingImpact.unknown");
-  return `-${tags} **${cell(f.ruleId)}** ${t.t("md.findingLocation", { impact, page: code(f.pageUrl) })} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 " + t.t("md.states", { states: f.states.map(code).join(", ") }) : ""} \u2014 [${t.t("md.ruleGuidance")}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${tags} **${cell(f.ruleId)}** ${t.t("md.findingLocation", { impact, page: code(f.pageUrl) })} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + engineAttribution(t, f) : ""}${f.states?.length ? " \u2014 " + t.t("md.states", { states: f.states.map(code).join(", ") }) : ""} \u2014 [${t.t("md.ruleGuidance")}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 function severityGroupLabel(t, key) {
   return key === "unknown" ? t.t("md.impactGroup.unknown") : IMPACT_KEYS.includes(key) ? t.t(`md.impact.${key}`) : key;
@@ -1356,7 +1366,7 @@ function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
   const byCriterion = groupByCriterion(report.findings);
   if (byCriterion.length === 0) lines.push(t.t("md.none"), "");
   for (const group2 of byCriterion) {
-    lines.push(`### ${heading(group2.label)}`, "", ...sortFindings(group2.findings).map((f) => mdFinding(t, f)), "");
+    lines.push(`### ${heading(criterionGroupLabel(t, group2.key, group2.findings))}`, "", ...sortFindings(group2.findings).map((f) => mdFinding(t, f)), "");
   }
   lines.push(`## ${t.t("md.bySeverityHeading")}`, "");
   const bySeverity = groupBySeverity(report.findings);
@@ -4447,7 +4457,7 @@ ${groups.length ? groups.map((g) => `<section><h3>${t.t("shared.groupHeading", {
 }
 function reviewFinding(t, f) {
   const href = safeHref2(f.helpUrl) ?? "#";
-  return `<li>${f.baselineStatus ? esc2(f.baselineStatus) + ": " : ""}${f.reviewDecision ? t.t("review.findingTag", { decision: reviewDecisionLabel(t, f.reviewDecision, esc2) }) : ""}<strong>${esc2(f.ruleId)}</strong> <span class="impact ${esc2(f.impact ?? "unknown")}">${f.impact ? esc2(f.impact) : t.t("review.findingImpactUnknown")}</span><br>${t.t("review.findingPage", { url: `<code>${esc2(f.pageUrl)}</code>` })}<br>${t.t("review.findingSelector", { selector: `<code>${esc2(f.selector)}</code>` })}<br>${esc2(f.help)}${f.engines ? "<br>" + esc2(attribution(f)) : ""}${f.states?.length ? "<br>" + t.t("review.findingStates", { states: f.states.map(esc2).join(", ") }) : ""} \u2014 <a href="${href}">${t.t("review.ruleGuidance")}<span class="sr">${t.t("review.ruleGuidanceFor", { ruleId: esc2(f.ruleId) })}</span></a></li>`;
+  return `<li>${f.baselineStatus ? esc2(f.baselineStatus) + ": " : ""}${f.reviewDecision ? t.t("review.findingTag", { decision: reviewDecisionLabel(t, f.reviewDecision, esc2) }) : ""}<strong>${esc2(f.ruleId)}</strong> <span class="impact ${esc2(f.impact ?? "unknown")}">${f.impact ? esc2(f.impact) : t.t("review.findingImpactUnknown")}</span><br>${t.t("review.findingPage", { url: `<code>${esc2(f.pageUrl)}</code>` })}<br>${t.t("review.findingSelector", { selector: `<code>${esc2(f.selector)}</code>` })}<br>${esc2(f.help)}${f.engines ? "<br>" + engineAttribution(t, f, esc2) : ""}${f.states?.length ? "<br>" + t.t("review.findingStates", { states: f.states.map(esc2).join(", ") }) : ""} \u2014 <a href="${href}">${t.t("review.ruleGuidance")}<span class="sr">${t.t("review.ruleGuidanceFor", { ruleId: esc2(f.ruleId) })}</span></a></li>`;
 }
 function reviewSection(t, report) {
   const groups = reviewedGroups(report.findings);
@@ -4466,11 +4476,6 @@ function en301549RefTable(report, t = htmlTranslator()) {
 <tbody>${rows || `<tr><td colspan="3">${t.t("en301549.empty")}</td></tr>`}</tbody></table>
 <p class="muted">${esc2(EN301549_LABEL)}</p>`;
 }
-function criterionGroupLabel(t, key, findings) {
-  if (key === "best-practice") return t.t("wcag.bestPracticeGroup");
-  const c = findings.flatMap((f) => f.wcag).find((x) => x.number === key);
-  return t.t("wcag.criterionGroup", { number: esc2(c.number), name: esc2(c.name), level: esc2(c.level), en301549: esc2(en301549Inline(c.number)) });
-}
 function byWcagSection(t, report, rules2, options = {}) {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules2.map((r, i) => [r.ruleId, ruleAnchor(i)]));
@@ -4478,7 +4483,7 @@ function byWcagSection(t, report, rules2, options = {}) {
     const perRule = /* @__PURE__ */ new Map();
     for (const f of g.findings) perRule.set(f.ruleId, [...perRule.get(f.ruleId) ?? [], f]);
     const items = [...perRule.entries()].sort((a, b) => rules2.findIndex((r) => r.ruleId === a[0]) - rules2.findIndex((r) => r.ruleId === b[0])).map(([ruleId, list]) => `<li>${t.t("wcag.ruleLine", { ruleId: `<a href="#${anchor.get(ruleId)}">${esc2(ruleId)}</a>`, occurrences: t.plural("plural.occurrence", list.length), pages: t.plural("plural.page", new Set(list.map((f) => f.pageUrl)).size) })}</li>`).join("");
-    return `<section><h3>${criterionGroupLabel(t, g.key, g.findings)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
+    return `<section><h3>${criterionGroupLabel(t, g.key, g.findings, esc2)} (${g.findings.length})</h3><ul>${items}</ul></section>`;
   }).join("\n");
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
 <h2 id="by-wcag-h">${t.t("wcag.heading")}</h2>
@@ -4487,7 +4492,7 @@ ${options.en301549Ref ? en301549RefTable(report, t) + "\n" : ""}${body}
 </section>`;
 }
 function pageFinding(t, f) {
-  return `<li>${f.baselineStatus ? `<span class="tag">${esc2(f.baselineStatus)}</span> ` : ""}<strong>${esc2(f.ruleId)}</strong> ${badge(t, f.impact)} \u2014 ${esc2(f.help)}<br>${t.t("page.selector", { selector: `<code>${esc2(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + esc2(attribution(f)) + "</span>" : ""}</li>`;
+  return `<li>${f.baselineStatus ? `<span class="tag">${esc2(f.baselineStatus)}</span> ` : ""}<strong>${esc2(f.ruleId)}</strong> ${badge(t, f.impact)} \u2014 ${esc2(f.help)}<br>${t.t("page.selector", { selector: `<code>${esc2(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + engineAttribution(t, f, esc2) + "</span>" : ""}</li>`;
 }
 function byPageSection(t, report) {
   const body = report.pages.map((p) => {

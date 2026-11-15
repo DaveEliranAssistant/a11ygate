@@ -135,5 +135,6 @@
   "review.findingSelector": "Selector: {selector}",
   "review.findingStates": "States: {states}",
   "review.ruleGuidance": "Rule guidance",
-  "review.ruleGuidanceFor": " for {ruleId}"
+  "review.ruleGuidanceFor": " for {ruleId}",
+  "engines.attribution": "detected by: {engines}; confirmed by {confirmedBy} of {enginesRan} engines"
 }

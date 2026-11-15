@@ -19,6 +19,7 @@ import { createGroupDecision, decisionLabel, decisionSummary, REVIEW_DECISION_NO
 import { renderScanHtml, scanHtmlV2 } from '@/lib/scan/report-html-v2';
 import { scanMarkdown } from '@/lib/scan/report-markdown';
 import type { AxeResults } from '@/lib/types';
+import { attribution } from '@/lib/scan/engines/dedupe';
 import { parseScanArgs } from '@/packages/cli/src/scan';
 
 const ROOT = path.resolve(__dirname, '..');
@@ -253,6 +254,46 @@ describe('(a) report templates take user-visible strings from the catalog', () =
     }
     expect(html).toContain('[Éẋéçûţîṽé šûɱɱåŕý');
     expect(md).toContain('## [Þåĝéš');
+  });
+
+  it('criterion group headings (incl. best practice) are localized in Markdown/CLI and HTML v2', () => {
+    const r = report();
+    const t = translator('en-XA');
+    const bestPractice = t.t('wcag.bestPracticeGroup');
+    for (const lang of ['en-XA', 'ar-XB'] as const) {
+      const md = scanMarkdown(r, lang);
+      const html = scanHtmlV2(r, { lang });
+      for (const out of [md, html]) {
+        // ar-XB keeps the English letters inside bidi override marks, so only en-XA can assert absence.
+        if (lang === 'en-XA') expect(out).not.toContain(en['wcag.bestPracticeGroup']);
+        expect(out).toContain(translator(lang).t('wcag.bestPracticeGroup'));
+      }
+    }
+    const md = scanMarkdown(r, 'en-XA');
+    expect(md).toContain(`### ${bestPractice}`);
+    // WCAG criterion groups use the catalog template; the criterion number and name are mapping data.
+    expect(md).toMatch(/^### \[ŴÇÅĜ 1\.1\.1 /m);
+    expect(md).not.toMatch(/^### WCAG /m);
+    // en is unchanged: same headings as before the catalog.
+    expect(scanMarkdown(r, 'en')).toContain(`### ${en['wcag.bestPracticeGroup']}`);
+    expect(scanMarkdown(r, 'en')).toMatch(/^### WCAG 1\.1\.1 /m);
+  });
+
+  it('engine attribution is localized, and en matches the pre-catalog attribution()', () => {
+    const base = report();
+    const r: ScanReport = { ...base, findings: base.findings.map((f) => ({ ...f, engines: ['axe', 'htmlcs<x>'], confidence: { confirmedBy: 2, enginesRan: 3, agreement: 2 / 3 } })) };
+    const english = attribution(r.findings[0]!);
+    expect(english).toBe('detected by: axe, htmlcs<x>; confirmed by 2 of 3 engines');
+    expect(scanMarkdown(r)).toContain(` — ${english} — `);
+    expect(scanHtmlV2(r)).toContain(english.replace('<', '&lt;').replace('>', '&gt;'));
+    for (const out of [scanMarkdown(r, 'en-XA'), scanHtmlV2(r, { lang: 'en-XA' })]) {
+      expect(out).not.toContain('confirmed by 2 of 3');
+      expect(out).toContain('ðéţéçţéð ƀý');
+    }
+  });
+
+  it('templates never render the English ScanGroup.label from lib/scan/report.ts', () => {
+    for (const file of TEMPLATES) expect(source(file), file).not.toMatch(/\.label\b/);
   });
 });
 

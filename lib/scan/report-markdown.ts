@@ -4,12 +4,12 @@
  * the disclaimer and legal wording are verbatim from lib/copy.ts and are never
  * translated. tests/i18n-catalog.test.ts lints this file.
  */
-import { attribution } from '@/lib/scan/engines/dedupe';
 import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { DEFAULT_REPORT_LANG, translator, type ReportLang, type Translator } from '@/lib/i18n';
 import { REVIEW_DECISION_NOTICE, reviewedGroups, type AppliedReviewDecision } from '@/lib/scan/review';
-import { groupByCriterion, groupBySeverity, sortFindings, type ScanFinding, type ScanReport } from '@/lib/scan/report';
+import { en301549Inline } from '@/lib/mapping';
+import { groupByCriterion, groupBySeverity, sortFindings, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 
 const IMPACT_KEYS = ['critical', 'serious', 'moderate', 'minor', 'unknown'] as const;
 
@@ -35,6 +35,22 @@ export function reviewGateEffect(t: Translator, d: AppliedReviewDecision): strin
   return t.t(d.suppressesGate ? 'review.gate.excluded' : d.expired ? 'review.gate.expired' : 'review.gate.gated');
 }
 
+/**
+ * Catalog form of the lib/scan/report.ts groupByCriterion() label (which stays
+ * English for API callers). Criterion number, name and level are mapping data.
+ */
+export function criterionGroupLabel(t: Translator, key: string, findings: readonly ScanFinding[], escape: Escape = raw): string {
+  if (key === 'best-practice') return t.t('wcag.bestPracticeGroup');
+  const c = findings.flatMap((f) => f.wcag).find((x) => x.number === key) as ScanCriterion;
+  return t.t('wcag.criterionGroup', { number: escape(c.number), name: escape(c.name), level: escape(c.level), en301549: escape(en301549Inline(c.number)) });
+}
+
+/** Catalog form of lib/scan/engines/dedupe.ts attribution(); engine names and counts are data. */
+export function engineAttribution(t: Translator, f: ScanFinding, escape: Escape = raw): string {
+  if (!f.engines || !f.confidence) return '';
+  return t.t('engines.attribution', { engines: escape(f.engines.join(', ')), confirmedBy: f.confidence.confirmedBy, enginesRan: f.confidence.enginesRan });
+}
+
 /** Inside a code span only backticks and line breaks need neutralising. */
 function code(value: string): string {
   return '`' + value.replace(/`/g, "'").replace(/[\r\n|]/g, ' ') + '`';
@@ -47,7 +63,7 @@ function heading(value: string): string {
 function mdFinding(t: Translator, f: ScanFinding): string {
   const tags = `${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''}${f.reviewDecision ? ' [' + t.t('md.reviewTag', { decision: reviewDecisionLabel(t, f.reviewDecision) }) + ']' : ''}`;
   const impact = f.impact ?? t.t('md.findingImpact.unknown');
-  return `-${tags} **${cell(f.ruleId)}** ${t.t('md.findingLocation', { impact, page: code(f.pageUrl) })} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — ' + t.t('md.states', { states: f.states.map(code).join(', ') }) : ''} — [${t.t('md.ruleGuidance')}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
+  return `-${tags} **${cell(f.ruleId)}** ${t.t('md.findingLocation', { impact, page: code(f.pageUrl) })} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + engineAttribution(t, f) : ''}${f.states?.length ? ' — ' + t.t('md.states', { states: f.states.map(code).join(', ') }) : ''} — [${t.t('md.ruleGuidance')}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
 
 function severityGroupLabel(t: Translator, key: string): string {
@@ -96,7 +112,7 @@ export function scanMarkdown(report: ScanReport, lang: ReportLang = DEFAULT_REPO
   const byCriterion = groupByCriterion(report.findings);
   if (byCriterion.length === 0) lines.push(t.t('md.none'), '');
   for (const group of byCriterion) {
-    lines.push(`### ${heading(group.label)}`, '', ...sortFindings(group.findings).map((f) => mdFinding(t, f)), '');
+    lines.push(`### ${heading(criterionGroupLabel(t, group.key, group.findings))}`, '', ...sortFindings(group.findings).map((f) => mdFinding(t, f)), '');
   }
   lines.push(`## ${t.t('md.bySeverityHeading')}`, '');
   const bySeverity = groupBySeverity(report.findings);
