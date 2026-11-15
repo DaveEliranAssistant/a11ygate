@@ -390,7 +390,7 @@ value. Use it to find existing tickets before re-importing.
 | Format | Shape | Disclaimer |
 | --- | --- | --- |
 | `csv` | UTF-8 with BOM, every field quoted, one row per ticket, multi-value cells newline-separated. Cells starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'`. | Final row: disclaimer in the first column, other columns empty. |
-| `jira-csv` | Columns `Summary`, `Issue Type` (`Bug`), `Priority` (critical→Highest, serious→High, moderate→Medium, minor→Low), `Description`, and three `Labels` columns (`accessibility`, `a11ygate`, the fingerprint), following Atlassian's [CSV import guide](https://support.atlassian.com/jira-cloud-administration/docs/import-data-from-a-csv-file/). No BOM. | Last line of every Description (a trailing row would import as an issue). |
+| `jira-csv` | Columns `Summary`, `Issue Type` (`Bug`), `Priority` (critical→Highest, serious→High, moderate→Medium, minor→Low), `Description`, and three `Labels` columns (`accessibility`, `a11ygate`, the fingerprint), following Atlassian's [CSV import guide](https://support.atlassian.com/jira-cloud-administration/docs/import-data-from-a-csv-file/). No BOM. | Last line of every Description (a trailing row would import as an issue). With zero tickets, a single notice row (`A11yGate notice: no open findings (do not import)`, Issue Type `Task`, label `a11ygate-notice`) carries it instead. |
 | `gh-md` | One `###` section per issue (heading = issue title, rest = body) with the fingerprint as a hidden HTML comment and a table row. | Footer of every issue body and of the file. |
 
 Export only: A11yGate never calls the Jira or GitHub APIs. Map the columns in

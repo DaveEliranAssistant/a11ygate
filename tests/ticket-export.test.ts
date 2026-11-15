@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { groupSharedComponents } from '@/lib/group';
 import { EN301549_LABEL } from '@/lib/mapping';
 import {
-  buildTickets, exportTickets, JIRA_CSV_IMPORT_DOC, ticketsToCsv, ticketsToGithubMarkdown, ticketsToJiraCsv, type Ticket,
+  buildTickets, exportTickets, JIRA_CSV_IMPORT_DOC, JIRA_EMPTY_NOTICE_SUMMARY, ticketsToCsv, ticketsToGithubMarkdown, ticketsToJiraCsv, type Ticket,
 } from '@/lib/export-tickets';
 import { applyFingerprintBaseline, createFingerprintBaseline } from '@/lib/scan/baseline';
 import { buildScanReport } from '@/lib/scan/report';
@@ -148,7 +148,28 @@ describe('ticket formats', () => {
   it('empty exports still carry the disclaimer', () => {
     expect(ticketsToCsv([])).toContain(DISCLAIMER);
     expect(ticketsToGithubMarkdown([])).toContain(DISCLAIMER);
-    expect(parseCsv(ticketsToJiraCsv([]))).toHaveLength(1);
+    expect(parseCsv(ticketsToCsv([])).at(-1)?.[0]).toBe(DISCLAIMER);
+    expect(ticketsToGithubMarkdown([]).trimEnd().endsWith(DISCLAIMER)).toBe(true);
+    const jira = parseCsv(ticketsToJiraCsv([]));
+    expect(jira).toHaveLength(2);
+    expect(jira[1][0]).toBe(JIRA_EMPTY_NOTICE_SUMMARY);
+    expect(jira[1][1]).toBe('Task');
+    expect(jira[1][3]).toContain('Do not import');
+    expect(jira[1][3].endsWith(DISCLAIMER)).toBe(true);
+    expect(jira[1].slice(4)).toEqual(['a11ygate', 'a11ygate-notice', '']);
+  });
+
+  it('every format carries the disclaimer when the baseline suppresses all findings', () => {
+    const scan = fixture();
+    const baseline = { ...createFingerprintBaseline(scan), groupDecisions: groupSharedComponents(scan.findings)
+      .map((g) => createGroupDecision(g, { decision: 'false-positive', reason: 'Fixture', by: 'Reviewer', now })) };
+    const suppressed = applyFingerprintBaseline(scan, baseline, now);
+    expect(buildTickets(suppressed, now)).toHaveLength(0);
+    for (const report of [suppressed, { findings: [] }]) {
+      for (const format of ['csv', 'jira-csv', 'gh-md'] as const) {
+        expect(exportTickets(report, format, now)).toContain(DISCLAIMER);
+      }
+    }
   });
 });
 

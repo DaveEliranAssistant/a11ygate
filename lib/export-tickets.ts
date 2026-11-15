@@ -134,6 +134,8 @@ export function ticketsToCsv(tickets: readonly Ticket[]): string {
   return `﻿${[[...TICKET_CSV_COLUMNS], ...rows, footer].map((r) => r.map(csvField).join(',')).join('\n')}\n`;
 }
 
+export const JIRA_EMPTY_NOTICE_SUMMARY = 'A11yGate notice: no open findings (do not import)';
+
 const JIRA_PRIORITY: Record<Impact, string> = { critical: 'Highest', serious: 'High', moderate: 'Medium', minor: 'Low' };
 
 /**
@@ -141,10 +143,16 @@ const JIRA_PRIORITY: Record<Impact, string> = { critical: 'Highest', serious: 'H
  * Issue Type, Priority, Description and repeated Labels columns (one value per column).
  * There is no trailing disclaimer row, because Jira would import it as an issue; the disclaimer
  * ends every Description instead. No BOM, so Jira reads the first header as "Summary".
+ * With zero tickets the file would otherwise be headers only, so a single clearly labelled
+ * notice row (Issue Type Task, label a11ygate-notice, "do not import") carries the disclaimer.
  */
 export function ticketsToJiraCsv(tickets: readonly Ticket[]): string {
   const header = ['Summary', 'Issue Type', 'Priority', 'Description', 'Labels', 'Labels', 'Labels'];
   const rows = tickets.map((t) => [t.title, 'Bug', t.impact ? JIRA_PRIORITY[t.impact] : '', plainBody(t), 'accessibility', 'a11ygate', t.fingerprint]);
+  if (!rows.length) {
+    rows.push([JIRA_EMPTY_NOTICE_SUMMARY, 'Task', '', `A11yGate found no open findings to export. Do not import this notice row.\n\n${AUTOMATED_TESTING_DISCLAIMER}`,
+      'a11ygate', 'a11ygate-notice', '']);
+  }
   return `${[header, ...rows].map((r) => r.map(csvField).join(',')).join('\n')}\n`;
 }
 

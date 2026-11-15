@@ -9416,10 +9416,24 @@ function ticketsToCsv(tickets) {
   return `\uFEFF${[[...TICKET_CSV_COLUMNS], ...rows, footer].map((r) => r.map(csvField).join(",")).join("\n")}
 `;
 }
+var JIRA_EMPTY_NOTICE_SUMMARY = "A11yGate notice: no open findings (do not import)";
 var JIRA_PRIORITY = { critical: "Highest", serious: "High", moderate: "Medium", minor: "Low" };
 function ticketsToJiraCsv(tickets) {
   const header = ["Summary", "Issue Type", "Priority", "Description", "Labels", "Labels", "Labels"];
   const rows = tickets.map((t) => [t.title, "Bug", t.impact ? JIRA_PRIORITY[t.impact] : "", plainBody(t), "accessibility", "a11ygate", t.fingerprint]);
+  if (!rows.length) {
+    rows.push([
+      JIRA_EMPTY_NOTICE_SUMMARY,
+      "Task",
+      "",
+      `A11yGate found no open findings to export. Do not import this notice row.
+
+${AUTOMATED_TESTING_DISCLAIMER}`,
+      "a11ygate",
+      "a11ygate-notice",
+      ""
+    ]);
+  }
   return `${[header, ...rows].map((r) => r.map(csvField).join(",")).join("\n")}
 `;
 }
