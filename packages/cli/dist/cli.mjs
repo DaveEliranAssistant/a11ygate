@@ -1026,6 +1026,13 @@ function prSummaryMarkdown(input) {
 
 // locales/en.json
 var en_default = {
+  "diff.mode": "Scan mode: {mode}. Reason: {reason}",
+  "diff.scanned": "Scanned routes: {routes}",
+  "diff.skipped": "Skipped routes: {routes}",
+  "diff.reason.mapped": "All changed files map to specific routes.",
+  "diff.reason.unmapped": "At least one changed file is unmapped; running the full scan.",
+  "diff.reason.wildcard": "A changed file matches a shared (*) route; running the full scan.",
+  "diff.reason.noChanges": "No committed changes were found; running the full scan conservatively.",
   "html.title": "A11yGate accessibility scan report \u2014 {startUrl}",
   "html.heading": "A11yGate accessibility scan report",
   "html.startUrl": "Start URL: {startUrl}",
@@ -1287,6 +1294,15 @@ function translator(lang = DEFAULT_REPORT_LANG, catalog = catalogFor(lang)) {
 }
 
 // lib/scan/report-markdown.ts
+function diffScanSummary(report, t) {
+  const d = report.diffScan;
+  if (!d) return [];
+  return [
+    t.t("diff.mode", { mode: d.mode, reason: t.t(`diff.reason.${d.reasonCode}`) }),
+    t.t("diff.scanned", { routes: d.scannedRoutes.join(", ") || t.t("summary.enginesNone") }),
+    t.t("diff.skipped", { routes: d.skippedRoutes.join(", ") || t.t("summary.enginesNone") })
+  ];
+}
 var IMPACT_KEYS = ["critical", "serious", "moderate", "minor", "unknown"];
 var raw = (value) => value;
 function reviewDecisionLabel(t, d, escape = raw) {
@@ -1358,6 +1374,8 @@ function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
     `**${t.t("md.verdict", { verdict: report.verdict })}** ${t.t("md.failOn", { failOn: report.failOn })}`,
     "",
     cell(report.reason),
+    ...diffScanSummary(report, t).flatMap((line) => ["", cell(line)]),
+    ...report.diffScan ? ["", AUTOMATED_TESTING_DISCLAIMER] : [],
     "",
     `| ${t.t("md.severityColumn")} | ${t.t("md.findingsColumn")} |`,
     "| --- | --- |",
@@ -1683,7 +1701,7 @@ a{color:#0b57d0}
 <h1>A11yGate site scan</h1>
 <p>Start URL: <code>${esc(report.startUrl)}</code></p>
 <p class="verdict">Verdict: ${esc(report.verdict)} (fail on: ${esc(report.failOn)})</p>
-<p>${esc(report.reason)}</p>
+<p>${esc(report.reason)}</p>${report.diffScan ? [...diffScanSummary(report, translator("en")), AUTOMATED_TESTING_DISCLAIMER].map((line) => `<p>${esc(line)}</p>`).join("") : ""}
 <p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== void 0 ? "; not authenticated: " + report.counts.pagesNotAuthenticated : ""}. axe-core ${esc(report.axeVersion ?? "n/a")}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
 ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>
@@ -1770,6 +1788,11 @@ function parseScanReport(value) {
   const report = value;
   const field = !report || typeof report !== "object" || Array.isArray(report) ? "(top level)" : report.kind !== "site-scan" ? "kind" : report.schemaVersion !== 1 ? "schemaVersion" : !Array.isArray(report.findings) ? "findings" : !Array.isArray(report.pages) ? "pages" : !Array.isArray(report.results) ? "results" : null;
   if (field) throw new Error(`Expected an A11yGate site-scan JSON report; invalid field ${field}.`);
+  if (report.diffScan !== void 0) {
+    const d = report.diffScan;
+    const field2 = !d || typeof d !== "object" || Array.isArray(d) ? "diffScan" : !["diff-aware", "full"].includes(d.mode) ? "diffScan.mode" : !["mapped", "unmapped", "wildcard", "noChanges"].includes(d.reasonCode) ? "diffScan.reasonCode" : typeof d.ref !== "string" ? "diffScan.ref" : typeof d.reason !== "string" ? "diffScan.reason" : ["selectedRoutes", "scannedRoutes", "skippedRoutes"].find((key) => !Array.isArray(d[key]) || d[key].some((route) => typeof route !== "string"));
+    if (field2) throw new Error(`Invalid scan report (field ${field2.startsWith("diffScan") ? field2 : `diffScan.${field2}`}).`);
+  }
   report.findings.forEach((f, index) => {
     if (!f || typeof f !== "object") throw new Error(`Invalid scan finding (field findings[${index}]).`);
     const key = ["pageUrl", "ruleId", "selector"].find((k) => typeof f[k] !== "string") ?? (!Array.isArray(f.selectors) || f.selectors.some((s) => typeof s !== "string") ? "selectors" : !Array.isArray(f.wcag) || f.wcag.some((c) => !c || typeof c !== "object" || typeof c.number !== "string") ? "wcag" : void 0);
@@ -2503,6 +2526,20 @@ var a11ygate_schema_default = {
       maximum: 20,
       "x-cli": ["--crawl"]
     },
+    routes: {
+      description: "Repository-relative source globs mapped to same-origin URL paths, or * for a full scan. Glob syntax: *, **, ?.",
+      type: "object",
+      propertyNames: { minLength: 1, maxLength: 500 },
+      additionalProperties: { type: "string", pattern: "^(\\*|/(?!/)[^\\s#\\\\]*)$", maxLength: 2e3 },
+      "x-cli": ["--routes"]
+    },
+    changedSince: {
+      description: "Opt in to route selection using committed changes from git diff <ref>...HEAD. Working-tree edits are excluded.",
+      type: "string",
+      minLength: 1,
+      pattern: "^[^-\\s][^\\s]*$",
+      "x-cli": ["--changed-since"]
+    },
     maxPages: {
       description: "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
       type: "integer",
@@ -3114,8 +3151,10 @@ function check(schema, value, where, errors) {
       if (step.action === "press" !== Object.hasOwn(step, "key")) errors.push(`'${label}' needs key only for press actions.`);
     }
     for (const [key, child] of Object.entries(value)) {
+      if (schema.propertyNames) check(schema.propertyNames, key, `${label} key`, errors);
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
+      else if (schema.additionalProperties && typeof schema.additionalProperties === "object") check(schema.additionalProperties, child, childWhere, errors);
       else if (schema.additionalProperties === false) {
         const suggestion = suggestKey(key, known);
         errors.push(`unknown key '${childWhere}'${suggestion ? ` \u2014 did you mean '${where ? `${where}.` : ""}${suggestion}'?` : ` \u2014 known keys${where ? ` under '${where}'` : ""}: ${known.join(", ")}.`}`);
@@ -3138,6 +3177,8 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  routes: { flag: "--routes", commands: scan, default: {} },
+  changedSince: { flag: "--changed-since", commands: scan, default: null },
   screenshots: { flag: "--screenshots", commands: scan, default: false },
   noScreenshots: { flag: "--no-screenshots", commands: scan, default: false },
   "redact.selectors": { flag: "--redact-selector", commands: scan, default: [] },
@@ -3186,7 +3227,7 @@ function get(object, key) {
   return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
 }
 function decode(text, schema) {
-  if (schema.anyOf) {
+  if (schema.type === "object" || schema.anyOf) {
     try {
       return JSON.parse(text);
     } catch {
@@ -3341,7 +3382,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     if (schemaAt(key).type === "boolean") {
       if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
       else if (value) prefix.push(flag);
-    } else if (key === "interactions") prefix.push(flag, JSON.stringify(value));
+    } else if (key === "routes" || key === "interactions") prefix.push(flag, JSON.stringify(value));
     else if (Array.isArray(value)) {
       if (["engines", "formats"].includes(key)) {
         if (value.length) prefix.push(flag, value.join(","));
@@ -3450,6 +3491,336 @@ function parseProjects(text) {
     names.add(name);
   }
   return { projects, errors };
+}
+
+// packages/cli/src/diff-routes.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+// lib/scan/sitemap.ts
+var MAX_XML_BYTES = 512 * 1024;
+async function fetchSiteText(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    for (let redirects = 0; redirects <= 5; redirects++) {
+      if (new URL(url).origin !== origin) throw new Error("Metadata URL must be same-origin.");
+      const response = await fetchImpl(url, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "manual" });
+      if (response.status >= 300 && response.status < 400) {
+        const location2 = response.headers?.get("location");
+        await response.body?.cancel();
+        if (!location2) throw new Error("Metadata redirect has no location.");
+        const next = normalizeUrl(location2, url);
+        if (!next) throw new Error("Invalid metadata redirect.");
+        url = next;
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (!response.body) {
+        const text2 = await response.text();
+        if (Buffer.byteLength(text2) > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
+        return text2;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      let text = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return text + decoder.decode();
+          bytes += value.byteLength;
+          if (bytes > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
+          text += decoder.decode(value, { stream: true });
+        }
+      } finally {
+        await reader.cancel().catch(() => void 0);
+      }
+    }
+    throw new Error("Too many metadata redirects.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function decodeXml(value) {
+  return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&(amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);/gi, (entity, key) => {
+    const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+    if (named[key]) return named[key];
+    const n = key.startsWith("#x") ? parseInt(key.slice(2), 16) : Number(key.slice(1));
+    return n > 0 && n <= 1114111 ? String.fromCodePoint(n) : entity;
+  }).trim();
+}
+async function fetchSitemap(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  const pending = [url];
+  const seen = /* @__PURE__ */ new Set();
+  const urls = /* @__PURE__ */ new Set();
+  while (pending.length && seen.size < 10 && urls.size < 1e4) {
+    const current = pending.shift();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    const xml = await fetchSiteText(current, origin, userAgent, fetchImpl, timeoutMs);
+    if (/<!DOCTYPE|<!ENTITY/i.test(xml) || !/<(?:\w+:)?(?:urlset|sitemapindex)\b/i.test(xml)) throw new Error("Unsupported sitemap XML.");
+    const index = /<(?:\w+:)?sitemapindex\b/i.test(xml);
+    for (const match of xml.matchAll(/<(?:\w+:)?loc\b[^>]*>([\s\S]*?)<\/(?:\w+:)?loc\s*>/gi)) {
+      const location2 = normalizeUrl(decodeXml(match[1]), current);
+      if (!location2) continue;
+      if (index) {
+        if (new URL(location2).origin !== origin) throw new Error("Sitemap index must be same-origin.");
+        if (pending.length < 10 && !seen.has(location2)) pending.push(location2);
+      } else urls.add(location2);
+      if (urls.size >= 1e4) break;
+    }
+  }
+  return [...urls];
+}
+
+// lib/scan/robots.ts
+var ROBOTS_AGENT = "a11ygate";
+function parseRobots(text, agent = ROBOTS_AGENT) {
+  const groups = [];
+  let current = null;
+  let lastWasAgent = false;
+  for (const raw2 of text.split(/\r\n|\r|\n/)) {
+    const line = raw2.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (key === "user-agent") {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (!current) continue;
+    if (key === "disallow" || key === "allow") {
+      if (value === "") continue;
+      current.rules.push({ allow: key === "allow", pattern: value });
+    }
+  }
+  const name = agent.toLowerCase();
+  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
+  return { rules: rules2 };
+}
+function patternToRegExp(pattern) {
+  const anchored = pattern.endsWith("$");
+  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}
+function isAllowedByRobots(robots, pathAndQuery) {
+  if (!robots || robots.rules.length === 0) return true;
+  let best = null;
+  for (const rule of robots.rules) {
+    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
+    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
+      best = rule;
+    }
+  }
+  return best ? best.allow : true;
+}
+function robotsAllowsUrl(robots, url) {
+  const parsed = new URL(url);
+  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
+}
+async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
+  try {
+    const text = await fetchSiteText(`${origin}/robots.txt`, origin, userAgent, fetchImpl, timeoutMs);
+    return { rules: parseRobots(text), note: "robots.txt honoured." };
+  } catch (error) {
+    const status = error instanceof Error && /^HTTP \d+$/.test(error.message) ? error.message : null;
+    return { rules: null, note: status ? `robots.txt returned ${status}; no rules applied.` : "robots.txt unreachable; proceeding without rules." };
+  }
+}
+
+// lib/scan/crawl.ts
+var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function clampPages(requested) {
+  if (!Number.isFinite(requested) || requested < 1) return 1;
+  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
+}
+function matchesGlob(url, glob) {
+  const target = glob.includes("://") ? url : new URL(url).pathname + new URL(url).search;
+  return matchesPathGlob(target, glob);
+}
+function matchesPathGlob(target, glob) {
+  let previous = new Uint8Array(target.length + 1);
+  previous[0] = 1;
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    const across = c === "*" && glob[i + 1] === "*";
+    if (across) i++;
+    const next = new Uint8Array(target.length + 1);
+    if (c === "*") next[0] = previous[0];
+    for (let j = 1; j <= target.length; j++) {
+      if (c === "*") next[j] = previous[j] || (across || target[j - 1] !== "/" ? next[j - 1] : 0);
+      else if (c === "?" && target[j - 1] !== "/" || c === target[j - 1]) next[j] = previous[j - 1];
+    }
+    previous = next;
+  }
+  return previous[target.length] === 1;
+}
+var MAX_DISCOVERED_URLS = 1e4;
+async function crawl(options) {
+  const start = normalizeUrl(options.startUrl);
+  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
+  const origin = new URL(start).origin;
+  const maxPages = options.pageLimit === void 0 ? clampPages(options.maxPages) : Math.min(1e3, Number.isFinite(options.pageLimit) ? Math.max(1, Math.floor(options.pageLimit)) : 1);
+  const concurrency = Math.min(8, Math.max(1, Math.floor(options.concurrency ?? 1) || 1));
+  const timeoutMs = Math.min(3e5, Math.max(1, options.timeoutMs ?? 3e4));
+  const sleep = options.sleep ?? defaultSleep;
+  const crawling = maxPages > 1;
+  const queue = [];
+  const seen = /* @__PURE__ */ new Set();
+  const pages = [];
+  const skipped = [];
+  const skippedSeen = /* @__PURE__ */ new Set();
+  const skip = (entry) => {
+    const key = entry.reason + " " + entry.url;
+    if (skippedSeen.has(key)) return;
+    if (skipped.length >= MAX_DISCOVERED_URLS) {
+      skipped[MAX_DISCOVERED_URLS - 1] = { url: start, reason: "discovery-cap" };
+      return;
+    }
+    skippedSeen.add(key);
+    skipped.push(entry);
+  };
+  const enqueue = (href, base, depth, from) => {
+    const link = classifyLink(href, base, origin);
+    if (!link.ok) {
+      skip({ url: link.url, reason: link.reason, ...from ? { from } : {} });
+      return;
+    }
+    if (seen.has(link.url)) return;
+    if (seen.size >= MAX_DISCOVERED_URLS) {
+      skip({ url: start, reason: "discovery-cap" });
+      return;
+    }
+    seen.add(link.url);
+    let reason;
+    if (options.exclude?.some((g) => matchesGlob(link.url, g))) reason = "excluded";
+    else if (options.include?.length && !options.include.some((g) => matchesGlob(link.url, g))) reason = "not-included";
+    else if (depth > (options.maxDepth ?? Infinity)) reason = "depth";
+    else if (!robotsAllowsUrl(options.robots, link.url)) reason = "robots";
+    if (reason) {
+      skip({ url: link.url, reason, ...from ? { from } : {} });
+      return;
+    }
+    queue.push({ url: link.url, depth });
+  };
+  enqueue(start, start, 0);
+  if (crawling) for (const seed of (options.seedUrls ?? []).slice(0, MAX_DISCOVERED_URLS)) enqueue(seed, start, 0);
+  let starts = 0;
+  let gate = Promise.resolve();
+  const visit = async (url) => {
+    const turn = gate.then(async () => {
+      if (starts++ > 0 && options.delayMs > 0) await sleep(options.delayMs);
+    });
+    gate = turn;
+    await turn;
+    options.log?.(`Scanning ${url}`);
+    const controller = new AbortController();
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(() => options.visit(url, crawling, controller.signal)),
+        new Promise((resolve) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            resolve({ status: null, finalUrl: url, links: [], error: `Page timeout after ${timeoutMs}ms.` });
+          }, timeoutMs);
+        })
+      ]);
+    } catch (error) {
+      return { status: null, finalUrl: url, links: [], error: error instanceof Error ? error.message : "Navigation failed.", navigationError: true };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const navigationFailed = (outcome) => !!outcome.error && !outcome.error.startsWith("Not authenticated:") && (outcome.navigationError === true || outcome.navigationError === void 0 && outcome.status === null);
+  while (queue.length > 0 && pages.length < maxPages) {
+    const depth = queue[0].depth;
+    const batch = [];
+    while (queue.length && queue[0].depth === depth && batch.length < concurrency && pages.length + batch.length < maxPages) batch.push(queue.shift());
+    const outcomes = await Promise.all(batch.map(async ({ url }) => {
+      let outcome = await visit(url);
+      if (navigationFailed(outcome) && !outcome.error?.startsWith("Page timeout")) outcome = await visit(url);
+      return outcome;
+    }));
+    for (let i = 0; i < batch.length; i++) {
+      const { url, depth: depth2 } = batch[i];
+      const outcome = outcomes[i];
+      if (outcome.notAuthenticated) {
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "not-authenticated", error: outcome.error });
+        continue;
+      }
+      if (outcome.error?.startsWith("Page timeout")) {
+        skip({ url, reason: "timeout" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error });
+        continue;
+      }
+      if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
+        skip({ url, reason: "redirected-off-origin" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
+        continue;
+      }
+      if (!isHtmlContentType(outcome.contentType)) {
+        skip({ url, reason: "non-html" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error ?? "Not an HTML page." });
+        continue;
+      }
+      if (outcome.result || outcome.analysed) {
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
+      } else {
+        if (navigationFailed(outcome)) skip({ url, reason: "navigation-error" });
+        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
+      }
+      if (crawling) for (const href of outcome.links.slice(0, MAX_DISCOVERED_URLS)) enqueue(href, outcome.finalUrl || url, depth2 + 1, url);
+    }
+  }
+  for (const { url } of queue) skip({ url, reason: "cap" });
+  return { pages, skipped };
+}
+
+// packages/cli/src/diff-routes.ts
+var exec = promisify(execFile);
+function parseRoutes(value) {
+  const errors = validateConfig({ routes: value });
+  if (errors.length) throw new Error(`Invalid routes: ${errors[0]}`);
+  return value;
+}
+async function selectRoutes(ref2, routes, cwd) {
+  if (!ref2 || ref2.startsWith("-") || /\s|\0/.test(ref2)) throw new Error('Invalid --changed-since ref: use a non-empty git ref that does not start with "-".');
+  let files;
+  try {
+    const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-renames", "--no-relative", "--name-only", "-z", `${ref2}...HEAD`, "--"], { cwd, maxBuffer: 8 * 1024 * 1024 });
+    files = stdout.split("\0").filter(Boolean);
+  } catch {
+    throw new Error("Could not resolve --changed-since ref or compute its merge base with HEAD. Fetch the ref and its history, then retry; nothing was scanned.");
+  }
+  const selected = /* @__PURE__ */ new Set();
+  let reasonCode = files.length ? "mapped" : "noChanges";
+  for (const file of files) {
+    const matches = Object.entries(routes).filter(([glob]) => matchesPathGlob(file, glob));
+    if (!matches.length) {
+      reasonCode = "unmapped";
+      break;
+    }
+    if (matches.some(([, route]) => route === "*")) {
+      reasonCode = "wildcard";
+      break;
+    }
+    matches.forEach(([, route]) => selected.add(route));
+  }
+  const mode = reasonCode === "mapped" ? "diff-aware" : "full";
+  return { mode, ref: ref2, reasonCode, reason: translator("en").t(`diff.reason.${reasonCode}`), selectedRoutes: mode === "diff-aware" ? [...selected] : [], scannedRoutes: [], skippedRoutes: [] };
 }
 
 // lib/scan/screenshot.ts
@@ -4028,295 +4399,6 @@ function createLighthouseEngine() {
   };
 }
 
-// lib/scan/sitemap.ts
-var MAX_XML_BYTES = 512 * 1024;
-async function fetchSiteText(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    for (let redirects = 0; redirects <= 5; redirects++) {
-      if (new URL(url).origin !== origin) throw new Error("Metadata URL must be same-origin.");
-      const response = await fetchImpl(url, { headers: { "user-agent": userAgent }, signal: controller.signal, redirect: "manual" });
-      if (response.status >= 300 && response.status < 400) {
-        const location2 = response.headers?.get("location");
-        await response.body?.cancel();
-        if (!location2) throw new Error("Metadata redirect has no location.");
-        const next = normalizeUrl(location2, url);
-        if (!next) throw new Error("Invalid metadata redirect.");
-        url = next;
-        continue;
-      }
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error(`HTTP ${response.status}`);
-      }
-      if (!response.body) {
-        const text2 = await response.text();
-        if (Buffer.byteLength(text2) > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
-        return text2;
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let bytes = 0;
-      let text = "";
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) return text + decoder.decode();
-          bytes += value.byteLength;
-          if (bytes > MAX_XML_BYTES) throw new Error("Metadata exceeds 512 KiB.");
-          text += decoder.decode(value, { stream: true });
-        }
-      } finally {
-        await reader.cancel().catch(() => void 0);
-      }
-    }
-    throw new Error("Too many metadata redirects.");
-  } finally {
-    clearTimeout(timer);
-  }
-}
-function decodeXml(value) {
-  return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&(amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);/gi, (entity, key) => {
-    const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
-    if (named[key]) return named[key];
-    const n = key.startsWith("#x") ? parseInt(key.slice(2), 16) : Number(key.slice(1));
-    return n > 0 && n <= 1114111 ? String.fromCodePoint(n) : entity;
-  }).trim();
-}
-async function fetchSitemap(url, origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  const pending = [url];
-  const seen = /* @__PURE__ */ new Set();
-  const urls = /* @__PURE__ */ new Set();
-  while (pending.length && seen.size < 10 && urls.size < 1e4) {
-    const current = pending.shift();
-    if (seen.has(current)) continue;
-    seen.add(current);
-    const xml = await fetchSiteText(current, origin, userAgent, fetchImpl, timeoutMs);
-    if (/<!DOCTYPE|<!ENTITY/i.test(xml) || !/<(?:\w+:)?(?:urlset|sitemapindex)\b/i.test(xml)) throw new Error("Unsupported sitemap XML.");
-    const index = /<(?:\w+:)?sitemapindex\b/i.test(xml);
-    for (const match of xml.matchAll(/<(?:\w+:)?loc\b[^>]*>([\s\S]*?)<\/(?:\w+:)?loc\s*>/gi)) {
-      const location2 = normalizeUrl(decodeXml(match[1]), current);
-      if (!location2) continue;
-      if (index) {
-        if (new URL(location2).origin !== origin) throw new Error("Sitemap index must be same-origin.");
-        if (pending.length < 10 && !seen.has(location2)) pending.push(location2);
-      } else urls.add(location2);
-      if (urls.size >= 1e4) break;
-    }
-  }
-  return [...urls];
-}
-
-// lib/scan/robots.ts
-var ROBOTS_AGENT = "a11ygate";
-function parseRobots(text, agent = ROBOTS_AGENT) {
-  const groups = [];
-  let current = null;
-  let lastWasAgent = false;
-  for (const raw2 of text.split(/\r\n|\r|\n/)) {
-    const line = raw2.replace(/#.*$/, "").trim();
-    if (!line) continue;
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim().toLowerCase();
-    const value = line.slice(colon + 1).trim();
-    if (key === "user-agent") {
-      if (!current || !lastWasAgent) {
-        current = { agents: [], rules: [] };
-        groups.push(current);
-      }
-      current.agents.push(value.toLowerCase());
-      lastWasAgent = true;
-      continue;
-    }
-    lastWasAgent = false;
-    if (!current) continue;
-    if (key === "disallow" || key === "allow") {
-      if (value === "") continue;
-      current.rules.push({ allow: key === "allow", pattern: value });
-    }
-  }
-  const name = agent.toLowerCase();
-  const rules2 = groups.filter((group2) => group2.agents.some((a) => a === "*" || a.includes(name))).flatMap((group2) => group2.rules);
-  return { rules: rules2 };
-}
-function patternToRegExp(pattern) {
-  const anchored = pattern.endsWith("$");
-  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
-  return new RegExp("^" + body + (anchored ? "$" : ""));
-}
-function isAllowedByRobots(robots, pathAndQuery) {
-  if (!robots || robots.rules.length === 0) return true;
-  let best = null;
-  for (const rule of robots.rules) {
-    if (!patternToRegExp(rule.pattern).test(pathAndQuery)) continue;
-    if (!best || rule.pattern.length > best.pattern.length || rule.pattern.length === best.pattern.length && rule.allow) {
-      best = rule;
-    }
-  }
-  return best ? best.allow : true;
-}
-function robotsAllowsUrl(robots, url) {
-  const parsed = new URL(url);
-  return isAllowedByRobots(robots, parsed.pathname + parsed.search);
-}
-async function fetchRobots(origin, userAgent, fetchImpl, timeoutMs = 5e3) {
-  try {
-    const text = await fetchSiteText(`${origin}/robots.txt`, origin, userAgent, fetchImpl, timeoutMs);
-    return { rules: parseRobots(text), note: "robots.txt honoured." };
-  } catch (error) {
-    const status = error instanceof Error && /^HTTP \d+$/.test(error.message) ? error.message : null;
-    return { rules: null, note: status ? `robots.txt returned ${status}; no rules applied.` : "robots.txt unreachable; proceeding without rules." };
-  }
-}
-
-// lib/scan/crawl.ts
-var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function clampPages(requested) {
-  if (!Number.isFinite(requested) || requested < 1) return 1;
-  return Math.min(Math.floor(requested), MAX_CRAWL_PAGES);
-}
-function matchesGlob(url, glob) {
-  const target = glob.includes("://") ? url : new URL(url).pathname + new URL(url).search;
-  let previous = new Uint8Array(target.length + 1);
-  previous[0] = 1;
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
-    const across = c === "*" && glob[i + 1] === "*";
-    if (across) i++;
-    const next = new Uint8Array(target.length + 1);
-    if (c === "*") next[0] = previous[0];
-    for (let j = 1; j <= target.length; j++) {
-      if (c === "*") next[j] = previous[j] || (across || target[j - 1] !== "/" ? next[j - 1] : 0);
-      else if (c === "?" && target[j - 1] !== "/" || c === target[j - 1]) next[j] = previous[j - 1];
-    }
-    previous = next;
-  }
-  return previous[target.length] === 1;
-}
-var MAX_DISCOVERED_URLS = 1e4;
-async function crawl(options) {
-  const start = normalizeUrl(options.startUrl);
-  if (!start) throw new Error(`Invalid start URL: ${options.startUrl}`);
-  const origin = new URL(start).origin;
-  const maxPages = options.pageLimit === void 0 ? clampPages(options.maxPages) : Math.min(1e3, Number.isFinite(options.pageLimit) ? Math.max(1, Math.floor(options.pageLimit)) : 1);
-  const concurrency = Math.min(8, Math.max(1, Math.floor(options.concurrency ?? 1) || 1));
-  const timeoutMs = Math.min(3e5, Math.max(1, options.timeoutMs ?? 3e4));
-  const sleep = options.sleep ?? defaultSleep;
-  const crawling = maxPages > 1;
-  const queue = [];
-  const seen = /* @__PURE__ */ new Set();
-  const pages = [];
-  const skipped = [];
-  const skippedSeen = /* @__PURE__ */ new Set();
-  const skip = (entry) => {
-    const key = entry.reason + " " + entry.url;
-    if (skippedSeen.has(key)) return;
-    if (skipped.length >= MAX_DISCOVERED_URLS) {
-      skipped[MAX_DISCOVERED_URLS - 1] = { url: start, reason: "discovery-cap" };
-      return;
-    }
-    skippedSeen.add(key);
-    skipped.push(entry);
-  };
-  const enqueue = (href, base, depth, from) => {
-    const link = classifyLink(href, base, origin);
-    if (!link.ok) {
-      skip({ url: link.url, reason: link.reason, ...from ? { from } : {} });
-      return;
-    }
-    if (seen.has(link.url)) return;
-    if (seen.size >= MAX_DISCOVERED_URLS) {
-      skip({ url: start, reason: "discovery-cap" });
-      return;
-    }
-    seen.add(link.url);
-    let reason;
-    if (options.exclude?.some((g) => matchesGlob(link.url, g))) reason = "excluded";
-    else if (options.include?.length && !options.include.some((g) => matchesGlob(link.url, g))) reason = "not-included";
-    else if (depth > (options.maxDepth ?? Infinity)) reason = "depth";
-    else if (!robotsAllowsUrl(options.robots, link.url)) reason = "robots";
-    if (reason) {
-      skip({ url: link.url, reason, ...from ? { from } : {} });
-      return;
-    }
-    queue.push({ url: link.url, depth });
-  };
-  enqueue(start, start, 0);
-  if (crawling) for (const seed of (options.seedUrls ?? []).slice(0, MAX_DISCOVERED_URLS)) enqueue(seed, start, 0);
-  let starts = 0;
-  let gate = Promise.resolve();
-  const visit = async (url) => {
-    const turn = gate.then(async () => {
-      if (starts++ > 0 && options.delayMs > 0) await sleep(options.delayMs);
-    });
-    gate = turn;
-    await turn;
-    options.log?.(`Scanning ${url}`);
-    const controller = new AbortController();
-    let timer;
-    try {
-      return await Promise.race([
-        Promise.resolve().then(() => options.visit(url, crawling, controller.signal)),
-        new Promise((resolve) => {
-          timer = setTimeout(() => {
-            controller.abort();
-            resolve({ status: null, finalUrl: url, links: [], error: `Page timeout after ${timeoutMs}ms.` });
-          }, timeoutMs);
-        })
-      ]);
-    } catch (error) {
-      return { status: null, finalUrl: url, links: [], error: error instanceof Error ? error.message : "Navigation failed.", navigationError: true };
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-  const navigationFailed = (outcome) => !!outcome.error && !outcome.error.startsWith("Not authenticated:") && (outcome.navigationError === true || outcome.navigationError === void 0 && outcome.status === null);
-  while (queue.length > 0 && pages.length < maxPages) {
-    const depth = queue[0].depth;
-    const batch = [];
-    while (queue.length && queue[0].depth === depth && batch.length < concurrency && pages.length + batch.length < maxPages) batch.push(queue.shift());
-    const outcomes = await Promise.all(batch.map(async ({ url }) => {
-      let outcome = await visit(url);
-      if (navigationFailed(outcome) && !outcome.error?.startsWith("Page timeout")) outcome = await visit(url);
-      return outcome;
-    }));
-    for (let i = 0; i < batch.length; i++) {
-      const { url, depth: depth2 } = batch[i];
-      const outcome = outcomes[i];
-      if (outcome.notAuthenticated) {
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "not-authenticated", error: outcome.error });
-        continue;
-      }
-      if (outcome.error?.startsWith("Page timeout")) {
-        skip({ url, reason: "timeout" });
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error });
-        continue;
-      }
-      if (outcome.finalUrl && normalizeUrl(outcome.finalUrl) && new URL(outcome.finalUrl).origin !== origin) {
-        skip({ url, reason: "redirected-off-origin" });
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: "Redirected to another origin; not scanned." });
-        continue;
-      }
-      if (!isHtmlContentType(outcome.contentType)) {
-        skip({ url, reason: "non-html" });
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "skipped", error: outcome.error ?? "Not an HTML page." });
-        continue;
-      }
-      if (outcome.result || outcome.analysed) {
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "complete", result: outcome.result });
-      } else {
-        if (navigationFailed(outcome)) skip({ url, reason: "navigation-error" });
-        pages.push({ url, finalUrl: outcome.finalUrl, status: outcome.status, scanStatus: "failed", error: outcome.error ?? "Page was not analysed." });
-      }
-      if (crawling) for (const href of outcome.links.slice(0, MAX_DISCOVERED_URLS)) enqueue(href, outcome.finalUrl || url, depth2 + 1, url);
-    }
-  }
-  for (const { url } of queue) skip({ url, reason: "cap" });
-  return { pages, skipped };
-}
-
 // lib/scan/report-html-v2.ts
 var REPORT_VERSIONS = [1, 2];
 var DEFAULT_REPORT_VERSION = 2;
@@ -4440,7 +4522,7 @@ function summarySection(t, report) {
   const none = t.t("summary.enginesNone");
   const engines = report.engines ? `<li>${t.t("summary.enginesUsed", { engines: report.engines.used.length ? esc2(report.engines.used.join(", ")) : none })}</li><li>${t.t("summary.enginesErrored", { errors: report.engines.errored.length ? report.engines.errored.map((e) => esc2(`${e.engine} \u2014 ${e.url} \u2014 ${e.error}`)).join("; ") : none })}</li>` : `<li>${t.t("summary.enginesUsed", { engines: t.t("summary.axeEngine", { version: report.axeVersion === null ? t.t("summary.notAvailable") : esc2(report.axeVersion) }) })}</li><li>${t.t("summary.enginesErrored", { errors: none })}</li>`;
   return `<section id="summary" aria-labelledby="summary-h">
-<h2 id="summary-h">${t.t("summary.heading")}</h2>
+<h2 id="summary-h">${t.t("summary.heading")}</h2>${report.diffScan ? diffScanSummary(report, t).map((line) => `<p>${esc2(line)}</p>`).join("") : ""}
 <p class="verdict">${t.t("summary.verdict", { verdict: esc2(report.verdict) })} <span class="muted">${t.t("summary.failOn", { failOn: esc2(report.failOn) })}</span></p>
 <p>${esc2(report.reason)}</p>
 <ul class="facts">
@@ -5307,7 +5389,7 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-have-selector": "mustNotHaveSelector",
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--routes", "--changed-since", "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
 function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -5436,6 +5518,15 @@ function parseScanArgs(argv2) {
       if (!isReportLang(value)) return { ok: false, error: `Unknown --report-lang "${value}". Use ${REPORT_LANGS.join(", ")} (only en is a shipped language).` };
       if (isPseudoReportLang(value)) options.warnings.push(`--report-lang ${value} is a pseudo-locale for layout testing only, not a translation.`);
       if (value !== "en") options.reportLang = value;
+    } else if (name === "--changed-since") {
+      if (!value || value.startsWith("-") || /\s/.test(value)) return { ok: false, error: 'Invalid --changed-since ref: must not be empty or start with "-".' };
+      options.changedSince = value;
+    } else if (name === "--routes") {
+      try {
+        options.routes = parseRoutes(JSON.parse(value));
+      } catch {
+        return { ok: false, error: 'Invalid --routes: provide a JSON mapping of source globs to URL paths or "*".' };
+      }
     } else if (name === "--baseline") options.baseline = value;
     else if (name === "--out-dir") options.outDir = value;
     else if (name === "--json") options.json = value;
@@ -5529,6 +5620,8 @@ Options:
   --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
                        Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
+  --changed-since <ref> Scan mapped routes changed in <ref>...HEAD; otherwise full scan.
+  --routes <json>      Source glob to URL path mapping (normally configured in YAML).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
@@ -5832,6 +5925,16 @@ Run a11ygate scan --help for usage.
     stdout(scanHelpText());
     return 0;
   }
+  let diffScan;
+  try {
+    if (options.changedSince) diffScan = await selectRoutes(options.changedSince, options.routes ?? {}, cwd);
+  } catch (error) {
+    stderr(`${error.message}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 2;
+  }
+  const requestedUrl = options.url;
   let interactions;
   try {
     if (options.interactions || options.autoInteractions) {
@@ -5865,7 +5968,7 @@ ${debugDetail(error)}`);
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? globalThis.fetch;
   const robots = options.ignoreRobots ? { rules: null, note: "robots.txt ignored by explicit --ignore-robots opt-out." } : await fetchRobots(origin, userAgent, fetchImpl);
-  if (!robotsAllowsUrl(robots.rules, options.url)) {
+  if (diffScan?.mode !== "diff-aware" && !robotsAllowsUrl(robots.rules, options.url)) {
     stderr(`${options.url} is disallowed by ${origin}/robots.txt; nothing was scanned.
 `);
     return 2;
@@ -5886,6 +5989,13 @@ ${debugDetail(error)}`);
     stderr(`Could not read ${options.storybook ? "Storybook index" : "sitemap"}: ${error.message}
 `);
     return 2;
+  }
+  if (diffScan?.mode === "diff-aware") {
+    seedUrls = diffScan.selectedRoutes.map((route) => new URL(route, origin).href);
+    options.url = seedUrls[0];
+    options.maxPages = seedUrls.length;
+    options.pageLimit = seedUrls.length;
+    options.maxDepth = 0;
   }
   let engine;
   try {
@@ -5910,7 +6020,7 @@ ${debugDetail(error)}`);
       maxPages: options.maxPages,
       delayMs: options.delayMs,
       robots: robots.rules,
-      visit: engine.visit,
+      visit: diffScan?.mode === "diff-aware" ? async (url, _collect, signal) => ({ ...await engine.visit(url, false, signal), links: [] }) : engine.visit,
       sleep: io.sleep,
       log: (message) => stderr(`${message}
 `)
@@ -5931,7 +6041,7 @@ ${debugDetail(error)}`);
     crawl: result,
     version,
     scannedAt: now().toISOString(),
-    startUrl: options.url,
+    startUrl: diffScan?.mode === "diff-aware" ? requestedUrl : options.url,
     failOn: options.failOn,
     maxPages: options.maxPages,
     delayMs: options.delayMs,
@@ -5952,6 +6062,27 @@ ${debugDetail(error)}`);
     explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
+  if (diffScan) {
+    const routePaths = (urls) => urls.flatMap((value) => {
+      try {
+        const url = new URL(value, origin);
+        return url.origin === origin ? [url.pathname + url.search] : [];
+      } catch {
+        return [];
+      }
+    });
+    const scannedRoutes = routePaths(result.pages.filter((p) => p.scanStatus === "complete").map((p) => p.url));
+    const configured = Object.values(options.routes ?? {}).filter((route) => route !== "*");
+    const known = [...new Set(routePaths([
+      requestedUrl,
+      ...configured,
+      ...seedUrls,
+      ...result.pages.map((p) => p.url),
+      ...result.skipped.map((p) => p.url)
+    ]))];
+    report.diffScan = { ...diffScan, scannedRoutes: [...new Set(scannedRoutes)], skippedRoutes: known.filter((route) => !scannedRoutes.includes(route)) };
+    report.disclaimer ??= AUTOMATED_TESTING_DISCLAIMER;
+  }
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
 }
@@ -6327,7 +6458,7 @@ function pdfFooterTemplate(lang = DEFAULT_REPORT_LANG) {
 var PDF_HEADER_TEMPLATE = "<span></span>";
 
 // packages/cli/src/evidence.ts
-import { execFile } from "node:child_process";
+import { execFile as execFile2 } from "node:child_process";
 import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
 import path8 from "node:path";
 
@@ -6804,7 +6935,7 @@ function parseEvidenceArgs(argv2) {
 }
 function git(cwd, args) {
   return new Promise((resolve) => {
-    execFile("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile2("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       resolve(error ? null : String(stdout ?? "").trim());
     });
   });
@@ -6823,7 +6954,7 @@ async function defaultGitCommitMeta(cwd, sha) {
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
-    execFile("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile2("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       const sha = String(stdout ?? "").trim();
       resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
     });
@@ -7109,7 +7240,7 @@ import path12 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/review-manage.ts
-import { execFile as execFile2 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { readFile as readFile5 } from "node:fs/promises";
 import path11 from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -7146,7 +7277,7 @@ Every change is written atomically (temp file + rename). Earlier decisions are k
 baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
 function gitUserName(cwd) {
   return new Promise((resolve) => {
-    execFile2("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+    execFile3("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
   });
 }
 async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {

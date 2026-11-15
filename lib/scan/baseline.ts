@@ -87,6 +87,15 @@ export function parseScanReport(value: unknown): ScanReport {
   const field = !report || typeof report !== 'object' || Array.isArray(report) ? '(top level)' : report.kind !== 'site-scan' ? 'kind' : report.schemaVersion !== 1 ? 'schemaVersion'
     : !Array.isArray(report.findings) ? 'findings' : !Array.isArray(report.pages) ? 'pages' : !Array.isArray(report.results) ? 'results' : null;
   if (field) throw new Error(`Expected an A11yGate site-scan JSON report; invalid field ${field}.`);
+  if (report!.diffScan !== undefined) {
+    const d = report!.diffScan;
+    const field = !d || typeof d !== 'object' || Array.isArray(d) ? 'diffScan'
+      : !['diff-aware', 'full'].includes(d.mode) ? 'diffScan.mode'
+      : !['mapped', 'unmapped', 'wildcard', 'noChanges'].includes(d.reasonCode) ? 'diffScan.reasonCode'
+      : typeof d.ref !== 'string' ? 'diffScan.ref' : typeof d.reason !== 'string' ? 'diffScan.reason'
+      : (['selectedRoutes', 'scannedRoutes', 'skippedRoutes'] as const).find(key => !Array.isArray(d[key]) || d[key].some(route => typeof route !== 'string'));
+    if (field) throw new Error(`Invalid scan report (field ${field.startsWith('diffScan') ? field : `diffScan.${field}`}).`);
+  }
   // Validate identity fields before consuming untrusted JSON.
   report!.findings.forEach((f, index) => {
     if (!f || typeof f !== 'object') throw new Error(`Invalid scan finding (field findings[${index}]).`);

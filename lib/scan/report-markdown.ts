@@ -11,6 +11,16 @@ import { REVIEW_DECISION_NOTICE, reviewedGroups, type AppliedReviewDecision } fr
 import { en301549Inline } from '@/lib/mapping';
 import { groupByCriterion, groupBySeverity, sortFindings, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 
+export function diffScanSummary(report: ScanReport, t: Translator): string[] {
+  const d = report.diffScan;
+  if (!d) return [];
+  return [
+    t.t('diff.mode', { mode: d.mode, reason: t.t(`diff.reason.${d.reasonCode}`) }),
+    t.t('diff.scanned', { routes: d.scannedRoutes.join(', ') || t.t('summary.enginesNone') }),
+    t.t('diff.skipped', { routes: d.skippedRoutes.join(', ') || t.t('summary.enginesNone') }),
+  ];
+}
+
 const IMPACT_KEYS = ['critical', 'serious', 'moderate', 'minor', 'unknown'] as const;
 
 type Escape = (value: string) => string;
@@ -92,6 +102,8 @@ export function scanMarkdown(report: ScanReport, lang: ReportLang = DEFAULT_REPO
     `**${t.t('md.verdict', { verdict: report.verdict })}** ${t.t('md.failOn', { failOn: report.failOn })}`,
     '',
     cell(report.reason),
+    ...diffScanSummary(report, t).flatMap(line => ['', cell(line)]),
+    ...(report.diffScan ? ['', AUTOMATED_TESTING_DISCLAIMER] : []),
     '',
     `| ${t.t('md.severityColumn')} | ${t.t('md.findingsColumn')} |`,
     '| --- | --- |',

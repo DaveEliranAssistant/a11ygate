@@ -61,6 +61,10 @@ export function clampPages(requested: number): number {
 /** Bounded glob syntax: * matches within a path segment, ** across segments, ? one character. */
 export function matchesGlob(url: string, glob: string): boolean {
   const target = glob.includes('://') ? url : new URL(url).pathname + new URL(url).search;
+  return matchesPathGlob(target, glob);
+}
+
+export function matchesPathGlob(target: string, glob: string): boolean {
   // Dynamic programming avoids regex backtracking on customer-supplied patterns.
   let previous = new Uint8Array(target.length + 1);
   previous[0] = 1;

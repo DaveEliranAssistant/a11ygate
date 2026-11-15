@@ -35,6 +35,8 @@ entire list; repeatable flags still collect within the CLI source.
 
 | Schema key | Effective option / consumer | Environment | Default |
 | --- | --- | --- | --- |
+| `routes` | scan source-glob → URL-path mapping; inert without changedSince | `A11YGATE_ROUTES` (JSON object) | {} |
+| `changedSince` | scan `--changed-since <ref>` | `A11YGATE_CHANGED_SINCE` | absent |
 | `url` | scan URL; positional URL or `--url` wins | `A11YGATE_URL` | required for scan |
 | `crawl` | scan page budget; 0 means start page only | `A11YGATE_CRAWL` | 0 |
 | `maxPages` | scan explicit page budget, overrides `crawl` at any source | `A11YGATE_MAX_PAGES` | 1; derived from crawl/sitemap when selected |
@@ -181,4 +183,57 @@ or asynchronous reveals. Buttons whose text contains the whole words delete/remo
 (case insensitive, including targets inside buttons) are rejected at every depth, including explicit steps. No labels or alternative text are generated or changed.
 
 Without interaction settings the existing scan output is unchanged.
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+## Diff-aware PR scans (A11Y-R57)
+
+Configure repository-relative source globs with same-origin URL paths:
+
+```yaml
+url: http://127.0.0.1:3000/
+crawl: 20
+routes:
+  src/pages/pricing/**: /pricing
+  src/pages/about/**: /about
+  src/components/Nav/**: "*"
+```
+
+Run `a11ygate scan --changed-since origin/main`. The scanner runs
+`git diff --no-ext-diff --no-renames --no-relative --name-only -z <ref>...HEAD` using argument
+arrays, comparing the merge base with committed HEAD. Fetch the ref and enough
+history first. Working-tree, staged and untracked edits are excluded. Refs
+starting with `-` are refused; unknown refs or missing merge bases exit 2 before
+any engine or network scan starts. Renames are treated as deletion plus addition,
+so both source paths need mappings.
+
+Globs use the existing bounded crawler syntax: `*` matches within a segment,
+`**` across segments, and `?` one character. Paths are relative to the git root,
+even when the scan runs from a subdirectory. Every matching mapping contributes
+its URL path. When every changed file maps to specific paths, only those paths
+are seeded and analysed; the scan does not follow links from them. Existing
+robots, include/exclude, timeouts, auth, engines, interactions and review decisions
+still apply. The selected route count supplies the page budget (hard ceiling
+1000); skipped baseline pages stay unassessed rather than being called fixed.
+
+An unmapped changed file or any matching `"*"` value falls back to the normal
+full scan, preserving its configured start URL, crawl/sitemap and page budget.
+No committed changes also conservatively run the full scan. A full scan means
+that normal configured scope, not every URL on the site; set crawl/sitemap
+appropriately. Route mappings alone do not expand the full-scan scope.
+
+Opt-in JSON records `diffScan` with mode, reason, ref, selected/scanned/skipped
+routes; Markdown/CLI and HTML v1/v2 summaries show mode, reason and scanned/skipped
+lists. Lists cover known configured, seeded and discovered routes; they do not
+claim a complete site inventory. Scanned routes are successfully analysed base
+paths (including query strings); failed or excluded known paths appear as skipped.
+Without `--changed-since` (or its config/env equivalent), routes have no effect
+and existing report bytes remain unchanged.
+
+`--routes <json-object>` can override YAML mappings. The standard flag > env >
+YAML precedence applies. For `ci --projects`, put `routes` and `changedSince` in
+each project's scan configuration; refs resolve in that project's repository.
+The file-based `ci --current` gate uses a separate argument parser and rejects
+`--changed-since`, because it consumes saved results rather than scanning routes.
+There is no new Action input.
+
 Automated testing only. Not a WCAG audit, certification or legal advice.
