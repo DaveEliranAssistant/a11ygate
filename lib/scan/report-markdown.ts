@@ -8,10 +8,32 @@ import { attribution } from '@/lib/scan/engines/dedupe';
 import { AUTOMATED_TESTING_DISCLAIMER, DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 import { cell } from '@/lib/export-markdown';
 import { DEFAULT_REPORT_LANG, translator, type ReportLang, type Translator } from '@/lib/i18n';
-import { decisionLabel, decisionSummary, REVIEW_DECISION_NOTICE, reviewedGroups } from '@/lib/scan/review';
-import { gateEffect, groupByCriterion, groupBySeverity, sortFindings, type ScanFinding, type ScanReport } from '@/lib/scan/report';
+import { REVIEW_DECISION_NOTICE, reviewedGroups, type AppliedReviewDecision } from '@/lib/scan/review';
+import { groupByCriterion, groupBySeverity, sortFindings, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 
 const IMPACT_KEYS = ['critical', 'serious', 'moderate', 'minor', 'unknown'] as const;
+
+type Escape = (value: string) => string;
+const raw: Escape = (value) => value;
+
+/** Decision label from the catalog; the decision value itself (`to-fix`, `accepted-risk`, ...) is a recorded token. */
+export function reviewDecisionLabel(t: Translator, d: AppliedReviewDecision, escape: Escape = raw): string {
+  return d.decision === 'accepted-risk' && d.expired ? t.t('review.expiredLabel', { decision: escape(d.decision) }) : escape(d.decision);
+}
+
+/** Catalog form of lib/scan/review.ts decisionSummary(); reviewer name, dates and reason are recorded data. */
+export function reviewDecisionSummary(t: Translator, d: AppliedReviewDecision, escape: Escape = raw): string {
+  return t.t('review.summary', {
+    decision: reviewDecisionLabel(t, d, escape), by: escape(d.by), at: escape(d.at),
+    expires: d.expires ? t.t('review.expires', { date: escape(d.expires) }) : '',
+    reason: d.reason ? t.t('review.reason', { reason: escape(d.reason) }) : '',
+  });
+}
+
+/** Catalog form of lib/scan/report.ts gateEffect(). */
+export function reviewGateEffect(t: Translator, d: AppliedReviewDecision): string {
+  return t.t(d.suppressesGate ? 'review.gate.excluded' : d.expired ? 'review.gate.expired' : 'review.gate.gated');
+}
 
 /** Inside a code span only backticks and line breaks need neutralising. */
 function code(value: string): string {
@@ -23,7 +45,7 @@ function heading(value: string): string {
 }
 
 function mdFinding(t: Translator, f: ScanFinding): string {
-  const tags = `${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''}${f.reviewDecision ? ' [' + t.t('md.reviewTag', { decision: decisionLabel(f.reviewDecision) }) + ']' : ''}`;
+  const tags = `${f.baselineStatus ? ' [' + f.baselineStatus + ']' : ''}${f.reviewDecision ? ' [' + t.t('md.reviewTag', { decision: reviewDecisionLabel(t, f.reviewDecision) }) + ']' : ''}`;
   const impact = f.impact ?? t.t('md.findingImpact.unknown');
   return `-${tags} **${cell(f.ruleId)}** ${t.t('md.findingLocation', { impact, page: code(f.pageUrl) })} — ${code(f.selector)} — ${cell(f.help)}${f.engines ? ' — ' + attribution(f) : ''}${f.states?.length ? ' — ' + t.t('md.states', { states: f.states.map(code).join(', ') }) : ''} — [${t.t('md.ruleGuidance')}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
@@ -40,7 +62,7 @@ function reviewMarkdown(t: Translator, report: ScanReport): string[] {
     ...groups.flatMap(({ decision: d, findings }) => [
       `### ${code(d.group)} — ${heading(d.ruleId)} — ${t.t('md.reviewGroupPages', { findings: t.plural('plural.finding', findings.length), pageCount: new Set(findings.map((f) => f.pageUrl)).size })}`, '',
       t.t('md.normalizedSelector', { selector: code(d.normalizedSelector) }), '',
-      t.t('md.decision', { summary: cell(decisionSummary(d)), effect: gateEffect(d) }), '',
+      t.t('md.decision', { summary: cell(reviewDecisionSummary(t, d)), effect: reviewGateEffect(t, d) }), '',
       ...sortFindings(findings).map((f) => mdFinding(t, f)), '']),
     AUTOMATED_TESTING_DISCLAIMER, ''];
 }

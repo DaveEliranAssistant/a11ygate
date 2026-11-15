@@ -20,9 +20,11 @@ import { impactRank } from '@/lib/gate';
 import { groupSharedComponents, SHARED_COMPONENT_DISCLAIMER } from '@/lib/group';
 import { findingGuidance } from '@/lib/guidance';
 import { EN301549_COLUMN, EN301549_LABEL, EN301549_SOURCE, en301549Inline, en301549Ref, understandingUrl } from '@/lib/mapping';
-import { groupByCriterion, reviewDecisionsHtml, scanHtml, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
+import { groupByCriterion, scanHtml, sortFindings, type ScanCriterion, type ScanFinding, type ScanReport } from '@/lib/scan/report';
 import type { Finding, Impact } from '@/lib/types';
 import { catalogFor, DEFAULT_REPORT_LANG, translator, type Catalog, type ReportLang, type Translator } from '@/lib/i18n';
+import { REVIEW_DECISION_NOTICE, reviewedGroups } from '@/lib/scan/review';
+import { reviewDecisionLabel, reviewDecisionSummary, reviewGateEffect } from '@/lib/scan/report-markdown';
 
 export const REPORT_VERSIONS = [1, 2] as const;
 export type ReportVersion = (typeof REPORT_VERSIONS)[number];
@@ -215,11 +217,20 @@ ${groups.length ? groups.map((g) => `<section><h3>${t.t('shared.groupHeading', {
 </section>`;
 }
 
-function reviewSection(report: ScanReport): string {
-  const body = reviewDecisionsHtml(report);
-  if (!body) return '';
+function reviewFinding(t: Translator, f: ScanFinding): string {
+  const href = safeHref(f.helpUrl) ?? '#';
+  return `<li>${f.baselineStatus ? esc(f.baselineStatus) + ': ' : ''}${f.reviewDecision ? t.t('review.findingTag', { decision: reviewDecisionLabel(t, f.reviewDecision, esc) }) : ''}<strong>${esc(f.ruleId)}</strong> <span class="impact ${esc(f.impact ?? 'unknown')}">${f.impact ? esc(f.impact) : t.t('review.findingImpactUnknown')}</span><br>${t.t('review.findingPage', { url: `<code>${esc(f.pageUrl)}</code>` })}<br>${t.t('review.findingSelector', { selector: `<code>${esc(f.selector)}</code>` })}<br>${esc(f.help)}${f.engines ? '<br>' + esc(attribution(f)) : ''}${f.states?.length ? '<br>' + t.t('review.findingStates', { states: f.states.map(esc).join(', ') }) : ''} — <a href="${href}">${t.t('review.ruleGuidance')}<span class="sr">${t.t('review.ruleGuidanceFor', { ruleId: esc(f.ruleId) })}</span></a></li>`;
+}
+
+/** R39 decided groups; empty without decisions so existing output is unchanged. */
+function reviewSection(t: Translator, report: ScanReport): string {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return '';
   return `<section id="review-decisions" aria-labelledby="review-decisions-h">
-${body.replace('<h2>', '<h2 id="review-decisions-h">')}</section>
+<h2 id="review-decisions-h">${t.t('review.heading')}</h2><p${verbatimAttrs(t)}>${esc(REVIEW_DECISION_NOTICE)}</p>` +
+    groups.map(({ decision: d, findings }) => `<section><h3>${t.t('review.groupHeading', { group: `<code>${esc(d.group)}</code>`, ruleId: esc(d.ruleId), count: findings.length })}</h3><p>${t.t('review.normalizedSelector', { selector: `<code>${esc(d.normalizedSelector)}</code>` })}</p><p>${t.t('review.decision', { summary: reviewDecisionSummary(t, d, esc), effect: reviewGateEffect(t, d) })}</p><ul>${sortFindings(findings).map((f) => reviewFinding(t, f)).join('')}</ul></section>`).join('') +
+    `<p${verbatimAttrs(t)}>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>
+</section>
 `;
 }
 
@@ -389,7 +400,7 @@ ${report.findings.some((f) => f.reviewDecision) ? `<li><a href="#review-decision
 ${summarySection(t, report)}
 ${topFixesSection(t, rules)}
 ${sharedComponentsSection(t, report)}
-${reviewSection(report)}${byWcagSection(t, report, rules, options)}
+${reviewSection(t, report)}${byWcagSection(t, report, rules, options)}
 ${byPageSection(t, report)}
 ${howToFixSection(t, rules)}
 ${limitsSection(t, report)}

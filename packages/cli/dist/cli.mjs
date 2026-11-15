@@ -1144,7 +1144,25 @@ var en_default = {
   "md.reviewHeading": "Review decisions (likely shared components)",
   "md.reviewGroupPages": "{findings} on {pageCount} page(s)",
   "md.normalizedSelector": "Normalized selector: {selector}",
-  "md.decision": "Decision: {summary}. Gate: {effect}."
+  "md.decision": "Decision: {summary}. Gate: {effect}.",
+  "review.heading": "Review decisions (likely shared components)",
+  "review.groupHeading": "{group} \u2014 {ruleId} ({count})",
+  "review.normalizedSelector": "Normalized selector: {selector}",
+  "review.decision": "Decision: {summary}. Gate: {effect}.",
+  "review.summary": "{decision} by {by} on {at}{expires}{reason}",
+  "review.expires": "; expires {date}",
+  "review.reason": "; reason: {reason}",
+  "review.expiredLabel": "{decision} (expired)",
+  "review.gate.excluded": "excluded from the gate by this decision; still listed for review",
+  "review.gate.expired": "decision expired; findings gate again",
+  "review.gate.gated": "still gated",
+  "review.findingTag": "review: {decision}: ",
+  "review.findingImpactUnknown": "unspecified",
+  "review.findingPage": "Page: {url}",
+  "review.findingSelector": "Selector: {selector}",
+  "review.findingStates": "States: {states}",
+  "review.ruleGuidance": "Rule guidance",
+  "review.ruleGuidanceFor": " for {ruleId}"
 };
 
 // lib/i18n/index.ts
@@ -1257,6 +1275,22 @@ function translator(lang = DEFAULT_REPORT_LANG, catalog = catalogFor(lang)) {
 
 // lib/scan/report-markdown.ts
 var IMPACT_KEYS = ["critical", "serious", "moderate", "minor", "unknown"];
+var raw = (value) => value;
+function reviewDecisionLabel(t, d, escape = raw) {
+  return d.decision === "accepted-risk" && d.expired ? t.t("review.expiredLabel", { decision: escape(d.decision) }) : escape(d.decision);
+}
+function reviewDecisionSummary(t, d, escape = raw) {
+  return t.t("review.summary", {
+    decision: reviewDecisionLabel(t, d, escape),
+    by: escape(d.by),
+    at: escape(d.at),
+    expires: d.expires ? t.t("review.expires", { date: escape(d.expires) }) : "",
+    reason: d.reason ? t.t("review.reason", { reason: escape(d.reason) }) : ""
+  });
+}
+function reviewGateEffect(t, d) {
+  return t.t(d.suppressesGate ? "review.gate.excluded" : d.expired ? "review.gate.expired" : "review.gate.gated");
+}
 function code(value) {
   return "`" + value.replace(/`/g, "'").replace(/[\r\n|]/g, " ") + "`";
 }
@@ -1264,7 +1298,7 @@ function heading(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\r\n]/g, " ");
 }
 function mdFinding(t, f) {
-  const tags = `${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [" + t.t("md.reviewTag", { decision: decisionLabel(f.reviewDecision) }) + "]" : ""}`;
+  const tags = `${f.baselineStatus ? " [" + f.baselineStatus + "]" : ""}${f.reviewDecision ? " [" + t.t("md.reviewTag", { decision: reviewDecisionLabel(t, f.reviewDecision) }) + "]" : ""}`;
   const impact = f.impact ?? t.t("md.findingImpact.unknown");
   return `-${tags} **${cell(f.ruleId)}** ${t.t("md.findingLocation", { impact, page: code(f.pageUrl) })} \u2014 ${code(f.selector)} \u2014 ${cell(f.help)}${f.engines ? " \u2014 " + attribution(f) : ""}${f.states?.length ? " \u2014 " + t.t("md.states", { states: f.states.map(code).join(", ") }) : ""} \u2014 [${t.t("md.ruleGuidance")}](${encodeURI(f.helpUrl).replace(/[()]/g, encodeURIComponent)})`;
 }
@@ -1284,7 +1318,7 @@ function reviewMarkdown(t, report) {
       "",
       t.t("md.normalizedSelector", { selector: code(d.normalizedSelector) }),
       "",
-      t.t("md.decision", { summary: cell(decisionSummary(d)), effect: gateEffect(d) }),
+      t.t("md.decision", { summary: cell(reviewDecisionSummary(t, d)), effect: reviewGateEffect(t, d) }),
       "",
       ...sortFindings(findings).map((f) => mdFinding(t, f)),
       ""
@@ -1590,9 +1624,6 @@ function reviewHtml(report) {
   return `<h2>Review decisions (likely shared components)</h2><p>${esc(REVIEW_DECISION_NOTICE)}</p>` + groups.map(({ decision: d, findings }) => `<section><h3><code>${esc(d.group)}</code> \u2014 ${esc(d.ruleId)} (${findings.length})</h3><p>Normalized selector: <code>${esc(d.normalizedSelector)}</code></p><p>Decision: ${esc(decisionSummary(d))}. Gate: ${esc(gateEffect(d))}.</p><ul>${sortFindings(findings).map(htmlFinding).join("")}</ul></section>`).join("") + `<p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>
 `;
 }
-function reviewDecisionsHtml(report) {
-  return reviewHtml(report);
-}
 function esc(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -1673,12 +1704,12 @@ function createFingerprintBaseline(report) {
   };
 }
 function parseFingerprintBaseline(value) {
-  const raw = value;
-  const field = !raw || typeof raw !== "object" || Array.isArray(raw) ? "(top level)" : raw.kind !== "a11ygate-fingerprint-baseline" ? "kind" : raw.schemaVersion !== 1 ? "schemaVersion" : !Array.isArray(raw.findings) ? "findings" : null;
+  const raw2 = value;
+  const field = !raw2 || typeof raw2 !== "object" || Array.isArray(raw2) ? "(top level)" : raw2.kind !== "a11ygate-fingerprint-baseline" ? "kind" : raw2.schemaVersion !== 1 ? "schemaVersion" : !Array.isArray(raw2.findings) ? "findings" : null;
   if (field) {
     throw new Error(`Expected an A11yGate fingerprint baseline (kind a11ygate-fingerprint-baseline, schemaVersion 1, findings list); invalid field ${field}. Axe JSON baselines belong to a11ygate [ci] --baseline.`);
   }
-  const b = raw;
+  const b = raw2;
   b.findings.forEach((f, index) => {
     if (!f || typeof f !== "object") throw new Error(`Invalid baseline field findings[${index}]: expected an object.`);
     const key = ["fingerprint", "pageUrl", "ruleId", "selector"].find((k) => typeof f[k] !== "string");
@@ -2371,8 +2402,8 @@ function parseSwitch(value) {
 function parseRepoConsent(text) {
   if (typeof text !== "string") return "missing";
   const values = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const match = /^modelFixes\s*:(.*)$/.exec(raw);
+  for (const raw2 of text.split(/\r?\n/)) {
+    const match = /^modelFixes\s*:(.*)$/.exec(raw2);
     if (!match) continue;
     values.push(match[1].replace(/\s+#.*$/, "").trim());
   }
@@ -2876,8 +2907,8 @@ function stripComment(text) {
   }
   return text.trimEnd();
 }
-function scalar(raw, line) {
-  const text = raw.trim();
+function scalar(raw2, line) {
+  const text = raw2.trim();
   if (/^[&*!|>{]/.test(text)) throw new YamlError(`line ${line}: anchors, aliases, tags, block scalars and {\u2026} mappings are not supported in .a11ygate.yml.`);
   if (text.startsWith('"')) {
     try {
@@ -2958,9 +2989,9 @@ function parseBlock(lines, start, indent) {
 }
 function parseConfigYaml(text) {
   const lines = [];
-  const raw = text.replace(/^﻿/, "").split(/\r?\n/);
-  for (let index = 0; index < raw.length; index++) {
-    const source = raw[index];
+  const raw2 = text.replace(/^﻿/, "").split(/\r?\n/);
+  for (let index = 0; index < raw2.length; index++) {
+    const source = raw2[index];
     if (/^\t/.test(source)) return { ok: false, errors: [`line ${index + 1}: use spaces, not tabs, for indentation.`] };
     const content = stripComment(source);
     if (!content.trim() || lines.length === 0 && content.trim() === "---") continue;
@@ -3232,18 +3263,18 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     let value = key === "interactions" ? (() => {
       const inline = /^[\[{]/.test(text.trim());
       const source = inline ? "--interactions" : text;
-      let raw;
-      if (inline) raw = text;
+      let raw2;
+      if (inline) raw2 = text;
       else {
         try {
-          raw = readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8");
+          raw2 = readFileSync(path.resolve(io.cwd ?? process.cwd(), text), "utf8");
         } catch (error) {
           throw new Error(`Invalid --interactions (${source}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}); provide a readable local JSON file containing route states.`, { cause: error });
         }
       }
       let json;
       try {
-        json = JSON.parse(raw.replace(/^\uFEFF/, ""));
+        json = JSON.parse(raw2.replace(/^\uFEFF/, ""));
       } catch {
         throw new Error(`Invalid --interactions (${source}: not valid JSON); provide a readable local JSON file containing route states.`);
       }
@@ -4058,8 +4089,8 @@ function parseRobots(text, agent = ROBOTS_AGENT) {
   const groups = [];
   let current = null;
   let lastWasAgent = false;
-  for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = raw.replace(/#.*$/, "").trim();
+  for (const raw2 of text.split(/\r\n|\r|\n/)) {
+    const line = raw2.replace(/#.*$/, "").trim();
     if (!line) continue;
     const colon = line.indexOf(":");
     if (colon === -1) continue;
@@ -4414,11 +4445,16 @@ function sharedComponentsSection(t, report) {
 ${groups.length ? groups.map((g) => `<section><h3>${t.t("shared.groupHeading", { ruleId: esc2(g.ruleId), pages: t.plural("plural.page", g.pageCount) })}</h3><p>${t.t("shared.groupSummary", { findings: t.plural("plural.finding", g.findingCount), selector: `<code>${esc2(g.normalizedSelector)}</code>` })}</p><ul>${g.examples.map((f) => `<li>${t.t("shared.examplePage", { url: `<code>${esc2(f.pageUrl)}</code>` })}<br>${t.t("shared.selector", { selector: `<code>${esc2(f.selector)}</code>` })}<br>${t.t("shared.html", { html: `<code>${esc2(f.html)}</code>` })}</li>`).join("")}</ul></section>`).join("") : `<p>${t.t("shared.none")}</p>`}
 </section>`;
 }
-function reviewSection(report) {
-  const body = reviewDecisionsHtml(report);
-  if (!body) return "";
+function reviewFinding(t, f) {
+  const href = safeHref2(f.helpUrl) ?? "#";
+  return `<li>${f.baselineStatus ? esc2(f.baselineStatus) + ": " : ""}${f.reviewDecision ? t.t("review.findingTag", { decision: reviewDecisionLabel(t, f.reviewDecision, esc2) }) : ""}<strong>${esc2(f.ruleId)}</strong> <span class="impact ${esc2(f.impact ?? "unknown")}">${f.impact ? esc2(f.impact) : t.t("review.findingImpactUnknown")}</span><br>${t.t("review.findingPage", { url: `<code>${esc2(f.pageUrl)}</code>` })}<br>${t.t("review.findingSelector", { selector: `<code>${esc2(f.selector)}</code>` })}<br>${esc2(f.help)}${f.engines ? "<br>" + esc2(attribution(f)) : ""}${f.states?.length ? "<br>" + t.t("review.findingStates", { states: f.states.map(esc2).join(", ") }) : ""} \u2014 <a href="${href}">${t.t("review.ruleGuidance")}<span class="sr">${t.t("review.ruleGuidanceFor", { ruleId: esc2(f.ruleId) })}</span></a></li>`;
+}
+function reviewSection(t, report) {
+  const groups = reviewedGroups(report.findings);
+  if (!groups.length) return "";
   return `<section id="review-decisions" aria-labelledby="review-decisions-h">
-${body.replace("<h2>", '<h2 id="review-decisions-h">')}</section>
+<h2 id="review-decisions-h">${t.t("review.heading")}</h2><p${verbatimAttrs(t)}>${esc2(REVIEW_DECISION_NOTICE)}</p>` + groups.map(({ decision: d, findings }) => `<section><h3>${t.t("review.groupHeading", { group: `<code>${esc2(d.group)}</code>`, ruleId: esc2(d.ruleId), count: findings.length })}</h3><p>${t.t("review.normalizedSelector", { selector: `<code>${esc2(d.normalizedSelector)}</code>` })}</p><p>${t.t("review.decision", { summary: reviewDecisionSummary(t, d, esc2), effect: reviewGateEffect(t, d) })}</p><ul>${sortFindings(findings).map((f) => reviewFinding(t, f)).join("")}</ul></section>`).join("") + `<p${verbatimAttrs(t)}>${esc2(AUTOMATED_TESTING_DISCLAIMER)}</p>
+</section>
 `;
 }
 function en301549RefTable(report, t = htmlTranslator()) {
@@ -4558,7 +4594,7 @@ ${report.findings.some((f) => f.reviewDecision) ? `<li><a href="#review-decision
 ${summarySection(t, report)}
 ${topFixesSection(t, rules2)}
 ${sharedComponentsSection(t, report)}
-${reviewSection(report)}${byWcagSection(t, report, rules2, options)}
+${reviewSection(t, report)}${byWcagSection(t, report, rules2, options)}
 ${byPageSection(t, report)}
 ${howToFixSection(t, rules2)}
 ${limitsSection(t, report)}
@@ -6605,11 +6641,11 @@ function createZip(entries2) {
     }
     seen.add(entry.path);
     const name = Buffer.from(entry.path, "utf8");
-    const raw = Buffer.from(entry.data);
+    const raw2 = Buffer.from(entry.data);
     const store = shouldStore(entry.path);
-    const body = store ? raw : deflateRawSync(raw, { level: 9 });
+    const body = store ? raw2 : deflateRawSync(raw2, { level: 9 });
     const method = store ? 0 : 8;
-    const crc = crc32(raw);
+    const crc = crc32(raw2);
     const header = Buffer.alloc(30);
     header.writeUInt32LE(67324752, 0);
     header.writeUInt16LE(20, 4);
@@ -6619,7 +6655,7 @@ function createZip(entries2) {
     header.writeUInt16LE(DOS_DATE, 12);
     header.writeUInt32LE(crc, 14);
     header.writeUInt32LE(body.length, 18);
-    header.writeUInt32LE(raw.length, 22);
+    header.writeUInt32LE(raw2.length, 22);
     header.writeUInt16LE(name.length, 26);
     header.writeUInt16LE(0, 28);
     local.push(header, name, body);
@@ -6633,7 +6669,7 @@ function createZip(entries2) {
     record.writeUInt16LE(DOS_DATE, 14);
     record.writeUInt32LE(crc, 16);
     record.writeUInt32LE(body.length, 20);
-    record.writeUInt32LE(raw.length, 24);
+    record.writeUInt32LE(raw2.length, 24);
     record.writeUInt16LE(name.length, 28);
     record.writeUInt32LE(0, 38);
     record.writeUInt32LE(offset, 42);

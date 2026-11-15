@@ -25,7 +25,9 @@ The CLI prints a warning when you choose a pseudo-locale.
 
 The disclaimer and legal wording (`lib/copy.ts`) are not in the catalog. Every locale renders them verbatim in English, marked `lang="en" dir="ltr"` in non-English reports. They must never be machine-translated. A localized version needs a human translator and owner sign-off.
 
-Data also stays as recorded: engine rule help, guidance text from `lib/guidance.ts`, scope boundaries, the gate reason, page URLs, selectors and HTML snippets. The HTML report version 1 (`--report-version 1`) is frozen and English-only.
+Two fixed notices also render verbatim in English (marked `lang="en" dir="ltr"` in non-English reports): the shared-component notice (`lib/group.ts`) and the review-decision notice (`lib/scan/review.ts`). They describe what a heuristic group or a reviewer decision does and does not establish, so they are treated like legal wording.
+
+Data also stays as recorded: engine rule help, guidance text from `lib/guidance.ts`, scope boundaries, the gate reason, page URLs, selectors, HTML snippets, reviewer names, decision reasons and the decision tokens (`to-fix`, `accepted-risk`, `false-positive`). The HTML report version 1 (`--report-version 1`) is frozen and English-only.
 
 ## Message format
 
@@ -43,4 +45,4 @@ Data also stays as recorded: engine rule help, guidance text from `lib/guidance.
 
 ## Adding a new report string
 
-Add the key to `locales/en.json`, then call `t.t('your.key', { ... })` in the template. Do not write prose in the template: the lint in `tests/i18n-catalog.test.ts` fails on hard-coded text.
+Add the key to `locales/en.json`, then call `t.t('your.key', { ... })` in the template. Do not write prose in the template: the lint in `tests/i18n-catalog.test.ts` fails on hard-coded text. It flags any two-word or capitalised text, any word in HTML text content (even a single lowercase word such as `<button>save</button>`), any word after Markdown block syntax (`- none`), and any word in a user-visible attribute: `aria-label`, `aria-description`, `aria-roledescription`, `aria-placeholder`, `aria-valuetext`, `title`, `alt`, `placeholder`, `label` and `value`. Put those values in the catalog too. CSS blocks are marked with an `i18n-ignore` comment.
