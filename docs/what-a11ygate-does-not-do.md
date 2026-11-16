@@ -34,4 +34,6 @@ A11yGate does not issue certificates, conformance claims, badges or seals, and n
 - **Authorization.** Only scan sites you own or are authorized to test.
 - **CI support.** Each CI integration is tested only as far as the [CI matrix](../README.md#ci-matrix) states.
 
-See also [troubleshooting](troubleshooting.md).
+- **Known gaps.** Gaps recorded for individual features (CI templates, authenticated scans, keyboard heuristics, incremental and diff-aware scans, exports and more) are listed in [known limits](known-limits.md).
+
+See also [troubleshooting](troubleshooting.md) and the [docs index](README.md).
