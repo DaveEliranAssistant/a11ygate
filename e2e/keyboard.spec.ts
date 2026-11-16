@@ -37,6 +37,23 @@ test.describe('keyboard heuristic acceptance', () => {
       }
     });
   }
+  test('ordered cross-origin frame does not create a reverse-order finding', async ({ page }) => {
+    const frameUrl = server.origin.replace('127.0.0.1', 'localhost') + '/iframe-ordered-inner.html';
+    await page.route('**/*', async route => {
+      const url = route.request().url();
+      if (url === frameUrl) return route.fulfill({ contentType: 'text/html', body: await readFile('tests/fixtures/keyboard/iframe-ordered-inner.html', 'utf8') });
+      if (url === `${server.origin}/cross-origin-ordered.html`) return route.fulfill({ contentType: 'text/html', body: (await readFile('tests/fixtures/keyboard/cross-origin-ordered.html', 'utf8')).replaceAll('CROSS_ORIGIN_URL', frameUrl) });
+      return route.fallback();
+    });
+    const url = `${server.origin}/cross-origin-ordered.html`;
+    await page.goto(url);
+    const result = await scanKeyboard(page, url, { budget: 40 });
+    expect(result.stopReason).toBe('cycle');
+    expect(result.notAssessedFrames).toHaveLength(1);
+    expect(result.observations.filter(o => o.key === 'Shift+Tab' && o.selector === 'iframe' && o.domIndex === null)).toHaveLength(2);
+    expect(result.observations.filter(o => o.key === 'Shift+Tab' && o.domIndex !== null)).toHaveLength(2);
+    expect(result.findings).toEqual([]);
+  });
   for (const fixture of ['correct-tablist', 'background-focus', 'sane']) {
     test(`${fixture} has zero findings`, async ({ page }) => {
       const url = `${server.origin}/${fixture}.html`;

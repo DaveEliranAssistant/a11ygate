@@ -98,7 +98,7 @@ describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('keyboard browser fi
       const guard = guardLocalhostNetwork();
       const server = createServer(async (req, res) => {
         try {
-          const file = req.url === '/frame.html' ? 'iframe-trap-inner' : name;
+          const file = req.url === '/frame.html' ? (name === 'cross-origin-ordered' ? 'iframe-ordered-inner' : 'iframe-trap-inner') : name;
           const html = await readFile(`tests/fixtures/keyboard/${file}.html`, 'utf8');
           res.writeHead(200, { 'content-type': 'text/html' }); res.end(html.replaceAll('CROSS_ORIGIN_URL', `http://localhost:${(server.address() as import('node:net').AddressInfo).port}/frame.html`));
         } catch { res.writeHead(404); res.end(); }
@@ -156,6 +156,20 @@ describe.skipIf(process.env.A11YGATE_BROWSER_TESTS !== '1')('keyboard browser fi
     expect(result.notAssessedFrames).toHaveLength(1);
     expect(result.notAssessedFrames![0]).toContain('not assessed: http://localhost:');
     expect(result.findings.some(f => f.selector.includes('>> frame >>'))).toBe(false);
+  }, 30_000);
+  it('skips opaque frame stops while retracing a correct reverse order', async () => {
+    const result = await scan('cross-origin-ordered', 40);
+    expect(result.stopReason).toBe('cycle');
+    expect(result.notAssessedFrames).toHaveLength(1);
+    expect(result.observations.filter(o => o.key === 'Shift+Tab' && o.domIndex === null && o.selector === 'iframe')).toHaveLength(2);
+    expect(result.observations.filter(o => o.key === 'Shift+Tab' && o.domIndex !== null)).toHaveLength(2);
+    expect(result.findings).toEqual([]);
+  }, 30_000);
+  it('does not infer a reverse mismatch when the budget ends inside an opaque frame', async () => {
+    const result = await scan('cross-origin-ordered', 7);
+    expect(result.steps).toBe(7);
+    expect(result.observations.at(-1)).toMatchObject({ key: 'Shift+Tab', selector: 'iframe', domIndex: null });
+    expect(result.findings).toEqual([]);
   }, 30_000);
   it('honours the configured pixel threshold', async () => {
     expect((await scan('small-background-focus', 20, 0.001)).findings).toEqual([]);

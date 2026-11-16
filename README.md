@@ -340,7 +340,8 @@ keyboard accessibility. Contrast, obscuration, indicators outside the bounding
 box, CSS animation timing, closed shadow roots, cross-origin frames,
 aria-activedescendant composites and dynamic states beyond the loaded base page
 are unassessed or may produce false positives/negatives. Pixel capture/decoding
-failures leave indicator evidence unknown. Focus and arrow-key
+failures (including CSP blocking data-URL image decoding) leave indicator evidence
+unknown. Pixel comparison blurs and refocuses controls; blur, focus and arrow-key
 handlers may have side effects: use authorized test accounts. During the probe,
 form submission, document navigation, popups and non-read HTTP methods are blocked.
 R37 interaction states remain separate and are not keyboard-probed.

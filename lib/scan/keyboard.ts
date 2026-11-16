@@ -146,9 +146,15 @@ export async function scanKeyboard(page: Page, url: string, options: KeyboardOpt
     const forward = [...tabOrder];
     for (const expected of forward.reverse()) {
       if (observations.length >= options.budget) break;
-      await page.keyboard.press('Shift+Tab');
-      const reverse = await observe();
-      observations.push({ step: observations.length + 1, key: 'Shift+Tab', ...reverse });
+      let reverse;
+      do {
+        await page.keyboard.press('Shift+Tab');
+        reverse = await observe();
+        observations.push({ step: observations.length + 1, key: 'Shift+Tab', ...reverse });
+        // Forward order contains candidates only. Skip opaque frame stops in
+        // reverse too, but preserve document boundaries as mismatch evidence.
+      } while (reverse.domIndex === null && reverse.selector !== null && observations.length < options.budget);
+      if (reverse.domIndex === null && reverse.selector !== null) break;
       const members = candidates[expected].composite ?? [];
       if (reverse.domIndex !== expected && !(reverse.domIndex !== null && members.includes(reverse.domIndex))) {
         add('reverse-order', 'wcag243', expected, 'Shift+Tab did not retrace the forward focus order. Review whether the order preserves meaning.');
