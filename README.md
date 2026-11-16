@@ -8,7 +8,7 @@ The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11yg
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
-Contents: [5-minute quickstart](#5-minute-quickstart) · [CI matrix](#ci-matrix) · [Troubleshooting](#troubleshooting) · [What A11yGate does not do](#what-a11ygate-does-not-do) · [Reference](#web-app)
+Contents: [5-minute quickstart](#5-minute-quickstart) · [Features](#features) · [CI matrix](#ci-matrix) · [Troubleshooting](#troubleshooting) · [What A11yGate does not do](#what-a11ygate-does-not-do) · [Known limits](docs/known-limits.md) · [Docs index](docs/README.md) · [Reference](#web-app)
 
 Every code block in this README is included from a file that a test runs or checks; [`tests/readme-docs.test.ts`](tests/readme-docs.test.ts) fails on drift.
 
@@ -38,6 +38,22 @@ npx a11ygate --current fixtures/demo-shop-current.json --baseline a11y/baseline.
 
 Next, point `--current` at your own axe JSON. One way to produce it is a Playwright test with `@axe-core/playwright` that writes one file per page (see [Produce axe JSON](#produce-axe-json)). Then pick your CI from the matrix below.
 
+## Features
+
+Merged on `main`. Features after 0.2.0 are not yet published to npm; they are listed under "Unreleased" in the [CHANGELOG](packages/cli/CHANGELOG.md#unreleased), with [upgrade notes](packages/cli/CHANGELOG.md#upgrade-notes). Everything beyond the axe-only gate and scan is opt-in. Recorded gaps for each feature are in [known limits](docs/known-limits.md); the [docs index](docs/README.md) lists every guide.
+
+- **Regression gate** for axe-core JSON (`a11ygate ci`, the default command): fails only on new findings at or above the threshold; JSON, Markdown, JUnit, SARIF and GitLab Code Quality output.
+- **Live-site scan** (`a11ygate scan <url>`): headless Chromium with axe-core by default, HTML report v2, crawler budgets, sitemap, include/exclude globs and robots.txt ([CLI reference](packages/cli/README.md#live-site-scan-a11ygate-scan)). Opt-in engines: HTML_CodeSniffer, IBM Equal Access, Lighthouse ([engines](docs/engines.md)).
+- **Authenticated pages**: storage state, login scripts, sessionStorage, environment-referenced cookies/headers, explicit auth checks, and opt-in masked screenshots ([guide](docs/authenticated-pages.md)).
+- **Opt-in scan scope**: SPA interaction states up to depth 3 ([configuration](docs/configuration.md#opt-in-spa-interaction-states)), keyboard focus heuristics that need human review ([below](#opt-in-keyboard-focus-heuristics)), diff-aware PR scans with `--changed-since` ([configuration](docs/configuration.md#diff-aware-pr-scans-a11y-r57)) and incremental scans with `--incremental` ([CLI reference](packages/cli/README.md#incremental-scans-a11y-r60)).
+- **Baselines and review decisions**: fingerprint baselines (`a11ygate baseline create`), likely shared component groups, and `a11ygate review` decisions (to-fix, accepted-risk with expiry, false-positive) managed with `review list`, `review remove` and `review prune`. Decisions reach SARIF, JUnit and GitLab Code Quality.
+- **Reports and handoff**: HTML report v2 (`--report-version 1` for the previous HTML), PDF via `a11ygate report pdf`, an opt-in "EN 301 549 ref." column (`--en301549-ref`, reference mapping only), report strings in a message catalog ([report locales](docs/report-locales.md); English only shipped), and ticket export with `a11ygate export tickets` as CSV, Jira CSV or GitHub issue Markdown ([CLI reference](packages/cli/README.md#developer-handoff-tickets-a11y-r54)).
+- **Evidence and history**: `a11ygate evidence pack` (zip with SHA-256 manifest, commit time and branch) and `a11ygate trend` across packs ([trend report](docs/trend-report.md)).
+- **Setup and operations**: `a11ygate init`, `a11ygate doctor`, `.a11ygate.yml` with JSON Schema, `a11ygate config validate` and `a11ygate config print` ([configuration](docs/configuration.md)), multi-project runs with `a11ygate ci --projects` ([CLI reference](packages/cli/README.md#multi-project-ci-runs)), pilot scoping with `a11ygate estimate`, opt-in context recycling for long scans ([benchmarks](docs/perf/README.md)), and `--debug` for stack traces.
+- **CI templates** for GitHub Actions, Jenkins, GitLab, Azure DevOps, CircleCI and Bitbucket Pipelines (see the [CI matrix](#ci-matrix)), plus [framework recipes](docs/recipes/README.md).
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ## CI matrix
 
 All six integrations are merged on `main`. "Tested how" states only what a test in this repository or a recorded run shows. Nothing in this table was run in a customer pipeline.
@@ -50,6 +66,8 @@ All six integrations are merged on `main`. "Tested how" states only what a test 
 | Azure DevOps | [Guide](docs/integrations/azure-devops.md), [`integrations/azure-devops/a11ygate.yml`](integrations/azure-devops/a11ygate.yml) | [`tests/azure-devops.test.ts`](tests/azure-devops.test.ts) checks task and input names and runs the template's rendered scan and evidence-pack lines through the CLI (and in `/bin/sh` when Chromium is installed). | No Azure DevOps organization was used; no pipeline run. The Windows cmd.exe path is not executed. |
 | CircleCI | [Guide](docs/integrations/circleci.md), [`integrations/circleci/config.yml`](integrations/circleci/config.yml) | [`tests/circleci.test.ts`](tests/circleci.test.ts) checks the config against the documented key subset and, when Chromium is installed, runs its wait, scan and evidence commands in bash against a loopback fixture. | `circleci config validate` has not been run: the CircleCI CLI and Docker were not available, and no CircleCI account was used. No orb is published (coming, owner action). |
 | Bitbucket Pipelines | [Guide](docs/integrations/bitbucket.md), [`integrations/bitbucket/bitbucket-pipelines.yml`](integrations/bitbucket/bitbucket-pipelines.yml) | [`tests/bitbucket-pipelines.test.ts`](tests/bitbucket-pipelines.test.ts) checks the YAML against the key lists in Atlassian's published schema, PR-only triggering and the JUnit `test-results/` path. It runs the step's own scan line (the checked-in [`a11ygate-scan.sh`](integrations/bitbucket/a11ygate-scan.sh)) in `dash` through the CLI and, when Chromium is installed, against a loopback fixture: exit 1 at `serious`, 0 at `none`, evidence pack after a failing scan. | No Bitbucket pipeline has run it and no Bitbucket account was used. Docker was unavailable, so the Playwright image was not run; Bitbucket's test-report scanner and artifact upload are not exercised. |
+
+Every template runs the same CLI, so its outputs apply to each row: JUnit, SARIF and GitLab Code Quality reflect review decisions recorded in a fingerprint baseline, and `a11ygate ci --projects` runs several sites in one job. Neither was run in a customer pipeline either. The scheduled Jenkins E2E job on `main` currently fails for a Docker image packaging reason that is pending with the owner; see [known limits](docs/known-limits.md#ci-integrations).
 
 ## Troubleshooting
 
