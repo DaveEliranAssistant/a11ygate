@@ -10,6 +10,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ### Added
 
+- Opt-in `scan --incremental <cache-dir>` hashes rendered page/state DOM, normalizes volatile tokens with configurable regexes, and reuses successful engine findings only when DOM and engine/config compatibility match. Reports and evidence packs retain original scan IDs on cached pages. Corrupt cache data warns and forces a full rescan; default output is unchanged (A11Y-R60).
+
 - Opt-in diff-aware PR scans (`scan --changed-since <ref>`, config `routes` / `changedSince`) select mapped URL paths from committed `<ref>...HEAD` changes. Unmapped files, shared `"*"` mappings or no changes retain the normal full scan. Reports record mode, reason and scanned/skipped routes; skipped baseline pages remain unassessed and review decisions still apply. No-flag report output is unchanged (A11Y-R57).
 - Opt-in keyboard checks traverse open shadow roots and same-origin frames, report cross-origin frames as not assessed, compare Shift+Tab order, probe roving-tabindex composites with arrow keys, detect cycles among 2–5 controls, and fall back to an in-memory focus pixel diff (`--keyboard-pixel-threshold`, default 0.01). Findings remain heuristics needing human review (A11Y-R46).
 

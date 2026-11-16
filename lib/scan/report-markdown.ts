@@ -116,7 +116,7 @@ export function scanMarkdown(report: ScanReport, lang: ReportLang = DEFAULT_REPO
     '',
     `| ${t.t('md.pageColumn')} | ${t.t('md.httpColumn')} | ${t.t('md.statusColumn')} | ${t.t('md.findingsColumn')} |`,
     '| --- | --- | --- | --- |',
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? '—'} | ${p.scanStatus}${p.error ? ' — ' + cell(p.error) : ''} | ${p.findings} |`),
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? '—'} | ${p.scanStatus}${p.cache ? ' — ' + cell(p.cache.note) : ''}${p.error ? ' — ' + cell(p.error) : ''} | ${p.findings} |`),
     '',
     `## ${t.t('md.byCriterionHeading')}`,
     '',

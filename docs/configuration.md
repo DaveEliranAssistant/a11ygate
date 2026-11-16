@@ -35,6 +35,8 @@ entire list; repeatable flags still collect within the CLI source.
 
 | Schema key | Effective option / consumer | Environment | Default |
 | --- | --- | --- | --- |
+| `incremental` | scan local rendered-DOM cache directory ([limits](../packages/cli/README.md#incremental-scans-a11y-r60)) | `A11YGATE_INCREMENTAL` | absent: reuse off |
+| `incrementalNormalize` | scan replacement DOM normalization regex list | `A11YGATE_INCREMENTAL_NORMALIZE` | built-in nonce/CSRF/timestamp patterns |
 | `routes` | scan source-glob → URL-path mapping; inert without changedSince | `A11YGATE_ROUTES` (JSON object) | {} |
 | `changedSince` | scan `--changed-since <ref>` | `A11YGATE_CHANGED_SINCE` | absent |
 | `url` | scan URL; positional URL or `--url` wins | `A11YGATE_URL` | required for scan |

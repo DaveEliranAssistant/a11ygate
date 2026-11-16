@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path20 = parsed.pathname || "/";
-    if (path20.length > 1 && path20.endsWith("/")) path20 = path20.slice(0, -1);
-    return path20 || "/";
+    let path21 = parsed.pathname || "/";
+    if (path21.length > 1 && path21.endsWith("/")) path21 = path21.slice(0, -1);
+    return path21 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path20 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path20.length > 1 && path20.endsWith("/")) path20 = path20.slice(0, -1);
-    return path20;
+    let path21 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path21.length > 1 && path21.endsWith("/")) path21 = path21.slice(0, -1);
+    return path21;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path20 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path21 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path20, html, !html || path20.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path21, html, !html || path21.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir8, readFile as readFile8, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
-import path19 from "node:path";
+import { mkdir as mkdir9, readFile as readFile9, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
+import path20 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -718,21 +718,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path20) {
+function readImpact(value, path21) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path20} must be minor, moderate, serious, critical, or null`
+    error: `${path21} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path20) {
+function readTarget(value, path21) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path20}.target must be an array of strings`;
+    return `${path21}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path20}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path21}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -740,52 +740,52 @@ function readTarget(value, path20) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path20}.target must be an array of strings`;
+    return `${path21}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path20) {
-  if (!isRecord(value)) return `${path20} must be an object`;
-  const target = readTarget(value.target, path20);
+function validateNode(value, path21) {
+  if (!isRecord(value)) return `${path21} must be an object`;
+  const target = readTarget(value.target, path21);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path20}.html must be a string`;
+  if (typeof value.html !== "string") return `${path21}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path20}.impact`);
+    const impact = readImpact(value.impact, `${path21}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path20) {
-  if (!isRecord(value)) return `${path20} must be an object`;
+function validateViolation(value, path21) {
+  if (!isRecord(value)) return `${path21} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path20}.id must be a non-empty string`;
+    return `${path21}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path20}.impact is missing`;
+    return `${path21}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path20}.impact`);
+  const impact = readImpact(value.impact, `${path21}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path20}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path21}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path20}.tags must be an array of strings`;
+    return `${path21}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path20}.help must be a non-empty string`;
+    return `${path21}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path20}.helpUrl must be a non-empty string`;
+    return `${path21}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path20}.nodes must contain at least one node`;
+    return `${path21}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path20}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path21}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -801,37 +801,37 @@ function validateViolation(value, path20) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path20) {
-  if (!isRecord(value)) return `${path20} must be an axe result object`;
+function validateResult(value, path21) {
+  if (!isRecord(value)) return `${path21} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path20}.url must be a non-empty string`;
+    return `${path21}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path20}.timestamp must be an ISO date string`;
+    return `${path21}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path20}.testEngine.version must be a non-empty string`;
+    return `${path21}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path20}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path21}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path20}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path21}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path20}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path20}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path20}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path20}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path21}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path21}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path21}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path21}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path20}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path21}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path20}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path21}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path20}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path21}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -932,7 +932,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path20 = pagePath(result.url);
+    const path21 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -947,7 +947,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path20,
+          path: path21,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -1530,7 +1530,7 @@ function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
     "",
     `| ${t.t("md.pageColumn")} | ${t.t("md.httpColumn")} | ${t.t("md.statusColumn")} | ${t.t("md.findingsColumn")} |`,
     "| --- | --- | --- | --- |",
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.cache ? " \u2014 " + cell(p.cache.note) : ""}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
     "",
     `## ${t.t("md.byCriterionHeading")}`,
     ""
@@ -1821,7 +1821,7 @@ function htmlGroups(title, groups) {
 }
 function scanHtml(report) {
   const counts = ["critical", "serious", "moderate", "minor", "unknown"].map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join("");
-  const pages = report.pages.map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc(p.scanStatus)}${p.error ? " \u2014 " + esc(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
+  const pages = report.pages.map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc(p.scanStatus)}${p.cache ? " \u2014 " + esc(p.cache.note) : ""}${p.error ? " \u2014 " + esc(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2261,8 +2261,8 @@ PASS is not legal advice or certification. Baseline updates never clear the curr
 }
 
 // packages/cli/src/projects.ts
-import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
-import path7 from "node:path";
+import { mkdir as mkdir3, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
+import path9 from "node:path";
 
 // lib/export-junit.ts
 function xmlSafe(value) {
@@ -2490,7 +2490,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path20) => {
+  const run2 = async (name, steps, index, path21) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2520,8 +2520,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path20) {
-        for (const control of path20) {
+      else if (path21) {
+        for (const control of path21) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2531,7 +2531,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path20 && path20.length < depth) children = (await revealedControls(page, path20.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path21 && path21.length < depth) children = (await revealedControls(page, path21.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2548,11 +2548,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path20) => {
-      if (autoUsed >= maxStates || used + path20.length > options.budget) return;
+    const explore = async (path21) => {
+      if (autoUsed >= maxStates || used + path21.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path20.map((c) => c.name).join(">"), void 0, void 0, path20);
-      for (const child of children) await explore([...path20, child]);
+      const children = await run2(path21.map((c) => c.name).join(">"), void 0, void 0, path21);
+      for (const child of children) await explore([...path21, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -2667,6 +2667,19 @@ var a11ygate_schema_default = {
       minimum: 0,
       maximum: 20,
       "x-cli": ["--crawl"]
+    },
+    incremental: {
+      description: "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--incremental"]
+    },
+    incrementalNormalize: {
+      description: "Replace default DOM normalizers with these global, case-insensitive JavaScript regexes. Only used with incremental.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      minItems: 1,
+      "x-cli": ["--incremental-normalize"]
     },
     routes: {
       description: "Repository-relative source globs mapped to same-origin URL paths, or * for a full scan. Glob syntax: *, **, ?.",
@@ -3319,6 +3332,8 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  incremental: { flag: "--incremental", commands: scan, default: null },
+  incrementalNormalize: { flag: "--incremental-normalize", commands: scan, default: [] },
   routes: { flag: "--routes", commands: scan, default: {} },
   changedSince: { flag: "--changed-since", commands: scan, default: null },
   screenshots: { flag: "--screenshots", commands: scan, default: false },
@@ -3634,6 +3649,115 @@ function parseProjects(text) {
   }
   return { projects, errors };
 }
+
+// packages/cli/src/incremental.ts
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync as readFileSync2 } from "node:fs";
+import { createRequire } from "node:module";
+import { mkdir, readFile, readdir } from "node:fs/promises";
+import path4 from "node:path";
+
+// packages/cli/src/atomic-write.ts
+import { randomBytes } from "node:crypto";
+import { rename as fsRename, unlink, writeFile } from "node:fs/promises";
+import path3 from "node:path";
+async function writeFileAtomic(file, data, deps = {}) {
+  const tmp = path3.join(path3.dirname(file), `.${path3.basename(file)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    await writeFile(tmp, data, { encoding: "utf8", flag: "wx" });
+    await (deps.rename ?? fsRename)(tmp, file);
+  } catch (error) {
+    await unlink(tmp).catch(() => {
+    });
+    throw error;
+  }
+}
+
+// packages/cli/src/incremental.ts
+var DEFAULT_DOM_NORMALIZERS = [
+  String.raw`<(?:input|meta)\b(?=[^>]*\b(?:name|id)\s*=\s*["'](?:_?csrf(?:[-_]?token)?|authenticity_token|__RequestVerificationToken)["'])[^>]*>`,
+  String.raw`\bnonce\s*=\s*(?:"[^"]*"|'[^']*')`,
+  String.raw`\b(?:data-csrf-token|csrf-token|data-timestamp)\s*=\s*(?:"[^"]*"|'[^']*')`,
+  String.raw`\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b`
+];
+function normalizeDom(dom, patterns = DEFAULT_DOM_NORMALIZERS) {
+  return patterns.reduce((text, pattern) => text.replace(new RegExp(pattern, "gi"), ""), dom);
+}
+var stableJson = (value) => JSON.stringify(value, (_key, child) => child && typeof child === "object" && !Array.isArray(child) ? Object.fromEntries(Object.entries(child).sort(([a], [b]) => a.localeCompare(b))) : child);
+var hash = (text) => createHash("sha256").update(text).digest("hex");
+function installedEngineVersions(engines) {
+  const require3 = createRequire(import.meta.url);
+  const packages = { axe: "axe-core", htmlcs: "html_codesniffer", ibm: "accessibility-checker-engine", lighthouse: "lighthouse" };
+  try {
+    return Object.fromEntries(["playwright", ...engines.includes("axe") ? ["@axe-core/playwright"] : [], ...engines.map((id) => packages[id])].map((name) => {
+      const resolver = name === "axe-core" ? createRequire(require3.resolve("@axe-core/playwright")) : require3;
+      let dir = path4.dirname(resolver.resolve(name));
+      while (true) {
+        try {
+          const info = JSON.parse(readFileSync2(path4.join(dir, "package.json"), "utf8"));
+          if (info.name === name && typeof info.version === "string") return [name, info.version];
+        } catch {
+        }
+        const parent = path4.dirname(dir);
+        if (parent === dir) throw new Error("Missing version");
+        dir = parent;
+      }
+    }));
+  } catch {
+    return void 0;
+  }
+}
+function parseEntry(text) {
+  const envelope = JSON.parse(text);
+  if (typeof envelope.payload !== "string" || hash(envelope.payload) !== envelope.sha256) throw new Error("Checksum mismatch");
+  const entry = JSON.parse(envelope.payload);
+  if (entry.schemaVersion !== 1 || typeof entry.key !== "string" || typeof entry.domHash !== "string" || typeof entry.scanId !== "string" || !entry.analysis || !Array.isArray(entry.analysis.engineResults) || !Array.isArray(entry.analysis.rawEngineResults)) throw new Error("Invalid cache entry");
+  return entry;
+}
+var IncrementalCache = class {
+  constructor(options) {
+    this.options = options;
+    this.scanId = randomUUID();
+    this.pages = {};
+  }
+  async validateFiles() {
+    try {
+      const files = (await readdir(this.options.dir)).filter((file) => /^[a-f0-9]{64}\.json$/.test(file));
+      await Promise.all(files.map(async (file) => parseEntry(await readFile(path4.join(this.options.dir, file), "utf8"))));
+      return true;
+    } catch (error) {
+      if (error.code === "ENOENT") return true;
+      this.options.warn("Incremental cache unreadable or corrupted; ignored cache and running a full scan.");
+      return false;
+    }
+  }
+  async analyze(url, dom, run2) {
+    const key = hash(stableJson({ url, config: this.options.config, patterns: this.options.patterns ?? DEFAULT_DOM_NORMALIZERS }));
+    const domHash = hash(normalizeDom(dom, this.options.patterns));
+    const file = path4.join(this.options.dir, `${hash(url)}.json`);
+    try {
+      const valid = await (this.validated ??= this.validateFiles());
+      const entry = valid ? parseEntry(await readFile(file, "utf8")) : void 0;
+      if (entry && entry.key === key && entry.domHash === domHash) {
+        this.pages[url] = { scanId: entry.scanId, note: `from cache (DOM unchanged since ${entry.scanId})` };
+        return structuredClone(entry.analysis);
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") this.options.warn("Incremental cache unreadable or corrupted; ignored cached page and running engines again.");
+    }
+    const analysis = await run2();
+    if ((analysis.result || analysis.engineResults.length) && analysis.engineResults.every((r) => r.status === "complete") && analysis.rawEngineResults.every((r) => r.status === "complete")) {
+      const payload = JSON.stringify({ schemaVersion: 1, key, domHash, scanId: this.scanId, compatibility: this.options.compatibility, analysis: this.options.sanitize?.(analysis) ?? analysis });
+      try {
+        await mkdir(this.options.dir, { recursive: true, mode: 448 });
+        await writeFileAtomic(file, JSON.stringify({ payload, sha256: hash(payload) }));
+      } catch {
+        this.options.warn("Incremental cache could not be written; scan findings are still available.");
+      }
+    }
+    return analysis;
+  }
+};
 
 // packages/cli/src/diff-routes.ts
 import { execFile } from "node:child_process";
@@ -4009,7 +4133,7 @@ async function redactedScreenshot(page, selectors = []) {
 }
 
 // packages/cli/src/scan.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 
 // packages/cli/src/local-server.ts
 import { spawn } from "node:child_process";
@@ -4076,17 +4200,17 @@ function storyUrls(index, base) {
 }
 
 // packages/cli/src/input-file.ts
-import { readFile, stat as stat2 } from "node:fs/promises";
-import path3 from "node:path";
+import { readFile as readFile2, stat as stat2 } from "node:fs/promises";
+import path5 from "node:path";
 var MAX_INPUT_JSON_BYTES = 64 * 1024 * 1024;
 async function readJsonInput(cwd, file, parse, maxBytes = MAX_INPUT_JSON_BYTES) {
-  const absolute = path3.resolve(cwd, file);
+  const absolute = path5.resolve(cwd, file);
   let text;
   try {
     const info = await stat2(absolute);
     if (info.isDirectory()) throw Object.assign(new Error(), { code: "EISDIR" });
     if (info.size > maxBytes) throw Object.assign(new Error(), { code: "EFBIG" });
-    text = await readFile(absolute, "utf8");
+    text = await readFile2(absolute, "utf8");
   } catch (error) {
     const code3 = error.code;
     throw new Error(`${file}: ${code3 === "ENOENT" ? "file not found" : code3 === "EISDIR" ? "is a directory, not a file" : code3 === "EFBIG" ? `larger than ${maxBytes / 1024 / 1024} MB` : "could not read the file"}.`, { cause: error });
@@ -4105,10 +4229,10 @@ async function readJsonInput(cwd, file, parse, maxBytes = MAX_INPUT_JSON_BYTES) 
 }
 
 // packages/cli/src/auth.ts
-import { createRequire } from "node:module";
+import { createRequire as createRequire2 } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
-import path4 from "node:path";
+import path6 from "node:path";
 function envMapping(value) {
   const match = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
   return match ? { name: match[1], env: match[2] } : null;
@@ -4228,7 +4352,7 @@ async function prepareAuth(options, cwd, origin, env = process.env, redactor = n
     }
     redactor.storage(auth.sessionStorage);
   }
-  if (options.loginScript) auth.script = pathToFileURL(path4.resolve(cwd, options.loginScript)).href;
+  if (options.loginScript) auth.script = pathToFileURL(path6.resolve(cwd, options.loginScript)).href;
   return auth;
 }
 function restoreSessionStorage(state) {
@@ -4293,7 +4417,7 @@ async function runLoginScript(endpoint, origin, auth, contextOptions) {
       cookies: auth.cookies,
       headers: auth.headers,
       contextOptions,
-      playwright: createRequire(import.meta.url).resolve("playwright")
+      playwright: createRequire2(import.meta.url).resolve("playwright")
     } });
     worker.stdout.resume();
     worker.stderr.resume();
@@ -4374,13 +4498,13 @@ async function resolveElementKeys(page, findings) {
 }
 
 // packages/cli/src/scan.ts
-import { mkdir, stat as stat4, writeFile as writeFile2 } from "node:fs/promises";
-import path6 from "node:path";
+import { mkdir as mkdir2, stat as stat4, writeFile as writeFile3 } from "node:fs/promises";
+import path8 from "node:path";
 import { createServer } from "node:net";
 
 // lib/scan/engines/optional.ts
-import { createRequire as createRequire2 } from "node:module";
-import { readFile as readFile2 } from "node:fs/promises";
+import { createRequire as createRequire3 } from "node:module";
+import { readFile as readFile3 } from "node:fs/promises";
 
 // lib/scan/engines/lighthouse-lock.ts
 var tail = Promise.resolve();
@@ -4400,11 +4524,11 @@ async function serializeLighthouse(snapshot) {
 
 // lib/scan/engines/optional.ts
 var ENGINE_IDS = ["axe", "htmlcs", "ibm", "lighthouse"];
-var require2 = createRequire2(import.meta.url);
+var require2 = createRequire3(import.meta.url);
 var normalize = (results) => results.findings;
 async function localScript(packageName, script) {
   try {
-    return await readFile2(require2.resolve(`${packageName}/${script}`), "utf8");
+    return await readFile3(require2.resolve(`${packageName}/${script}`), "utf8");
   } catch {
     throw new Error(`Missing ${packageName} engine files. Install with: npm install --save-dev ${packageName}`);
   }
@@ -4737,7 +4861,7 @@ function byPageSection(t, report) {
   const body = report.pages.map((p) => {
     const list = report.findings.filter((f) => [p.url, p.finalUrl, normalizeUrl(p.url)].includes(f.pageUrl)).sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.ruleId.localeCompare(b.ruleId));
     const status = t.t("page.status", { status: p.status ?? t.t("page.noStatus"), scanStatus: esc2(p.scanStatus), error: p.error ? " \u2014 " + esc2(p.error) : "" });
-    return `<section><h3><code>${esc2(p.url)}</code> (${p.findings})</h3><p class="muted">${status}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join("")}</ul>` : `<p>${t.t("page.none")}</p>`}</section>`;
+    return `<section><h3><code>${esc2(p.url)}</code> (${p.findings})</h3><p class="muted">${status}${p.cache ? " \u2014 " + esc2(p.cache.note) : ""}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join("")}</ul>` : `<p>${t.t("page.none")}</p>`}</section>`;
   }).join("\n");
   return `<section id="by-page" aria-labelledby="by-page-h">
 <h2 id="by-page-h">${t.t("page.heading")}</h2>
@@ -4986,7 +5110,7 @@ var ContextPool = class {
 };
 
 // lib/export-sarif.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { gzipSync } from "node:zlib";
 var SARIF_SCHEMA_URL = "https://json.schemastore.org/sarif-2.1.0.json";
 var SARIF_VERSION = "2.1.0";
@@ -5035,8 +5159,8 @@ function primaryLocationLineHash(finding2) {
   const uri = identityUri(finding2);
   const line = finding2.source?.startLine ?? 1;
   const basis = finding2.fingerprint ?? [finding2.ruleId, uri, finding2.selector, String(line)].join("\0");
-  const hash = createHash("sha256").update(basis).digest("hex").slice(0, 16);
-  return `${hash}:${line}`;
+  const hash2 = createHash2("sha256").update(basis).digest("hex").slice(0, 16);
+  return `${hash2}:${line}`;
 }
 function identityUri(finding2) {
   if (finding2.source?.file) return finding2.source.file.replace(/\\/g, "/");
@@ -5078,11 +5202,11 @@ function pageUrlToRepoRelativePath(pageUrl) {
       const dot = lastSeg.lastIndexOf(".");
       const stem = dot > 0 ? lastSeg.slice(0, dot) : lastSeg;
       const ext = dot > 0 ? lastSeg.slice(dot) : ".html";
-      segments.push(`${stem}-${createHash("sha256").update(extra).digest("hex").slice(0, 8)}${ext}`);
+      segments.push(`${stem}-${createHash2("sha256").update(extra).digest("hex").slice(0, 8)}${ext}`);
     }
     return ["a11ygate-pages", host, ...segments].join("/");
   } catch {
-    return `a11ygate-pages/unknown/${createHash("sha256").update(pageUrl).digest("hex").slice(0, 16)}.html`;
+    return `a11ygate-pages/unknown/${createHash2("sha256").update(pageUrl).digest("hex").slice(0, 16)}.html`;
   }
 }
 function defaultEngine(report) {
@@ -5164,7 +5288,7 @@ function compareBySeverityThenStable(a, b) {
 }
 function toSarifResult(finding2, ruleIndex) {
   const index = ruleIndex.get(finding2.ruleId);
-  const hash = primaryLocationLineHash(finding2);
+  const hash2 = primaryLocationLineHash(finding2);
   return {
     ruleId: finding2.ruleId,
     ...index !== void 0 ? { ruleIndex: index } : {},
@@ -5195,9 +5319,9 @@ function toSarifResult(finding2, ruleIndex) {
         ]
       }
     ],
-    fingerprints: finding2.fingerprint ? { a11ygate: finding2.fingerprint } : { a11ygate: hash },
+    fingerprints: finding2.fingerprint ? { a11ygate: finding2.fingerprint } : { a11ygate: hash2 },
     partialFingerprints: {
-      primaryLocationLineHash: hash,
+      primaryLocationLineHash: hash2,
       ...finding2.fingerprint ? { a11ygate: finding2.fingerprint } : {}
     },
     properties: {
@@ -5466,8 +5590,8 @@ function toGitlabDecided(report) {
 }
 
 // packages/cli/src/baseline.ts
-import { stat as stat3, writeFile } from "node:fs/promises";
-import path5 from "node:path";
+import { stat as stat3, writeFile as writeFile2 } from "node:fs/promises";
+import path7 from "node:path";
 var BASELINE_HELP = `a11ygate baseline create [<scan.json|out-dir>] [--output <file>]
   --from <scan.json>   Read a saved site-scan report (also accepts an out-dir).
   --out-dir <dir>     Read a11ygate-scan.json from this directory.
@@ -5478,8 +5602,8 @@ The separate a11ygate [ci] --baseline continues to accept axe JSON only.
 Automated testing only. Not a WCAG audit, certification or legal advice.
 `;
 async function readScanInput(file, cwd) {
-  const isDirectory = (await stat3(path5.resolve(cwd, file)).catch(() => null))?.isDirectory();
-  return readJsonInput(cwd, isDirectory ? path5.join(file, "a11ygate-scan.json") : file, parseScanReport);
+  const isDirectory = (await stat3(path7.resolve(cwd, file)).catch(() => null))?.isDirectory();
+  return readJsonInput(cwd, isDirectory ? path7.join(file, "a11ygate-scan.json") : file, parseScanReport);
 }
 async function runBaseline(argv2, io) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
@@ -5511,7 +5635,7 @@ async function runBaseline(argv2, io) {
     const cwd = io.cwd ?? process.cwd();
     const report = await readScanInput(source ?? "a11ygate-scan.json", cwd);
     if (report.counts.pagesFailed || report.engines?.errored.length || report.verdict === "ERROR") throw new Error("Cannot create a baseline from incomplete scan coverage.");
-    await writeFile(path5.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    await writeFile2(path7.resolve(cwd, output), JSON.stringify(createFingerprintBaseline(report), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
     stdout(`Wrote fingerprint baseline ${output}
 `);
     return 0;
@@ -5531,7 +5655,7 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-have-selector": "mustNotHaveSelector",
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--routes", "--changed-since", "--redact-selector", "--keyboard-budget", "--keyboard-pixel-threshold", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--incremental", "--incremental-normalize", "--routes", "--changed-since", "--redact-selector", "--keyboard-budget", "--keyboard-pixel-threshold", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
 function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -5596,7 +5720,15 @@ function parseScanArgs(argv2) {
     if (value === void 0 || value.length === 0 || value.startsWith("-") && !(name === "--json" && value === "-")) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === "--redact-selector") {
+    if (name === "--incremental") options.incremental = value;
+    else if (name === "--incremental-normalize") {
+      try {
+        normalizeDom("", [value]);
+      } catch {
+        return { ok: false, error: "Invalid --incremental-normalize regular expression." };
+      }
+      (options.incrementalNormalize ??= []).push(value);
+    } else if (name === "--redact-selector") {
       (options.redactSelectors ??= []).push(value);
     } else if (name === "--keyboard-pixel-threshold") {
       if (!/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(value)) return { ok: false, error: "--keyboard-pixel-threshold must be from 0 to 1." };
@@ -5722,6 +5854,8 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --incremental <dir>   Reuse findings when rendered DOM, engine versions and config match (default off).
+  --incremental-normalize <regex> Replace default DOM normalizers; repeatable, case-insensitive/global.
   --screenshots         Opt in to masked viewport PNGs in --out-dir/screenshots (default off).
   --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
   --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
@@ -5807,7 +5941,9 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+var playwrightEngine = async ({ incremental: incrementalOptions, userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+  const versions = incrementalOptions ? installedEngineVersions(engines) : void 0;
+  if (incrementalOptions && !versions) incrementalOptions.warn("Incremental cache disabled: installed engine versions could not be resolved.");
   const extended = engines.length !== 1 || engines[0] !== "axe";
   let playwright;
   let axeModule;
@@ -5861,6 +5997,7 @@ var playwrightEngine = async ({ userAgent, origin, engines = ["axe"], auth, time
 Install it with: npx playwright install chromium
 `);
   }
+  const incremental = incrementalOptions && versions ? new IncrementalCache({ ...incrementalOptions, compatibility: { engineVersions: versions, ruleConfig: { tags: AXE_TAGS, engines } }, config: { scan: incrementalOptions.config, versions, browser: browser.version() } }) : void 0;
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true };
   let pool;
   try {
@@ -5903,6 +6040,7 @@ Install it with: npx playwright install chromium
   const interactionPages = [];
   const keyboardResults = [];
   return {
+    ...incremental ? { incremental } : {},
     ...keyboard ? { keyboardResults } : {},
     ...interactions ? { interactionPages } : {},
     rawEngineResults,
@@ -5974,29 +6112,60 @@ Install it with: npx playwright install chromium
           return [...Array.from(document.querySelectorAll("a[href]")).slice(0, 1e4).map((a) => a.href), ...routes].slice(0, 1e4);
         }) : [];
         const scanPage = async (scanUrl) => {
-          let result2;
-          for (const id of engines) {
-            if (id === "axe" && axeEngine) {
-              nativeByPage.delete(page);
-              const execution = await runEngine(axeEngine, page, scanUrl);
-              rawEngineResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeByPage.get(page) } : {}, url: scanUrl });
-              if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
-              if (!extended && execution.status === "errored") throw new Error(execution.error);
-              if (execution.status === "complete") result2 = execution.native;
-              if (extended) engineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
-            } else if (id !== "axe") {
-              const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
-              rawEngineResults.push({ ...execution, url: scanUrl });
-              if (execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
-              engineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
+          const runAnalysis = async () => {
+            const pageEngineResults = incremental ? [] : engineResults;
+            const pageRawResults = incremental ? [] : rawEngineResults;
+            let result2;
+            for (const id of engines) {
+              if (id === "axe" && axeEngine) {
+                nativeByPage.delete(page);
+                const execution = await runEngine(axeEngine, page, scanUrl);
+                pageRawResults.push({ ...execution, ...execution.status === "complete" ? { native: nativeByPage.get(page) } : {}, url: scanUrl });
+                if (extended && execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
+                if (!extended && execution.status === "errored") throw new Error(execution.error);
+                if (execution.status === "complete") result2 = execution.native;
+                if (extended) pageEngineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
+              } else if (id !== "axe") {
+                const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
+                pageRawResults.push({ ...execution, url: scanUrl });
+                if (execution.status === "complete") execution.findings = await resolveElementKeys(page, execution.findings);
+                pageEngineResults.push(execution.status === "complete" ? { url: scanUrl, engine: id, status: "complete", findings: execution.findings } : { url: scanUrl, engine: id, status: "errored", error: execution.error });
+              }
             }
+            return { result: result2, engineResults: pageEngineResults, rawEngineResults: pageRawResults };
+          };
+          const dom = incremental ? (await Promise.all(page.frames().map(async (frame) => `[frame:${frame.url()}]
+${(await frame.evaluate(() => {
+            const roots = [];
+            const walk = (root) => {
+              for (const el of root.querySelectorAll("*")) {
+                if (el.shadowRoot) {
+                  roots.push(el.shadowRoot.innerHTML);
+                  walk(el.shadowRoot);
+                }
+                if (el instanceof HTMLInputElement) {
+                  const clone = el.cloneNode();
+                  clone.setAttribute("value", el.value);
+                  clone.toggleAttribute("checked", el.checked);
+                  roots.push(clone.outerHTML);
+                }
+                if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) roots.push(el.value);
+              }
+            };
+            walk(document);
+            return [document.documentElement.outerHTML, ...roots];
+          })).join("\n")}`))).join("\n") : "";
+          const analysis = incremental ? await incremental.analyze(scanUrl, dom, runAnalysis) : await runAnalysis();
+          if (incremental) {
+            engineResults.push(...analysis.engineResults);
+            rawEngineResults.push(...analysis.rawEngineResults);
           }
           if (screenshotDir) {
             const image = await redactedScreenshot(page, redactSelectors);
-            await mkdir(screenshotDir, { recursive: true });
-            await writeFile2(path6.join(screenshotDir, `${createHash2("sha256").update(scanUrl).digest("hex").slice(0, 24)}.png`), image);
+            await mkdir2(screenshotDir, { recursive: true });
+            await writeFile3(path8.join(screenshotDir, `${createHash3("sha256").update(scanUrl).digest("hex").slice(0, 24)}.png`), image);
           }
-          return result2;
+          return analysis.result;
         };
         const result = await scanPage(url);
         if (keyboard) {
@@ -6143,9 +6312,23 @@ ${debugDetail(error)}`);
     options.pageLimit = seedUrls.length;
     options.maxDepth = 0;
   }
+  const incrementalOptions = options.incremental ? {
+    dir: path8.resolve(cwd, options.incremental),
+    config: {
+      version,
+      tags: AXE_TAGS,
+      interactions,
+      settings: { ...options, incremental: void 0, outDir: void 0, json: void 0, markdown: void 0, html: void 0, formats: void 0, warnings: void 0 },
+      auth: { check: auth.check, state: auth.state, cookies: auth.cookies, headers: auth.headers, sessionStorage: auth.sessionStorage }
+    },
+    patterns: options.incrementalNormalize,
+    sanitize: (analysis) => io.redactor?.object(analysis) ?? analysis,
+    warn: (message) => stderr(`${message}
+`)
+  } : void 0;
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path6.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...options.keyboardPixelThreshold !== void 0 ? { pixelThreshold: options.keyboardPixelThreshold } : {} } } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...incrementalOptions ? { incremental: incrementalOptions } : {}, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path8.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...options.keyboardPixelThreshold !== void 0 ? { pixelThreshold: options.keyboardPixelThreshold } : {} } } : {} });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, "\n") : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `}${debugDetail(error)}`);
@@ -6208,6 +6391,11 @@ ${debugDetail(error)}`);
     explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length)
   });
+  if (engine.incremental) {
+    report.incremental = { scanId: engine.incremental.scanId };
+    report.pages = report.pages.map((page) => ({ ...page, ...engine.incremental.pages[page.url] ? { cache: engine.incremental.pages[page.url] } : {} }));
+    report.disclaimer ??= AUTOMATED_TESTING_DISCLAIMER;
+  }
   if (diffScan) {
     const routePaths = (urls) => urls.flatMap((value) => {
       try {
@@ -6245,21 +6433,21 @@ async function writeScanReport(report, options, io, engine) {
   const formatReport = formatReportFromScan(report);
   const extra = [];
   if (options.outDir && options.formats.includes("junit")) {
-    extra.push([path6.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
+    extra.push([path8.join(options.outDir, formatFileName("scan", "junit")), toJunit(formatReport)]);
   }
   if (options.outDir && options.formats.includes("gitlab-codequality")) {
-    extra.push([path6.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
+    extra.push([path8.join(options.outDir, formatFileName("scan", "gitlab-codequality")), toGitlabCodeQuality(formatReport)]);
     const decided = toGitlabDecided(formatReport);
-    if (decided) extra.push([path6.join(options.outDir, "codequality-decided.json"), decided]);
+    if (decided) extra.push([path8.join(options.outDir, "codequality-decided.json"), decided]);
   }
   if (options.outDir && options.formats.includes("sarif")) {
-    extra.push([path6.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
+    extra.push([path8.join(options.outDir, formatFileName("scan", "sarif")), toSarif(formatReport, options.en301549Ref ? { en301549Ref: true } : {})]);
   }
   const targets = options.outDir ? [
-    [path6.join(options.outDir, "a11ygate-scan.json"), json],
-    [path6.join(options.outDir, "a11ygate-scan.md"), markdown],
-    [path6.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...options.reportLang ? { lang: options.reportLang } : {} })],
-    ...options.noScreenshots ? [[path6.join(options.outDir, ".a11ygate-no-screenshots"), "Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n"]] : [],
+    [path8.join(options.outDir, "a11ygate-scan.json"), json],
+    [path8.join(options.outDir, "a11ygate-scan.md"), markdown],
+    [path8.join(options.outDir, "a11ygate-scan.html"), renderScanHtml(report, options.reportVersion, { en301549Ref: options.en301549Ref === true, ...options.reportLang ? { lang: options.reportLang } : {} })],
+    ...options.noScreenshots ? [[path8.join(options.outDir, ".a11ygate-no-screenshots"), "Screenshots disabled for this scan.\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n"]] : [],
     ...extra
   ] : [
     [options.json === "-" ? void 0 : options.json, json],
@@ -6273,23 +6461,23 @@ async function writeScanReport(report, options, io, engine) {
         [typeof options.interactions === "string" ? options.interactions : void 0, options.baseline, io.reportInput, options.storageState, options.sessionStorage, options.loginScript].filter((f) => !!f),
         [
           ...targets.map(([file]) => file).filter((f) => !!f),
-          ...options.outDir ? options.engines.map((id) => path6.join(options.outDir, "engines", `${id}.json`)) : []
+          ...options.outDir ? options.engines.map((id) => path8.join(options.outDir, "engines", `${id}.json`)) : []
         ]
       );
     }
-    if (options.outDir) await mkdir(path6.resolve(cwd, options.outDir), { recursive: true });
+    if (options.outDir) await mkdir2(path8.resolve(cwd, options.outDir), { recursive: true });
     if (options.outDir) {
-      const evidenceDir = path6.resolve(cwd, options.outDir, "engines");
-      await mkdir(evidenceDir, { recursive: true });
+      const evidenceDir = path8.resolve(cwd, options.outDir, "engines");
+      await mkdir2(evidenceDir, { recursive: true });
       for (const id of options.engines) {
         const native = engine?.rawEngineResults?.filter((e) => e.engine === id);
         const evidence = native?.length ? native : id === "axe" ? report.results : report.engineResults?.filter((e) => e.engine === id) ?? [];
-        await writeFile2(path6.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
+        await writeFile3(path8.join(evidenceDir, `${id}.json`), `${JSON.stringify(redactor.object(evidence), null, 2)}
 `, "utf8");
       }
     }
     for (const [file, content] of targets) {
-      if (file) await writeFile2(path6.resolve(cwd, file), content, "utf8");
+      if (file) await writeFile3(path8.resolve(cwd, file), content, "utf8");
     }
   } catch (error) {
     const code3 = error.code;
@@ -6336,8 +6524,8 @@ async function runReportInternal(argv2, io) {
       };
     }
     if (parsed.options.baseline) report = applyFingerprintBaseline(report, await readJsonInput(cwd, parsed.options.baseline, parseFingerprintBaseline));
-    const source = path6.resolve(cwd, argv2[0]);
-    const reportInput = (await stat4(source)).isDirectory() ? path6.join(source, "a11ygate-scan.json") : source;
+    const source = path8.resolve(cwd, argv2[0]);
+    const reportInput = (await stat4(source)).isDirectory() ? path8.join(source, "a11ygate-scan.json") : source;
     const engines = report.engines?.used ?? ["axe"];
     if (engines.some((id) => !ENGINE_IDS.includes(id))) throw new Error("Unknown engine in saved report.");
     return await writeScanReport(report, { ...parsed.options, engines }, { ...io, reportInput });
@@ -6371,24 +6559,24 @@ async function runProjects(argv2, io = {}) {
     const parallel = flags.get("--parallel") ?? "1";
     if (!/^[1-8]$/.test(parallel)) throw new Error("--parallel must be a whole number from 1 to 8.");
     if (!flags.get("--projects")) throw new Error("--projects needs a file.");
-    const file = path7.resolve(cwd, flags.get("--projects"));
-    const parsed = parseProjects(await readFile3(file, "utf8"));
+    const file = path9.resolve(cwd, flags.get("--projects"));
+    const parsed = parseProjects(await readFile4(file, "utf8"));
     if (parsed.errors.length) throw new Error(`${PROJECTS_SCHEMA_PATH}:
 ${parsed.errors.join("\n")}`);
-    const outDir = path7.resolve(cwd, flags.get("--out-dir") ?? "a11ygate-projects");
-    const projects = parsed.projects.map((project) => ({ ...project, config: path7.resolve(path7.dirname(file), project.config) }));
+    const outDir = path9.resolve(cwd, flags.get("--out-dir") ?? "a11ygate-projects");
+    const projects = parsed.projects.map((project) => ({ ...project, config: path9.resolve(path9.dirname(file), project.config) }));
     const inputs = [file, ...projects.map((p) => p.config)];
     for (const project of projects) {
       try {
-        const repoConfig = await readFile3(project.config, "utf8");
-        const effective = loadEffectiveConfig("scan", [], { ...io, cwd: path7.dirname(project.config), repoConfig });
+        const repoConfig = await readFile4(project.config, "utf8");
+        const effective = loadEffectiveConfig("scan", [], { ...io, cwd: path9.dirname(project.config), repoConfig });
         for (const key of ["baseline", "auth.storageState", "auth.sessionStorage", "auth.loginScript"]) {
-          if (typeof effective.values[key] === "string" && effective.values[key]) inputs.push(path7.resolve(path7.dirname(project.config), effective.values[key]));
+          if (typeof effective.values[key] === "string" && effective.values[key]) inputs.push(path9.resolve(path9.dirname(project.config), effective.values[key]));
         }
       } catch {
       }
     }
-    const outputs = [...SUMMARY_FILES.map((f) => path7.join(outDir, f)), ...projects.flatMap((p) => SCAN_FILES.map((f) => path7.join(outDir, p.name, f)))];
+    const outputs = [...SUMMARY_FILES.map((f) => path9.join(outDir, f)), ...projects.flatMap((p) => SCAN_FILES.map((f) => path9.join(outDir, p.name, f)))];
     await assertSafeOutputs(cwd, inputs, outputs);
     const results = new Array(projects.length);
     let next = 0;
@@ -6396,12 +6584,12 @@ ${parsed.errors.join("\n")}`);
       while (next < projects.length) {
         const index = next++;
         const project = projects[index];
-        const dir = path7.join(outDir, project.name);
+        const dir = path9.join(outDir, project.name);
         let report;
         let exitCode2 = 2;
         try {
-          const repoConfig = await readFile3(project.config, "utf8");
-          const projectIo = { ...io, cwd: path7.dirname(project.config), repoConfig };
+          const repoConfig = await readFile4(project.config, "utf8");
+          const projectIo = { ...io, cwd: path9.dirname(project.config), repoConfig };
           const effective = loadEffectiveConfig("scan", ["--out-dir", dir, "--format", "junit"], projectIo);
           const options = parseScanArgs(effective.argv);
           if (!options.ok) throw new Error(options.error);
@@ -6435,8 +6623,8 @@ ${parsed.errors.join("\n")}`);
         };
         results[index] = result;
         try {
-          await mkdir2(dir, { recursive: true });
-          await writeFile3(path7.join(dir, "project-result.json"), JSON.stringify({ ...result, disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n");
+          await mkdir3(dir, { recursive: true });
+          await writeFile4(path9.join(dir, "project-result.json"), JSON.stringify({ ...result, disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n");
         } catch {
           result.status = "errored";
           result.exitCode = 2;
@@ -6472,7 +6660,7 @@ ${results.map((p) => `| ${p.name} | ${p.status} | ${p.counts.findings} | [Output
 ${results.map((p) => `  <testsuite name="${escapeXml(p.name)}" tests="1" failures="${p.status === "failed" ? 1 : 0}" errors="${p.status === "errored" ? 1 : 0}"><properties><property name="disclaimer" value="${escapeXml(AUTOMATED_TESTING_DISCLAIMER)}"/></properties><testcase name="project-gate" classname="${escapeXml(p.name)}">${p.status === "passed" ? "" : `<${p.status === "errored" ? "error" : "failure"} message="${escapeXml(p.reason)}"/>`}</testcase></testsuite>`).join("\n")}
 </testsuites>
 `;
-    for (const [i, content] of [JSON.stringify(summary, null, 2) + "\n", markdown, html, junit].entries()) await writeFile3(path7.join(outDir, SUMMARY_FILES[i]), content);
+    for (const [i, content] of [JSON.stringify(summary, null, 2) + "\n", markdown, html, junit].entries()) await writeFile4(path9.join(outDir, SUMMARY_FILES[i]), content);
     stdout(markdown);
     return exitCode;
   } catch (error) {
@@ -6484,9 +6672,9 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 }
 
 // packages/cli/src/report-pdf.ts
-import { mkdir as mkdir4, rename, unlink, writeFile as writeFile5 } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
-import path9 from "node:path";
+import { mkdir as mkdir5, rename, unlink as unlink2, writeFile as writeFile6 } from "node:fs/promises";
+import { randomBytes as randomBytes2 } from "node:crypto";
+import path11 from "node:path";
 
 // lib/scan/pdf-dests.ts
 function objectBody(pdf, num) {
@@ -6605,11 +6793,11 @@ var PDF_HEADER_TEMPLATE = "<span></span>";
 
 // packages/cli/src/evidence.ts
 import { execFile as execFile2 } from "node:child_process";
-import { lstat as lstat2, mkdir as mkdir3, readdir, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import { lstat as lstat2, mkdir as mkdir4, readdir as readdir2, readFile as readFile5, writeFile as writeFile5 } from "node:fs/promises";
+import path10 from "node:path";
 
 // lib/evidence/pack.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 
 // lib/evidence/zip.ts
 import { deflateRawSync, inflateRawSync } from "node:zlib";
@@ -6630,8 +6818,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path20) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path20);
+function shouldStore(path21) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path21);
 }
 function createZip(entries2) {
   const local = [];
@@ -6776,7 +6964,7 @@ var COMMIT_UNAVAILABLE_NOTE = "Commit SHA unavailable: it was not passed with --
 var MAX_PACK_FILE_BYTES = 64 * 1024 * 1024;
 var MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
 function sha256(data) {
-  return createHash3("sha256").update(data).digest("hex");
+  return createHash4("sha256").update(data).digest("hex");
 }
 function toUtcIso(value) {
   if (!value) return null;
@@ -6833,8 +7021,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path20) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path20);
+function isTextPath(path21) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path21);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -6877,7 +7065,7 @@ function frontPageMarkdown({ report, engines, commit, contents }) {
     "",
     "| Page | HTTP | Status | Findings |",
     "| --- | --- | --- | --- |",
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? "\u2014"} | ${p.scanStatus}${p.cache ? " \u2014 " + cell(p.cache.note) : ""}${p.error ? " \u2014 " + cell(p.error) : ""} | ${p.findings} |`),
     "",
     "## Automated result",
     "",
@@ -6912,7 +7100,7 @@ function frontPageMarkdown({ report, engines, commit, contents }) {
 }
 function frontPageHtml({ report, engines, commit, contents }) {
   const severities2 = ["critical", "serious", "moderate", "minor", "unknown"];
-  const pages = report.pages.map((p) => `<tr><td><code>${esc4(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc4(p.scanStatus)}${p.error ? " \u2014 " + esc4(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
+  const pages = report.pages.map((p) => `<tr><td><code>${esc4(p.url)}</code></td><td>${p.status ?? "\u2014"}</td><td>${esc4(p.scanStatus)}${p.cache ? " \u2014 " + esc4(p.cache.note) : ""}${p.error ? " \u2014 " + esc4(p.error) : ""}</td><td>${p.findings}</td></tr>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -6983,8 +7171,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path20, make] of generated) {
-    if (!files.has(path20)) files.set(path20, { path: path20, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path21, make] of generated) {
+    if (!files.has(path21)) files.set(path21, { path: path21, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -7017,7 +7205,7 @@ function buildEvidencePack(input) {
       pagesFailed: report.counts.pagesFailed,
       skippedLinks: report.counts.skippedLinks,
       maxPages: report.options.maxPages,
-      pages: report.pages.map((p) => ({ url: p.url, status: p.status, scanStatus: p.scanStatus }))
+      pages: report.pages.map((p) => ({ url: p.url, status: p.status, scanStatus: p.scanStatus, ...p.cache ? { cache: p.cache } : {} }))
     },
     engines,
     disclaimer: EVIDENCE_DISCLAIMER,
@@ -7117,8 +7305,8 @@ function looksLikeImage(data) {
 async function collectInputs(dir, warn, omitImages = false) {
   const files = [];
   for (const name of REPORT_FILES) {
-    const file = path8.join(dir, name);
-    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile4(file), source: "copied" });
+    const file = path10.join(dir, name);
+    if (await regularFile(file)) files.push({ path: `scan/${name}`, data: await readFile5(file), source: "copied" });
   }
   for (const [sub, pattern, check2] of [
     ["engines", ENGINE_FILE, (data) => {
@@ -7132,15 +7320,15 @@ async function collectInputs(dir, warn, omitImages = false) {
     ["screenshots", SCREENSHOT_FILE, looksLikeImage]
   ]) {
     if (sub === "screenshots" && omitImages) continue;
-    const names = await readdir(path8.join(dir, sub)).catch(() => []);
+    const names = await readdir2(path10.join(dir, sub)).catch(() => []);
     for (const name of names.sort()) {
       if (!pattern.test(name)) continue;
-      const file = path8.join(dir, sub, name);
+      const file = path10.join(dir, sub, name);
       if (!await regularFile(file)) {
         warn(`Skipped ${sub}/${name}: not a regular file.`);
         continue;
       }
-      const data = await readFile4(file);
+      const data = await readFile5(file);
       if (!check2(data)) {
         warn(`Skipped ${sub}/${name}: unexpected content.`);
         continue;
@@ -7174,15 +7362,15 @@ Run a11ygate evidence --help for usage.
     stdout(evidenceHelpText());
     return 0;
   }
-  const dir = path8.resolve(cwd, options.from);
-  const scanJsonPath = path8.join(dir, "a11ygate-scan.json");
+  const dir = path10.resolve(cwd, options.from);
+  const scanJsonPath = path10.join(dir, "a11ygate-scan.json");
   if (!await regularFile(scanJsonPath)) {
     stderr(`${options.from}: no a11ygate-scan.json found. Run a11ygate scan <url> --out-dir ${options.from} first.
 `);
     return 2;
   }
-  const scanJson = await readFile4(scanJsonPath, "utf8");
-  const omitImages = await lstat2(path8.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
+  const scanJson = await readFile5(scanJsonPath, "utf8");
+  const omitImages = await lstat2(path10.join(dir, ".a11ygate-no-screenshots")).then(() => true, () => false);
   const files = await collectInputs(dir, (message) => stderr(`${message}
 `), omitImages);
   let commit;
@@ -7209,10 +7397,10 @@ Run a11ygate evidence --help for usage.
 `);
     return 2;
   }
-  const out = path8.resolve(cwd, options.out ?? path8.join(options.from, "a11ygate-evidence.zip"));
+  const out = path10.resolve(cwd, options.out ?? path10.join(options.from, "a11ygate-evidence.zip"));
   try {
-    await mkdir3(path8.dirname(out), { recursive: true });
-    await writeFile4(out, result.zip);
+    await mkdir4(path10.dirname(out), { recursive: true });
+    await writeFile5(out, result.zip);
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the evidence pack${code3 ? ` (${code3})` : ""}.
@@ -7220,7 +7408,7 @@ Run a11ygate evidence --help for usage.
     return 2;
   }
   if (!commit.sha) stderr("Note: commit SHA unavailable; recorded as unavailable in manifest.json.\n");
-  stdout(`Wrote ${path8.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
+  stdout(`Wrote ${path10.relative(cwd, out) || out} (${result.manifest.files.length + 1} files, manifest SHA-256 for each).
 `);
   return 0;
 }
@@ -7311,13 +7499,13 @@ async function renderReportPdf(browser, report, meta, options = {}) {
   }
 }
 async function writeBinaryAtomic(file, data) {
-  await mkdir4(path9.dirname(file), { recursive: true });
-  const tmp = path9.join(path9.dirname(file), `.${path9.basename(file)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  await mkdir5(path11.dirname(file), { recursive: true });
+  const tmp = path11.join(path11.dirname(file), `.${path11.basename(file)}.${process.pid}.${randomBytes2(6).toString("hex")}.tmp`);
   try {
-    await writeFile5(tmp, data, { flag: "wx" });
+    await writeFile6(tmp, data, { flag: "wx" });
     await rename(tmp, file);
   } catch (error) {
-    await unlink(tmp).catch(() => {
+    await unlink2(tmp).catch(() => {
     });
     throw error;
   }
@@ -7366,9 +7554,9 @@ ${debugDetail(error)}`);
   }
   try {
     const { pdf } = await renderReportPdf(browser, report, { commit }, { lang: options.lang, en301549Ref: options.en301549Ref });
-    const out = path9.resolve(cwd, options.out);
+    const out = path11.resolve(cwd, options.out);
     await writeBinaryAtomic(out, pdf);
-    stdout(`Wrote ${path9.relative(cwd, out) || out}
+    stdout(`Wrote ${path11.relative(cwd, out) || out}
 ${AUTOMATED_TESTING_DISCLAIMER}
 `);
     return 0;
@@ -7382,32 +7570,14 @@ ${debugDetail(error)}`);
 }
 
 // packages/cli/src/review.ts
-import path12 from "node:path";
+import path13 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/review-manage.ts
 import { execFile as execFile3 } from "node:child_process";
-import { readFile as readFile5 } from "node:fs/promises";
-import path11 from "node:path";
+import { readFile as readFile6 } from "node:fs/promises";
+import path12 from "node:path";
 import { createInterface } from "node:readline/promises";
-
-// packages/cli/src/atomic-write.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { rename as fsRename, unlink as unlink2, writeFile as writeFile6 } from "node:fs/promises";
-import path10 from "node:path";
-async function writeFileAtomic(file, data, deps = {}) {
-  const tmp = path10.join(path10.dirname(file), `.${path10.basename(file)}.${process.pid}.${randomBytes2(6).toString("hex")}.tmp`);
-  try {
-    await writeFile6(tmp, data, { encoding: "utf8", flag: "wx" });
-    await (deps.rename ?? fsRename)(tmp, file);
-  } catch (error) {
-    await unlink2(tmp).catch(() => {
-    });
-    throw error;
-  }
-}
-
-// packages/cli/src/review-manage.ts
 var REVIEW_MANAGE_HELP = `
 Manage recorded decisions (R44):
   a11ygate review list --baseline <file> [--status <kind>] [--expired] [--json]
@@ -7465,8 +7635,8 @@ function context(io) {
 async function loadBaseline(flags, cwd) {
   const value = flags.values.get("--baseline");
   if (!value) throw new Error("--baseline <fingerprints.json> is required; decisions are stored there.");
-  const file = path11.resolve(cwd, value);
-  return { file, baseline: parseFingerprintBaseline(JSON.parse(await readFile5(file, "utf8"))) };
+  const file = path12.resolve(cwd, value);
+  return { file, baseline: parseFingerprintBaseline(JSON.parse(await readFile6(file, "utf8"))) };
 }
 function describe(d, now) {
   const expired = isExpired(d, now);
@@ -7700,7 +7870,7 @@ async function runReview(argv2, io = {}) {
     const args = parseReviewArgs(argv2);
     if (args.decision) checkDecision(args.decision, args.reason, args.expires, now);
     const report = await readScanInput(args.input, cwd);
-    const baselinePath = path12.resolve(cwd, args.baseline);
+    const baselinePath = path13.resolve(cwd, args.baseline);
     const baseline = await readJsonInput(cwd, args.baseline, parseFingerprintBaseline);
     let decisions = baseline.groupDecisions ?? [];
     const groups = reviewableGroups(report.findings);
@@ -7831,8 +8001,8 @@ ${debugDetail(error)}`);
 }
 
 // packages/cli/src/trend.ts
-import { lstat as lstat3, mkdir as mkdir5, readdir as readdir2, readFile as readFile6, writeFile as writeFile7 } from "node:fs/promises";
-import path13 from "node:path";
+import { lstat as lstat3, mkdir as mkdir6, readdir as readdir3, readFile as readFile7, writeFile as writeFile7 } from "node:fs/promises";
+import path14 from "node:path";
 
 // lib/trend.ts
 var TREND_ORDERED_BY = {
@@ -8162,8 +8332,8 @@ function scanReportFieldHint(text) {
 }
 async function loadPacks(dir, warn) {
   const inputs = [];
-  for (const name of (await readdir2(dir)).sort()) {
-    const full = path13.join(dir, name);
+  for (const name of (await readdir3(dir)).sort()) {
+    const full = path14.join(dir, name);
     const info = await lstat3(full);
     let files = null;
     if (info.isFile() && name.toLowerCase().endsWith(".zip")) {
@@ -8172,17 +8342,17 @@ async function loadPacks(dir, warn) {
         continue;
       }
       try {
-        files = new Map(readZip(await readFile6(full)).map((e) => [e.path, e.data]));
+        files = new Map(readZip(await readFile7(full)).map((e) => [e.path, e.data]));
       } catch (error) {
         warn(`Skipped ${name}: ${error.message}`);
         continue;
       }
     } else if (info.isDirectory()) {
-      const manifest = path13.join(full, "manifest.json");
-      const scan2 = path13.join(full, ...SCAN_PATH.split("/"));
+      const manifest = path14.join(full, "manifest.json");
+      const scan2 = path14.join(full, ...SCAN_PATH.split("/"));
       const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
       if (!await isFile(manifest) || !await isFile(scan2)) continue;
-      files = /* @__PURE__ */ new Map([["manifest.json", await readFile6(manifest)], [SCAN_PATH, await readFile6(scan2)]]);
+      files = /* @__PURE__ */ new Map([["manifest.json", await readFile7(manifest)], [SCAN_PATH, await readFile7(scan2)]]);
     } else continue;
     const pack = readPack(name, files);
     if (typeof pack === "string") warn(`Skipped ${pack}`);
@@ -8205,7 +8375,7 @@ Run a11ygate trend --help for usage.
     stdout(trendHelpText());
     return 0;
   }
-  const dir = path13.resolve(cwd, parsed.options.dir);
+  const dir = path14.resolve(cwd, parsed.options.dir);
   const info = await lstat3(dir).catch(() => null);
   if (!info?.isDirectory()) {
     stderr(`${parsed.options.dir}: not a directory.
@@ -8222,29 +8392,29 @@ Run a11ygate trend --help for usage.
   const trend = buildTrend(inputs, parsed.options.order ?? "auto");
   if (parsed.options.order === "commit" && trend.ordering.note) stderr(`Note: ${trend.ordering.note}
 `);
-  const outDir = path13.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
+  const outDir = path14.resolve(cwd, parsed.options.outDir ?? parsed.options.dir);
   try {
-    await mkdir5(outDir, { recursive: true });
-    await writeFile7(path13.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
+    await mkdir6(outDir, { recursive: true });
+    await writeFile7(path14.join(outDir, TREND_JSON), `${JSON.stringify(trend, null, 2)}
 `, "utf8");
-    await writeFile7(path13.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
+    await writeFile7(path14.join(outDir, TREND_HTML), renderTrendHtml(trend), "utf8");
   } catch (error) {
     const code3 = error.code;
     stderr(`Could not write the trend report${code3 ? ` (${code3})` : ""}.
 `);
     return 2;
   }
-  const rel = path13.relative(cwd, outDir) || ".";
-  stdout(`Wrote ${path13.join(rel, TREND_JSON)} and ${path13.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
+  const rel = path14.relative(cwd, outDir) || ".";
+  stdout(`Wrote ${path14.join(rel, TREND_JSON)} and ${path14.join(rel, TREND_HTML)} (${trend.runs.length} run${trend.runs.length === 1 ? "" : "s"}).
 `);
   return 0;
 }
 
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync as readFileSync2 } from "node:fs";
-import { createRequire as createRequire3 } from "node:module";
-import path14 from "node:path";
+import { existsSync, readFileSync as readFileSync3 } from "node:fs";
+import { createRequire as createRequire4 } from "node:module";
+import path15 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -8400,8 +8570,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path20) {
-  const match = /\.([a-z0-9]+)$/i.exec(path20);
+function fileKind(path21) {
+  const match = /\.([a-z0-9]+)$/i.exec(path21);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -8712,8 +8882,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path20, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path20) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path21, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path21) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -8770,7 +8940,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire3(path14.join(cwd, "package.json"));
+  const require3 = createRequire4(path15.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -8782,7 +8952,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync2(path14.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync3(path15.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -8820,7 +8990,7 @@ async function doctorChecks(options = {}, io = {}) {
   let event = {};
   try {
     if (env.GITHUB_EVENT_PATH)
-      event = JSON.parse(readFileSync2(env.GITHUB_EVENT_PATH, "utf8"));
+      event = JSON.parse(readFileSync3(env.GITHUB_EVENT_PATH, "utf8"));
   } catch {
   }
   const prHead = env.A11Y_HEAD_SHA || event.pull_request?.head?.sha;
@@ -8951,13 +9121,13 @@ async function runDoctor(argv2, io = {}) {
 }
 
 // packages/cli/src/init.ts
-import { lstat as lstat4, mkdir as mkdir6, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
-import path16 from "node:path";
+import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
+import path17 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
 // packages/cli/src/config.ts
-import { readFile as readFile7 } from "node:fs/promises";
-import path15 from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import path16 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -9012,7 +9182,7 @@ ${debugDetail(error)}`);
   const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
   let text;
   try {
-    text = await readFile7(path15.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile8(path16.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -9127,14 +9297,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path16.join(parent, part);
-    await mkdir6(parent).catch((error) => {
+    parent = path17.join(parent, part);
+    await mkdir7(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path16.join(parent, parts.at(-1));
+  const destination = path17.join(parent, parts.at(-1));
   const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -9210,7 +9380,7 @@ async function runInit(argv2, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path17.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -9402,8 +9572,8 @@ function inferProjectName(results) {
 }
 
 // packages/cli/src/estimate.ts
-import { mkdir as mkdir7, writeFile as writeFile9 } from "node:fs/promises";
-import path17 from "node:path";
+import { mkdir as mkdir8, writeFile as writeFile9 } from "node:fs/promises";
+import path18 from "node:path";
 
 // docs/perf/chromium-bench-axe-500.json
 var chromium_bench_axe_500_default = {
@@ -9888,9 +10058,9 @@ ${DISCLAIMER2}
         options.engines = value;
       } else throw new Error(`Unknown estimate option: ${flag}`);
     }
-    const dir = path17.resolve(io.cwd ?? process.cwd(), outDir);
-    await mkdir7(dir, { recursive: true });
-    const outputs = ["estimate.json", "estimate.md"].map((name) => path17.join(dir, name));
+    const dir = path18.resolve(io.cwd ?? process.cwd(), outDir);
+    await mkdir8(dir, { recursive: true });
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path18.join(dir, name));
     await assertSafeOutputs(dir, [], outputs);
     const report = await estimateSite(options);
     await writeFile9(outputs[0], JSON.stringify(report, null, 2) + "\n");
@@ -9908,7 +10078,7 @@ ${DISCLAIMER2}
 
 // packages/cli/src/export.ts
 import { writeFile as writeFile10 } from "node:fs/promises";
-import path18 from "node:path";
+import path19 from "node:path";
 
 // lib/export-csv.ts
 function csvField(value) {
@@ -10162,9 +10332,9 @@ async function runExport(argv2, io = {}) {
       stdout(text);
       return 0;
     }
-    const inputs = [args.input, path18.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    const inputs = [args.input, path19.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
     await assertSafeOutputs(cwd, inputs, [args.output]);
-    await writeFile10(path18.resolve(cwd, args.output), text, "utf8");
+    await writeFile10(path19.resolve(cwd, args.output), text, "utf8");
     const count = buildTickets(report, now).length;
     stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -10179,7 +10349,7 @@ ${debugDetail(error)}`);
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path19.resolve(cwd, file);
+  return path20.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -10192,7 +10362,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile8(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile9(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -10208,14 +10378,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path19.dirname(fileURLToPath(import.meta.url));
+  const here = path20.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path19.join(here, "..", "package.json"),
-    path19.join(here, "..", "..", "packages", "cli", "package.json")
+    path20.join(here, "..", "package.json"),
+    path20.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile8(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile9(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -10333,7 +10503,7 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path19.join(await realpath3(path19.dirname(absolute)).catch(() => path19.dirname(absolute)), path19.basename(absolute));
+        return path20.join(await realpath3(path20.dirname(absolute)).catch(() => path20.dirname(absolute)), path20.basename(absolute));
       });
       const info = await stat5(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -10341,9 +10511,9 @@ ${debugDetail(error)}`);
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path19.join(options.outDir, formatFileName("ci", "json")),
-      path19.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path19.join(options.outDir, formatFileName("ci", format)))
+      path20.join(options.outDir, formatFileName("ci", "json")),
+      path20.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path20.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -10478,9 +10648,9 @@ ${debugDetail(error)}`);
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir8(dir, { recursive: true });
+      await mkdir9(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile11(path19.join(dir, name), content, "utf8");
+        await writeFile11(path20.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

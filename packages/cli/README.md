@@ -107,6 +107,8 @@ node packages/cli/dist/cli.mjs scan https://staging.example.com/pricing --fail-o
 
 | Option | Meaning |
 | --- | --- |
+| `--incremental <cache-dir>` | Opt in to rendered-DOM findings reuse; see [incremental scans](#incremental-scans-a11y-r60). |
+| `--incremental-normalize <regex>` | Replace default normalizers; repeatable global/case-insensitive JavaScript regexes. |
 | `--crawl [n]` | Breadth-first crawl of same-origin `a[href]` links, at most `n` pages. Bare `--crawl` and any larger value mean 20. `--max-pages` explicitly opts into a larger budget (see crawler controls below). Without it, only `<url>` is scanned. |
 | `--fail-on <impact>` | `minor`, `moderate`, `serious` (default), `critical`, or `none`. |
 | `--out-dir <dir>` | Write `a11ygate-scan.json`, `.md` and `.html` into `<dir>`. |
@@ -124,6 +126,42 @@ Exit codes: **0** no finding at or above `--fail-on`; **1** at least one is; **2
 The JSON report has `version`, `axeVersion`, `scannedAt`, `startUrl`, `pages[]` (URL, HTTP status, finding counts), `skipped[]` (external, robots, logout, non-HTML, cap, filters, depth, timeout, navigation errors, discovery cap), and `findings[]` (page URL, CSS selector(s), axe rule id, impact, mapped WCAG success criteria, help text and `helpUrl`). Its `results` array holds the raw per-page axe results, so the same file is valid `--current` input for the gate, for example `a11ygate --current a11y-scan/a11ygate-scan.json --baseline a11y/baseline.json`. The Markdown and self-contained HTML summaries group findings by WCAG criterion and by severity.
 
 **Boundaries.** Only scan sites you own or are explicitly authorized to test. Page analysis is read-only. Authentication is opt-in; an explicitly configured login script may fill forms and click before analysis. Use test accounts only. It never leaves the start origin. It honours robots.txt `Disallow` for `User-agent: *` and `A11yGate`, and proceeds if robots.txt is unreachable. It skips logout-like and non-HTML links, waits between page loads, and identifies itself with an `A11yGate` User-Agent. This is automated testing only. axe-core finds a subset of WCAG issues, so a PASS is not conformance, certification or legal advice.
+
+### Incremental scans (A11Y-R60)
+
+`scan <url> --incremental .a11ygate-cache --out-dir a11y-scan` enables a local,
+opt-in cache. Every route still loads and configured interactions still replay.
+The scanner hashes each rendered state immediately before analysis, including
+child frames, open shadow roots and live form values. Only successful engine
+analysis is reused; keyboard heuristics and screenshots still run afresh.
+
+By default normalization removes nonce attributes, common CSRF input/meta fields,
+CSRF/timestamp data attributes and UTC ISO timestamps. Use repeatable
+`--incremental-normalize <regex>` flags (or YAML `incrementalNormalize`) to
+**replace** these defaults. Each regex uses JavaScript `gi` flags and replaces
+matches with an empty string. For example, `--incremental-normalize 'build-[0-9]+'`
+ignores changing build identifiers. Keep patterns narrow: removed content cannot
+trigger a rescan. YAML `incremental: .a11ygate-cache` and environment
+`A11YGATE_INCREMENTAL` also opt in; use a JSON array for
+`A11YGATE_INCREMENTAL_NORMALIZE` when regexes contain commas.
+
+Engine/adapter versions, Chromium version, CLI version, rule tags, scan settings,
+auth context and normalization rules participate in cache compatibility. A change
+invalidates reuse. Missing version metadata disables reuse with a warning.
+Cache entries include engine versions/rule configuration, DOM/config hashes and
+original scan IDs. Corrupt entries trigger a warning and a full engine rescan.
+Writes use atomic replacement; an unwritable cache warns without losing results.
+
+Cached pages in JSON, Markdown, HTML and evidence-pack front pages/manifest carry
+`from cache (DOM unchanged since <scan id>)`; their original engine timestamps and
+findings remain intact. Baseline decisions and gating apply again on each run.
+Cache files contain findings and raw engine evidence, so keep the directory local
+and out of source control, like scan outputs. Delete it to force fresh analysis.
+DOM equality does not detect external CSS/image/font changes or closed shadow
+roots. Use a fresh scan when those assets change. Incremental mode is off by
+default; reports without it remain unchanged.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Evidence pack (`a11ygate evidence pack`)
 

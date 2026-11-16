@@ -180,6 +180,21 @@ test.describe('a11ygate scan against a local fixture site', () => {
     ]);
   });
 
+  test('incremental CLI preserves findings and original engine evidence on unchanged pages', async () => {
+    const args = ['scan', `${server.origin}/`, '--crawl', '2', '--delay-ms', '0', '--incremental', path.join(dir, 'incremental-cache'), '--json', '-'];
+    const first = await runCli(args);
+    expect(first.code, first.stderr).toBe(1);
+    const initial = JSON.parse(first.stdout) as import('../lib/scan/report').ScanReport;
+    expect(initial.pages).toHaveLength(2);
+    const second = await runCli(args);
+    expect(second.code, second.stderr).toBe(1);
+    expect(second.stderr).not.toContain('cache disabled');
+    const cached = JSON.parse(second.stdout) as import('../lib/scan/report').ScanReport;
+    expect(cached.findings).toEqual(initial.findings);
+    expect(cached.results).toEqual(initial.results);
+    expect(cached.pages.every(page => page.cache?.scanId === initial.incremental?.scanId)).toBe(true);
+  });
+
   test('exit codes follow --fail-on and errors exit 2', async () => {
     expect((await runCli(['scan', `${server.origin}/about.html`, '--fail-on', 'critical'])).code).toBe(0);
     expect((await runCli(['scan', `${server.origin}/about.html`, '--fail-on', 'serious'])).code).toBe(1);

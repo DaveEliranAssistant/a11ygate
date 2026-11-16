@@ -13,6 +13,8 @@ const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
 export const CONFIG_WIRING: Record<string, Wiring> = {
+  incremental: { flag: '--incremental', commands: scan, default: null },
+  incrementalNormalize: { flag: '--incremental-normalize', commands: scan, default: [] },
   routes: { flag: '--routes', commands: scan, default: {} },
   changedSince: { flag: '--changed-since', commands: scan, default: null },
   screenshots: { flag: '--screenshots', commands: scan, default: false },

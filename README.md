@@ -179,6 +179,15 @@ mappings retain the normal full scan; reports explain the selected scope.
 See [configuration and limits](docs/configuration.md#diff-aware-pr-scans-a11y-r57).
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
+### Incremental scans
+
+`a11ygate scan <url> --incremental <cache-dir>` reuses successful engine findings
+when the rendered DOM and engine/configuration hashes match. Pages and interaction
+states still load; cached pages retain their original scan ID in reports and
+evidence packs. Normalization regexes are configurable. Default off; see
+[configuration and limits](packages/cli/README.md#incremental-scans-a11y-r60).
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 ### Live-site scan
 
 The source build also has `a11ygate scan <url>`. It loads one page, or with `--crawl [n]` up to 20 same-origin pages, in headless Chromium and runs axe-core. It writes JSON, Markdown and HTML reports grouped by WCAG criterion and severity, and exits 1 when a finding meets `--fail-on` (default `serious`). It needs the optional peers `playwright` and `@axe-core/playwright`. The JSON report is also valid `--current` input for the gate. Only scan sites you own or are authorized to test. Page analysis is read-only; [explicit authentication](docs/authenticated-pages.md) supports test accounts through storage state, a login script, or environment-referenced cookies/headers. The scanner honours robots.txt, paces page loads, and identifies itself as A11yGate. Automated testing only. Details are in `packages/cli/README.md`.
