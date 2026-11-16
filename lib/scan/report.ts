@@ -72,7 +72,18 @@ export type CrawlControls = {
   ignoreRobots?: boolean;
 };
 
+export type DiffScan = {
+  mode: 'diff-aware' | 'full';
+  ref: string;
+  reasonCode: 'mapped' | 'unmapped' | 'wildcard' | 'noChanges';
+  reason: string;
+  selectedRoutes: string[];
+  scannedRoutes: string[];
+  skippedRoutes: string[];
+};
+
 export type ScanReport = {
+  diffScan?: DiffScan;
   keyboard?: KeyboardResult[];
   baseline?: import('./baseline').BaselineSummary;
   engineResults?: EnginePageResult[];
@@ -346,6 +357,8 @@ export function sortFindings(findings: readonly ScanFinding[]): ScanFinding[] {
   return [...findings].sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.pageUrl.localeCompare(b.pageUrl) || a.ruleId.localeCompare(b.ruleId));
 }
 
+import { diffScanSummary } from './report-markdown';
+import { translator } from '@/lib/i18n';
 export { scanMarkdown } from './report-markdown';
 
 export function gateEffect(d: AppliedReviewDecision): string {
@@ -410,7 +423,7 @@ a{color:#0b57d0}
 <h1>A11yGate site scan</h1>
 <p>Start URL: <code>${esc(report.startUrl)}</code></p>
 <p class="verdict">Verdict: ${esc(report.verdict)} (fail on: ${esc(report.failOn)})</p>
-<p>${esc(report.reason)}</p>
+<p>${esc(report.reason)}</p>${report.diffScan ? [...diffScanSummary(report, translator('en')), AUTOMATED_TESTING_DISCLAIMER].map(line => `<p>${esc(line)}</p>`).join('') : ''}
 <p>Scanned ${esc(report.scannedAt)}. Pages analysed: ${report.counts.pagesScanned}; failed: ${report.counts.pagesFailed}${report.counts.pagesNotAuthenticated !== undefined ? '; not authenticated: ' + report.counts.pagesNotAuthenticated : ''}. axe-core ${esc(report.axeVersion ?? 'n/a')}; A11yGate ${esc(report.version)}.</p>
 <table><caption>Findings by severity</caption><thead><tr><th scope="col">Severity</th><th scope="col">Findings</th></tr></thead><tbody>${counts}</tbody></table>
 ${report.baseline ? `<p>Baseline: ${report.baseline.new} new; ${report.baseline.existing} existing; ${report.baseline.fixed} fixed; ${report.baseline.unassessed} unassessed.</p><p>${esc(AUTOMATED_TESTING_DISCLAIMER)}</p>` : ""}<h2>Pages</h2>

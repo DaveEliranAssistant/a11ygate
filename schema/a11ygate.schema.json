@@ -19,6 +19,20 @@
       "maximum": 20,
       "x-cli": ["--crawl"]
     },
+    "routes": {
+      "description": "Repository-relative source globs mapped to same-origin URL paths, or * for a full scan. Glob syntax: *, **, ?.",
+      "type": "object",
+      "propertyNames": { "minLength": 1, "maxLength": 500 },
+      "additionalProperties": { "type": "string", "pattern": "^(\\*|/(?!/)[^\\s#\\\\]*)$", "maxLength": 2000 },
+      "x-cli": ["--routes"]
+    },
+    "changedSince": {
+      "description": "Opt in to route selection using committed changes from git diff <ref>...HEAD. Working-tree edits are excluded.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^-\\s][^\\s]*$",
+      "x-cli": ["--changed-since"]
+    },
     "maxPages": {
       "description": "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
       "type": "integer",

@@ -1,4 +1,11 @@
 {
+  "diff.mode": "Scan mode: {mode}. Reason: {reason}",
+  "diff.scanned": "Scanned routes: {routes}",
+  "diff.skipped": "Skipped routes: {routes}",
+  "diff.reason.mapped": "All changed files map to specific routes.",
+  "diff.reason.unmapped": "At least one changed file is unmapped; running the full scan.",
+  "diff.reason.wildcard": "A changed file matches a shared (*) route; running the full scan.",
+  "diff.reason.noChanges": "No committed changes were found; running the full scan conservatively.",
   "html.title": "A11yGate accessibility scan report — {startUrl}",
   "html.heading": "A11yGate accessibility scan report",
   "html.startUrl": "Start URL: {startUrl}",

@@ -436,3 +436,16 @@ rates are hardware/site dependent, include scan startup, and provide no measured
 variance. The output never estimates price.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
+
+### Diff-aware PR scans (A11Y-R57)
+
+`a11ygate scan --changed-since origin/main` selects URL paths from a `routes`
+source-glob mapping in `.a11ygate.yml`. Committed changes from the merge base to
+HEAD determine scope; an unmapped file or shared `"*"` mapping runs the normal
+full scan. JSON, Markdown and HTML summaries record mode, reason and scanned /
+skipped paths. Baselines and review decisions still apply; omitted pages remain
+unassessed. Without this opt-in, reports stay unchanged. Project scan configs
+also accept `changedSince`; the saved-result `ci --current` gate does not.
+See [configuration and limits](../../docs/configuration.md#diff-aware-pr-scans-a11y-r57).
+
+Automated testing only. Not a WCAG audit, certification or legal advice.

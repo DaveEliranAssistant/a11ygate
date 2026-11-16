@@ -23,7 +23,7 @@ import { groupByCriterion, scanHtml, sortFindings, type ScanCriterion, type Scan
 import type { Finding, Impact } from '@/lib/types';
 import { catalogFor, DEFAULT_REPORT_LANG, translator, type Catalog, type ReportLang, type Translator } from '@/lib/i18n';
 import { REVIEW_DECISION_NOTICE, reviewedGroups } from '@/lib/scan/review';
-import { criterionGroupLabel, engineAttribution, reviewDecisionLabel, reviewDecisionSummary, reviewGateEffect } from '@/lib/scan/report-markdown';
+import { diffScanSummary, criterionGroupLabel, engineAttribution, reviewDecisionLabel, reviewDecisionSummary, reviewGateEffect } from '@/lib/scan/report-markdown';
 
 export const REPORT_VERSIONS = [1, 2] as const;
 export type ReportVersion = (typeof REPORT_VERSIONS)[number];
@@ -181,7 +181,7 @@ function summarySection(t: Translator, report: ScanReport): string {
     ? `<li>${t.t('summary.enginesUsed', { engines: report.engines.used.length ? esc(report.engines.used.join(', ')) : none })}</li><li>${t.t('summary.enginesErrored', { errors: report.engines.errored.length ? report.engines.errored.map((e) => esc(`${e.engine} — ${e.url} — ${e.error}`)).join('; ') : none })}</li>`
     : `<li>${t.t('summary.enginesUsed', { engines: t.t('summary.axeEngine', { version: report.axeVersion === null ? t.t('summary.notAvailable') : esc(report.axeVersion) }) })}</li><li>${t.t('summary.enginesErrored', { errors: none })}</li>`;
   return `<section id="summary" aria-labelledby="summary-h">
-<h2 id="summary-h">${t.t('summary.heading')}</h2>
+<h2 id="summary-h">${t.t('summary.heading')}</h2>${report.diffScan ? diffScanSummary(report, t).map(line => `<p>${esc(line)}</p>`).join('') : ''}
 <p class="verdict">${t.t('summary.verdict', { verdict: esc(report.verdict) })} <span class="muted">${t.t('summary.failOn', { failOn: esc(report.failOn) })}</span></p>
 <p>${esc(report.reason)}</p>
 <ul class="facts">

@@ -129,6 +129,20 @@ var a11ygate_schema_default = {
       maximum: 20,
       "x-cli": ["--crawl"]
     },
+    routes: {
+      description: "Repository-relative source globs mapped to same-origin URL paths, or * for a full scan. Glob syntax: *, **, ?.",
+      type: "object",
+      propertyNames: { minLength: 1, maxLength: 500 },
+      additionalProperties: { type: "string", pattern: "^(\\*|/(?!/)[^\\s#\\\\]*)$", maxLength: 2e3 },
+      "x-cli": ["--routes"]
+    },
+    changedSince: {
+      description: "Opt in to route selection using committed changes from git diff <ref>...HEAD. Working-tree edits are excluded.",
+      type: "string",
+      minLength: 1,
+      pattern: "^[^-\\s][^\\s]*$",
+      "x-cli": ["--changed-since"]
+    },
     maxPages: {
       description: "Explicit crawl page budget overriding crawl, regardless of which source supplies crawl.",
       type: "integer",
@@ -739,8 +753,10 @@ function check(schema, value, where, errors) {
       if (step.action === "press" !== Object.hasOwn(step, "key")) errors.push(`'${label}' needs key only for press actions.`);
     }
     for (const [key, child] of Object.entries(value)) {
+      if (schema.propertyNames) check(schema.propertyNames, key, `${label} key`, errors);
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key], child, childWhere, errors);
+      else if (schema.additionalProperties && typeof schema.additionalProperties === "object") check(schema.additionalProperties, child, childWhere, errors);
       else if (schema.additionalProperties === false) {
         const suggestion = suggestKey(key, known);
         errors.push(`unknown key '${childWhere}'${suggestion ? ` \u2014 did you mean '${where ? `${where}.` : ""}${suggestion}'?` : ` \u2014 known keys${where ? ` under '${where}'` : ""}: ${known.join(", ")}.`}`);
@@ -806,6 +822,8 @@ function secretEnvValues(env = process.env, minimumLength = 8) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  routes: { flag: "--routes", commands: scan, default: {} },
+  changedSince: { flag: "--changed-since", commands: scan, default: null },
   screenshots: { flag: "--screenshots", commands: scan, default: false },
   noScreenshots: { flag: "--no-screenshots", commands: scan, default: false },
   "redact.selectors": { flag: "--redact-selector", commands: scan, default: [] },
@@ -854,7 +872,7 @@ function get(object, key) {
   return key.split(".").reduce((node, part) => node && typeof node === "object" ? node[part] : void 0, object);
 }
 function decode(text, schema) {
-  if (schema.anyOf) {
+  if (schema.type === "object" || schema.anyOf) {
     try {
       return JSON.parse(text);
     } catch {
@@ -1009,7 +1027,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     if (schemaAt(key).type === "boolean") {
       if (key === "modelFixes") prefix.push(flag, value ? "on" : "off");
       else if (value) prefix.push(flag);
-    } else if (key === "interactions") prefix.push(flag, JSON.stringify(value));
+    } else if (key === "routes" || key === "interactions") prefix.push(flag, JSON.stringify(value));
     else if (Array.isArray(value)) {
       if (["engines", "formats"].includes(key)) {
         if (value.length) prefix.push(flag, value.join(","));

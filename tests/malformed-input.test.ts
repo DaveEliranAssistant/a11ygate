@@ -69,7 +69,7 @@ describe('.a11ygate.yml', () => {
     fc.string({ maxLength: 40 }),
     fc.constantFrom('url: https://site.test/', 'maxPages: 3', 'concurrency: 99', 'scan:', '  - x', '-', '- a: b', '  key: [1, 2', 'formats: [sarif, junit]',
       '__proto__:', '  url: 3', '"quoted": "unterminated', "'single", '---', '...', '\t tab', '# comment', 'engines: [axe, nope]', 'auth:', '  storageState: x',
-      'interactions:', '  - route: /a', '    name: n', '    steps: []', '&anchor x', 'key: *alias', 'k: !tag v', 'k: |', 'k: {a: 1}', ':', 'a::b'),
+      'routes:', '  src/**: /pricing', '  nav/**: "*"', '  bad/**: []', 'changedSince: -bad', 'routes: null', 'interactions:', '  - route: /a', '    name: n', '    steps: []', '&anchor x', 'key: *alias', 'k: !tag v', 'k: |', 'k: {a: 1}', ':', 'a::b'),
   );
   const yaml = fc.array(fragments.chain((line) => fc.nat(6).map((n) => ' '.repeat(n) + line)), { maxLength: 15 }).map((lines) => lines.join('\n'));
 

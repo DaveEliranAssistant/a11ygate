@@ -18,7 +18,8 @@ export type JsonSchema = {
   anyOf?: JsonSchema[];
   enum?: readonly unknown[];
   properties?: Record<string, JsonSchema>;
-  additionalProperties?: boolean;
+  additionalProperties?: boolean | JsonSchema;
+  propertyNames?: JsonSchema;
   items?: JsonSchema;
   required?: string[];
   maxLength?: number;
@@ -228,8 +229,10 @@ function check(schema: JsonSchema, value: unknown, where: string, errors: string
       if ((step.action === 'press') !== Object.hasOwn(step, 'key')) errors.push(`'${label}' needs key only for press actions.`);
     }
     for (const [key, child] of Object.entries(value)) {
+      if (schema.propertyNames) check(schema.propertyNames, key, `${label} key`, errors);
       const childWhere = where ? `${where}.${key}` : key;
       if (Object.hasOwn(properties, key)) check(properties[key]!, child, childWhere, errors);
+      else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') check(schema.additionalProperties, child, childWhere, errors);
       else if (schema.additionalProperties === false) {
         const suggestion = suggestKey(key, known);
         errors.push(`unknown key '${childWhere}'${suggestion ? ` — did you mean '${where ? `${where}.` : ''}${suggestion}'?` : ` — known keys${where ? ` under '${where}'` : ''}: ${known.join(', ')}.`}`);

@@ -24,12 +24,15 @@ function leaves(node: JsonSchema, prefix = ''): string[] {
   });
 }
 function yamlEntry(key: string, value: unknown): string {
+  if (key === 'routes') return 'routes:\n' + Object.entries(value as Record<string, string>).map(([glob, route]) => `  ${JSON.stringify(glob)}: ${JSON.stringify(route)}\n`).join('');
   if (key.startsWith('auth.check.')) return `auth:\n  check:\n    ${key.slice(11)}: ${JSON.stringify(value)}\n`;
   if (key === 'redact.selectors') return `redact:\n  selectors: ${JSON.stringify(value)}\n`;
   return key.startsWith('auth.') ? `auth:\n  ${key.slice(5)}: ${JSON.stringify(value)}\n` : `${key}: ${JSON.stringify(value)}\n`;
 }
 // Explicit expected destination, independent of the production wiring registry.
 const cases: [string, unknown, string, unknown][] = [
+  ['routes', { 'src/**': '/pricing' }, 'routes', { 'src/**': '/pricing' }],
+  ['changedSince', 'main', 'changedSince', 'main'],
   ['screenshots', true, 'screenshots', true],
   ['noScreenshots', true, 'noScreenshots', true],
   ['redact.selectors', ['#private'], 'redactSelectors', ['#private']],
@@ -99,7 +102,8 @@ describe('precedence, validation and unchanged defaults', () => {
   it.each(cases)('%s: flag > env > YAML > default', async (key, yamlValue) => {
     const schema = key.split('.').reduce((node, part) => node.properties![part]!, CONFIG_SCHEMA);
     let envValue: unknown;
-    if (key === 'interactions') envValue = [{ route: '/env', name: 'open', steps: [{ action: 'wait', selector: '#env' }] }];
+    if (key === 'routes') envValue = { 'lib/**': '/other' };
+    else if (key === 'interactions') envValue = [{ route: '/env', name: 'open', steps: [{ action: 'wait', selector: '#env' }] }];
     else if (schema.type === 'array') envValue = key === 'engines' ? ['axe'] : key === 'formats' ? ['json'] : key.startsWith('auth.') ? ['other=OTHER'] : ['/environment/**'];
     else if (schema.type === 'integer') envValue = key === 'reportVersion' ? 2 : key === 'concurrency' ? 2 : 2;
     else if (schema.type === 'boolean') envValue = false;
@@ -110,7 +114,7 @@ describe('precedence, validation and unchanged defaults', () => {
     // Boolean CLI opts into true; lists replace rather than append to lower-precedence values.
     const flagValue = ['ignoreRobots', 'autoInteractions'].includes(key) ? true : yamlValue;
     const flag = CONFIG_WIRING[key]!.flag;
-    const args = ['ignoreRobots', 'autoInteractions'].includes(key) ? [flag] : [flag, key === 'interactions' ? JSON.stringify(flagValue) : Array.isArray(flagValue) ? flagValue.join(',') : String(flagValue)];
+    const args = ['ignoreRobots', 'autoInteractions'].includes(key) ? [flag] : [flag, ['routes', 'interactions'].includes(key) ? JSON.stringify(flagValue) : Array.isArray(flagValue) ? flagValue.join(',') : String(flagValue)];
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).values[key]).toEqual(flagValue);
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).sources[key]).toBe(`flag:${flag}`);
   });

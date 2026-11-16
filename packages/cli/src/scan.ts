@@ -1,3 +1,6 @@
+import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { parseRoutes, selectRoutes, type RouteMap } from './diff-routes';
+import type { DiffScan } from '@/lib/scan/report';
 import { redactedScreenshot } from '@/lib/scan/screenshot';
 import { createHash } from 'node:crypto';
 import { scanKeyboard, type KeyboardOptions, type KeyboardResult } from '@/lib/scan/keyboard';
@@ -38,6 +41,8 @@ import { loadEffectiveConfig } from './effective-config';
 import { debugDetail } from './fatal';
 
 export type ScanOptions = AuthOptions & {
+  routes?: RouteMap;
+  changedSince?: string;
   screenshots?: boolean;
   noScreenshots?: boolean;
   redactSelectors?: string[];
@@ -89,7 +94,7 @@ const AUTH_CHECK_FLAGS = {
   '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
   '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
 } as const;
-const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--routes', '--changed-since', '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -215,6 +220,12 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
       if (!isReportLang(value)) return { ok: false, error: `Unknown --report-lang "${value}". Use ${REPORT_LANGS.join(', ')} (only en is a shipped language).` };
       if (isPseudoReportLang(value)) options.warnings.push(`--report-lang ${value} is a pseudo-locale for layout testing only, not a translation.`);
       if (value !== 'en') options.reportLang = value;
+    } else if (name === '--changed-since') {
+      if (!value || value.startsWith('-') || /\s/.test(value)) return { ok: false, error: 'Invalid --changed-since ref: must not be empty or start with "-".' };
+      options.changedSince = value;
+    } else if (name === '--routes') {
+      try { options.routes = parseRoutes(JSON.parse(value)); }
+      catch { return { ok: false, error: 'Invalid --routes: provide a JSON mapping of source globs to URL paths or "*".' }; }
     } else if (name === '--baseline') options.baseline = value;
     else if (name === '--out-dir') options.outDir = value;
     else if (name === '--json') options.json = value;
@@ -309,6 +320,8 @@ Options:
   --format <fmt>       Also write junit, sarif, json, md, or gitlab-codequality into --out-dir. Repeat or comma-separate.
                        Exit codes are unchanged.
   --json <file>        Write the JSON report (use - to print JSON instead of Markdown).
+  --changed-since <ref> Scan mapped routes changed in <ref>...HEAD; otherwise full scan.
+  --routes <json>      Source glob to URL path mapping (normally configured in YAML).
   --markdown <file>    Write the Markdown summary. It is printed to stdout unless --json -.
   --html <file>        Write a self-contained HTML summary.
   --report-version <n> HTML layout. 2 (default): executive summary, top fixes, WCAG/page
@@ -634,6 +647,11 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     stdout(scanHelpText());
     return 0;
   }
+  let diffScan: DiffScan | undefined;
+  try {
+    if (options.changedSince) diffScan = await selectRoutes(options.changedSince, options.routes ?? {}, cwd);
+  } catch (error) { stderr(`${(error as Error).message}\n${AUTOMATED_TESTING_DISCLAIMER}\n`); return 2; }
+  const requestedUrl = options.url;
   let interactions: InteractionOptions | undefined;
   try {
     if (options.interactions || options.autoInteractions) {
@@ -658,7 +676,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   const origin = new URL(options.url).origin;
   const fetchImpl = io.fetch ?? (globalThis.fetch as unknown as FetchLike);
   const robots = options.ignoreRobots ? { rules: null, note: 'robots.txt ignored by explicit --ignore-robots opt-out.' } : await fetchRobots(origin, userAgent, fetchImpl);
-  if (!robotsAllowsUrl(robots.rules, options.url)) {
+  if (diffScan?.mode !== 'diff-aware' && !robotsAllowsUrl(robots.rules, options.url)) {
     stderr(`${options.url} is disallowed by ${origin}/robots.txt; nothing was scanned.\n`);
     return 2;
   }
@@ -676,6 +694,13 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     }
     if (options.sitemap) seedUrls = await fetchSitemap(options.sitemap, origin, userAgent, fetchImpl, options.timeoutMs);
   } catch (error) { stderr(`Could not read ${options.storybook ? 'Storybook index' : 'sitemap'}: ${(error as Error).message}\n`); return 2; }
+  if (diffScan?.mode === 'diff-aware') {
+    seedUrls = diffScan.selectedRoutes.map(route => new URL(route, origin).href);
+    options.url = seedUrls[0]!;
+    options.maxPages = seedUrls.length;
+    options.pageLimit = seedUrls.length;
+    options.maxDepth = 0;
+  }
   let engine: ScanEngine;
   try {
     engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
@@ -700,7 +725,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
       maxPages: options.maxPages,
       delayMs: options.delayMs,
       robots: robots.rules,
-      visit: engine.visit,
+      visit: diffScan?.mode === 'diff-aware' ? async (url, _collect, signal) => ({ ...await engine.visit(url, false, signal), links: [] }) : engine.visit,
       sleep: io.sleep,
       log: (message) => stderr(`${message}\n`),
     });
@@ -722,7 +747,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     crawl: result,
     version,
     scannedAt: now().toISOString(),
-    startUrl: options.url,
+    startUrl: diffScan?.mode === 'diff-aware' ? requestedUrl : options.url,
     failOn: options.failOn,
     maxPages: options.maxPages,
     delayMs: options.delayMs,
@@ -743,6 +768,22 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
+  if (diffScan) {
+    const routePaths = (urls: string[]) => urls.flatMap(value => {
+      try {
+        const url = new URL(value, origin);
+        return url.origin === origin ? [url.pathname + url.search] : [];
+      } catch { return []; }
+    });
+    const scannedRoutes = routePaths(result.pages.filter(p => p.scanStatus === 'complete').map(p => p.url));
+    const configured = Object.values(options.routes ?? {}).filter(route => route !== '*');
+    const known = [...new Set(routePaths([
+      requestedUrl, ...configured, ...seedUrls,
+      ...result.pages.map(p => p.url), ...result.skipped.map(p => p.url),
+    ]))];
+    report.diffScan = { ...diffScan, scannedRoutes: [...new Set(scannedRoutes)], skippedRoutes: known.filter(route => !scannedRoutes.includes(route)) };
+    report.disclaimer ??= AUTOMATED_TESTING_DISCLAIMER;
+  }
   if (baseline) report = applyFingerprintBaseline(report, baseline);
   return writeScanReport(report, options, io, engine);
 }

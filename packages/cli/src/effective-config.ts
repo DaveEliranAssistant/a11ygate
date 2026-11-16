@@ -13,6 +13,8 @@ const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
 export const CONFIG_WIRING: Record<string, Wiring> = {
+  routes: { flag: '--routes', commands: scan, default: {} },
+  changedSince: { flag: '--changed-since', commands: scan, default: null },
   screenshots: { flag: '--screenshots', commands: scan, default: false },
   noScreenshots: { flag: '--no-screenshots', commands: scan, default: false },
   'redact.selectors': { flag: '--redact-selector', commands: scan, default: [] },
@@ -62,7 +64,7 @@ function get(object: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>((node, part) => node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined, object);
 }
 function decode(text: string, schema: JsonSchema): unknown {
-  if (schema.anyOf) { try { return JSON.parse(text); } catch { return text; } }
+  if (schema.type === 'object' || schema.anyOf) { try { return JSON.parse(text); } catch { return text; } }
   if (schema.type === 'array') {
     if (text.trim().startsWith('[')) { try { return JSON.parse(text); } catch { return text; } }
     return text.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
@@ -194,7 +196,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     if (schemaAt(key).type === 'boolean') {
       if (key === 'modelFixes') prefix.push(flag, value ? 'on' : 'off');
       else if (value) prefix.push(flag);
-    } else if (key === 'interactions') prefix.push(flag, JSON.stringify(value));
+    } else if (key === 'routes' || key === 'interactions') prefix.push(flag, JSON.stringify(value));
     else if (Array.isArray(value)) {
       if (['engines', 'formats'].includes(key)) { if (value.length) prefix.push(flag, value.join(',')); }
       else for (const item of value) prefix.push(flag, String(item));

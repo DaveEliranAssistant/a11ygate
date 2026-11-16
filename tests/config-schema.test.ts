@@ -126,6 +126,7 @@ describe('(b) one plain-English error per class', () => {
 describe('(c) schema covers every CLI option', () => {
   // Options deliberately not config keys: per-run inputs/outputs, interactive switches and help.
   const EXCLUDED: Record<string, string> = {
+    '--no-relative': 'internal git diff root-relative paths', '-z': 'internal git diff NUL-delimited paths', '--no-ext-diff': 'internal git diff option', '--no-renames': 'internal git diff option', '--name-only': 'internal git diff option',
     '--help': 'help', '-h': 'help', '--version': 'help',
     '--yes': 'init: interactive switch', '--force': 'init: per-run overwrite', '--target': 'init: chooses which CI file to generate',
     '--session-storage': 'scan: per-run sessionStorage credential file',
