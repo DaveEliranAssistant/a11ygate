@@ -282,7 +282,7 @@ function byPageSection(t: Translator, report: ScanReport): string {
       .filter((f) => [p.url, p.finalUrl, normalizeUrl(p.url)].includes(f.pageUrl))
       .sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.ruleId.localeCompare(b.ruleId));
     const status = t.t('page.status', { status: p.status ?? t.t('page.noStatus'), scanStatus: esc(p.scanStatus), error: p.error ? ' — ' + esc(p.error) : '' });
-    return `<section><h3><code>${esc(p.url)}</code> (${p.findings})</h3><p class="muted">${status}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join('')}</ul>` : `<p>${t.t('page.none')}</p>`}</section>`;
+    return `<section><h3><code>${esc(p.url)}</code> (${p.findings})</h3><p class="muted">${status}${p.cache ? ' — ' + esc(p.cache.note) : ''}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join('')}</ul>` : `<p>${t.t('page.none')}</p>`}</section>`;
   }).join('\n');
   return `<section id="by-page" aria-labelledby="by-page-h">
 <h2 id="by-page-h">${t.t('page.heading')}</h2>

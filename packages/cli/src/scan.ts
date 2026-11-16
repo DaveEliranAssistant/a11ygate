@@ -1,3 +1,4 @@
+import { IncrementalCache, installedEngineVersions, normalizeDom, type IncrementalOptions } from './incremental';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { parseRoutes, selectRoutes, type RouteMap } from './diff-routes';
 import type { DiffScan } from '@/lib/scan/report';
@@ -41,6 +42,8 @@ import { loadEffectiveConfig } from './effective-config';
 import { debugDetail } from './fatal';
 
 export type ScanOptions = AuthOptions & {
+  incremental?: string;
+  incrementalNormalize?: string[];
   routes?: RouteMap;
   changedSince?: string;
   screenshots?: boolean;
@@ -95,7 +98,7 @@ const AUTH_CHECK_FLAGS = {
   '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
   '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
 } as const;
-const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--routes', '--changed-since', '--redact-selector', '--keyboard-budget', '--keyboard-pixel-threshold', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--incremental', '--incremental-normalize', '--routes', '--changed-since', '--redact-selector', '--keyboard-budget', '--keyboard-pixel-threshold', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -159,7 +162,11 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     if (value === undefined || value.length === 0 || (value.startsWith('-') && !(name === '--json' && value === '-'))) {
       return { ok: false, error: `${name} needs a value.` };
     }
-    if (name === '--redact-selector') {
+    if (name === '--incremental') options.incremental = value;
+    else if (name === '--incremental-normalize') {
+      try { normalizeDom('', [value]); } catch { return { ok: false, error: 'Invalid --incremental-normalize regular expression.' }; }
+      (options.incrementalNormalize ??= []).push(value);
+    } else if (name === '--redact-selector') {
       (options.redactSelectors ??= []).push(value);
     } else if (name === '--keyboard-pixel-threshold') {
       if (!/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(value)) return { ok: false, error: '--keyboard-pixel-threshold must be from 0 to 1.' };
@@ -281,6 +288,8 @@ Usage:
                       [--html <file>] [--report-version 1|2] [--delay-ms <ms>]
 
 Options:
+  --incremental <dir>   Reuse findings when rendered DOM, engine versions and config match (default off).
+  --incremental-normalize <regex> Replace default DOM normalizers; repeatable, case-insensitive/global.
   --screenshots         Opt in to masked viewport PNGs in --out-dir/screenshots (default off).
   --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
   --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
@@ -361,6 +370,7 @@ Exit codes:
 }
 
 export type ScanEngine = {
+  incremental?: IncrementalCache;
   /** Native adapter outputs, archived independently of public report serialization. */
   rawEngineResults?: { engine: string; url: string; status: string; native?: unknown; error?: string }[];
   keyboardResults?: KeyboardResult[];
@@ -373,7 +383,7 @@ export type ScanEngine = {
   contexts?: () => { created: number; recycled: number };
 };
 
-export type ScanEngineFactory = (options: { userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions; screenshotDir?: string; redactSelectors?: string[] }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { incremental?: IncrementalOptions; userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions; screenshotDir?: string; redactSelectors?: string[] }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
@@ -405,7 +415,9 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ incremental: incrementalOptions, userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+  const versions = incrementalOptions ? installedEngineVersions(engines) : undefined;
+  if (incrementalOptions && !versions) incrementalOptions.warn('Incremental cache disabled: installed engine versions could not be resolved.');
   const extended = engines.length !== 1 || engines[0] !== 'axe';
   let playwright: typeof import('playwright');
   let axeModule: typeof import('@axe-core/playwright') | undefined;
@@ -453,6 +465,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
     const detail = error instanceof Error ? error.message.split('\n')[0] : 'unknown error';
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).\nInstall it with: npx playwright install chromium\n`);
   }
+  const incremental = incrementalOptions && versions ? new IncrementalCache({ ...incrementalOptions, compatibility: { engineVersions: versions, ruleConfig: { tags: AXE_TAGS, engines } }, config: { scan: incrementalOptions.config, versions, browser: browser.version() } }) : undefined;
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: 'block' as const, javaScriptEnabled: true };
   let pool: ContextPool<import('playwright').BrowserContext>;
   try {
@@ -494,6 +507,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
   const interactionPages: PageRecord[] = [];
   const keyboardResults: KeyboardResult[] = [];
   return {
+    ...(incremental ? { incremental } : {}),
     ...(keyboard ? { keyboardResults } : {}),
     ...(interactions ? { interactionPages } : {}),
     rawEngineResults,
@@ -562,33 +576,61 @@ export const playwrightEngine: ScanEngineFactory = async ({ userAgent, origin, e
           return [...Array.from(document.querySelectorAll('a[href]')).slice(0, 10000).map((a) => (a as HTMLAnchorElement).href), ...routes].slice(0, 10000);
         }) : [];
         const scanPage = async (scanUrl: string) => {
-          let result: import('@/lib/types').AxeResults | undefined;
-          for (const id of engines) {
-            if (id === 'axe' && axeEngine) {
-              nativeByPage.delete(page);
-              const execution = await runEngine(axeEngine, page, scanUrl);
-              rawEngineResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeByPage.get(page) } : {}), url: scanUrl });
-              if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
-              if (!extended && execution.status === 'errored') throw new Error(execution.error);
-              if (execution.status === 'complete') result = execution.native;
-              if (extended) engineResults.push(execution.status === 'complete'
-                ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
-                : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
-            } else if (id !== 'axe') {
-              const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
-              rawEngineResults.push({ ...execution, url: scanUrl });
-              if (execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
-              engineResults.push(execution.status === 'complete'
-                ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
-                : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
+          const runAnalysis = async () => {
+            const pageEngineResults: EnginePageResult[] = incremental ? [] : engineResults;
+            const pageRawResults: NonNullable<ScanEngine['rawEngineResults']> = incremental ? [] : rawEngineResults;
+            let result: import('@/lib/types').AxeResults | undefined;
+            for (const id of engines) {
+              if (id === 'axe' && axeEngine) {
+                nativeByPage.delete(page);
+                const execution = await runEngine(axeEngine, page, scanUrl);
+                pageRawResults.push({ ...execution, ...(execution.status === 'complete' ? { native: nativeByPage.get(page) } : {}), url: scanUrl });
+                if (extended && execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
+                if (!extended && execution.status === 'errored') throw new Error(execution.error);
+                if (execution.status === 'complete') result = execution.native;
+                if (extended) pageEngineResults.push(execution.status === 'complete'
+                  ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
+                  : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
+              } else if (id !== 'axe') {
+                const execution = await runEngine(optionalEngines[id], { page, browserURL }, scanUrl);
+                pageRawResults.push({ ...execution, url: scanUrl });
+                if (execution.status === 'complete') execution.findings = await resolveElementKeys(page, execution.findings);
+                pageEngineResults.push(execution.status === 'complete'
+                  ? { url: scanUrl, engine: id, status: 'complete', findings: execution.findings }
+                  : { url: scanUrl, engine: id, status: 'errored', error: execution.error });
+              }
             }
+            return { result, engineResults: pageEngineResults, rawEngineResults: pageRawResults };
+          };
+          // Include child frames, open shadow roots and live form values in the rendered snapshot.
+          const dom = incremental ? (await Promise.all(page.frames().map(async frame => `[frame:${frame.url()}]\n${(await frame.evaluate(() => {
+            const roots: string[] = [];
+            const walk = (root: Document | ShadowRoot) => {
+              for (const el of root.querySelectorAll('*')) {
+                if (el.shadowRoot) { roots.push(el.shadowRoot.innerHTML); walk(el.shadowRoot); }
+                if (el instanceof HTMLInputElement) {
+                  const clone = el.cloneNode() as HTMLInputElement;
+                  clone.setAttribute('value', el.value);
+                  clone.toggleAttribute('checked', el.checked);
+                  roots.push(clone.outerHTML);
+                }
+                if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) roots.push(el.value);
+              }
+            };
+            walk(document);
+            return [document.documentElement.outerHTML, ...roots];
+          })).join('\n')}`))).join('\n') : '';
+          const analysis = incremental ? await incremental.analyze(scanUrl, dom, runAnalysis) : await runAnalysis();
+          if (incremental) {
+            engineResults.push(...analysis.engineResults);
+            rawEngineResults.push(...analysis.rawEngineResults);
           }
           if (screenshotDir) {
             const image = await redactedScreenshot(page, redactSelectors);
             await mkdir(screenshotDir, { recursive: true });
             await writeFile(path.join(screenshotDir, `${createHash('sha256').update(scanUrl).digest('hex').slice(0, 24)}.png`), image);
           }
-          return result;
+          return analysis.result;
         };
         const result = await scanPage(url);
         if (keyboard) {
@@ -706,9 +748,22 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     options.pageLimit = seedUrls.length;
     options.maxDepth = 0;
   }
+  const incrementalOptions: IncrementalOptions | undefined = options.incremental ? {
+    dir: path.resolve(cwd, options.incremental),
+    config: {
+      version,
+      tags: AXE_TAGS,
+      interactions,
+      settings: { ...options, incremental: undefined, outDir: undefined, json: undefined, markdown: undefined, html: undefined, formats: undefined, warnings: undefined },
+      auth: { check: auth.check, state: auth.state, cookies: auth.cookies, headers: auth.headers, sessionStorage: auth.sessionStorage },
+    },
+    patterns: options.incrementalNormalize,
+    sanitize: analysis => io.redactor?.object(analysis) ?? analysis,
+    warn: message => stderr(`${message}\n`),
+  } : undefined;
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...(options.keyboardPixelThreshold !== undefined ? { pixelThreshold: options.keyboardPixelThreshold } : {}) } } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(incrementalOptions ? { incremental: incrementalOptions } : {}), ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...(options.keyboardPixelThreshold !== undefined ? { pixelThreshold: options.keyboardPixelThreshold } : {}) } } : {}) });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, '\n') : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`}${debugDetail(error)}`);
     return 2;
@@ -773,6 +828,11 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
     explicitAuthCheck: !!options.authCheck,
     authenticated: !!(options.storageState || options.sessionStorage || options.loginScript || options.cookieEnv?.length || options.headerEnv?.length),
   });
+  if (engine.incremental) {
+    report.incremental = { scanId: engine.incremental.scanId };
+    report.pages = report.pages.map(page => ({ ...page, ...(engine.incremental!.pages[page.url] ? { cache: engine.incremental!.pages[page.url] } : {}) }));
+    report.disclaimer ??= AUTOMATED_TESTING_DISCLAIMER;
+  }
   if (diffScan) {
     const routePaths = (urls: string[]) => urls.flatMap(value => {
       try {

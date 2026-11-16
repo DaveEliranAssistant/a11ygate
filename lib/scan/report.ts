@@ -52,6 +52,7 @@ export type ScanFinding = Partial<Agreement> & {
 };
 
 export type ScanPageSummary = {
+  cache?: { scanId: string; note: string };
   url: string;
   finalUrl: string;
   status: number | null;
@@ -83,6 +84,7 @@ export type DiffScan = {
 };
 
 export type ScanReport = {
+  incremental?: { scanId: string };
   diffScan?: DiffScan;
   keyboard?: KeyboardResult[];
   baseline?: import('./baseline').BaselineSummary;
@@ -400,7 +402,7 @@ function htmlGroups(title: string, groups: ScanGroup[]): string {
 export function scanHtml(report: ScanReport): string {
   const counts = (['critical', 'serious', 'moderate', 'minor', 'unknown'] as const).map((k) => `<tr><th scope="row">${k}</th><td>${report.counts.byImpact[k]}</td></tr>`).join('');
   const pages = report.pages
-    .map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? '—'}</td><td>${esc(p.scanStatus)}${p.error ? ' — ' + esc(p.error) : ''}</td><td>${p.findings}</td></tr>`)
+    .map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? '—'}</td><td>${esc(p.scanStatus)}${p.cache ? ' — ' + esc(p.cache.note) : ''}${p.error ? ' — ' + esc(p.error) : ''}</td><td>${p.findings}</td></tr>`)
     .join('');
   return `<!doctype html>
 <html lang="en">

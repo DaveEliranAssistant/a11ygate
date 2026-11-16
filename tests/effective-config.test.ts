@@ -31,6 +31,8 @@ function yamlEntry(key: string, value: unknown): string {
 }
 // Explicit expected destination, independent of the production wiring registry.
 const cases: [string, unknown, string, unknown][] = [
+  ['incremental', '.cache/a11y', 'incremental', '.cache/a11y'],
+  ['incrementalNormalize', ['build-[0-9]+'], 'incrementalNormalize', ['build-[0-9]+']],
   ['routes', { 'src/**': '/pricing' }, 'routes', { 'src/**': '/pricing' }],
   ['changedSince', 'main', 'changedSince', 'main'],
   ['screenshots', true, 'screenshots', true],

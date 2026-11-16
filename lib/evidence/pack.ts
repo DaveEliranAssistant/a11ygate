@@ -50,7 +50,7 @@ export type EvidenceManifest = {
     pagesFailed: number;
     skippedLinks: number;
     maxPages: number;
-    pages: { url: string; status: number | null; scanStatus: string }[];
+    pages: { url: string; status: number | null; scanStatus: string; cache?: { scanId: string; note: string } }[];
   };
   engines: EngineManifestEntry[];
   disclaimer: string;
@@ -184,7 +184,7 @@ export function frontPageMarkdown({ report, engines, commit, contents }: FrontPa
     '',
     '| Page | HTTP | Status | Findings |',
     '| --- | --- | --- | --- |',
-    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? '—'} | ${p.scanStatus}${p.error ? ' — ' + cell(p.error) : ''} | ${p.findings} |`),
+    ...report.pages.map((p) => `| ${cell(p.url)} | ${p.status ?? '—'} | ${p.scanStatus}${p.cache ? ' — ' + cell(p.cache.note) : ''}${p.error ? ' — ' + cell(p.error) : ''} | ${p.findings} |`),
     '',
     '## Automated result',
     '',
@@ -221,7 +221,7 @@ export function frontPageMarkdown({ report, engines, commit, contents }: FrontPa
 export function frontPageHtml({ report, engines, commit, contents }: FrontPageInput): string {
   const severities = ['critical', 'serious', 'moderate', 'minor', 'unknown'] as const;
   const pages = report.pages
-    .map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? '—'}</td><td>${esc(p.scanStatus)}${p.error ? ' — ' + esc(p.error) : ''}</td><td>${p.findings}</td></tr>`)
+    .map((p) => `<tr><td><code>${esc(p.url)}</code></td><td>${p.status ?? '—'}</td><td>${esc(p.scanStatus)}${p.cache ? ' — ' + esc(p.cache.note) : ''}${p.error ? ' — ' + esc(p.error) : ''}</td><td>${p.findings}</td></tr>`)
     .join('');
   return `<!doctype html>
 <html lang="en">
@@ -349,7 +349,7 @@ export function buildEvidencePack(input: PackInput): PackResult {
       pagesFailed: report.counts.pagesFailed,
       skippedLinks: report.counts.skippedLinks,
       maxPages: report.options.maxPages,
-      pages: report.pages.map((p) => ({ url: p.url, status: p.status, scanStatus: p.scanStatus })),
+      pages: report.pages.map((p) => ({ url: p.url, status: p.status, scanStatus: p.scanStatus, ...(p.cache ? { cache: p.cache } : {}) })),
     },
     engines,
     disclaimer: EVIDENCE_DISCLAIMER,

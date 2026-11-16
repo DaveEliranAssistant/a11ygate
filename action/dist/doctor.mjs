@@ -651,6 +651,19 @@ var a11ygate_schema_default = {
       maximum: 20,
       "x-cli": ["--crawl"]
     },
+    incremental: {
+      description: "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",
+      type: "string",
+      minLength: 1,
+      "x-cli": ["--incremental"]
+    },
+    incrementalNormalize: {
+      description: "Replace default DOM normalizers with these global, case-insensitive JavaScript regexes. Only used with incremental.",
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      minItems: 1,
+      "x-cli": ["--incremental-normalize"]
+    },
     routes: {
       description: "Repository-relative source globs mapped to same-origin URL paths, or * for a full scan. Glob syntax: *, **, ?.",
       type: "object",
@@ -1302,6 +1315,8 @@ function configProblems(text) {
 var scan = ["scan"];
 var reports = ["scan", "ci"];
 var CONFIG_WIRING = {
+  incremental: { flag: "--incremental", commands: scan, default: null },
+  incrementalNormalize: { flag: "--incremental-normalize", commands: scan, default: [] },
   routes: { flag: "--routes", commands: scan, default: {} },
   changedSince: { flag: "--changed-since", commands: scan, default: null },
   screenshots: { flag: "--screenshots", commands: scan, default: false },
