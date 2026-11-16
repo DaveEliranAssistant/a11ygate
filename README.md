@@ -303,9 +303,9 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 ### Opt-in keyboard focus heuristics
 
 `a11ygate scan https://your-site.example --keyboard --keyboard-budget 100 --out-dir a11y`
-adds a headless forward-Tab probe to each loaded base page, without a model. It is off
-by default; `--keyboard-budget` alone does not enable it. The budget counts Tab
-presses per page (1–1000, default 100). The existing page timeout still applies.
+adds headless keyboard probes to each loaded base page, without a model. It is off
+by default; `--keyboard-budget` alone does not enable it. The shared budget counts
+Tab, Shift+Tab and arrow-key presses per page (1–1000, default 100). The existing page timeout still applies.
 YAML keys `keyboard` / `keyboardBudget` and environment variables
 `A11YGATE_KEYBOARD` / `A11YGATE_KEYBOARD_BUDGET` use the shared configuration precedence.
 
@@ -317,7 +317,18 @@ a suspected trap, or the budget. These findings have moderate impact and use the
 existing `--fail-on` threshold; `--fail-on none` is reporting only.
 
 The check compares computed outline and box-shadow against the unfocused style,
-flags the same element retaining focus for three further Tab presses, and flags
+then falls back to an in-memory pixel comparison of the focused/unfocused element
+bounding box. `--keyboard-pixel-threshold <0–1>` sets the minimum changed-pixel
+fraction (default 0.01; RGB channel differences must exceed 16). This flag alone
+does not enable the probe. Crops are never saved in reports or on disk, including
+when `--no-screenshots` disables screenshot artifacts.
+
+The probe follows open shadow roots and same-origin iframes. Cross-origin frames
+are listed in JSON `notAssessedFrames` as "not assessed". After a completed forward
+pass, Shift+Tab checks the reverse order while budget remains. A roving-tabindex
+tablist, menu, listbox, grid or radiogroup counts as one Tab stop; arrow keys check
+focus movement inside it. It flags repeated cycles among two to five controls,
+the same element retaining focus for three further Tab presses, and
 backward jumps of more than three interactive DOM positions. Visible interactive
 candidates not reached in a completed traversal are flagged; budget exhaustion
 alone never creates unreachable findings. The existing `lib/mapping.ts` crosswalk
@@ -325,10 +336,12 @@ and W3C Understanding links supply the mappings: 2.1.1 Keyboard, 2.1.2 No Keyboa
 Trap, 2.4.3 Focus Order, and 2.4.7 Focus Visible (and their existing EN clauses).
 
 These are heuristics requiring human review. Absence of findings does not confirm
-keyboard accessibility. Color/background/border/pseudo-element indicators,
-contrast, obscuration, CSS animation timing, shadow DOM, frames, reverse Tab,
-arrow-key composite widgets, multi-element traps and dynamic states beyond the
-loaded base page are unassessed or may produce false positives/negatives. Focus
+keyboard accessibility. Contrast, obscuration, indicators outside the bounding
+box, CSS animation timing, closed shadow roots, cross-origin frames,
+aria-activedescendant composites and dynamic states beyond the loaded base page
+are unassessed or may produce false positives/negatives. Pixel capture/decoding
+failures (including CSP blocking data-URL image decoding) leave indicator evidence
+unknown. Pixel comparison blurs and refocuses controls; blur, focus and arrow-key
 handlers may have side effects: use authorized test accounts. During the probe,
 form submission, document navigation, popups and non-read HTTP methods are blocked.
 R37 interaction states remain separate and are not keyboard-probed.
@@ -337,4 +350,4 @@ Run the headless DOM fixtures explicitly with
 `A11YGATE_BROWSER_TESTS=1 npx vitest run tests/keyboard.test.ts`.
 Normal `npm test` skips browser fixtures.
 
-Screenshot capture remains off by default. Opt in with `scan --screenshots --out-dir out` for masked viewport PNGs; use `--no-screenshots` for authenticated scans and image-free evidence packs. Configure additional masks with `redact.selectors`. See [screenshot privacy](docs/authenticated-pages.md). Automated testing only. Not a WCAG audit, certification or legal advice.
+Screenshot artifacts remain off by default. Opt in with `scan --screenshots --out-dir out` for masked viewport PNGs; use `--no-screenshots` for authenticated scans and image-free evidence packs. Configure additional masks with `redact.selectors`. See [screenshot privacy](docs/authenticated-pages.md). Automated testing only. Not a WCAG audit, certification or legal advice.

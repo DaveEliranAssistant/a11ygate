@@ -448,4 +448,15 @@ unassessed. Without this opt-in, reports stay unchanged. Project scan configs
 also accept `changedSince`; the saved-result `ci --current` gate does not.
 See [configuration and limits](../../docs/configuration.md#diff-aware-pr-scans-a11y-r57).
 
+### Extended keyboard probes (A11Y-R46)
+
+`scan --keyboard` follows open shadow roots and same-origin iframes, probes reverse
+Tab order and roving-tabindex composite arrow keys, and detects small focus cycles.
+Cross-origin frames are recorded as not assessed. `--keyboard-pixel-threshold 0.01`
+sets the changed-pixel fraction (0–1) for the in-memory focus indicator fallback
+after outline/box-shadow checks. This flag alone does not enable keyboard checks;
+there is no new YAML key. Crops are never written to disk or attached to reports.
+The shared `--keyboard-budget` bounds all Tab, Shift+Tab and arrow-key presses.
+Every finding needs human review. See the root README for limitations.
+
 Automated testing only. Not a WCAG audit, certification or legal advice.

@@ -466,20 +466,51 @@ function attribution(finding2) {
 var KEYBOARD_DISCLAIMER = "Keyboard checks are heuristics and need human review. Absence of findings does not confirm keyboard accessibility. Outline/box-shadow changes do not establish indicator visibility, contrast or conformance.";
 async function scanKeyboard(page, url, options) {
   if (!Number.isInteger(options.budget) || options.budget < 1 || options.budget > 1e3) throw new Error("Keyboard budget must be from 1 to 1000.");
+  const threshold = options.pixelThreshold ?? 0.01;
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error("Keyboard pixel threshold must be from 0 to 1.");
   const candidates = await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
-    const elements = [...document.querySelectorAll('a[href],area[href],button,input:not([type="hidden"]),select,textarea,summary,[tabindex],[contenteditable="true"],[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"],[role="textbox"]')];
-    return elements.filter((el) => {
-      const style = getComputedStyle(el);
-      return !el.matches(":disabled") && !el.closest("[inert]") && el.getClientRects().length > 0 && style.visibility === "visible" && style.display !== "none";
-    }).map((el) => {
-      const parts = [];
-      for (let node = el; node; node = node.parentElement) {
-        const parent = node.parentElement;
-        parts.unshift(`${node.tagName.toLowerCase()}:nth-child(${parent ? [...parent.children].indexOf(node) + 1 : 1})`);
+    const elements = [];
+    const paths = /* @__PURE__ */ new Map();
+    const walk = (root, prefix = "") => {
+      for (const el of root.querySelectorAll("*")) {
+        const parts = [];
+        for (let node = el; node; node = node.parentElement) {
+          const siblings = node.parentElement?.children ?? root.children;
+          parts.unshift(`${node.tagName.toLowerCase()}:nth-child(${[...siblings].indexOf(node) + 1})`);
+        }
+        const selector = prefix + parts.join(" > ");
+        paths.set(el, selector);
+        if (el.matches('a[href],area[href],button,input:not([type="hidden"]),select,textarea,summary,[tabindex],[contenteditable="true"],[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"],[role="textbox"]')) elements.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot, selector + " >>> ");
+        if (el.tagName === "IFRAME") {
+          try {
+            const doc = el.contentDocument;
+            if (doc) walk(doc, selector + " >> frame >> ");
+          } catch {
+          }
+        }
       }
-      const style = getComputedStyle(el);
-      return { selector: parts.join(" > "), outline: `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`, shadow: style.boxShadow, html: el.outerHTML.slice(0, 1e3) };
+    };
+    walk(document);
+    const visible = elements.filter((el) => {
+      const style = el.ownerDocument.defaultView.getComputedStyle(el);
+      return !el.matches(":disabled") && !el.closest("[inert]") && el.getClientRects().length > 0 && style.visibility === "visible" && style.display !== "none";
+    });
+    window.__a11ygateKeyboard = visible;
+    return visible.map((el) => {
+      const style = el.ownerDocument.defaultView.getComputedStyle(el);
+      const composite = el.closest('[role="tablist"],[role="menu"],[role="listbox"],[role="grid"],[role="radiogroup"]');
+      const members = composite ? visible.filter((item) => composite.contains(item)) : [];
+      const roving = members.length > 1 && members.filter((item) => item.tabIndex === 0).length === 1;
+      return {
+        selector: paths.get(el),
+        outline: `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`,
+        shadow: style.boxShadow,
+        html: el.outerHTML.slice(0, 1e3),
+        composite: roving ? members.map((item) => visible.indexOf(item)) : [],
+        tabIndex: el.tabIndex
+      };
     });
   });
   const findings = [];
@@ -505,42 +536,88 @@ async function scanKeyboard(page, url, options) {
       reviewStatus: "needs human review"
     });
   };
+  const observe = () => page.evaluate((items) => {
+    let el = document.activeElement;
+    while (el) {
+      const inner = el.shadowRoot?.activeElement ?? (el.tagName === "IFRAME" ? el.contentDocument?.activeElement : null);
+      if (!inner || inner === inner.ownerDocument.body || inner === inner.ownerDocument.documentElement) break;
+      el = inner;
+    }
+    if (!el || el === document.body || el === document.documentElement) return { selector: null, domIndex: null, indicatorChanged: null };
+    const index = window.__a11ygateKeyboard?.indexOf(el) ?? -1;
+    const style = el.ownerDocument.defaultView.getComputedStyle(el);
+    const base = items[index];
+    const outline = `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`;
+    const visibleOutline = style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)";
+    return {
+      selector: base?.selector ?? el.tagName.toLowerCase(),
+      domIndex: index < 0 ? null : index,
+      indicatorChanged: base ? visibleOutline && outline !== base.outline || style.boxShadow !== "none" && style.boxShadow !== base.shadow : null
+    };
+  }, candidates);
   const observations = [];
   const reached = /* @__PURE__ */ new Set();
+  const tabOrder = [];
   let previous = null;
   let previousSelector = null;
   let stuck = 0;
   let stopReason = "budget";
-  for (let step = 1; step <= options.budget; step++) {
+  while (observations.length < options.budget) {
+    const step = observations.length + 1;
     await page.keyboard.press("Tab");
-    const observed = await page.evaluate((items) => {
-      const el = document.activeElement;
-      if (!el || el === document.body || el === document.documentElement) return { selector: null, domIndex: null, indicatorChanged: null };
-      const index2 = items.findIndex((item) => document.querySelector(item.selector) === el);
-      const style = getComputedStyle(el);
-      const base = items[index2];
-      const outline = `${style.outlineStyle}|${style.outlineWidth}|${style.outlineColor}`;
-      const visibleOutline = style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0 && style.outlineColor !== "rgba(0, 0, 0, 0)";
-      return {
-        selector: base?.selector ?? el.tagName.toLowerCase(),
-        domIndex: index2 < 0 ? null : index2,
-        indicatorChanged: base ? visibleOutline && outline !== base.outline || style.boxShadow !== "none" && style.boxShadow !== base.shadow : null
-      };
-    }, candidates);
+    const observed = await observe();
+    const firstVisit = observed.domIndex !== null && !reached.has(observed.domIndex);
+    if (firstVisit && observed.indicatorChanged === false && typeof page.evaluateHandle === "function") {
+      observed.indicatorChanged = await pixelIndicator(page, observed.domIndex, threshold);
+    }
     observations.push({ step, ...observed });
     const index = observed.domIndex;
+    if (index !== null) tabOrder.push(index);
     if (observed.selector === null && reached.size > 0) {
       stopReason = "cycle";
       break;
     }
     if (index !== null) {
       if (previous !== null && index < previous - 3 && !reached.has(index)) add("order-jump", "wcag243", index, "Focus jumped backward by more than three interactive DOM positions. Review whether the order preserves meaning.");
-      if (!reached.has(index) && observed.indicatorChanged === false) add("focus-indicator", "wcag247", index, "No computed outline or box-shadow change was observed on keyboard focus. Review the visible focus indicator.");
+      if (firstVisit && observed.indicatorChanged === false) add("focus-indicator", "wcag247", index, "No outline, box-shadow or bounding-box pixel change above the configured threshold was observed on keyboard focus. Review the visible focus indicator.");
       reached.add(index);
+      const members = candidates[index].composite ?? [];
+      if (firstVisit && members.length && typeof page.evaluateHandle === "function") {
+        let moved = false;
+        let attempted = 0;
+        for (const key of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]) {
+          if (observations.length >= options.budget) break;
+          await page.keyboard.press(key);
+          attempted++;
+          const arrow = await observe();
+          observations.push({ step: observations.length + 1, key, ...arrow });
+          if (arrow.domIndex !== null && arrow.domIndex !== index && members.includes(arrow.domIndex)) moved = true;
+          await page.evaluate(({ index: index2, members: members2, values }) => {
+            const elements = window.__a11ygateKeyboard;
+            members2.forEach((member, i) => {
+              if (elements?.[member]) elements[member].tabIndex = values[i];
+            });
+            elements?.[index2].focus();
+          }, { index, members, values: members.map((member) => candidates[member].tabIndex) });
+        }
+        if (!moved && attempted === 4) add("composite", "wcag211", index, "No arrow-key focus movement was observed inside this roving-tabindex composite. Review keyboard operation.");
+        members.forEach((member) => reached.add(member));
+      }
     }
     stuck = observed.selector !== null && observed.selector === previousSelector ? stuck + 1 : 0;
     if (stuck >= 3 && index !== null) {
       add("trap", "wcag212", index, "Focus stayed on the same element for three consecutive Tab presses. Review keyboard escape behavior.");
+      stopReason = "trap";
+      break;
+    }
+    const history2 = tabOrder;
+    let cycle = false;
+    for (let size = 2; size <= 5; size++) {
+      const tail2 = history2.slice(-size);
+      if (history2.length >= size * 3 && new Set(tail2).size === size && tail2.every((value, i) => value === history2[history2.length - size * 2 + i] && value === history2[history2.length - size * 3 + i])) cycle = true;
+    }
+    if (cycle && index !== null) {
+      add("trap", "wcag212", index, "Focus repeated a cycle of two to five elements without reaching the document boundary. Review keyboard escape behavior.");
       stopReason = "trap";
       break;
     }
@@ -550,7 +627,72 @@ async function scanKeyboard(page, url, options) {
   if (stopReason === "cycle") candidates.forEach((_, index) => {
     if (!reached.has(index)) add("unreachable", "wcag211", index, "This visible interactive candidate was not reached during a forward Tab traversal. Review keyboard operation and composite-widget arrow keys.");
   });
-  return { url, steps: observations.length, stopReason, observations, findings };
+  if (stopReason === "cycle") {
+    const forward = [...tabOrder];
+    for (const expected2 of forward.reverse()) {
+      if (observations.length >= options.budget) break;
+      let reverse;
+      do {
+        await page.keyboard.press("Shift+Tab");
+        reverse = await observe();
+        observations.push({ step: observations.length + 1, key: "Shift+Tab", ...reverse });
+      } while (reverse.domIndex === null && reverse.selector !== null && observations.length < options.budget);
+      if (reverse.domIndex === null && reverse.selector !== null) break;
+      const members = candidates[expected2].composite ?? [];
+      if (reverse.domIndex !== expected2 && !(reverse.domIndex !== null && members.includes(reverse.domIndex))) {
+        add("reverse-order", "wcag243", expected2, "Shift+Tab did not retrace the forward focus order. Review whether the order preserves meaning.");
+        break;
+      }
+    }
+  }
+  const notAssessedFrames = page.frames ? page.frames().filter((frame) => {
+    if (frame === page.mainFrame()) return false;
+    try {
+      return new URL(frame.url()).origin !== new URL(page.url()).origin && !["about:blank", "about:srcdoc"].includes(frame.url());
+    } catch {
+      return true;
+    }
+  }).map((frame) => `not assessed: ${frame.url()}`) : [];
+  return { url, steps: observations.length, stopReason, observations, findings, ...notAssessedFrames.length ? { notAssessedFrames } : {} };
+}
+async function pixelIndicator(page, index, threshold) {
+  const handle = await page.evaluateHandle((i) => window.__a11ygateKeyboard?.[i], index);
+  const element = handle.asElement();
+  try {
+    if (!element) return null;
+    const box = await element.boundingBox();
+    if (!box || box.width < 1 || box.height < 1) return null;
+    const focused = await page.screenshot({ clip: box, animations: "disabled" });
+    await element.evaluate((el) => el.blur());
+    let unfocused;
+    try {
+      unfocused = await page.screenshot({ clip: box, animations: "disabled" });
+    } finally {
+      await element.evaluate((el) => el.focus());
+    }
+    return await page.evaluate(async ({ a, b, threshold: threshold2 }) => {
+      const decode2 = async (data) => {
+        const image = new Image();
+        image.src = "data:image/png;base64," + data;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context2 = canvas.getContext("2d");
+        context2.drawImage(image, 0, 0);
+        return context2.getImageData(0, 0, image.width, image.height).data;
+      };
+      const [left, right] = await Promise.all([decode2(a), decode2(b)]);
+      if (left.length !== right.length || !left.length) return false;
+      let changed = 0;
+      for (let i = 0; i < left.length; i += 4) if (Math.max(Math.abs(left[i] - right[i]), Math.abs(left[i + 1] - right[i + 1]), Math.abs(left[i + 2] - right[i + 2])) > 16) changed++;
+      return changed > 0 && changed / (left.length / 4) >= threshold2;
+    }, { a: focused.toString("base64"), b: unfocused.toString("base64"), threshold });
+  } catch {
+    return null;
+  } finally {
+    await handle.dispose();
+  }
 }
 
 // lib/limits.ts
@@ -5389,7 +5531,7 @@ var AUTH_CHECK_FLAGS = {
   "--auth-check-must-not-have-selector": "mustNotHaveSelector",
   "--auth-check-must-not-redirect-to": "mustNotRedirectTo"
 };
-var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--routes", "--changed-since", "--redact-selector", "--keyboard-budget", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
+var VALUE_FLAGS2 = /* @__PURE__ */ new Set([...Object.keys(AUTH_CHECK_FLAGS), "--routes", "--changed-since", "--redact-selector", "--keyboard-budget", "--keyboard-pixel-threshold", "--interactions", "--interaction-budget", "--start", "--wait-on", "--storybook", "--sitemap", "--include", "--exclude", "--max-pages", "--max-depth", "--timeout-ms", "--concurrency", "--fail-on", "--out-dir", "--json", "--markdown", "--html", "--delay-ms", "--engines", "--format", "--baseline", "--storage-state", "--session-storage", "--login-script", "--login-timeout-ms", "--cookie-env", "--header-env", "--report-version", "--report-lang", "--recycle-every"]);
 function parseScanArgs(argv2) {
   const options = { help: false, url: "", maxPages: 1, failOn: "serious", delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ["axe"] };
   const positionals = [];
@@ -5456,6 +5598,9 @@ function parseScanArgs(argv2) {
     }
     if (name === "--redact-selector") {
       (options.redactSelectors ??= []).push(value);
+    } else if (name === "--keyboard-pixel-threshold") {
+      if (!/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(value)) return { ok: false, error: "--keyboard-pixel-threshold must be from 0 to 1." };
+      options.keyboardPixelThreshold = Number(value);
     } else if (name === "--keyboard-budget") {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1e3) return { ok: false, error: "--keyboard-budget must be from 1 to 1000." };
       options.keyboardBudget = Number(value);
@@ -5581,7 +5726,8 @@ Options:
   --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
   --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
   --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
-  --keyboard-budget <n> Maximum Tab presses per page (1\u20131000, default 100).
+  --keyboard-pixel-threshold <n> Changed-pixel fraction, 0\u20131 (default 0.01).
+  --keyboard-budget <n> Maximum keyboard presses per page (1\u20131000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
   --auto-interactions Open collapsed/popup controls one at a time (default off).
   --interaction-budget <n> Maximum attempted steps per route (1\u2013100, default 10).
@@ -5999,7 +6145,7 @@ ${debugDetail(error)}`);
   }
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path6.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path6.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...options.keyboardPixelThreshold !== void 0 ? { pixelThreshold: options.keyboardPixelThreshold } : {} } } : {} });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, "\n") : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `}${debugDetail(error)}`);

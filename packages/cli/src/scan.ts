@@ -50,6 +50,7 @@ export type ScanOptions = AuthOptions & {
   /** Opt-in EN 301 549 reference column in HTML v2 and SARIF rule properties. */
   en301549Ref?: boolean;
   keyboardBudget?: number;
+  keyboardPixelThreshold?: number;
   interactions?: string | InteractionConfig;
   autoInteractions?: boolean;
   interactionBudget?: number;
@@ -94,7 +95,7 @@ const AUTH_CHECK_FLAGS = {
   '--auth-check-must-not-have-selector': 'mustNotHaveSelector',
   '--auth-check-must-not-redirect-to': 'mustNotRedirectTo',
 } as const;
-const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--routes', '--changed-since', '--redact-selector', '--keyboard-budget', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
+const VALUE_FLAGS = new Set([...Object.keys(AUTH_CHECK_FLAGS), '--routes', '--changed-since', '--redact-selector', '--keyboard-budget', '--keyboard-pixel-threshold', '--interactions', '--interaction-budget', '--start', '--wait-on', '--storybook', '--sitemap', '--include', '--exclude', '--max-pages', '--max-depth', '--timeout-ms', '--concurrency', '--fail-on', '--out-dir', '--json', '--markdown', '--html', '--delay-ms', '--engines', '--format', '--baseline', '--storage-state', '--session-storage', '--login-script', '--login-timeout-ms', '--cookie-env', '--header-env', '--report-version', '--report-lang', '--recycle-every']);
 
 export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
   const options: ScanOptions = { help: false, url: '', maxPages: 1, failOn: 'serious', delayMs: DEFAULT_DELAY_MS, reportVersion: DEFAULT_REPORT_VERSION, formats: [], warnings: [], engines: ['axe'] };
@@ -160,6 +161,9 @@ export function parseScanArgs(argv: readonly string[]): ParsedScanArgs {
     }
     if (name === '--redact-selector') {
       (options.redactSelectors ??= []).push(value);
+    } else if (name === '--keyboard-pixel-threshold') {
+      if (!/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(value)) return { ok: false, error: '--keyboard-pixel-threshold must be from 0 to 1.' };
+      options.keyboardPixelThreshold = Number(value);
     } else if (name === '--keyboard-budget') {
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1000) return { ok: false, error: '--keyboard-budget must be from 1 to 1000.' };
       options.keyboardBudget = Number(value);
@@ -281,7 +285,8 @@ Options:
   --no-screenshots      Disable capture and exclude images from subsequent evidence packs.
   --redact-selector <css> Additional CSS selector to mask; repeatable (config redact.selectors).
   --keyboard            Opt-in keyboard focus heuristics; findings need human review (default off).
-  --keyboard-budget <n> Maximum Tab presses per page (1–1000, default 100).
+  --keyboard-pixel-threshold <n> Changed-pixel fraction, 0–1 (default 0.01).
+  --keyboard-budget <n> Maximum keyboard presses per page (1–1000, default 100).
   --interactions <file> Load opt-in route states from local JSON (click, press, wait).
   --auto-interactions Open collapsed/popup controls one at a time (default off).
   --interaction-budget <n> Maximum attempted steps per route (1–100, default 10).
@@ -703,7 +708,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   }
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100 } } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...(options.keyboardPixelThreshold !== undefined ? { pixelThreshold: options.keyboardPixelThreshold } : {}) } } : {}) });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, '\n') : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`}${debugDetail(error)}`);
     return 2;
