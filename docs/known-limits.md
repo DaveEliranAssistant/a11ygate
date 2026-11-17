@@ -11,7 +11,6 @@ Contents: [Not included](#not-included) · [CI integrations](#ci-integrations) �
 ## Not included
 
 - **A11Y-R34** is not on `main`: its pull request is a draft waiting for the owner.
-- **A11Y-R49** (benchmark v2: Chromium memory, 500 pages, all engines) was not started; it waits for an owner decision about an idle machine and a long timeout. Gaps that depend on it are marked below.
 
 ## CI integrations
 
@@ -27,7 +26,7 @@ What each CI integration was and was not run on is stated row by row in the [CI 
 ## Crawling and scope
 
 - The crawler does not run interactions to discover history routes; routes that need an interaction to appear stay unassessed. Real scans may load third-party subresources; document navigation stays same-origin (A11Y-R30).
-- `a11ygate estimate` discovers pages from static HTML only: JavaScript-only routes and authenticated content are missed, and login is reported as "unknown" when not detected. It estimates only the selected `--engines` set (no side-by-side). Its default 1000 ms delay matches no recorded benchmark row, so default output prints "no benchmark for this configuration" (A11Y-R49 would add rows). A redirect into a robots-blocked path is reported as a navigation error, and any failed page fetch exits 2 (A11Y-R55).
+- `a11ygate estimate` discovers pages from static HTML only: JavaScript-only routes and authenticated content are missed, and login is reported as "unknown" when not detected. It estimates only the selected `--engines` set (no side-by-side). Its default 1000 ms delay matches no recorded benchmark row, so default output prints "no benchmark for this configuration". It quotes only the earlier R38/R47 benchmark files, not the A11Y-R49 benchmark v2 rows. A redirect into a robots-blocked path is reported as a navigation error, and any failed page fetch exits 2 (A11Y-R55).
 - `ci --projects`: a project that cannot start is reported with a generic "Project could not start" message (to avoid leaking credentials). Combined summaries link to each `project-result.json`, not the full report. `--projects` accepts only its own flags; other `ci` flags are rejected. Single-project equality is checked against a direct run, not a new frozen golden (A11Y-R56).
 
 ## Authenticated scans
@@ -81,7 +80,7 @@ What each CI integration was and was not run on is stated row by row in the [CI 
 
 ## Performance and benchmarks
 
-- The all-engines benchmark used a 40-page subset, not 500 pages. Each configuration ran once, so run-to-run variance was not measured, and Linux runners were not measured (A11Y-R38). A 500-page all-engines run is A11Y-R49, not included. Lighthouse errors at concurrency above 1, recorded in A11Y-R38, were fixed in A11Y-R47.
+- Benchmark v2 (A11Y-R49) recorded 500 pages × {axe, all engines} × concurrency {1, 2, 4} with whole-process-tree RSS. It ran on one Mac that was not idle (Spotlight indexing; load averages are recorded per run). Each configuration ran once, so run-to-run variance was not measured. Linux runners were not measured; the sampler supports Linux `ps`, but only through a unit test. The R38 all-engines runs used a 40-page subset. Lighthouse errors at concurrency above 1, recorded in A11Y-R38, were fixed in A11Y-R47.
 - The Lighthouse mutex has no cancellation: a timed-out queued snapshot still runs later and delays the queue. `lighthouse serialized` is logged even at concurrency 1. The first follow-up bench run under load was kept as 36 of 40 pages (A11Y-R47).
 - See [docs/perf](perf/README.md) for the recorded numbers.
 

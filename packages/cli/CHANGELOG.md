@@ -13,7 +13,6 @@ Consolidated in A11Y-R62: every task from A11Y-R23 to A11Y-R61 that merged to `m
 ### Not included
 
 - **A11Y-R34** is not included: its pull request is a draft waiting for the owner.
-- **A11Y-R49** (benchmark v2: Chromium memory, 500 pages, all engines) is not included: it was not started, pending an owner decision about an idle machine and a long timeout. The all-engines benchmark therefore still uses a 40-page subset ([docs/perf](../../docs/perf/README.md)).
 - A11Y-R62 is this consolidation (docs and tests only).
 
 ### Upgrade notes
@@ -64,6 +63,7 @@ New opt-in commands and flags, all default off (see `a11ygate <command> --help`)
 - Opt-in diff-aware PR scans (`scan --changed-since <ref>`, config `routes` / `changedSince`) select mapped URL paths from committed `<ref>...HEAD` changes. Unmapped files, shared `"*"` mappings or no changes retain the normal full scan. Reports record mode, reason and scanned/skipped routes; skipped baseline pages remain unassessed and review decisions still apply. No-flag report output is unchanged (A11Y-R57, [#76](https://github.com/DaveEliranAssistant/a11ygate/pull/76)).
 - Opt-in `scan --incremental <cache-dir>` hashes rendered page/state DOM, normalizes volatile tokens with configurable regexes, and reuses successful engine findings only when DOM and engine/config compatibility match. Reports and evidence packs retain original scan IDs on cached pages. Corrupt cache data warns and forces a full rescan; default output is unchanged (A11Y-R60, [#77](https://github.com/DaveEliranAssistant/a11ygate/pull/77)).
 - `a11ygate scan --recycle-every <n>` (config `recycleEvery`) opens a fresh browser context every n pages; retired contexts close only after their in-flight pages finish. Opt-in: without it the scan keeps one context, as before. `npm run bench` (not part of `npm test` or CI) records peak RSS, pages per minute and failures against a generated loopback fixture; recorded results and the sizing table are in `docs/perf/` (A11Y-R38, [#54](https://github.com/DaveEliranAssistant/a11ygate/pull/54)).
+- Benchmark v2: `npm run bench` now samples peak RSS of the whole process tree (the Node CLI plus every Chromium descendant, every 250 ms with `ps`, same columns on macOS and Linux), caps each run with `npm run bench -- --max-run-ms <ms>` and records a run that hits the cap as "not completed" with no throughput figure, can refuse to start runs after a time with `npm run bench -- --no-new-cell-after <time>`, and saves results after every run. Recorded on the Mac: 500 pages × {axe, all engines} × concurrency {1, 2, 4} in [docs/perf/bench-v2.md](../../docs/perf/bench-v2.md), with the sizing table updated. Not part of `npm test` or CI (A11Y-R49, [#79](https://github.com/DaveEliranAssistant/a11ygate/pull/79)).
 
 ### Added: reports and exports
 

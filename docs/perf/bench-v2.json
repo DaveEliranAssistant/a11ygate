@@ -1,0 +1,252 @@
+{
+  "name": "bench-v2",
+  "recordedAt": "2026-11-17T09:50:01.585Z",
+  "argv": [
+    "--pages",
+    "500",
+    "--engines",
+    "axe,all",
+    "--concurrency",
+    "1,2,4",
+    "--max-run-ms",
+    "1800000",
+    "--no-new-cell-after",
+    "2026-11-17T13:40:00Z",
+    "--name",
+    "bench-v2"
+  ],
+  "machine": {
+    "model": "MacBookPro16,1",
+    "cpu": "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    "platform": "darwin-x64",
+    "logicalCpus": 16,
+    "ramBytes": 34359738368,
+    "os": "macOS 15.7.4 (24G517)",
+    "node": "v20.19.6",
+    "chromium": "156.0.8078.4 (Playwright headless shell)",
+    "playwright": "1.64.1",
+    "axeCore": "4.14.0"
+  },
+  "fixture": {
+    "pages": 500,
+    "loopback": true
+  },
+  "sampler": {
+    "tool": "ps -A -o pid=,ppid=,rss=,comm=",
+    "intervalMs": 250,
+    "scope": "CLI Node process + every descendant process"
+  },
+  "maxRunMs": 1800000,
+  "runs": [
+    {
+      "engines": "axe",
+      "engineIds": "axe",
+      "concurrency": 1,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T09:50:01.587Z",
+      "loadAverageAtStart": [
+        10.69,
+        6.54,
+        4.41
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 395610,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 75.8,
+      "peakRssBytes": {
+        "node": 464973824,
+        "browser": 509382656,
+        "total": 815165440
+      },
+      "peakProcesses": 6,
+      "browserRssEarlyMeanBytes": 232837049,
+      "browserRssLateMeanBytes": 249070529,
+      "browserRssGrowthBytes": 16233479,
+      "samples": 1576,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    },
+    {
+      "engines": "axe",
+      "engineIds": "axe",
+      "concurrency": 2,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T09:56:37.238Z",
+      "loadAverageAtStart": [
+        4.64,
+        5.78,
+        4.93
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 231512,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 129.6,
+      "peakRssBytes": {
+        "node": 517419008,
+        "browser": 508506112,
+        "total": 992047104
+      },
+      "peakProcesses": 8,
+      "browserRssEarlyMeanBytes": 333293800,
+      "browserRssLateMeanBytes": 326463064,
+      "browserRssGrowthBytes": -6830737,
+      "samples": 922,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    },
+    {
+      "engines": "axe",
+      "engineIds": "axe",
+      "concurrency": 4,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T10:00:28.794Z",
+      "loadAverageAtStart": [
+        6.07,
+        6.58,
+        5.53
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 149457,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 200.7,
+      "peakRssBytes": {
+        "node": 598605824,
+        "browser": 887980032,
+        "total": 1444966400
+      },
+      "peakProcesses": 12,
+      "browserRssEarlyMeanBytes": 531051805,
+      "browserRssLateMeanBytes": 532187873,
+      "browserRssGrowthBytes": 1136068,
+      "samples": 595,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    },
+    {
+      "engines": "all",
+      "engineIds": "axe,htmlcs,ibm,lighthouse",
+      "concurrency": 1,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T10:02:58.289Z",
+      "loadAverageAtStart": [
+        8.07,
+        7.43,
+        6.05
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 1400479,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 21.4,
+      "peakRssBytes": {
+        "node": 1090408448,
+        "browser": 503988224,
+        "total": 1372475392
+      },
+      "peakProcesses": 6,
+      "browserRssEarlyMeanBytes": 269205457,
+      "browserRssLateMeanBytes": 264477290,
+      "browserRssGrowthBytes": -4728167,
+      "samples": 5576,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    },
+    {
+      "engines": "all",
+      "engineIds": "axe,htmlcs,ibm,lighthouse",
+      "concurrency": 2,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T10:26:18.823Z",
+      "loadAverageAtStart": [
+        5.75,
+        5.37,
+        5.31
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 1190717,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 25.2,
+      "peakRssBytes": {
+        "node": 1141624832,
+        "browser": 505896960,
+        "total": 1542803456
+      },
+      "peakProcesses": 8,
+      "browserRssEarlyMeanBytes": 354659192,
+      "browserRssLateMeanBytes": 345960929,
+      "browserRssGrowthBytes": -8698262,
+      "samples": 4740,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    },
+    {
+      "engines": "all",
+      "engineIds": "axe,htmlcs,ibm,lighthouse",
+      "concurrency": 4,
+      "recycleEvery": null,
+      "pagesRequested": 500,
+      "status": "completed",
+      "maxRunMs": 1800000,
+      "startedAt": "2026-11-17T10:46:09.678Z",
+      "loadAverageAtStart": [
+        3.97,
+        4.64,
+        4.92
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "elapsedMs": 1085190,
+      "pagesRecorded": 500,
+      "pagesComplete": 500,
+      "pageFailures": 0,
+      "engineErrors": 0,
+      "pagesPerMinute": 27.6,
+      "peakRssBytes": {
+        "node": 1250250752,
+        "browser": 890712064,
+        "total": 1949343744
+      },
+      "peakProcesses": 12,
+      "browserRssEarlyMeanBytes": 505586855,
+      "browserRssLateMeanBytes": 501468529,
+      "browserRssGrowthBytes": -4118326,
+      "samples": 4321,
+      "sampleIntervalMs": 250,
+      "errorKinds": {}
+    }
+  ]
+}
