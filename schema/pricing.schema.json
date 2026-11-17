@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "A11yGate pricing configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plan", "priceUsdPerYear", "billing", "pilot", "currency"],
+  "properties": {
+    "plan": { "type": "string", "minLength": 1 },
+    "priceUsdPerYear": { "type": "integer", "minimum": 1 },
+    "billing": { "const": "yearly" },
+    "pilot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["priceUsd", "lengthDays"],
+      "properties": {
+        "priceUsd": { "type": "integer", "const": 0 },
+        "lengthDays": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "currency": { "const": "USD" }
+  }
+}

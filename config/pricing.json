@@ -1,0 +1,10 @@
+{
+  "plan": "A11yGate",
+  "priceUsdPerYear": 990,
+  "billing": "yearly",
+  "pilot": {
+    "priceUsd": 0,
+    "lengthDays": 21
+  },
+  "currency": "USD"
+}
