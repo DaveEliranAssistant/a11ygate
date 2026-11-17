@@ -9,7 +9,7 @@ import { parseInteractionConfig, installInteractionGuards, scanInteractionStates
 import type { PageRecord } from '@/lib/scan/crawl';
 import { withLocalServer, storyUrls } from './local-server';
 import { readJsonInput } from './input-file';
-import { prepareAuth, passesAuthCheck, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
+import { prepareAuth, hasAuthCredentials, passesAuthCheck, installAuth, runLoginScript, envMapping, type AuthOptions, type PreparedAuth } from './auth';
 import { AuthRedactor } from '@/lib/scan/redact';
 import { secretEnvValues } from '@/lib/evidence/secrets';
 import { resolveElementKeys } from '@/lib/scan/engines/locators';
@@ -499,7 +499,7 @@ export const playwrightEngine: ScanEngineFactory = async ({ incremental: increme
       await session.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
       page.on('dialog', dialog => void dialog.dismiss().catch(() => undefined));
       const response = await page.goto(auth.check.url, { waitUntil: 'load', timeout: timeoutMs });
-      auth.redactor.storage(await context.storageState());
+      if (hasAuthCredentials(auth)) auth.redactor.storage(await context.storageState());
       initialAuthPassed = await passesAuthCheck(page, auth.check, response?.status() ?? null);
     } catch { initialAuthPassed = false; }
     finally { await page.close().catch(() => undefined); }
@@ -561,7 +561,8 @@ export const playwrightEngine: ScanEngineFactory = async ({ incremental: increme
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()['content-type'] ?? null;
-        if (auth) auth.redactor.storage(await context.storageState());
+        // Unauthenticated scans: site cookies (consent, locale, analytics) are not secrets; redacting them mangles report text.
+        if (hasAuthCredentials(auth)) auth.redactor.storage(await context.storageState());
         const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
         const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
         if (auth?.check ? (!initialAuthPassed || !await passesAuthCheck(page, auth.check, status)) :

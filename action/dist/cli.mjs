@@ -4299,6 +4299,9 @@ function parseSessionStorageState(value) {
   });
   return value;
 }
+function hasAuthCredentials(auth) {
+  return !!auth && (auth.cookies.length > 0 || Object.keys(auth.headers).length > 0 || auth.state !== void 0 || auth.sessionStorage !== void 0 || auth.script !== void 0);
+}
 async function prepareAuth(options, cwd, origin, env = process.env, redactor = new AuthRedactor()) {
   for (const value of secretEnvValues(env, 1)) redactor.add(value);
   const auth = { timeout: options.loginTimeoutMs ?? 3e4, env: { ...env }, cookies: [], headers: {}, redactor };
@@ -6029,7 +6032,7 @@ Install it with: npx playwright install chromium
       await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => void 0));
       const response = await page.goto(auth.check.url, { waitUntil: "load", timeout: timeoutMs });
-      auth.redactor.storage(await context2.storageState());
+      if (hasAuthCredentials(auth)) auth.redactor.storage(await context2.storageState());
       initialAuthPassed = await passesAuthCheck(page, auth.check, response?.status() ?? null);
     } catch {
       initialAuthPassed = false;
@@ -6098,7 +6101,7 @@ Install it with: npx playwright install chromium
         const status = response?.status() ?? null;
         const finalUrl = page.url();
         const contentType = response?.headers()["content-type"] ?? null;
-        if (auth) auth.redactor.storage(await context2.storageState());
+        if (hasAuthCredentials(auth)) auth.redactor.storage(await context2.storageState());
         const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|sign_in|sso|oauth|authorize)(?:[/.]|$)/i;
         const redirectedToLogin = finalUrl !== url && loginPath.test(new URL(finalUrl).pathname);
         if (auth?.check ? !initialAuthPassed || !await passesAuthCheck(page, auth.check, status) : status === 401 || status === 403 || redirectedToLogin || await page.locator('input[type="password"]').count() > 0) {

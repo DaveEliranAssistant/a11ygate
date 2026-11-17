@@ -93,6 +93,16 @@ export function parseSessionStorageState(value: unknown): SessionStorageState {
   return value as SessionStorageState;
 }
 
+/**
+ * prepareAuth always returns an object (it also carries auth.check and the env redactor),
+ * so `if (auth)` is always true. This is true only when a credential or session source was
+ * configured: injected cookies or headers, --storage-state, --session-storage, or a login script.
+ * Only then may cookies and storage the site sets during the scan be treated as secrets.
+ */
+export function hasAuthCredentials(auth: PreparedAuth | undefined): auth is PreparedAuth {
+  return !!auth && (auth.cookies.length > 0 || Object.keys(auth.headers).length > 0 || auth.state !== undefined || auth.sessionStorage !== undefined || auth.script !== undefined);
+}
+
 export async function prepareAuth(options: AuthOptions, cwd: string, origin: string, env = process.env, redactor = new AuthRedactor()): Promise<PreparedAuth> {
   for (const value of secretEnvValues(env, 1)) redactor.add(value);
   const auth: PreparedAuth = { timeout: options.loginTimeoutMs ?? 30_000, env: { ...env }, cookies: [], headers: {}, redactor };
