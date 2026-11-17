@@ -17,7 +17,18 @@ export const SITE_URL = 'https://a11ygate.vercel.app';
 export const SITE_DESCRIPTION =
   'Turn axe-core JSON from Playwright into an accessibility regression gate and an EU Accessibility Act evidence report. Runs in your browser.';
 
-export const CLI_PACKAGE = '@qe-atlas/a11ygate@0.2.0';
+/**
+ * The CLI version npm actually serves. Keep this in step with `npm view @qe-atlas/a11ygate dist-tags`,
+ * not with packages/cli/package.json: the manifest on main can be ahead of the registry.
+ */
+export const CLI_NPM_PUBLISHED_VERSION = '0.1.0';
+
+export const CLI_NPM_PACKAGE = `@qe-atlas/a11ygate@${CLI_NPM_PUBLISHED_VERSION}`;
+
+export const CLI_NPM_UNRELEASED_NOTE = 'Newer features are on main, not yet on npm.';
+
+/** Plain-text form of the npm sentence rendered by CiCommands. */
+export const CLI_NPM_SENTENCE = `The CLI on npm is ${CLI_NPM_PACKAGE}. ${CLI_NPM_UNRELEASED_NOTE}`;
 
 export const CI_INSTALL_COMMAND = 'npm install --save-dev @playwright/test @axe-core/playwright';
 

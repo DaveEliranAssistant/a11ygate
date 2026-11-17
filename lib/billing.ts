@@ -2,7 +2,7 @@ import pricingConfig from '@/config/pricing.json';
 
 export const pricing = pricingConfig;
 
-// Until the pilot request CTA ships, use the existing waitlist.
+// Pilot requests fall back to the existing waitlist form when A11YGATE_PILOT_REQUEST_URL is unset.
 export const PILOT_REQUEST_HREF = '/#waitlist-heading';
 
 export const annualPrice = new Intl.NumberFormat('en-US', {
@@ -16,15 +16,41 @@ export function isPricingEnabled(): boolean {
   return value === '1' || value === 'true';
 }
 
+function isPublicHttpsUrl(url: URL, raw: string): boolean {
+  return url.protocol === 'https:' && /^https:\/\/[^/\\\s]/i.test(raw) && !url.username && !url.password;
+}
+
 export function getCheckoutUrl(): string | undefined {
   const value = process.env.A11YGATE_CHECKOUT_URL;
   if (value === undefined || value === '') return undefined;
 
   const url = URL.canParse(value) ? new URL(value) : undefined;
-  if (url?.protocol === 'https:' && /^https:\/\/[^/\\\s]/i.test(value) && !url.username && !url.password) {
+  if (url && isPublicHttpsUrl(url, value)) {
     return url.href;
   }
 
   console.warn('Ignoring A11YGATE_CHECKOUT_URL. Set it to an absolute HTTPS checkout URL without credentials.');
   return undefined;
+}
+
+/** Server-side, read per request. Accepts only https: (no credentials) or mailto: links. */
+export function getPilotRequestUrl(): string | undefined {
+  const value = process.env.A11YGATE_PILOT_REQUEST_URL;
+  if (value === undefined || value === '') return undefined;
+
+  const url = URL.canParse(value) ? new URL(value) : undefined;
+  if (url && isPublicHttpsUrl(url, value)) {
+    return url.href;
+  }
+  if (url?.protocol === 'mailto:' && /^mailto:[^\s@]+@[^\s@]+/i.test(value)) {
+    return url.href;
+  }
+
+  console.warn('Ignoring A11YGATE_PILOT_REQUEST_URL. Set it to an absolute HTTPS URL without credentials or a mailto: address.');
+  return undefined;
+}
+
+/** Where every "request a pilot" link points: the configured URL, or the waitlist form on the home page. */
+export function getPilotRequestHref(): string {
+  return getPilotRequestUrl() ?? PILOT_REQUEST_HREF;
 }

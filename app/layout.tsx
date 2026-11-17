@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
+import { isPricingEnabled } from '@/lib/billing';
 import { SITE_DESCRIPTION, SITE_URL } from '@/lib/copy';
 import { ScanProvider } from '@/lib/store';
 import './globals.css';
@@ -42,7 +43,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ScanProvider>
           <SiteHeader />
           {children}
-          <SiteFooter />
+          {/* Dynamic routes read the flag per request; static routes take it from the build environment. */}
+          <SiteFooter automatedTestingDisclaimer={isPricingEnabled()} />
         </ScanProvider>
         <Analytics />
       </body>

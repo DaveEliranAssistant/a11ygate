@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { HERO_HEADING, PRIVACY_NOTE } from '@/lib/copy';
 import { useScanModel } from '@/lib/store';
 import { CiCommands } from '@/components/CiCommands';
@@ -11,9 +11,15 @@ import { Findings } from '@/components/Findings';
 import { ManualEvidence } from '@/components/ManualEvidence';
 import { ImportPanel } from '@/components/ImportPanel';
 import { Summary } from '@/components/Summary';
-import { WaitlistForm } from '@/components/WaitlistForm';
+import { WaitlistForm, type WaitlistVariant } from '@/components/WaitlistForm';
 
-export function Workspace() {
+export function Workspace({
+  offer,
+  waitlistVariant = 'waitlist',
+}: {
+  offer?: ReactNode;
+  waitlistVariant?: WaitlistVariant;
+} = {}) {
   const { scan, model, error, notice, setGroupBy, setThreshold, setManualChecks } = useScanModel();
   const synthetic = Boolean(scan && (scan.currentSynthetic || scan.baselineSynthetic));
   const alertRef = useRef<HTMLParagraphElement>(null);
@@ -30,7 +36,8 @@ export function Workspace() {
         Point it at the axe-core JSON your Playwright job already writes. The diff, the gate, and
         the evidence report stay in this browser.
       </p>
-      <WaitlistForm />
+      {offer}
+      <WaitlistForm variant={waitlistVariant} />
       <p className="privacy">
         {PRIVACY_NOTE} A11yGate has no account, no analytics, and no upload.{' '}
         <Link href="/privacy">Privacy details</Link>

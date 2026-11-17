@@ -218,6 +218,10 @@ var DISCLAIMER = "Automated checks cover only part of WCAG; this is evidence, no
 var LEGAL_DISCLAIMER = "Informational only. Not legal advice. Not a certification of EAA compliance.";
 var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
 var SITE_URL = "https://a11ygate.vercel.app";
+var CLI_NPM_PUBLISHED_VERSION = "0.1.0";
+var CLI_NPM_PACKAGE = `@qe-atlas/a11ygate@${CLI_NPM_PUBLISHED_VERSION}`;
+var CLI_NPM_UNRELEASED_NOTE = "Newer features are on main, not yet on npm.";
+var CLI_NPM_SENTENCE = `The CLI on npm is ${CLI_NPM_PACKAGE}. ${CLI_NPM_UNRELEASED_NOTE}`;
 var AUTOMATED_LIMITS = [
   "Most WCAG success criteria need human judgement. Automated rules detect only a subset of accessibility barriers, so an empty findings list is not evidence of conformance.",
   "Whether text alternatives, form labels, headings, link text and page titles are accurate and meaningful. Tools can only check that they exist.",

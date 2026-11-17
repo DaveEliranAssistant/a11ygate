@@ -1552,6 +1552,10 @@ function effectiveModelFixConfig(config, env = process.env) {
 
 // lib/copy.ts
 var AUTOMATED_TESTING_DISCLAIMER = "Automated testing only. Not a WCAG audit, certification or legal advice.";
+var CLI_NPM_PUBLISHED_VERSION = "0.1.0";
+var CLI_NPM_PACKAGE = `@qe-atlas/a11ygate@${CLI_NPM_PUBLISHED_VERSION}`;
+var CLI_NPM_UNRELEASED_NOTE = "Newer features are on main, not yet on npm.";
+var CLI_NPM_SENTENCE = `The CLI on npm is ${CLI_NPM_PACKAGE}. ${CLI_NPM_UNRELEASED_NOTE}`;
 
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
