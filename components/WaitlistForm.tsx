@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import { CiCommands } from '@/components/CiCommands';
 import {
   WAITLIST_INVALID,
@@ -109,8 +110,17 @@ export function WaitlistForm() {
 
   return (
     <section className="waitlist" aria-labelledby="waitlist-heading">
-      <h2 id="waitlist-heading">Join the waitlist</h2>
-      <p>Product updates only. Scan files stay in this browser.</p>
+      <h2 id="waitlist-heading">Founding pilots</h2>
+      <p>
+        A founding pilot is a paid, fixed-scope engagement for a small number of teams. We wire
+        A11yGate into your CI for the pages and flows agreed on a scope call, record a baseline,
+        gate new findings at the agreed threshold, and hand over the evidence report.
+      </p>
+      <p>{AUTOMATED_TESTING_DISCLAIMER}</p>
+      <p>
+        Founding pilot places are announced to the waitlist first. Product updates only. Scan
+        files stay in this browser.
+      </p>
       {phase === 'done' ? null : (
         <p>
           You do not need to wait. <a href="#ci-setup">Run it in CI now</a>.
@@ -219,7 +229,7 @@ export function WaitlistForm() {
           ) : null}
           <div className="row-actions">
             <button type="submit" className="primary" disabled={pending}>
-              {pending ? 'Joining…' : 'Join the waitlist'}
+              {pending ? 'Joining…' : 'Join the pilot waitlist'}
             </button>
           </div>
         </form>

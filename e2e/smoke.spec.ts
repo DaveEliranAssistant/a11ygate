@@ -12,7 +12,7 @@ test('demo data gates the run and the report renders', async ({ page }) => {
     }),
   ).toBeVisible();
   await expect(page.getByText('Privacy: scans stay in your browser.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Join the waitlist' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Founding pilots' })).toBeVisible();
   await expect(page.getByText('The waitlist is temporarily unavailable.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Load demo data' }).click();

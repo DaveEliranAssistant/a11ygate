@@ -4,7 +4,7 @@ import {
   CI_FIRST_RUN_STEPS,
   CI_INSTALL_COMMAND,
   CI_WORKFLOW,
-  CLI_PACKAGE,
+  RELEASE_STATUS,
 } from '@/lib/copy';
 
 function CodeBlock({ label, children }: { label: string; children: string }) {
@@ -19,7 +19,7 @@ export function CiCommands({ stepHeading: StepHeading }: { stepHeading: 'h3' | '
   return (
     <div className="ci-commands">
       <p>
-        The CLI is on npm as <code>{CLI_PACKAGE}</code>. The GitHub Action is listed on the{' '}
+        {RELEASE_STATUS} The GitHub Action is listed on the{' '}
         <a href="https://github.com/marketplace/actions/a11ygate-axe-core-regression-gate">
           GitHub Marketplace as A11yGate axe-core Regression Gate
         </a>{' '}

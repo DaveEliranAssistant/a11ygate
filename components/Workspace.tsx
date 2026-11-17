@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { HERO_HEADING, PRIVACY_NOTE } from '@/lib/copy';
+import {
+  AUTOMATED_TESTING_DISCLAIMER,
+  DISCLAIMER,
+  HERO_HEADING,
+  MAIN_TODAY,
+  PRIVACY_NOTE,
+  RELEASE_STATUS,
+} from '@/lib/copy';
 import { useScanModel } from '@/lib/store';
 import { CiCommands } from '@/components/CiCommands';
 import { DisclaimerNote } from '@/components/DisclaimerNote';
@@ -35,6 +42,18 @@ export function Workspace() {
         {PRIVACY_NOTE} A11yGate has no account, no analytics, and no upload.{' '}
         <Link href="/privacy">Privacy details</Link>
       </p>
+      <section className="ci-setup" aria-labelledby="main-today-heading">
+        <h2 id="main-today-heading">On main today (not yet on npm)</h2>
+        <p>{RELEASE_STATUS}</p>
+        <ul>
+          {MAIN_TODAY.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        <p className="note">{AUTOMATED_TESTING_DISCLAIMER} {DISCLAIMER}</p>
+        <h3>Coming next (not shipped)</h3>
+        <p>PDF report, ticket export. Not shipped; no dates announced.</p>
+      </section>
       <ImportPanel />
       {error ? (
         <p ref={alertRef} id="import-error" className="alert" role="alert" tabIndex={-1}>
