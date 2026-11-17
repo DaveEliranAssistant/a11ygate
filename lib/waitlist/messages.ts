@@ -25,3 +25,9 @@ export const MAX_WAITLIST_BYTES = 4_096;
 export const WAITLIST_SOURCE = 'landing';
 
 export const PRIVACY_CONTACT = 'dave.eliran.assistant@gmail.com';
+
+// Heading and intro for the same waitlist form when it collects pilot requests (pricing flag on).
+export const PILOT_REQUEST_HEADING = 'Request a free pilot';
+
+export const PILOT_REQUEST_INTRO =
+  'A person reads each request. There is no automated follow-up. Scan files stay in this browser.';

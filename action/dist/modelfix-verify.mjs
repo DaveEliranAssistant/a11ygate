@@ -543,6 +543,12 @@ var CRITERIA = SEEDS.map((seed) => ({
 var BY_TAG = new Map(CRITERIA.map((criterion) => [criterion.tag, criterion]));
 var BY_NUMBER = new Map(CRITERIA.map((criterion) => [criterion.number, criterion]));
 
+// lib/copy.ts
+var CLI_NPM_PUBLISHED_VERSION = "0.1.0";
+var CLI_NPM_PACKAGE = `@qe-atlas/a11ygate@${CLI_NPM_PUBLISHED_VERSION}`;
+var CLI_NPM_UNRELEASED_NOTE = "Newer features are on main, not yet on npm.";
+var CLI_NPM_SENTENCE = `The CLI on npm is ${CLI_NPM_PACKAGE}. ${CLI_NPM_UNRELEASED_NOTE}`;
+
 // lib/types.ts
 var IMPACTS = ["minor", "moderate", "serious", "critical"];
 

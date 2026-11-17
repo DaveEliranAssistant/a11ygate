@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CiCommands } from '@/components/CiCommands';
 import {
+  PILOT_REQUEST_HEADING,
+  PILOT_REQUEST_INTRO,
   WAITLIST_INVALID,
   WAITLIST_SUCCESS,
   WAITLIST_UNAVAILABLE,
 } from '@/lib/waitlist/messages';
 import { validateWaitlistInput, type WaitlistFields } from '@/lib/waitlist/validate';
+
+export type WaitlistVariant = 'waitlist' | 'pilot';
 
 type Phase = 'loading' | 'unavailable' | 'ready' | 'done';
 
@@ -16,7 +20,7 @@ type ApiError = {
   fields?: WaitlistFields;
 };
 
-export function WaitlistForm() {
+export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVariant } = {}) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
@@ -109,8 +113,17 @@ export function WaitlistForm() {
 
   return (
     <section className="waitlist" aria-labelledby="waitlist-heading">
-      <h2 id="waitlist-heading">Join the waitlist</h2>
-      <p>Product updates only. Scan files stay in this browser.</p>
+      {variant === 'pilot' ? (
+        <>
+          <h2 id="waitlist-heading">{PILOT_REQUEST_HEADING}</h2>
+          <p>{PILOT_REQUEST_INTRO}</p>
+        </>
+      ) : (
+        <>
+          <h2 id="waitlist-heading">Join the waitlist</h2>
+          <p>Product updates only. Scan files stay in this browser.</p>
+        </>
+      )}
       {phase === 'done' ? null : (
         <p>
           You do not need to wait. <a href="#ci-setup">Run it in CI now</a>.

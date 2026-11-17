@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { LEGAL_DISCLAIMER } from '@/lib/copy';
+import { AUTOMATED_TESTING_DISCLAIMER, LEGAL_DISCLAIMER } from '@/lib/copy';
 
-export function SiteFooter() {
+export function SiteFooter({ automatedTestingDisclaimer = false }: { automatedTestingDisclaimer?: boolean } = {}) {
   return (
     <footer className="site-footer no-print">
       <div className="footer-inner">
         <p>Scans stay in this browser. A waitlist email is stored only after you consent.</p>
         <p className="footer-disclaimer">{LEGAL_DISCLAIMER}</p>
+        {automatedTestingDisclaimer ? <p className="footer-disclaimer">{AUTOMATED_TESTING_DISCLAIMER}</p> : null}
         <p>
           <Link href="/privacy">Privacy</Link>
           {' · '}

@@ -665,3 +665,18 @@ main:focus {
     margin: 16mm;
   }
 }
+
+.offer {
+  max-width: 42rem;
+  margin: 1.25rem 0 0.4rem;
+  padding: 1rem 1rem 1.1rem;
+  border: 2px solid var(--ink);
+}
+
+.offer h2 {
+  margin-top: 0;
+}
+
+.offer-price {
+  font-size: 1.15rem;
+}

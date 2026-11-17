@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { getCheckoutUrl, isPricingEnabled } from '@/lib/billing';
+import { getCheckoutUrl, getPilotRequestHref, getPilotRequestUrl, isPricingEnabled, PILOT_REQUEST_HREF } from '@/lib/billing';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -43,4 +43,38 @@ it('returns the public HTTPS checkout link', () => {
   const url = 'https://checkout.example.test/buy?plan=yearly';
   vi.stubEnv('A11YGATE_CHECKOUT_URL', url);
   expect(getCheckoutUrl()).toBe(url);
+});
+
+it.each([undefined, ''])('falls back to the waitlist form for pilot requests without warning for %s', (value) => {
+  vi.stubEnv('A11YGATE_PILOT_REQUEST_URL', value);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(getPilotRequestUrl()).toBeUndefined();
+  expect(getPilotRequestHref()).toBe(PILOT_REQUEST_HREF);
+  expect(warn).not.toHaveBeenCalled();
+});
+
+it.each(['https://forms.example.test/pilot?x=1', 'mailto:pilot@example.test?subject=A11yGate%20pilot'])(
+  'uses the pilot request URL %s',
+  (value) => {
+    vi.stubEnv('A11YGATE_PILOT_REQUEST_URL', value);
+    expect(getPilotRequestUrl()).toBe(value);
+    expect(getPilotRequestHref()).toBe(value);
+  },
+);
+
+it.each([
+  'http://forms.example.test/pilot',
+  'javascript:alert(1)',
+  'mailto:?subject=pilot',
+  'mailto:not-an-address',
+  'not a URL',
+  'https://user:password@forms.example.test/',
+  '/relative/path',
+])('ignores invalid pilot request URL %s and logs a warning', (value) => {
+  vi.stubEnv('A11YGATE_PILOT_REQUEST_URL', value);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(getPilotRequestUrl()).toBeUndefined();
+  expect(getPilotRequestHref()).toBe(PILOT_REQUEST_HREF);
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('A11YGATE_PILOT_REQUEST_URL'));
+  expect(warn.mock.calls[0]?.[0]).not.toContain(value);
 });
