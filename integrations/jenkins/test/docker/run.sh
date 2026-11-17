@@ -27,23 +27,9 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-# Build context is an explicit source allowlist, never the owner's working tree
-# wholesale (no .git, .env, npm config, host node_modules, or credentials).
-python3 - "$root" "$context" <<'PY'
-import pathlib, shutil, sys
-root, context = map(pathlib.Path, sys.argv[1:])
-dest = context / 'source'
-dest.mkdir()
-for name in ['package.json', 'package-lock.json', 'tsconfig.json', 'packages', 'lib', 'scripts', 'examples/jenkins', 'integrations/jenkins/vars', 'integrations/jenkins/test/docker']:
-    src = root / name
-    target = dest / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if src.is_dir():
-        shutil.copytree(src, target, ignore=shutil.ignore_patterns('node_modules', 'dist', '.gradle', 'build', '.env*', '.npmrc', '__pycache__'))
-    else:
-        shutil.copy2(src, target)
-shutil.copy2(root / 'integrations/jenkins/test/docker/Dockerfile', context / 'Dockerfile')
-PY
+# Build context is an explicit source allowlist (see context.py), never the owner's
+# working tree wholesale (no .git, .env, npm config, host node_modules, or credentials).
+python3 -B "$root/integrations/jenkins/test/docker/context.py" "$root" "$context"
 docker build --progress=plain -t "$image" "$context" 2>&1 | tee "$output/docker-build.log"
 # Everything, including Jenkins's API, is on container loopback; no host ports,
 # host network, privileged mode, Docker socket mount, or credentials.
