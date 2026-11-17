@@ -55,7 +55,7 @@ describe.skipIf(process.env.A11YGATE_CRAWL_BROWSER_TESTS !== '1')('site cookie r
         // A non-secret site cookie whose value also appears in page markup, plus a session cookie the site rotates.
         res.setHeader('set-cookie', ['consent=consent-yes-1; Path=/', 'rotated=rotated-token-456; Path=/']);
         res.setHeader('content-type', 'text/html');
-        res.end('<!doctype html><html lang="en"><head><title>Home</title></head><body><main><h1>Home</h1><img src="/consent-yes-1.png"><img src="/rotated-token-456.png"></main></body></html>');
+        res.end('<!doctype html><html lang="en"><head><title>Home</title></head><body><main><h1>Home</h1><img src="/consent-yes-1.png"><img src="/rotated-token-456.png"><img src="/injected-session-789.png"></main></body></html>');
         return;
       }
       res.writeHead(404).end();
@@ -80,6 +80,7 @@ describe.skipIf(process.env.A11YGATE_CRAWL_BROWSER_TESTS !== '1')('site cookie r
     const out = await scan([], { NODE_ENV: 'test' });
     expect(out).toContain('consent-yes-1');
     expect(out).toContain('rotated-token-456');
+    expect(out).toContain('injected-session-789');
     expect(out).not.toContain('[REDACTED]');
   });
 
