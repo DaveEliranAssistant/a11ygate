@@ -29,6 +29,7 @@ export default defineConfig({
     timeout: 240_000,
     env: {
       NEXT_TELEMETRY_DISABLED: '1',
+      A11YGATE_PRICING_ENABLED: '0',
     },
   },
 });
