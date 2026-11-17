@@ -182,3 +182,31 @@ describe('waitlist validation and dedupe', () => {
     expect(result.stderr).toContain('DATABASE_URL_POOLED');
   });
 });
+
+describe('pilot request variant of the waitlist form (A11Y-R64)', () => {
+  it('sends the same payload as the waitlist form through the real handler and stores one row with consent', async () => {
+    // Exactly the field set WaitlistForm posts for variant="pilot" (identical to variant="waitlist").
+    const pilotPayload = {
+      email: 'Pilot.Lead@Example.com',
+      role: 'QA lead',
+      company: 'Example Co',
+      consent: true,
+      company_website: '',
+    };
+    const form = readFileSync(new URL('../components/WaitlistForm.tsx', import.meta.url), 'utf8');
+    const postedBody = form.slice(form.indexOf("method: 'POST'"));
+    for (const key of Object.keys(pilotPayload)) expect(postedBody).toContain(key);
+
+    const result = await post(pilotPayload);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, message: WAITLIST_SUCCESS });
+    expect(result.inserted).toHaveLength(1);
+    expect(result.inserted[0]).toMatchObject({
+      email: 'pilot.lead@example.com',
+      role: 'QA lead',
+      company: 'Example Co',
+      consent: true,
+      source: 'landing',
+    });
+  });
+});
