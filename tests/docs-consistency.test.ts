@@ -249,13 +249,13 @@ describe('versions and claims (A11Y-R62)', () => {
     const unreleased = changelog.slice(changelog.indexOf('## [Unreleased]'), changelog.indexOf('## [0.2.0]'));
     const merged: Record<number, number> = {
       23: 39, 24: 44, 25: 46, 26: 48, 27: 41, 28: 40, 29: 45, 30: 43, 31: 42, 32: 47, 33: 50, 35: 49, 36: 53, 37: 55, 38: 54,
-      39: 57, 40: 51, 41: 56, 42: 58, 43: 59, 44: 69, 45: 66, 46: 75, 47: 64, 48: 63, 50: 67, 51: 74, 52: 61, 53: 73, 54: 72,
+      39: 57, 40: 51, 41: 56, 42: 58, 43: 59, 44: 69, 45: 66, 46: 75, 47: 64, 48: 63, 49: 79, 50: 67, 51: 74, 52: 61, 53: 73, 54: 72,
       55: 71, 56: 65, 57: 76, 58: 70, 59: 60, 60: 77, 61: 62,
     };
     for (const [task, pr] of Object.entries(merged)) {
       expect(unreleased, `R${task}`).toMatch(new RegExp(`A11Y-R${task}\\b[^\\n]*\\[#${pr}]\\(https://github\\.com/DaveEliranAssistant/a11ygate/pull/${pr}\\)`));
     }
     const notIncluded = unreleased.slice(unreleased.indexOf('### Not included'));
-    for (const task of ['A11Y-R34', 'A11Y-R49']) expect(notIncluded, task).toContain(task);
+    for (const task of ['A11Y-R34']) expect(notIncluded, task).toContain(task);
   });
 });

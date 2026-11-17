@@ -9,8 +9,9 @@ Every number on this page was copied from a recorded `npm run bench` run on the 
 | axe only, 500 pages, concurrency 1/2/4 | `npm run bench -- --pages 500 --engines axe --concurrency 1,2,4 --name chromium-bench-axe-500` | [JSON](chromium-bench-axe-500.json) | [MD](chromium-bench-axe-500.md) |
 | axe only, 500 pages, concurrency 4, `--recycle-every 100` | `npm run bench -- --pages 500 --engines axe --concurrency 4 --recycle-every 100 --name chromium-bench-axe-500-recycle` | [JSON](chromium-bench-axe-500-recycle.json) | [MD](chromium-bench-axe-500-recycle.md) |
 | all engines, **40 pages** (subset), concurrency 1/2/4 | `npm run bench -- --pages 40 --engines all --concurrency 1,2,4 --name chromium-bench-all-40` | [JSON](chromium-bench-all-40.json) | [MD](chromium-bench-all-40.md) |
+| **Benchmark v2 (A11Y-R49):** axe and all engines, 500 pages, concurrency 1/2/4, whole process tree, 30-minute cap per run | `npm run bench -- --pages 500 --engines axe,all --concurrency 1,2,4 --max-run-ms 1800000 --no-new-cell-after 2026-11-17T13:40:00Z --name bench-v2` | [JSON](bench-v2.json) | [MD](bench-v2.md) |
 
-**The matrix is incomplete.** All-engines runs (axe, HTML_CodeSniffer, IBM, Lighthouse) used a 40-page subset of the fixture, not 500 pages. At the 14.8 pages/min recorded at concurrency 1, a 500-page run would not have fit the time available. No 500-page all-engines numbers exist, so none are shown.
+**The original R38 matrix was incomplete.** All-engines runs (axe, HTML_CodeSniffer, IBM, Lighthouse) used a 40-page subset of the fixture, not 500 pages. At the 14.8 pages/min recorded at concurrency 1, a 500-page run would not have fit the time available. [Benchmark v2](#benchmark-v2-a11y-r49) later recorded the full 500-page matrix for both engine sets.
 
 ## Machine
 
@@ -46,17 +47,18 @@ In the original R38 run, the engine errors at concurrency 2 and 4 were all Light
 
 ## Sizing table
 
-Suggested free memory is the recorded peak total RSS plus at least 512 MB of headroom, rounded up to the next 0.5 GB. Treat them as a starting point for similar hardware. Linux CI runners were not measured.
+Updated in A11Y-R49 from [benchmark v2](#benchmark-v2-a11y-r49) (500 pages, whole process tree). Suggested free memory is the recorded peak total RSS plus at least 512 MB of headroom, rounded up to the next 0.5 GB. Treat it as a starting point for similar hardware. Linux CI runners were not measured.
 
-| Configuration | Recorded peak total RSS | Suggested free memory | Recorded throughput on this machine |
-| --- | ---: | ---: | ---: |
-| axe, concurrency 1 (default) | 753 MB | 1.5 GB | 76.4 pages/min |
-| axe, concurrency 2 | 941 MB | 1.5 GB | 112.2 pages/min |
-| axe, concurrency 4 | 1305 MB | 2 GB | 196.4 pages/min |
-| all engines, concurrency 1 | 792 MB (40-page run) | 1.5 GB | 14.8 pages/min |
-| all engines, concurrency > 1 (original R38) | 1006–1435 MB (40-page runs) | Lighthouse errors before R47; see follow-up below | — |
+| Configuration | Recorded peak total RSS (Node + Chromium tree) | Suggested free memory | Recorded throughput on this machine | Source |
+| --- | ---: | ---: | ---: | --- |
+| axe, concurrency 1 (default) | 777 MB | 1.5 GB | 75.8 pages/min | [bench-v2](bench-v2.json) run 1 |
+| axe, concurrency 2 | 946 MB | 1.5 GB | 129.6 pages/min | [bench-v2](bench-v2.json) run 2 |
+| axe, concurrency 4 | 1378 MB | 2 GB | 200.7 pages/min | [bench-v2](bench-v2.json) run 3 |
+| all engines, concurrency 1 | 1309 MB | 2 GB | 21.4 pages/min | [bench-v2](bench-v2.json) run 4 |
+| all engines, concurrency 2 | 1471 MB | 2 GB | 25.2 pages/min | [bench-v2](bench-v2.json) run 5 |
+| all engines, concurrency 4 | 1859 MB | 2.5 GB | 27.6 pages/min | [bench-v2](bench-v2.json) run 6 |
 
-Throughput assumes `--delay-ms 0` against a local server. The default `--delay-ms 1000` spaces page starts by one second, so it caps a scan at about 60 page starts per minute whatever the concurrency.
+Throughput assumes `--delay-ms 0` against a local server. The default `--delay-ms 1000` spaces page starts by one second, so it caps a scan at about 60 page starts per minute whatever the concurrency. The earlier R38 sizing rows (axe 753 / 941 / 1305 MB; all engines 792 MB on a 40-page run) are kept in the [results table](#results) above.
 
 ## Defaults and context recycling
 
@@ -73,6 +75,26 @@ npm run bench -- --pages 40 --engines all --concurrency 1 --out /tmp/perf
 ```
 
 `npm run bench` is not part of `npm test` or CI. It launches Chromium and scans only its own loopback fixture.
+
+## Benchmark v2 (A11Y-R49)
+
+Recorded 2026-11-17 (09:50–11:04 UTC) on the same MacBook Pro as above. Every number comes from that one recorded run. Raw [JSON](bench-v2.json) and [table with notes](bench-v2.md).
+
+What changed from R38: the sampler (`scripts/proc-tree-sampler.mjs`) sums RSS across the whole process tree (the Node CLI plus every Chromium descendant) on each 250 ms `ps` sample, using the same `ps` columns on macOS and Linux. Each run is capped with `npm run bench -- --max-run-ms <ms>` (30 minutes here). A run that hits the cap is recorded as "not completed", with no pages/min figure and no extrapolation. Results are written after every run. `tests/bench-sampler.test.ts` checks the sum against mocked `ps` output.
+
+| Engines | Pages | Concurrency | Complete | Page failures / engine errors | Wall time (s) | Pages/min | Peak RSS Node (MB) | Peak RSS Chromium (MB) | Peak RSS total (MB) | Chromium RSS growth (MB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| axe | 500 | 1 | 500 | 0 / 0 | 395.6 | 75.8 | 443 | 486 | 777 | 15 |
+| axe | 500 | 2 | 500 | 0 / 0 | 231.5 | 129.6 | 493 | 485 | 946 | -7 |
+| axe | 500 | 4 | 500 | 0 / 0 | 149.5 | 200.7 | 571 | 847 | 1378 | 1 |
+| axe,htmlcs,ibm,lighthouse | 500 | 1 | 500 | 0 / 0 | 1400.5 | 21.4 | 1040 | 481 | 1309 | -5 |
+| axe,htmlcs,ibm,lighthouse | 500 | 2 | 500 | 0 / 0 | 1190.7 | 25.2 | 1089 | 482 | 1471 | -8 |
+| axe,htmlcs,ibm,lighthouse | 500 | 4 | 500 | 0 / 0 | 1085.2 | 27.6 | 1192 | 849 | 1859 | -4 |
+
+- All six runs finished inside the 30-minute cap. None is "not completed".
+- The Mac was not idle: one-minute load averages at run start were 3.97–10.69, mostly from Spotlight indexing (recorded per run as `loadAverageAtStart`). Each configuration ran once, so variance was not measured. Linux was not measured.
+- With all engines, the Node CLI process is the larger part of the tree (1040–1192 MB). Lighthouse is serialized (A11Y-R47), so all-engines throughput rises only from 21.4 to 27.6 pages/min between concurrency 1 and 4.
+- `a11ygate estimate` still reads only the earlier R38/R47 JSON files. It does not use these rows yet.
 
 ## A11Y-R47 re-measurement
 
