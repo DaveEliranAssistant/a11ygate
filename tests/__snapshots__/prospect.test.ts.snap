@@ -1,0 +1,84 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`prospect reports with local Chromium > (b, d, e, f) matches the offline golden, stabilizes PDF bytes and only adds the configured offer on request 1`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Accessibility scan summary</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+@media (prefers-color-scheme:dark){:root{--bg:#121212;--surface:#1f1f1f;--text:#ececec;--muted:#bdbdbd;--link:#8ab4f8;--border:#8c8c8c;--critical:#ff8a80;--serious:#ffb870;--moderate:#e8cc6a;--minor:#a8cdf5;--unknown:#bdbdbd}}
+body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
+a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+code{background:var(--surface);color:var(--text);padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
+caption{text-align:left;font-weight:600}
+li{margin:.4rem 0}.muted{color:var(--muted)}.verdict{font-size:1.25rem;font-weight:700}
+.impact{font-weight:600;text-transform:capitalize}.critical{color:var(--critical)}.serious{color:var(--serious)}.moderate{color:var(--moderate)}.minor{color:var(--minor)}.unknown{color:var(--unknown)}
+.tag{border:1px solid var(--border);border-radius:.25rem;padding:0 .3em;font-size:.875rem}
+.disclaimer{border:2px solid var(--border);background:var(--surface);padding:.5rem .75rem;font-weight:600}
+section>section{border-top:1px solid var(--border);margin-top:1rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media print{
+:root{--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+body{max-width:none;padding:0;font-size:11pt;color:#000;background:#fff}
+nav{display:none}
+a{color:#000;text-decoration:underline}
+#how-to-fix a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;word-break:break-all}
+h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
+#top-fixes,#how-to-fix,#limits{break-before:page}
+}
+footer{margin-top:1.5rem;overflow-wrap:anywhere}
+@media print{section>section,footer{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+<h1>Accessibility scan summary</h1>
+<p>Site: <code>https://prospect.example/</code></p>
+<p class="disclaimer">Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+</header>
+<main>
+<section>
+<h2>Scan scope</h2>
+<p>Scan date: 2026-11-14T10:00:00.000Z. Engines: axe-core 4.14.0. A11yGate CLI 0.2.0.</p>
+<p>1 page(s) scanned (cap 1), 0 failed, 0 unauthenticated, 0 link(s) skipped. robots.txt honoured.</p>
+<ul><li><code>https://prospect.example/</code></li></ul>
+</section>
+<section>
+<h2>Top issues</h2>
+<section>
+<h3><code>image-alt</code> <span class="impact critical">critical</span></h3>
+<p>WCAG reference: 1.1.1. 1 occurrence(s) on 1 page(s).</p>
+<p>Sample selector: <code>img.hero</code></p>
+<p>Provide contextual alternative text for informative images; use empty alt for genuinely decorative images.</p>
+</section>
+<section>
+<h3><code>label</code> <span class="impact serious">serious</span></h3>
+<p>WCAG reference: 3.3.2. 1 occurrence(s) on 1 page(s).</p>
+<p>Sample selector: <code>#email</code></p>
+<p>Associate a visible label with the control and expose instructions/errors programmatically.</p>
+</section>
+<p>For missing alternative text, labels or accessible names, leave a TODO for someone who knows the content to write and verify the wording.</p>
+</section>
+<section>
+<h2>What this means in CI</h2>
+<p>This scan recorded 2 finding(s) across 1 scanned page(s). On comparable coverage, a fingerprint baseline would record these existing findings. A pull request gate scanning the same pages could fail a change that adds a finding at or above the configured impact threshold, including another occurrence of a rule already listed here. Re-scan after fixes to reduce the baseline.</p>
+</section>
+<section>
+<h2>What automated testing can't cover</h2>
+<p>Review key flows with a keyboard and screen reader. Check focus order, whether text alternatives and labels make sense in context, and states and pages outside this scan.</p>
+</section>
+
+</main>
+<footer>
+
+<p>Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+</footer>
+</body>
+</html>
+"
+`;

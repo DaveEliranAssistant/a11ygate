@@ -239,6 +239,24 @@ Saved scans can be compared with `a11ygate report <scan.json|out-dir> --baseline
 See [baseline mode](../../docs/baseline-mode.md) for examples and exporter behavior.
 The separate `a11ygate [ci] --baseline <axe.json>` format remains unchanged.
 
+### Prospect summary (A11Y-R67)
+
+Run `a11ygate prospect <url> --max-pages 5 --company "Company name"` to write a
+short HTML and PDF summary and `prospect-manifest.json` in `prospect-out`.
+Use `--out-dir <dir>` to choose the destination. The live scan defaults to one
+page and accepts a cap from 1 to 20. It uses axe, follows robots.txt and stays
+on the starting origin. The command bypasses repository scan configuration,
+including authentication and interaction settings.
+
+For hosts outside [the exact allowlist](../../config/own-hosts.json), supply
+`--authorized-by <name> --authorization-note <text>` before scanning. Both values
+appear in the manifest and report footer. Use
+`a11ygate prospect --from <scan-out-dir>` or pass the saved scan directory
+positionally to generate the same artifacts offline. Both modes need Playwright
+Chromium for PDF output. Use `--offer` to include the configured price and pilot.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 
 ### Preflight
 

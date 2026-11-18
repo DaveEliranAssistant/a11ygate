@@ -1,3 +1,4 @@
+import { pdfInfo } from './pdf-info';
 /**
  * A11Y-R53: `a11ygate report pdf` prints report v2 to PDF with the local Chromium.
  * (a) the extracted PDF text has the disclaimer on every page plus the cover fields;
@@ -48,22 +49,6 @@ function fixture(): ScanReport {
     version: '0.2.0', scannedAt: '2026-11-14T10:00:00.000Z', startUrl: `${ORIGIN}/`, failOn: 'serious',
     maxPages: 20, delayMs: 1000, userAgent: 'A11yGate/test', robotsNote: 'robots.txt honoured.',
   });
-}
-
-/** Whitespace-normalised text of each PDF page, via pdfjs-dist (devDependency). */
-async function pdfInfo(bytes: Uint8Array) {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: false, isEvalSupported: false }).promise;
-  const pages: string[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const content = await (await doc.getPage(i)).getTextContent();
-    pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' ').replace(/\s+/g, ' '));
-  }
-  const meta = await doc.getMetadata();
-  const markInfo = await doc.getMarkInfo();
-  const outline = await doc.getOutline();
-  await doc.destroy();
-  return { pages, info: meta.info as Record<string, unknown>, markInfo, outline };
 }
 
 describe('report pdf source and arguments (no browser)', () => {
