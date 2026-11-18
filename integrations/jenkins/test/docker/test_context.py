@@ -67,7 +67,13 @@ class BuildContext(unittest.TestCase):
             self.assertGreaterEqual(len(list(entry_points(source))), 1)
             self.assertEqual([str(m.relative_to(source)) for m in missing], [])
             relative = {str(f.relative_to(source)) for f in seen}
-            for required in ('schema/a11ygate.schema.json', 'schema/a11ygate.projects.schema.json', 'locales/en.json'):
+            for required in (
+                'schema/a11ygate.schema.json',
+                'schema/a11ygate.projects.schema.json',
+                'locales/en.json',
+                'config/pricing.json',
+                'config/own-hosts.json',
+            ):
                 self.assertIn(required, relative)
             self.assertTrue(any(r.startswith('docs/perf/chromium-bench-') for r in relative))
             self.assertTrue((pathlib.Path(tmp) / 'Dockerfile').is_file())
