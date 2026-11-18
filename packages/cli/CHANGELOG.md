@@ -67,6 +67,8 @@ New opt-in commands and flags, all default off (see `a11ygate <command> --help`)
 
 ### Added: reports and exports
 
+- `a11ygate prospect <url|scan-dir>` and `prospect --from <scan-out-dir>` write a short HTML and PDF summary with prioritized issues, CI guidance, and a scope manifest. Third-party URL scans require recorded authorization. `--offer` includes the price and pilot from the billing config (A11Y-R67).
+
 - Likely shared components: repeated template findings are grouped across pages in HTML report v2, JSON and SARIF related locations. Totals and gate results are unchanged; groups are heuristics needing human review (A11Y-R29, [#45](https://github.com/DaveEliranAssistant/a11ygate/pull/45)).
 - Report strings for HTML report v2 and the Markdown / CLI summary now come from a message catalog (`locales/en.json`, `{var}` format). `a11ygate scan --report-lang en` is the default and only shipped language; the output is byte-identical to before. The pseudo-locales `en-XA` (accented, expanded) and `ar-XB` (right-to-left, `dir="rtl"`) are for layout testing only. The disclaimer and legal wording are never translated. See `docs/report-locales.md` for how a human translator adds a locale (A11Y-R58, [#70](https://github.com/DaveEliranAssistant/a11ygate/pull/70)).
 - `a11ygate scan --en301549-ref` adds an opt-in "EN 301 549 ref." column, labelled "Reference mapping only; does not indicate conformance.", to HTML report v2 and SARIF rule properties; the web app adds a CSV export with the same column. The mapping table cites ETSI EN 301 549 V3.2.1 clause 9. Default off; output without the flag is unchanged (A11Y-R59, [#60](https://github.com/DaveEliranAssistant/a11ygate/pull/60)).

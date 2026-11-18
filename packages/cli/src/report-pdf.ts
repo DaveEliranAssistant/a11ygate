@@ -92,6 +92,21 @@ export async function renderReportPdf(
   options: { lang?: ReportLang; en301549Ref?: boolean } = {},
 ): Promise<{ pdf: Buffer; html: string; tocPages: Record<string, number> }> {
   const htmlOptions = { ...(options.lang ? { lang: options.lang } : {}), ...(options.en301549Ref ? { en301549Ref: true } : {}) };
+  return withPdfPrinter(browser, async print => {
+    const ids = tocEntries(scanHtmlV2(report, htmlOptions)).map((e) => e.id);
+    const draft = await print(pdfSourceHtml(report, meta, htmlOptions));
+    const found = namedDestinationPages(draft);
+    const tocPages = Object.fromEntries(ids.flatMap((id) => (found.has(id) ? [[id, found.get(id) as number]] : [])));
+    const html = pdfSourceHtml(report, meta, { ...htmlOptions, tocPages });
+    return { pdf: await print(html), html, tocPages };
+  }, options.lang);
+}
+
+async function withPdfPrinter<T>(
+  browser: PdfBrowser,
+  work: (print: (html: string) => Promise<Buffer>) => Promise<T>,
+  lang?: ReportLang,
+): Promise<T> {
   const context = await browser.newContext({ javaScriptEnabled: false, colorScheme: 'light' });
   try {
     await context.route('**/*', (route) => route.abort());
@@ -100,21 +115,34 @@ export async function renderReportPdf(
       await page.setContent(html, { waitUntil: 'load' });
       return page.pdf({
         format: PDF_PAGE.format, margin: PDF_PAGE.margin, printBackground: true, tagged: true, outline: true,
-        displayHeaderFooter: true, headerTemplate: PDF_HEADER_TEMPLATE, footerTemplate: pdfFooterTemplate(options.lang),
+        displayHeaderFooter: true, headerTemplate: PDF_HEADER_TEMPLATE, footerTemplate: pdfFooterTemplate(lang),
       });
     };
-    const ids = tocEntries(scanHtmlV2(report, htmlOptions)).map((e) => e.id);
-    const draft = await print(pdfSourceHtml(report, meta, htmlOptions));
-    const found = namedDestinationPages(draft);
-    const tocPages = Object.fromEntries(ids.flatMap((id) => (found.has(id) ? [[id, found.get(id) as number]] : [])));
-    const html = pdfSourceHtml(report, meta, { ...htmlOptions, tocPages });
-    return { pdf: await print(html), html, tocPages };
+    return await work(print);
   } finally {
     await context.close();
   }
 }
 
-async function writeBinaryAtomic(file: string, data: Uint8Array): Promise<void> {
+/** Print a self-contained summary with the same offline context and footer as report v2. */
+export async function printProspectPdf(html: string, scannedAt: string): Promise<Buffer> {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const pdf = await withPdfPrinter(browser as unknown as PdfBrowser, print => print(html));
+    // Skia writes wall-clock dates into the uncompressed Info dictionary. Replacing
+    // the digits in place preserves PDF cross-reference offsets and selectable text.
+    const date = new Date(scannedAt);
+    const stamp = Number.isNaN(date.valueOf()) ? '19700101000000'
+      : date.toISOString().slice(0, 19).replace(/\D/g, '').slice(0, 14).padEnd(14, '0');
+    const source = pdf.toString('latin1');
+    return Buffer.from(source.replace(/(\/(?:CreationDate|ModDate) \(D:)\d{14}[+-]\d{2}'\d{2}'(?=\))/g, (_match, prefix: string) => `${prefix}${stamp}+00'00'`), 'latin1');
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function writeBinaryAtomic(file: string, data: Uint8Array): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
   try {

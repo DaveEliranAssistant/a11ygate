@@ -23,7 +23,7 @@ import { clampPages, crawl, type VisitOutcome } from '@/lib/scan/crawl';
 import { AXE_TAGS, buildScanReport, isFailOn, scanExitCode, scanMarkdown, type FailOn } from '@/lib/scan/report';
 import { isPseudoReportLang, isReportLang, REPORT_LANGS, type ReportLang } from '@/lib/i18n';
 import { DEFAULT_REPORT_VERSION, isReportVersion, renderScanHtml, type ReportVersion } from '@/lib/scan/report-html-v2';
-import { fetchRobots, robotsAllowsUrl, type FetchLike } from '@/lib/scan/robots';
+import { fetchRobots, robotsAllowsUrl, type FetchLike, type RobotsRules } from '@/lib/scan/robots';
 import { isHtmlContentType, MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
 import { createAxeEngine, type AxeLike } from '@/lib/scan/engines/axe';
 import { runEngine } from '@/lib/scan/engines/types';
@@ -383,13 +383,15 @@ export type ScanEngine = {
   contexts?: () => { created: number; recycled: number };
 };
 
-export type ScanEngineFactory = (options: { incremental?: IncrementalOptions; userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions; screenshotDir?: string; redactSelectors?: string[] }) => Promise<ScanEngine>;
+export type ScanEngineFactory = (options: { incremental?: IncrementalOptions; userAgent: string; origin: string; engines?: EngineId[]; auth?: PreparedAuth; timeoutMs?: number; interactions?: InteractionOptions; recycleEvery?: number; keyboard?: KeyboardOptions; screenshotDir?: string; redactSelectors?: string[]; readOnly?: { robots: RobotsRules | null } }) => Promise<ScanEngine>;
 
 export class ScanSetupError extends Error {}
 
 export type ScanIo = {
   /** Explicit project configuration; absent preserves repository discovery. */
   repoConfig?: string | null;
+  /** Prospect mode bypasses project config and restricts browser requests. */
+  readOnly?: boolean;
   onReport?: (report: import('@/lib/scan/report').ScanReport) => void;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
@@ -415,7 +417,7 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /** Default engine: playwright + @axe-core/playwright, loaded lazily so gate mode stays dependency-free. */
-export const playwrightEngine: ScanEngineFactory = async ({ incremental: incrementalOptions, userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+export const playwrightEngine: ScanEngineFactory = async ({ incremental: incrementalOptions, userAgent, origin, engines = ['axe'], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors, readOnly }) => {
   const versions = incrementalOptions ? installedEngineVersions(engines) : undefined;
   if (incrementalOptions && !versions) incrementalOptions.warn('Incremental cache disabled: installed engine versions could not be resolved.');
   const extended = engines.length !== 1 || engines[0] !== 'axe';
@@ -465,6 +467,8 @@ export const playwrightEngine: ScanEngineFactory = async ({ incremental: increme
     const detail = error instanceof Error ? error.message.split('\n')[0] : 'unknown error';
     throw new ScanSetupError(`Could not launch headless Chromium (${detail}).\nInstall it with: npx playwright install chromium\n`);
   }
+  const allowRead = (url: string, method: string) =>
+    normalizeUrl(url) !== null && new URL(url).origin === origin && ['GET', 'HEAD'].includes(method);
   const incremental = incrementalOptions && versions ? new IncrementalCache({ ...incrementalOptions, compatibility: { engineVersions: versions, ruleConfig: { tags: AXE_TAGS, engines } }, config: { scan: incrementalOptions.config, versions, browser: browser.version() } }) : undefined;
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: 'block' as const, javaScriptEnabled: true };
   let pool: ContextPool<import('playwright').BrowserContext>;
@@ -473,6 +477,21 @@ export const playwrightEngine: ScanEngineFactory = async ({ incremental: increme
     pool = new ContextPool(async () => {
       const context = await browser.newContext({ ...contextOptions, storageState });
       if (auth) await installAuth(context, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+      if (readOnly) {
+        await context.route('**/*', route => {
+          const request = route.request();
+          return allowRead(request.url(), request.method()) &&
+            (!request.isNavigationRequest() || robotsAllowsUrl(readOnly.robots, request.url()))
+            ? route.continue() : route.abort('blockedbyclient');
+        });
+        await context.routeWebSocket('**/*', socket => socket.close());
+        await context.addInitScript(() => {
+          // A prospect crawl follows links only. Block site-triggered form submissions and popups.
+          document.addEventListener('submit', event => event.preventDefault(), true);
+          HTMLFormElement.prototype.submit = () => {};
+          window.open = () => null;
+        });
+      }
       return context;
     }, recycleEvery);
     await pool.init();
@@ -536,14 +555,17 @@ export const playwrightEngine: ScanEngineFactory = async ({ incremental: increme
         // request-stage pause runs on every redirect hop, before network access.
         const session = await context.newCDPSession(page);
         session.on('Fetch.requestPaused', (event) => {
-          const external = new URL(event.request.url).origin !== origin || interacting;
-          if (external) blockedNavigation = event.request.url;
-          void session.send(external ? 'Fetch.failRequest' : 'Fetch.continueRequest', {
+          const denied = readOnly
+            ? !allowRead(event.request.url, event.request.method) ||
+              (event.resourceType === 'Document' && !robotsAllowsUrl(readOnly.robots, event.request.url))
+            : new URL(event.request.url).origin !== origin || interacting;
+          if (denied && event.resourceType === 'Document') blockedNavigation = event.request.url;
+          void session.send(denied ? 'Fetch.failRequest' : 'Fetch.continueRequest', {
             requestId: event.requestId,
-            ...(external ? { errorReason: 'BlockedByClient' } : {}),
+            ...(denied ? { errorReason: 'BlockedByClient' } : {}),
           }).catch(() => undefined);
         });
-        await session.send('Fetch.enable', { patterns: [{ resourceType: 'Document', requestStage: 'Request' }] });
+        await session.send('Fetch.enable', { patterns: [readOnly ? { requestStage: 'Request' } : { resourceType: 'Document', requestStage: 'Request' }] });
         if (collectLinks) await page.addInitScript(() => {
           const routes: string[] = [];
           Object.defineProperty(window, '__a11ygateRoutes', { value: routes });
@@ -669,7 +691,7 @@ export async function runScan(argv: readonly string[], io: ScanIo = {}): Promise
   const errors = io.stderr ?? ((s: string) => process.stderr.write(s));
   const safeIo = { ...io, redactor, stdout: (s: string) => output(redactor.text(s)), stderr: (s: string) => errors(redactor.text(s)) };
   try {
-    if (!argv.includes('--help') && !argv.includes('-h')) argv = loadEffectiveConfig('scan', argv, io).argv;
+    if (!io.readOnly && !argv.includes('--help') && !argv.includes('-h')) argv = loadEffectiveConfig('scan', argv, io).argv;
   } catch (error) { safeIo.stderr(`${(error as Error).message}\n${debugDetail(error)}`); return 2; }
   const parsed = parseScanArgs(argv);
   if (!parsed.ok || parsed.options.help) return runScanInternal(argv, safeIo);
@@ -764,7 +786,7 @@ async function runScanInternal(argv: readonly string[], io: ScanIo): Promise<num
   } : undefined;
   let engine: ScanEngine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(incrementalOptions ? { incremental: incrementalOptions } : {}), ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...(options.keyboardPixelThreshold !== undefined ? { pixelThreshold: options.keyboardPixelThreshold } : {}) } } : {}) });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...(io.readOnly ? { readOnly: { robots: robots.rules } } : {}), ...(incrementalOptions ? { incremental: incrementalOptions } : {}), ...(options.screenshots && !options.noScreenshots ? { screenshotDir: path.resolve(cwd, options.outDir!, 'screenshots'), redactSelectors: options.redactSelectors } : {}), timeoutMs: options.timeoutMs, ...(interactions ? { interactions } : {}), ...(options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}), ...(options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...(options.keyboardPixelThreshold !== undefined ? { pixelThreshold: options.keyboardPixelThreshold } : {}) } } : {}) });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, '\n') : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}\n`}${debugDetail(error)}`);
     return 2;

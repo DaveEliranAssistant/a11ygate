@@ -31,6 +31,7 @@ import { formatFileName, formatReportFromGate } from '@/lib/report-formats';
 
 import { loadEffectiveConfig } from './effective-config';
 import { debugDetail } from './fatal';
+import { runProspect } from './prospect';
 import { runEstimate } from './estimate';
 import { runExport } from './export';
 
@@ -172,6 +173,7 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
   if (argv[0] === 'review') return runReview(argv.slice(1), io);
   if (argv[0] === 'report' && argv[1] === 'pdf') return runReportPdf(argv.slice(2), io);
   if (argv[0] === 'report') return runReport(argv.slice(1), io);
+  if (argv[0] === 'prospect') return runProspect(argv.slice(1), { ...io, version: await readVersion() });
   if (argv[0] === 'estimate') return runEstimate(argv.slice(1), io);
   if (argv[0] === 'export') return runExport(argv.slice(1), io);
   if (argv[0] === 'scan') return runScan(argv.slice(1), { ...io, version: await readVersion() });

@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path21 = parsed.pathname || "/";
-    if (path21.length > 1 && path21.endsWith("/")) path21 = path21.slice(0, -1);
-    return path21 || "/";
+    let path22 = parsed.pathname || "/";
+    if (path22.length > 1 && path22.endsWith("/")) path22 = path22.slice(0, -1);
+    return path22 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path21 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path21.length > 1 && path21.endsWith("/")) path21 = path21.slice(0, -1);
-    return path21;
+    let path22 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path22.length > 1 && path22.endsWith("/")) path22 = path22.slice(0, -1);
+    return path22;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path21 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path22 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path21, html, !html || path21.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path22, html, !html || path22.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir9, readFile as readFile9, realpath as realpath3, stat as stat5, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
-import path20 from "node:path";
+import { mkdir as mkdir10, readFile as readFile9, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
+import path21 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -722,21 +722,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path21) {
+function readImpact(value, path22) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path21} must be minor, moderate, serious, critical, or null`
+    error: `${path22} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path21) {
+function readTarget(value, path22) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path21}.target must be an array of strings`;
+    return `${path22}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path21}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path22}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -744,52 +744,52 @@ function readTarget(value, path21) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path21}.target must be an array of strings`;
+    return `${path22}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path21) {
-  if (!isRecord(value)) return `${path21} must be an object`;
-  const target = readTarget(value.target, path21);
+function validateNode(value, path22) {
+  if (!isRecord(value)) return `${path22} must be an object`;
+  const target = readTarget(value.target, path22);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path21}.html must be a string`;
+  if (typeof value.html !== "string") return `${path22}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path21}.impact`);
+    const impact = readImpact(value.impact, `${path22}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path21) {
-  if (!isRecord(value)) return `${path21} must be an object`;
+function validateViolation(value, path22) {
+  if (!isRecord(value)) return `${path22} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path21}.id must be a non-empty string`;
+    return `${path22}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path21}.impact is missing`;
+    return `${path22}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path21}.impact`);
+  const impact = readImpact(value.impact, `${path22}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path21}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path22}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path21}.tags must be an array of strings`;
+    return `${path22}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path21}.help must be a non-empty string`;
+    return `${path22}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path21}.helpUrl must be a non-empty string`;
+    return `${path22}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path21}.nodes must contain at least one node`;
+    return `${path22}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path21}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path22}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -805,37 +805,37 @@ function validateViolation(value, path21) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path21) {
-  if (!isRecord(value)) return `${path21} must be an axe result object`;
+function validateResult(value, path22) {
+  if (!isRecord(value)) return `${path22} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path21}.url must be a non-empty string`;
+    return `${path22}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path21}.timestamp must be an ISO date string`;
+    return `${path22}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path21}.testEngine.version must be a non-empty string`;
+    return `${path22}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path21}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path22}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path21}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path22}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path21}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path21}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path21}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path21}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path22}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path22}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path22}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path22}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path21}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path22}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path21}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path22}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path21}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path22}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -936,7 +936,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path21 = pagePath(result.url);
+    const path22 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -951,7 +951,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path21,
+          path: path22,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -2223,6 +2223,7 @@ Usage:
   a11ygate [ci] --current <file> [--current <file>] [--baseline <file>] [options]
   a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
                        (see a11ygate export --help)
+  a11ygate prospect <url|scan-dir> | --from <scan-dir> (see prospect --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
@@ -2494,7 +2495,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path21) => {
+  const run2 = async (name, steps, index, path22) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2524,8 +2525,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path21) {
-        for (const control of path21) {
+      else if (path22) {
+        for (const control of path22) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2535,7 +2536,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path21 && path21.length < depth) children = (await revealedControls(page, path21.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path22 && path22.length < depth) children = (await revealedControls(page, path22.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2552,11 +2553,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path21) => {
-      if (autoUsed >= maxStates || used + path21.length > options.budget) return;
+    const explore = async (path22) => {
+      if (autoUsed >= maxStates || used + path22.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path21.map((c) => c.name).join(">"), void 0, void 0, path21);
-      for (const child of children) await explore([...path21, child]);
+      const children = await run2(path22.map((c) => c.name).join(">"), void 0, void 0, path22);
+      for (const child of children) await explore([...path22, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -4765,6 +4766,9 @@ function summarizeRules(findings) {
     (a, b) => b.score - a.score || impactRank(b.impact) - impactRank(a.impact) || b.occurrences - a.occurrences || a.ruleId.localeCompare(b.ruleId)
   );
 }
+function topFixes(findings, limit = TOP_FIXES_LIMIT) {
+  return summarizeRules(findings).slice(0, limit);
+}
 function ruleAnchor(index) {
   return `fix-${index + 1}`;
 }
@@ -4911,7 +4915,7 @@ function limitsSection(t, report) {
 ${notScanned.length ? `<h3>${t.t("limits.notScanned")}</h3><ul>${notScanned.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${s.reason === "robots" ? t.t("skip.robots") : t.t("skip.cap")}</li>`).join("")}</ul>` : ""}${report.skipped.some((s) => s.reason !== "robots" && s.reason !== "cap") ? `<h3>${t.t("limits.skipped")}</h3><ul>${report.skipped.map((s) => `<li><code>${esc2(s.url)}</code> \u2014 ${esc2(s.reason)}</li>`).join("")}</ul>` : ""}
 </section>`;
 }
-var STYLE = `:root{color-scheme:light dark;${cssVars("light")}}
+var REPORT_V2_STYLE = `:root{color-scheme:light dark;${cssVars("light")}}
 @media (prefers-color-scheme:dark){:root{${cssVars("dark")}}}
 body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
 a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
@@ -4946,7 +4950,7 @@ function scanHtmlV2(report, options = {}) {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
 <title>${t.t("html.title", { startUrl: esc2(report.startUrl) })}</title>
 <style>
-${STYLE}${t.dir === "rtl" ? "\n" + RTL_STYLE : ""}
+${REPORT_V2_STYLE}${t.dir === "rtl" ? "\n" + RTL_STYLE : ""}
 </style>
 </head>
 <body>
@@ -5948,7 +5952,7 @@ function isModuleNotFound(error) {
   const code3 = error?.code;
   return code3 === "ERR_MODULE_NOT_FOUND" || code3 === "MODULE_NOT_FOUND";
 }
-var playwrightEngine = async ({ incremental: incrementalOptions, userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors }) => {
+var playwrightEngine = async ({ incremental: incrementalOptions, userAgent, origin, engines = ["axe"], auth, timeoutMs = NAVIGATION_TIMEOUT_MS, interactions, recycleEvery, keyboard, screenshotDir, redactSelectors, readOnly }) => {
   const versions = incrementalOptions ? installedEngineVersions(engines) : void 0;
   if (incrementalOptions && !versions) incrementalOptions.warn("Incremental cache disabled: installed engine versions could not be resolved.");
   const extended = engines.length !== 1 || engines[0] !== "axe";
@@ -6004,6 +6008,7 @@ var playwrightEngine = async ({ incremental: incrementalOptions, userAgent, orig
 Install it with: npx playwright install chromium
 `);
   }
+  const allowRead = (url, method) => normalizeUrl(url) !== null && new URL(url).origin === origin && ["GET", "HEAD"].includes(method);
   const incremental = incrementalOptions && versions ? new IncrementalCache({ ...incrementalOptions, compatibility: { engineVersions: versions, ruleConfig: { tags: AXE_TAGS, engines } }, config: { scan: incrementalOptions.config, versions, browser: browser.version() } }) : void 0;
   const contextOptions = { userAgent, acceptDownloads: false, serviceWorkers: "block", javaScriptEnabled: true };
   let pool;
@@ -6012,6 +6017,19 @@ Install it with: npx playwright install chromium
     pool = new ContextPool(async () => {
       const context2 = await browser.newContext({ ...contextOptions, storageState });
       if (auth) await installAuth(context2, origin, { ...auth, cookies: auth.script ? [] : auth.cookies });
+      if (readOnly) {
+        await context2.route("**/*", (route) => {
+          const request = route.request();
+          return allowRead(request.url(), request.method()) && (!request.isNavigationRequest() || robotsAllowsUrl(readOnly.robots, request.url())) ? route.continue() : route.abort("blockedbyclient");
+        });
+        await context2.routeWebSocket("**/*", (socket) => socket.close());
+        await context2.addInitScript(() => {
+          document.addEventListener("submit", (event) => event.preventDefault(), true);
+          HTMLFormElement.prototype.submit = () => {
+          };
+          window.open = () => null;
+        });
+      }
       return context2;
     }, recycleEvery);
     await pool.init();
@@ -6080,14 +6098,14 @@ Install it with: npx playwright install chromium
       try {
         const session = await context2.newCDPSession(page);
         session.on("Fetch.requestPaused", (event) => {
-          const external = new URL(event.request.url).origin !== origin || interacting;
-          if (external) blockedNavigation = event.request.url;
-          void session.send(external ? "Fetch.failRequest" : "Fetch.continueRequest", {
+          const denied = readOnly ? !allowRead(event.request.url, event.request.method) || event.resourceType === "Document" && !robotsAllowsUrl(readOnly.robots, event.request.url) : new URL(event.request.url).origin !== origin || interacting;
+          if (denied && event.resourceType === "Document") blockedNavigation = event.request.url;
+          void session.send(denied ? "Fetch.failRequest" : "Fetch.continueRequest", {
             requestId: event.requestId,
-            ...external ? { errorReason: "BlockedByClient" } : {}
+            ...denied ? { errorReason: "BlockedByClient" } : {}
           }).catch(() => void 0);
         });
-        await session.send("Fetch.enable", { patterns: [{ resourceType: "Document", requestStage: "Request" }] });
+        await session.send("Fetch.enable", { patterns: [readOnly ? { requestStage: "Request" } : { resourceType: "Document", requestStage: "Request" }] });
         if (collectLinks) await page.addInitScript(() => {
           const routes = [];
           Object.defineProperty(window, "__a11ygateRoutes", { value: routes });
@@ -6213,7 +6231,7 @@ async function runScan(argv2, io = {}) {
   const errors = io.stderr ?? ((s) => process.stderr.write(s));
   const safeIo = { ...io, redactor, stdout: (s) => output(redactor.text(s)), stderr: (s) => errors(redactor.text(s)) };
   try {
-    if (!argv2.includes("--help") && !argv2.includes("-h")) argv2 = loadEffectiveConfig("scan", argv2, io).argv;
+    if (!io.readOnly && !argv2.includes("--help") && !argv2.includes("-h")) argv2 = loadEffectiveConfig("scan", argv2, io).argv;
   } catch (error) {
     safeIo.stderr(`${error.message}
 ${debugDetail(error)}`);
@@ -6335,7 +6353,7 @@ ${debugDetail(error)}`);
   } : void 0;
   let engine;
   try {
-    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...incrementalOptions ? { incremental: incrementalOptions } : {}, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path8.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...options.keyboardPixelThreshold !== void 0 ? { pixelThreshold: options.keyboardPixelThreshold } : {} } } : {} });
+    engine = await (io.engine ?? playwrightEngine)({ userAgent, origin, engines: options.engines, auth, ...io.readOnly ? { readOnly: { robots: robots.rules } } : {}, ...incrementalOptions ? { incremental: incrementalOptions } : {}, ...options.screenshots && !options.noScreenshots ? { screenshotDir: path8.resolve(cwd, options.outDir, "screenshots"), redactSelectors: options.redactSelectors } : {}, timeoutMs: options.timeoutMs, ...interactions ? { interactions } : {}, ...options.recycleEvery ? { recycleEvery: options.recycleEvery } : {}, ...options.keyboard ? { keyboard: { budget: options.keyboardBudget ?? 100, ...options.keyboardPixelThreshold !== void 0 ? { pixelThreshold: options.keyboardPixelThreshold } : {} } } : {} });
   } catch (error) {
     stderr(`${error instanceof ScanSetupError ? error.message.replace(/\n?$/, "\n") : `Could not start the browser: ${error instanceof Error ? error.message : String(error)}
 `}${debugDetail(error)}`);
@@ -6825,8 +6843,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path21) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path21);
+function shouldStore(path22) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path22);
 }
 function createZip(entries2) {
   const local = [];
@@ -7028,8 +7046,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path21) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path21);
+function isTextPath(path22) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path22);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -7178,8 +7196,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path21, make] of generated) {
-    if (!files.has(path21)) files.set(path21, { path: path21, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path22, make] of generated) {
+    if (!files.has(path22)) files.set(path22, { path: path22, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -7478,12 +7496,22 @@ function parseReportPdfArgs(argv2) {
 }
 async function renderReportPdf(browser, report, meta, options = {}) {
   const htmlOptions = { ...options.lang ? { lang: options.lang } : {}, ...options.en301549Ref ? { en301549Ref: true } : {} };
+  return withPdfPrinter(browser, async (print) => {
+    const ids = tocEntries(scanHtmlV2(report, htmlOptions)).map((e) => e.id);
+    const draft = await print(pdfSourceHtml(report, meta, htmlOptions));
+    const found = namedDestinationPages(draft);
+    const tocPages = Object.fromEntries(ids.flatMap((id) => found.has(id) ? [[id, found.get(id)]] : []));
+    const html = pdfSourceHtml(report, meta, { ...htmlOptions, tocPages });
+    return { pdf: await print(html), html, tocPages };
+  }, options.lang);
+}
+async function withPdfPrinter(browser, work, lang) {
   const context2 = await browser.newContext({ javaScriptEnabled: false, colorScheme: "light" });
   try {
     await context2.route("**/*", (route) => route.abort());
     const page = await context2.newPage();
-    const print = async (html2) => {
-      await page.setContent(html2, { waitUntil: "load" });
+    const print = async (html) => {
+      await page.setContent(html, { waitUntil: "load" });
       return page.pdf({
         format: PDF_PAGE.format,
         margin: PDF_PAGE.margin,
@@ -7492,17 +7520,25 @@ async function renderReportPdf(browser, report, meta, options = {}) {
         outline: true,
         displayHeaderFooter: true,
         headerTemplate: PDF_HEADER_TEMPLATE,
-        footerTemplate: pdfFooterTemplate(options.lang)
+        footerTemplate: pdfFooterTemplate(lang)
       });
     };
-    const ids = tocEntries(scanHtmlV2(report, htmlOptions)).map((e) => e.id);
-    const draft = await print(pdfSourceHtml(report, meta, htmlOptions));
-    const found = namedDestinationPages(draft);
-    const tocPages = Object.fromEntries(ids.flatMap((id) => found.has(id) ? [[id, found.get(id)]] : []));
-    const html = pdfSourceHtml(report, meta, { ...htmlOptions, tocPages });
-    return { pdf: await print(html), html, tocPages };
+    return await work(print);
   } finally {
     await context2.close();
+  }
+}
+async function printProspectPdf(html, scannedAt) {
+  const { chromium } = await import("playwright");
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const pdf = await withPdfPrinter(browser, (print) => print(html));
+    const date = new Date(scannedAt);
+    const stamp = Number.isNaN(date.valueOf()) ? "19700101000000" : date.toISOString().slice(0, 19).replace(/\D/g, "").slice(0, 14).padEnd(14, "0");
+    const source = pdf.toString("latin1");
+    return Buffer.from(source.replace(/(\/(?:CreationDate|ModDate) \(D:)\d{14}[+-]\d{2}'\d{2}'(?=\))/g, (_match, prefix) => `${prefix}${stamp}+00'00'`), "latin1");
+  } finally {
+    await browser.close();
   }
 }
 async function writeBinaryAtomic(file, data) {
@@ -8577,8 +8613,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path21) {
-  const match = /\.([a-z0-9]+)$/i.exec(path21);
+function fileKind(path22) {
+  const match = /\.([a-z0-9]+)$/i.exec(path22);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -8889,8 +8925,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path21, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path21) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path22, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path22) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -9578,9 +9614,243 @@ function inferProjectName(results) {
   return "Imported scan";
 }
 
-// packages/cli/src/estimate.ts
-import { mkdir as mkdir8, writeFile as writeFile9 } from "node:fs/promises";
+// packages/cli/src/prospect.ts
+import { mkdir as mkdir8, stat as stat5 } from "node:fs/promises";
 import path18 from "node:path";
+
+// config/own-hosts.json
+var own_hosts_default = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "a11ygate.vercel.app",
+  "qe-atlas.vercel.app"
+];
+
+// config/pricing.json
+var pricing_default = {
+  plan: "A11yGate",
+  priceUsdPerYear: 990,
+  billing: "yearly",
+  pilot: {
+    priceUsd: 0,
+    lengthDays: 21
+  },
+  currency: "USD"
+};
+
+// lib/billing.ts
+var pricing = pricing_default;
+var annualPrice = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: pricing.currency,
+  maximumFractionDigits: 0
+}).format(pricing.priceUsdPerYear);
+
+// lib/scan/prospect-report.ts
+function prospectHtml(report, options) {
+  const title = options.company ? `Accessibility scan summary for ${options.company}` : "Accessibility scan summary";
+  const { pagesScanned, pagesFailed, pagesNotAuthenticated, skippedLinks } = report.counts;
+  const scanned = report.pages.filter((page) => page.scanStatus === "complete");
+  const engines = (report.engines?.used ?? ["axe"]).map((engine) => engine === "axe" ? `axe-core ${report.axeVersion ?? "(version unrecorded)"}` : `${engine} (version unrecorded)`);
+  const rules2 = topFixes(report.findings);
+  const issues = rules2.map((rule) => {
+    const sample = rule.findings[0];
+    return `<section>
+<h3><code>${esc2(rule.ruleId)}</code> <span class="impact ${rule.impact ?? "unknown"}">${rule.impact ?? "Unknown impact"}</span></h3>
+<p>WCAG reference: ${rule.wcag.map((c) => esc2(c.number)).join(", ") || "None mapped"}. ${rule.occurrences} occurrence(s) on ${rule.pages.length} page(s).</p>
+<p>Sample selector: <code>${esc2(sample.selector)}</code></p>
+<p>${esc2(findingGuidance(sample).remediation)}</p>
+</section>`;
+  }).join("\n");
+  const offer = options.offer ? `<section><h2>Pilot offer</h2><p>${esc2(pricing.plan)} costs ${esc2(annualPrice)}/yr (${esc2(pricing.currency)}). Start with a ${pricing.pilot.lengthDays}-day free pilot.</p></section>` : "";
+  const authorization = options.authorization ? `<p>Authorized by: ${esc2(options.authorization.authorizedBy)}<br>Authorization note: ${esc2(options.authorization.authorizationNote)}</p>` : "";
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>${esc2(title)}</title>
+<style>
+${REPORT_V2_STYLE}
+footer{margin-top:1.5rem;overflow-wrap:anywhere}
+@media print{section>section,footer{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+<h1>${esc2(title)}</h1>
+<p>Site: <code>${esc2(report.startUrl)}</code></p>
+<p class="disclaimer">${AUTOMATED_TESTING_DISCLAIMER}</p>
+</header>
+<main>
+<section>
+<h2>Scan scope</h2>
+<p>Scan date: ${esc2(report.scannedAt)}. Engines: ${esc2(engines.join(", ") || "No engine completed")}. A11yGate CLI ${esc2(report.version)}.</p>
+<p>${pagesScanned} page(s) scanned (cap ${report.options.maxPages}), ${pagesFailed} failed, ${pagesNotAuthenticated ?? 0} unauthenticated, ${skippedLinks} link(s) skipped. ${esc2(report.options.robots)}</p>
+${scanned.length ? `<ul>${scanned.map((page) => `<li><code>${esc2(page.finalUrl)}</code></li>`).join("")}</ul>` : ""}
+</section>
+<section>
+<h2>Top issues</h2>
+${issues || "<p>The scan recorded no findings in the pages it analyzed.</p>"}
+${issues ? "<p>For missing alternative text, labels or accessible names, leave a TODO for someone who knows the content to write and verify the wording.</p>" : ""}
+</section>
+<section>
+<h2>What this means in CI</h2>
+<p>This scan recorded ${report.findings.length} finding(s) across ${pagesScanned} scanned page(s). On comparable coverage, a fingerprint baseline would record these existing findings. A pull request gate scanning the same pages could fail a change that adds a finding at or above the configured impact threshold, including another occurrence of a rule already listed here. Re-scan after fixes to reduce the baseline.</p>
+</section>
+<section>
+<h2>What automated testing can't cover</h2>
+<p>Review key flows with a keyboard and screen reader. Check focus order, whether text alternatives and labels make sense in context, and states and pages outside this scan.</p>
+</section>
+${offer}
+</main>
+<footer>
+${authorization}
+<p>${AUTOMATED_TESTING_DISCLAIMER}</p>
+</footer>
+</body>
+</html>
+`;
+}
+
+// packages/cli/src/prospect.ts
+var HELP = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--company <name>] [--out-dir <dir>] [--offer]
+       a11ygate prospect --from <scan-dir|scan.json> [--company <name>] [--out-dir <dir>] [--offer]
+
+Write a prospect summary (HTML and PDF) and manifest to prospect-out by default.
+URL mode scans one page by default. Sites outside the own-host allowlist require
+both --authorized-by <name> and --authorization-note <text> before scanning.
+--from reads saved scan data offline. PDF output requires Playwright Chromium.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var valueFlags = /* @__PURE__ */ new Set(["--from", "--company", "--max-pages", "--out-dir", "--authorized-by", "--authorization-note"]);
+function isOwnProspectHost(url) {
+  const normalized = normalizeUrl(url);
+  return normalized !== null && own_hosts_default.includes(new URL(normalized).hostname.replace(/^\[|\]$/g, ""));
+}
+function parseProspectArgs(argv2) {
+  let target;
+  let offer = false;
+  const values = /* @__PURE__ */ new Map();
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    if (token === "--offer") {
+      offer = true;
+    } else if (token.startsWith("-")) {
+      const eq = token.indexOf("=");
+      const flag = eq < 0 ? token : token.slice(0, eq);
+      if (!valueFlags.has(flag)) throw new Error(`Unknown prospect option ${token}.`);
+      if (values.has(flag)) throw new Error(`Pass ${flag} once.`);
+      const value = eq < 0 ? argv2[++i]?.trim() : token.slice(eq + 1).trim();
+      if (!value || eq < 0 && value.startsWith("--")) throw new Error(`${flag} needs a value.`);
+      values.set(flag, value);
+    } else {
+      if (target) throw new Error("Pass one URL or saved scan.");
+      target = token;
+    }
+  }
+  const from = values.get("--from");
+  if (Boolean(from) === Boolean(target)) throw new Error("Pass one URL or saved scan.");
+  const url = from ? null : normalizeUrl(target);
+  if (!url && target && /^[a-z][a-z\d+.-]*:\/\//i.test(target)) {
+    throw new Error("Pass an HTTP(S) URL without credentials or a local saved scan path.");
+  }
+  const max = values.get("--max-pages");
+  const maxPages = max === void 0 ? 1 : Number(max);
+  if (max !== void 0 && (!/^\d+$/.test(max) || maxPages < 1 || maxPages > MAX_CRAWL_PAGES)) {
+    throw new Error(`--max-pages must be from 1 to ${MAX_CRAWL_PAGES}.`);
+  }
+  if (!url && max !== void 0) throw new Error("--max-pages applies to URL scans only.");
+  const authorizedBy = values.get("--authorized-by");
+  const authorizationNote = values.get("--authorization-note");
+  if (Boolean(authorizedBy) !== Boolean(authorizationNote)) {
+    throw new Error("Provide both --authorized-by and --authorization-note.");
+  }
+  if (url && !isOwnProspectHost(url) && !authorizedBy) {
+    throw new Error("This host requires both --authorized-by and --authorization-note.");
+  }
+  return {
+    input: from ?? target,
+    url,
+    maxPages,
+    company: values.get("--company"),
+    outDir: values.get("--out-dir") ?? "prospect-out",
+    offer,
+    authorization: authorizedBy && authorizationNote ? { authorizedBy, authorizationNote } : void 0
+  };
+}
+async function scanProspectUrl(url, maxPages, io) {
+  let report;
+  const code3 = await runScan([url, "--crawl", String(maxPages), "--fail-on", "none"], {
+    ...io,
+    readOnly: true,
+    stdout: () => {
+    },
+    onReport: (value) => {
+      report = value;
+    }
+  });
+  if (code3 === 2 || !report) throw new Error("The prospect scan could not complete.");
+  return report;
+}
+async function runProspect(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  const cwd = io.cwd ?? process.cwd();
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(HELP);
+    return 0;
+  }
+  try {
+    const options = parseProspectArgs(argv2);
+    const output = path18.resolve(cwd, options.outDir);
+    const htmlPath = path18.join(output, "prospect-summary.html");
+    const pdfPath = path18.join(output, "prospect-summary.pdf");
+    const manifestPath = path18.join(output, "prospect-manifest.json");
+    const outputs = [htmlPath, pdfPath, manifestPath];
+    let source;
+    if (!options.url) {
+      const input = path18.resolve(cwd, options.input);
+      source = (await stat5(input)).isDirectory() ? path18.join(input, "a11ygate-scan.json") : input;
+    }
+    await assertSafeOutputs(cwd, source ? [source] : [], outputs);
+    const report = options.url ? await scanProspectUrl(options.url, options.maxPages, io) : await readScanInput(options.input, cwd);
+    const html = prospectHtml(report, options);
+    const pdf = await printProspectPdf(html, report.scannedAt);
+    const manifest = {
+      schemaVersion: 1,
+      source: options.url ? "url" : "saved-scan",
+      startUrl: report.startUrl,
+      scannedAt: report.scannedAt,
+      company: options.company ?? null,
+      offer: options.offer,
+      authorizedBy: options.authorization?.authorizedBy ?? null,
+      authorizationNote: options.authorization?.authorizationNote ?? null,
+      files: ["prospect-summary.html", "prospect-summary.pdf"],
+      disclaimer: AUTOMATED_TESTING_DISCLAIMER
+    };
+    await mkdir8(output, { recursive: true });
+    await writeBinaryAtomic(htmlPath, Buffer.from(html));
+    await writeBinaryAtomic(pdfPath, pdf);
+    await writeBinaryAtomic(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
+    stdout(`Wrote prospect-summary.html, prospect-summary.pdf and prospect-manifest.json to ${options.outDir}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Prospect report failed: ${error instanceof Error ? error.message : String(error)}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 2;
+  }
+}
+
+// packages/cli/src/estimate.ts
+import { mkdir as mkdir9, writeFile as writeFile9 } from "node:fs/promises";
+import path19 from "node:path";
 
 // docs/perf/chromium-bench-axe-500.json
 var chromium_bench_axe_500_default = {
@@ -10065,9 +10335,9 @@ ${DISCLAIMER2}
         options.engines = value;
       } else throw new Error(`Unknown estimate option: ${flag}`);
     }
-    const dir = path18.resolve(io.cwd ?? process.cwd(), outDir);
-    await mkdir8(dir, { recursive: true });
-    const outputs = ["estimate.json", "estimate.md"].map((name) => path18.join(dir, name));
+    const dir = path19.resolve(io.cwd ?? process.cwd(), outDir);
+    await mkdir9(dir, { recursive: true });
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path19.join(dir, name));
     await assertSafeOutputs(dir, [], outputs);
     const report = await estimateSite(options);
     await writeFile9(outputs[0], JSON.stringify(report, null, 2) + "\n");
@@ -10085,7 +10355,7 @@ ${DISCLAIMER2}
 
 // packages/cli/src/export.ts
 import { writeFile as writeFile10 } from "node:fs/promises";
-import path19 from "node:path";
+import path20 from "node:path";
 
 // lib/export-csv.ts
 function csvField(value) {
@@ -10339,9 +10609,9 @@ async function runExport(argv2, io = {}) {
       stdout(text);
       return 0;
     }
-    const inputs = [args.input, path19.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    const inputs = [args.input, path20.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
     await assertSafeOutputs(cwd, inputs, [args.output]);
-    await writeFile10(path19.resolve(cwd, args.output), text, "utf8");
+    await writeFile10(path20.resolve(cwd, args.output), text, "utf8");
     const count = buildTickets(report, now).length;
     stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -10356,14 +10626,14 @@ ${debugDetail(error)}`);
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path20.resolve(cwd, file);
+  return path21.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
   for (const file of files) {
     const absolute = resolveInput(cwd, file);
     try {
-      const info = await stat5(absolute);
+      const info = await stat6(absolute);
       if (!info.isFile()) return { ok: false, error: `${file}: not a file.` };
       if (info.size === 0) return { ok: false, error: `${file}: The file is empty.` };
       if (info.size > MAX_AXE_JSON_BYTES) {
@@ -10385,10 +10655,10 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path20.dirname(fileURLToPath(import.meta.url));
+  const here = path21.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path20.join(here, "..", "package.json"),
-    path20.join(here, "..", "..", "packages", "cli", "package.json")
+    path21.join(here, "..", "package.json"),
+    path21.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
@@ -10464,6 +10734,7 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "review") return runReview(argv2.slice(1), io);
   if (argv2[0] === "report" && argv2[1] === "pdf") return runReportPdf(argv2.slice(2), io);
   if (argv2[0] === "report") return runReport(argv2.slice(1), io);
+  if (argv2[0] === "prospect") return runProspect(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "estimate") return runEstimate(argv2.slice(1), io);
   if (argv2[0] === "export") return runExport(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
@@ -10510,17 +10781,17 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path20.join(await realpath3(path20.dirname(absolute)).catch(() => path20.dirname(absolute)), path20.basename(absolute));
+        return path21.join(await realpath3(path21.dirname(absolute)).catch(() => path21.dirname(absolute)), path21.basename(absolute));
       });
-      const info = await stat5(absolute).catch(() => null);
+      const info = await stat6(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
     };
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path20.join(options.outDir, formatFileName("ci", "json")),
-      path20.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path20.join(options.outDir, formatFileName("ci", format)))
+      path21.join(options.outDir, formatFileName("ci", "json")),
+      path21.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path21.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -10655,9 +10926,9 @@ ${debugDetail(error)}`);
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir9(dir, { recursive: true });
+      await mkdir10(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile11(path20.join(dir, name), content, "utf8");
+        await writeFile11(path21.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

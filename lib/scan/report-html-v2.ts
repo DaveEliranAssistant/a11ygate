@@ -79,7 +79,7 @@ function cssVars(scheme: keyof typeof PALETTE): string {
   return Object.entries(PALETTE[scheme]).map(([k, v]) => `--${k}:${v}`).join(';');
 }
 
-function esc(value: string): string {
+export function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
@@ -331,7 +331,7 @@ ${notScanned.length ? `<h3>${t.t('limits.notScanned')}</h3><ul>${notScanned.map(
 }
 
 /* i18n-ignore */
-const STYLE = `:root{color-scheme:light dark;${cssVars('light')}}
+export const REPORT_V2_STYLE = `:root{color-scheme:light dark;${cssVars('light')}}
 @media (prefers-color-scheme:dark){:root{${cssVars('dark')}}}
 body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
 a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
@@ -371,7 +371,7 @@ export function scanHtmlV2(report: ScanReport, options: ScanHtmlOptions = {}): s
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
 <title>${t.t('html.title', { startUrl: esc(report.startUrl) })}</title>
 <style>
-${STYLE}${t.dir === 'rtl' ? '\n' + RTL_STYLE : ''}
+${REPORT_V2_STYLE}${t.dir === 'rtl' ? '\n' + RTL_STYLE : ''}
 </style>
 </head>
 <body>
