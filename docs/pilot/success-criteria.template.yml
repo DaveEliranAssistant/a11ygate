@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json
+# A11yGate pilot success criteria (template). Copy, fill in at kickoff, and agree with the customer.
+# Schema: schema/pilot-success.schema.json. Every field is described there.
+# Quote dates ("YYYY-MM-DD") so YAML keeps them as strings.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+schemaVersion: 1
+
+pilot:
+  customer: "[[MISSING]]"
+  # repository: "org/app"
+  ciProvider: github # github | gitlab | azure-devops | jenkins
+  startDate: "2026-12-01" # replace
+  lengthDays: 21 # matches pilot.lengthDays in config/pricing.json
+  decisionDate: "2026-12-21" # replace: normally the last pilot day
+
+criteria:
+  # Gate runs on every PR to the target branch as a required check: true (yes) / false (no).
+  gateRunsOnEveryPrToMain: true
+  targetBranch: main
+  # A fingerprint baseline (a11ygate baseline create) is committed.
+  baselineCreated: true
+  # New serious/critical findings merged after week 2 (day 14) without a review decision.
+  maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2: 0
+  # Pages or flows the scan covers (N). List them when known.
+  pagesOrFlowsCovered:
+    min: 5
+    list: []
+  # At least one evidence pack (a11ygate evidence pack) handed to the customer before the decision date.
+  evidencePackProduced: true

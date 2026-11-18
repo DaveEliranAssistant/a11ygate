@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json",
+  "title": "A11yGate pilot success criteria",
+  "description": "Machine-checkable success criteria for one A11yGate pilot (A11Y-R66). Filled in at kickoff from docs/pilot/success-criteria.template.yml and read by later pilot tooling (A11Y-R69). Targets only: measured results are recorded elsewhere. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "pilot", "criteria"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this file format. Always 1 for this schema.",
+      "const": 1
+    },
+    "pilot": {
+      "description": "Who the pilot is for and when it ends.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["customer", "startDate", "lengthDays", "decisionDate"],
+      "properties": {
+        "customer": {
+          "description": "Customer or team name as agreed at kickoff. Use \"[[MISSING]]\" until known.",
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "description": "Repository the gate runs in, for example \"org/app\". Optional.",
+          "type": "string",
+          "minLength": 1
+        },
+        "ciProvider": {
+          "description": "CI system the gate runs in.",
+          "enum": ["github", "gitlab", "azure-devops", "jenkins"]
+        },
+        "startDate": {
+          "description": "First pilot day, ISO date YYYY-MM-DD (quote it in YAML).",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "lengthDays": {
+          "description": "Pilot length in days. Must match pilot.lengthDays in config/pricing.json.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "decisionDate": {
+          "description": "Date the customer decides to convert, extend or stop, ISO date YYYY-MM-DD (quote it in YAML). Normally the last pilot day.",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    },
+    "criteria": {
+      "description": "Targets that define a successful pilot. Each one is checkable from CI history, the repository, or the scan outputs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gateRunsOnEveryPrToMain",
+        "baselineCreated",
+        "maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2",
+        "pagesOrFlowsCovered",
+        "evidencePackProduced"
+      ],
+      "properties": {
+        "gateRunsOnEveryPrToMain": {
+          "description": "true = the A11yGate job must run on every PR (or merge request) to the target branch and be a required check. false = not a pilot target.",
+          "type": "boolean"
+        },
+        "targetBranch": {
+          "description": "Branch the gate protects. Default: main.",
+          "type": "string",
+          "minLength": 1,
+          "default": "main"
+        },
+        "baselineCreated": {
+          "description": "true = a fingerprint baseline (a11ygate baseline create) must be committed to the repository.",
+          "type": "boolean"
+        },
+        "maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2": {
+          "description": "Maximum number of new serious or critical findings merged to the target branch after the end of week 2 (day 14) without a recorded review decision (a11ygate review). Usually 0.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "pagesOrFlowsCovered": {
+          "description": "Coverage target: the scan must cover at least `min` pages or flows. `list` optionally names them.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min"],
+          "properties": {
+            "min": {
+              "description": "Minimum number of pages or flows covered (N).",
+              "type": "integer",
+              "minimum": 1
+            },
+            "list": {
+              "description": "Optional names or URL paths of the pages or flows (for example \"/checkout\").",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "evidencePackProduced": {
+          "description": "true = at least one evidence pack (a11ygate evidence pack) must be produced and handed to the customer before the decision date.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
