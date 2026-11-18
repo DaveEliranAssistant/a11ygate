@@ -2,8 +2,10 @@
 
 The context is never the owner's working tree wholesale (no .git, .env, npm config,
 host node_modules, or credentials). `npm run cli:build` bundles JSON that lives
-outside packages/ and lib/ (config schemas, the locale catalog, and Chromium
-benchmark data used by `a11ygate estimate`), so those are listed here too.
+outside packages/ and lib/ (config schemas, the locale catalog, the pricing and
+own-host allowlist config used by `a11ygate prospect`, and Chromium benchmark data
+used by `a11ygate estimate`), so those are listed here too. config/ holds only
+committed, non-secret JSON; .env* and .npmrc are ignored everywhere.
 """
 import pathlib
 import shutil
@@ -18,6 +20,7 @@ PATHS = [
     'lib',
     'scripts',
     'schema',
+    'config',
     'locales',
     'examples/jenkins',
     'integrations/jenkins/vars',
