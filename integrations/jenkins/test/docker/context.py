@@ -23,6 +23,8 @@ PATHS = [
     'config',
     'locales',
     'examples/jenkins',
+    'integrations/gitlab/a11ygate.gitlab-ci.yml',
+    'integrations/azure-devops/a11ygate.yml',
     'integrations/jenkins/vars',
     'integrations/jenkins/test/docker',
 ]

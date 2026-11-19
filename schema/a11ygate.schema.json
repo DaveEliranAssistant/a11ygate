@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   "title": "A11yGate repository config (.a11ygate.yml)",
-  "description": "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "description": "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes ciTarget, engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -18,6 +18,11 @@
       "minimum": 0,
       "maximum": 20,
       "x-cli": ["--crawl"]
+    },
+    "ciTarget": {
+      "description": "CI starter target checked by doctor.",
+      "type": "string",
+      "enum": ["github", "jenkins", "gitlab", "azure-devops"]
     },
     "incremental": {
       "description": "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",

@@ -16,8 +16,9 @@ a11ygate config print doctor --engines axe,ibm
 ```
 
 `config print` emits JSON with a value, source and applicable commands for each
-schema leaf, plus the automated-testing disclaimer. It does not scan, execute a
-login script, open storage-state files or call a provider. Cookie/header settings
+configured setting and each runtime default. It includes the automated-testing
+disclaimer. It does not scan, execute a login script, open storage-state files
+or call a provider. Cookie/header settings
 remain environment-variable references: their credential values are never
 serialized. Referenced values (even unusually named environment variables) and
 other secret-named environment values are redacted if copied into any setting.
@@ -51,6 +52,7 @@ entire list; repeatable flags still collect within the CLI source.
 | `exclude` | scan exclude globs | `A11YGATE_EXCLUDE` | [] |
 | `ignoreRobots` | scan robots opt-out | `A11YGATE_IGNORE_ROBOTS` | false |
 | `failOn` | scan `failOn`; ci/Action `threshold` | `A11YGATE_FAIL_ON` | serious |
+| `ciTarget` | doctor CI starter check (set in YAML) | — | absent |
 | `engines` | scan engine selection; doctor peer checks | `A11YGATE_ENGINES` | [axe] |
 | `modelFixes` | doctor / Action model suggestions, subject to consent below | `A11YGATE_MODEL_FIXES` | false |
 | `baseline` | scan fingerprint baseline; ci/Action axe JSON baseline | `A11YGATE_BASELINE` | absent |
@@ -69,10 +71,9 @@ entire list; repeatable flags still collect within the CLI source.
 | `auth.cookieEnv` | cookie → environment variable mappings | `A11YGATE_AUTH_COOKIE_ENV` | [] |
 | `auth.headerEnv` | header → environment variable mappings | `A11YGATE_AUTH_HEADER_ENV` | [] |
 
-There are no unwired or CLI-only schema keys. Command scopes are deliberate:
-ci and the Action gate consume saved axe JSON, so they do not navigate URLs,
-crawl, run interactions, inject authentication, choose engines, or render scan HTML. Doctor
-preflights engines and model setup; it does not run a scan or write scan reports.
+There are no unwired or CLI-only schema keys. The ci command and the Action
+gate consume saved axe JSON. Doctor checks the configured CI starter, engines,
+and model setup.
 `scan` and `ci` do not generate model fixes. The Action's optional suggestion
 stage consumes `modelFixes`. Per-run inputs such as `--current`, output paths
 `--json`/`--markdown`, and local-server `--start` remain command flags rather than

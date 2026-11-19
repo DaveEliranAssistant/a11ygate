@@ -70,7 +70,7 @@ describe('every schema key reaches an effective command option', () => {
   it('fails on schema drift, including nested auth properties', () => {
     expect(Object.keys(CONFIG_WIRING).sort()).toEqual(leaves(CONFIG_SCHEMA).sort());
     expect([...new Set(Object.keys(CONFIG_WIRING).map(key => key.split('.')[0]))].sort()).toEqual(Object.keys(CONFIG_SCHEMA.properties!).sort());
-    expect([...cases.map(([key]) => key), 'modelFixes'].sort()).toEqual(leaves(CONFIG_SCHEMA).sort());
+    expect([...cases.map(([key]) => key), 'modelFixes', 'ciTarget'].sort()).toEqual(leaves(CONFIG_SCHEMA).sort());
     expect(CONFIG_SCHEMA.properties?.auth?.type).toBe('object'); // auth is the container for all five covered leaves.
     expect(Object.values(CONFIG_WIRING).every(w => w.commands.length > 0)).toBe(true);
   });
@@ -83,6 +83,14 @@ describe('every schema key reaches an effective command option', () => {
     expect(parsed).toMatchObject({ ok: true, options: { [destination]: expected } });
     const defaults = parseScanArgs(['https://site.test/']);
     expect(defaults.ok && defaults.options[destination as keyof typeof defaults.options]).not.toEqual(expected);
+  });
+  it('reads ciTarget as repository metadata for doctor without injecting scan flags', async () => {
+    const cwd = await workspace('ciTarget: gitlab\n');
+    const io = { cwd, env: {} };
+    expect(loadEffectiveConfig('doctor', [], io)).toMatchObject({
+      values: { ciTarget: 'gitlab' }, sources: { ciTarget: '.a11ygate.yml' }, argv: [],
+    });
+    expect(loadEffectiveConfig('scan', ['http://127.0.0.1/'], io).argv).toEqual(['http://127.0.0.1/']);
   });
   it('modelFixes applies to doctor and Action suggestions and cannot override repository denial', async () => {
     const cwd = await workspace('modelFixes: true\nengines: [axe, ibm]\n');
@@ -115,7 +123,7 @@ describe('precedence, validation and unchanged defaults', () => {
     expect(loadEffectiveConfig('scan', [], { repoConfig, env }).values[key]).toEqual(envValue);
     // Boolean CLI opts into true; lists replace rather than append to lower-precedence values.
     const flagValue = ['ignoreRobots', 'autoInteractions'].includes(key) ? true : yamlValue;
-    const flag = CONFIG_WIRING[key]!.flag;
+    const flag = CONFIG_WIRING[key]!.flag!;
     const args = ['ignoreRobots', 'autoInteractions'].includes(key) ? [flag] : [flag, ['routes', 'interactions'].includes(key) ? JSON.stringify(flagValue) : Array.isArray(flagValue) ? flagValue.join(',') : String(flagValue)];
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).values[key]).toEqual(flagValue);
     expect(loadEffectiveConfig('scan', args, { repoConfig, env }).sources[key]).toBe(`flag:${flag}`);

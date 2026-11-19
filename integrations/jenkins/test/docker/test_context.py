@@ -26,6 +26,7 @@ def entry_points(source):
 
 
 def resolve(source, importer, spec):
+    spec = spec.removesuffix('?raw')
     if spec.startswith('@/'):
         base = source / spec[2:]
     elif spec.startswith('.'):
@@ -73,6 +74,8 @@ class BuildContext(unittest.TestCase):
                 'locales/en.json',
                 'config/pricing.json',
                 'config/own-hosts.json',
+                'integrations/gitlab/a11ygate.gitlab-ci.yml',
+                'integrations/azure-devops/a11ygate.yml',
             ):
                 self.assertIn(required, relative)
             self.assertTrue(any(r.startswith('docs/perf/chromium-bench-') for r in relative))

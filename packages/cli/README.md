@@ -272,7 +272,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 ## Starter CI setup (source build)
 
 Run `a11ygate init` for prompts or `a11ygate init --yes --target github` for a
-non-interactive starter. Use `--target jenkins` for the shared-library pipeline.
+non-interactive starter. Other targets are `jenkins`, `gitlab`, and `azure-devops`.
+Add `--pilot` for success criteria, a kickoff checklist link, and setup commands.
 Existing files are skipped; `--force` replaces regular starter files. See the
 [init guide](../../docs/integrations/init.md) for flags, baseline opt-in, and local
 application startup prerequisites. Published 0.1.0 does not include this command.
