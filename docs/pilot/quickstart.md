@@ -132,6 +132,19 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 Existing findings stay visible in every report. A baseline is a starting point for the team's backlog, not an audit result. See [Baseline mode](../baseline-mode.md).
 
+### Replacing the baseline
+
+`baseline create` never overwrites an existing file: if `.a11ygate-baseline.json` already exists it stops with `Could not create baseline` and exit code 2, and the old baseline stays in use. To replace a baseline (for example because CI serves the application on another URL, here `http://127.0.0.1:8080/`), scan that exact URL and crawl scope into a separate folder, write the baseline under a new name, check that a re-scan with it passes, and only then replace the old file:
+
+```sh
+a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --out-dir a11y-new
+a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json
+a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --baseline .a11ygate-baseline.new.json --out-dir a11y-new
+mv .a11ygate-baseline.new.json .a11ygate-baseline.json
+```
+
+The second scan must report `0 new findings at or above serious` (exit code 0). If it does not, the URL or crawl scope differs from the first scan; fix that before you commit the baseline. Then use the same URL and crawl scope in your CI file.
+
 ## 5. Evidence pack (2 minutes)
 
 ```sh
@@ -148,7 +161,7 @@ The zip holds the reports, the scope statement, what automated testing cannot co
 
 Pick your CI system. In each case: commit `.a11ygate-baseline.json`, start your application on loopback in the job, and make the job a **required** check for merges to `main` (that last step is a repository setting the customer's admin changes; A11yGate never changes repository settings).
 
-**Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI template defaults differ (the GitLab and Azure DevOps templates default to `http://127.0.0.1:3000` and one page), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, re-run step 3 and step 4 against that exact URL and crawl scope before committing the baseline.
+**Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI template defaults differ (the GitLab and Azure DevOps templates default to `http://127.0.0.1:3000` and one page), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, create a replacement baseline from that exact URL and crawl scope as shown in [Replacing the baseline](#replacing-the-baseline) before committing it.
 
 ### GitHub Actions
 
@@ -254,6 +267,6 @@ The generated `Jenkinsfile` scans `http://127.0.0.1:4173/` with `crawl: 10` (the
 1. Open a PR to `main` with the starter files and the baseline. The gate should pass: no new findings.
 2. Optional: open a throwaway PR that adds an image without an `alt` attribute. The gate should fail with one new `image-alt` finding. Close that PR; do not merge it. Do not write alt text for real content from this example: alt text and labels need a human who knows the content.
 
-Then record the result in your copy of [`success-criteria.template.yml`](success-criteria.template.yml).
+Then note the result (PR link, pass/fail) in your pilot notes for the weekly check-in. Your copy of [`success-criteria.template.yml`](success-criteria.template.yml) holds the agreed targets only, not results; results are compared with it at the decision date.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.

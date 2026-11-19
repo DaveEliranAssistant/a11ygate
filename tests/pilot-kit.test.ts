@@ -126,6 +126,16 @@ describe('pilot kit files (A11Y-R66)', () => {
     expect(text).not.toMatch(/make the `A11yGate` check required/);
   });
 
+  it('replaces a baseline under a new name, because `baseline create` never overwrites', () => {
+    const text = read('docs/pilot/quickstart.md');
+    const section = text.slice(text.indexOf('### Replacing the baseline'), text.indexOf('## 5.'));
+    expect(section).toContain('a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json');
+    expect(section).toContain('--baseline .a11ygate-baseline.new.json');
+    expect(section).toContain('mv .a11ygate-baseline.new.json .a11ygate-baseline.json');
+    expect(text).not.toMatch(/re-run step 3 and step 4/i);
+    expect(read('packages/cli/src/baseline.ts')).toContain("flag: 'wx'");
+  });
+
   it('never calls plain `scan` read-only; only `prospect` restricts requests', () => {
     for (const rel of ['docs/pilot/quickstart.md', 'docs/pilot/pilot-terms.template.md', 'docs/pilot/kickoff-checklist.md', 'docs/pilot/README.md']) {
       expect(read(rel), rel).not.toMatch(/read[- ]only/i);
