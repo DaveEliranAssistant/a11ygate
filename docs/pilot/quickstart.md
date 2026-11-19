@@ -137,13 +137,14 @@ Existing findings stay visible in every report. A baseline is a starting point f
 `baseline create` never overwrites an existing file: if `.a11ygate-baseline.json` already exists it stops with `Could not create baseline` and exit code 2, and the old baseline stays in use. To replace a baseline (for example because CI serves the application on another URL, here `http://127.0.0.1:8080/`), scan that exact URL and crawl scope into a separate folder, write the baseline under a new name, check that a re-scan with it passes, and only then replace the old file:
 
 ```sh
+rm -f .a11ygate-baseline.new.json
 a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --out-dir a11y-new
-a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json
-a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --baseline .a11ygate-baseline.new.json --out-dir a11y-new
-mv .a11ygate-baseline.new.json .a11ygate-baseline.json
+a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json \
+  && a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --baseline .a11ygate-baseline.new.json --out-dir a11y-new \
+  && mv .a11ygate-baseline.new.json .a11ygate-baseline.json
 ```
 
-The second scan must report `0 new findings at or above serious` (exit code 0). If it does not, the URL or crawl scope differs from the first scan; fix that before you commit the baseline. Then use the same URL and crawl scope in your CI file.
+The first scan exits 1 while the existing findings are not baselined yet; that is expected. The `rm -f` removes a leftover candidate from an earlier attempt, and the `&&` chain replaces the active baseline only if the new baseline was written **and** the re-scan with it exits 0 (`0 new findings at or above serious`). If either step fails, `.a11ygate-baseline.json` is left unchanged: check that the URL and crawl scope match the first scan, then try again. Use the same URL and crawl scope in your CI file.
 
 ## 5. Evidence pack (2 minutes)
 
@@ -163,6 +164,16 @@ Pick your CI system. In each case: commit `.a11ygate-baseline.json`, start your 
 
 **Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI template defaults differ (the GitLab and Azure DevOps templates default to `http://127.0.0.1:3000` and one page), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, create a replacement baseline from that exact URL and crawl scope as shown in [Replacing the baseline](#replacing-the-baseline) before committing it.
 
+**The CLI in GitLab and Azure DevOps jobs.** The GitLab and Azure DevOps templates run `npx --no-install a11ygate`, which uses an A11yGate CLI already installed in **your** project and fetches nothing at scan time. The CLI on npm (0.1.0) predates `scan` and `evidence pack`, so for the pilot vendor the source-built CLI from step 1 into your repository and install it as a local development dependency, together with the browser packages, then commit the lockfile:
+
+```sh
+mkdir -p tools && cp -R /path/to/a11ygate/packages/cli tools/a11ygate
+npm install --save-dev ./tools/a11ygate playwright@1.64.1 @axe-core/playwright
+npx --no-install a11ygate --help
+```
+
+The last command must print the A11yGate help in your project; then both templates' `npm ci` installs the same CLI in CI. This is the vendoring route described in the [GitLab guide](../../integrations/gitlab/README.md); keep the Playwright package version aligned with the CI image or the Chromium install step.
+
 ### GitHub Actions
 
 `init` creates the config and the workflow, and with `--baseline` it also creates the fingerprint baseline from the saved scan and passes it to the scanner:
@@ -171,8 +182,10 @@ Pick your CI system. In each case: commit `.a11ygate-baseline.json`, start your 
 a11ygate init --yes --target github --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y
 ```
 
+Because step 4 already wrote `.a11ygate-baseline.json`, `init` keeps it and only wires it into the workflow:
+
 ```text
-Wrote fingerprint baseline .a11ygate-baseline.json
+Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).
 Wrote .a11ygate.yml
 Wrote .github/workflows/a11ygate.yml
 Review the starter before committing. Start your local app before scanning; only scan authorized sites.
@@ -252,7 +265,7 @@ a11ygate init --yes --target jenkins --url http://127.0.0.1:4173/ --crawl 10 --f
 ```
 
 ```text
-Wrote fingerprint baseline .a11ygate-baseline.json
+Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).
 Wrote .a11ygate.yml
 Wrote Jenkinsfile
 Review the starter before committing. Start your local app before scanning; only scan authorized sites.

@@ -131,9 +131,22 @@ describe('pilot kit files (A11Y-R66)', () => {
     const section = text.slice(text.indexOf('### Replacing the baseline'), text.indexOf('## 5.'));
     expect(section).toContain('a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json');
     expect(section).toContain('--baseline .a11ygate-baseline.new.json');
-    expect(section).toContain('mv .a11ygate-baseline.new.json .a11ygate-baseline.json');
+    // Promotion only after the candidate was written and the verification scan exited 0.
+    expect(section).toMatch(/baseline create a11y-new --output \.a11ygate-baseline\.new\.json \\\n {2}&& a11ygate scan [^\n]*--baseline \.a11ygate-baseline\.new\.json[^\n]* \\\n {2}&& mv \.a11ygate-baseline\.new\.json \.a11ygate-baseline\.json/);
+    expect(section).toContain('rm -f .a11ygate-baseline.new.json');
     expect(text).not.toMatch(/re-run step 3 and step 4/i);
     expect(read('packages/cli/src/baseline.ts')).toContain("flag: 'wx'");
+  });
+
+  it('GitLab and Azure DevOps sections explain how `npx --no-install a11ygate` gets the CLI, and init transcripts match step 4', () => {
+    const text = read('docs/pilot/quickstart.md');
+    expect(text).toContain('npm install --save-dev ./tools/a11ygate');
+    expect(text.indexOf('**The CLI in GitLab and Azure DevOps jobs.**')).toBeGreaterThan(-1);
+    expect(text.indexOf('**The CLI in GitLab and Azure DevOps jobs.**')).toBeLessThan(text.indexOf('### GitHub Actions'));
+    const ci = text.slice(text.indexOf('## 6.'), text.indexOf('## 7.'));
+    // Step 4 already wrote the baseline, so init must report it as kept, never as newly written.
+    expect(ci).not.toContain('Wrote fingerprint baseline');
+    expect(ci.match(/Skipped existing \.a11ygate-baseline\.json/g)).toHaveLength(2);
   });
 
   it('never calls plain `scan` read-only; only `prospect` restricts requests', () => {
