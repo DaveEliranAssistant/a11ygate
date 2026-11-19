@@ -1,0 +1,6 @@
+body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 48rem; padding: 1rem; color: #1a1a1a; background: #fff; }
+nav a { margin-right: 1rem; color: #0b4f8a; }
+.hero { background: #dfe8e1; display: block; }
+/* TODO(demo debt): seeded contrast failure, kept on purpose for the demo. */
+.price-tag { color: #c4c4c4; }
+footer { margin-top: 2rem; border-top: 1px solid #555; color: #333; }

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northwind Outdoor — Checkout</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header><p class="brand">Northwind Outdoor (demo)</p>
+<nav aria-label="Main"><a href="/">Home</a> <a href="/products.html">Products</a> <a href="/checkout.html">Checkout</a> <a href="/about.html">About</a></nav>
+</header>
+<main>
+<h1>Checkout</h1>
+<form action="/checkout.html" method="get">
+  <!-- TODO(demo debt): seeded existing issue. This input has no label (axe label).
+       Deliberately left unlabeled: the team must decide the visible label. -->
+  <input type="email" name="email" id="email">
+  <p class="cart-line">Trail tent 2P, $249
+    <!-- demo-regression-slot -->
+  </p>
+  <button type="submit">Place order</button>
+</form>
+</main>
+<footer><p>Demo fixture for the A11yGate gate demo. Automated testing only. Not a WCAG audit, certification or legal advice.</p></footer>
+</body>
+</html>
