@@ -1,4 +1,9 @@
-import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, stat, unlink, realpath } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import Ajv from 'ajv';
+import { doctorChecks } from '@/packages/cli/src/doctor';
+import pricing from '@/config/pricing.json';
+import pilotSchema from '@/schema/pilot-success.schema.json';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -9,13 +14,20 @@ import { buildScanReport } from '@/lib/scan/report';
 
 async function temporary(work: (cwd: string) => Promise<void>) {
   const cwd = await mkdtemp(path.join(tmpdir(), 'a11ygate-init-'));
-  try { await work(cwd); } finally { await rm(cwd, { recursive: true, force: true }); }
+  try {
+    const root = await realpath(cwd);
+    expect(path.dirname(root)).toBe(await realpath(tmpdir()));
+    expect(root).not.toBe(await realpath(process.cwd()));
+    await work(cwd);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 }
 function capture(cwd: string) {
   let stdout = '', stderr = '';
   return { io: { cwd, stdout: (s: string) => { stdout += s; }, stderr: (s: string) => { stderr += s; } }, out: () => stdout, err: () => stderr };
 }
 const ciPath = (target: string) => target === 'github' ? '.github/workflows/a11ygate.yml' : 'Jenkinsfile';
+const yaml = createRequire(import.meta.url)('js-yaml') as { load: (text: string) => unknown };
+const validatePilot = new Ajv({ strict: true }).compile(pilotSchema);
 const read = (cwd: string, file: string) => readFile(path.join(cwd, file), 'utf8');
 
 function report() {
@@ -66,6 +78,93 @@ describe('a11ygate init', () => {
       if (target === 'jenkins') expect(ci).toContain("choices: ['none', 'serious'");
     }));
   }
+
+  for (const [target, file] of [
+    ['github', '.github/workflows/a11ygate.yml'],
+    ['jenkins', 'Jenkinsfile'],
+    ['gitlab', '.gitlab-ci.a11ygate.yml'],
+    ['azure-devops', 'azure-pipelines.a11ygate.yml'],
+  ] as const) {
+    it(`writes valid ${target} pilot files and checks the configured CI starter`, async () => temporary(async (cwd) => {
+      const { io, out } = capture(cwd);
+      const args = ['init', '--yes', '--target', target, '--pilot'];
+      const criteriaPath = 'a11ygate-pilot/success-criteria.yml';
+      const kickoffPath = 'a11ygate-pilot/KICKOFF.md';
+      expect(await run(args, io)).toBe(0);
+      const criteriaText = await read(cwd, criteriaPath);
+      const criteria = yaml.load(criteriaText);
+      expect(validatePilot(criteria), JSON.stringify(validatePilot.errors)).toBe(true);
+      expect(criteria).toMatchObject({ pilot: { ciProvider: target, customer: '[[MISSING]]', lengthDays: pricing.pilot.lengthDays } });
+      expect(criteriaText).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(await read(cwd, kickoffPath)).toContain('https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/kickoff-checklist.md');
+      expect(await read(cwd, kickoffPath)).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(out()).toMatch(/1\. a11ygate doctor[\s\S]*2\. a11ygate scan[\s\S]*3\. a11ygate baseline create[\s\S]*4\. (gh pr create|glab mr create|az repos pr create|git push)[\s\S]*5\. a11ygate evidence pack/);
+      const doctor = async () => (await doctorChecks({ browser: false }, { cwd, env: {}, head: () => null })).find(finding => finding.check === 'ci-file');
+      expect(await doctor()).toMatchObject({ status: 'pass', message: expect.stringContaining(file) });
+      await unlink(path.join(cwd, file));
+      expect(await doctor()).toMatchObject({ status: 'fail', message: expect.stringContaining(file) });
+      await writeFile(path.join(cwd, criteriaPath), '# confirmed pilot criteria');
+      expect(await run(args, io)).toBe(0);
+      expect(await read(cwd, criteriaPath)).toBe('# confirmed pilot criteria');
+    }));
+
+    it(`refuses a symlink at the ${target} CI destination`, async () => temporary(async (cwd) => {
+      const { io } = capture(cwd);
+      await mkdir(path.dirname(path.join(cwd, file)), { recursive: true });
+      await writeFile(path.join(cwd, 'untouched'), 'keep me');
+      await symlink(path.join(cwd, 'untouched'), path.join(cwd, file));
+      for (const flags of [[], ['--force']]) {
+        expect(await run(['init', '--yes', '--target', target, ...flags], io)).toBe(2);
+        expect(await read(cwd, 'untouched')).toBe('keep me');
+      }
+    }));
+  }
+
+  for (const [target, file] of [
+    ['gitlab', '.gitlab-ci.a11ygate.yml'],
+    ['azure-devops', 'azure-pipelines.a11ygate.yml'],
+  ] as const) {
+    it(`writes and preserves the ${target} starter and passes the baseline to the scan`, async () => temporary(async (cwd) => {
+      const { io, out } = capture(cwd);
+      const args = ['init', '--yes', '--target', target, '--url', 'http://127.0.0.1:9999/path?q=a%27b&x=1#fragment', '--crawl', '0', '--fail-on', 'critical'];
+      await writeFile(path.join(cwd, '.gitlab-ci.yml'), '# project pipeline');
+      await writeFile(path.join(cwd, 'scan.json'), JSON.stringify(report()));
+      expect(await run([...args, '--baseline', 'scan.json'], io)).toBe(0);
+      const ci = await read(cwd, file);
+      expect(ci).toContain('http://127.0.0.1:9999/path?q=a%27b&x=1#fragment');
+      expect(ci).toContain('critical');
+      expect(ci).toContain('--baseline .a11ygate-baseline.json');
+      expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
+      expect(await read(cwd, '.a11ygate.yml')).toContain(`ciTarget: ${target}`);
+      if (target === 'gitlab') {
+        expect(ci).toContain('--crawl 1');
+        expect(out()).toContain("include:\n  - local: '.gitlab-ci.a11ygate.yml'");
+      } else {
+        const parsed = yaml.load(ci) as { trigger: string; pr: string[]; parameters: { name: string; default: unknown }[]; steps: Record<string, unknown>[] };
+        const template = yaml.load(await readFile('integrations/azure-devops/a11ygate.yml', 'utf8')) as typeof parsed;
+        expect(parsed).toMatchObject({ trigger: 'none', pr: ['main'] });
+        expect(parsed.parameters).toEqual(template.parameters.map(parameter => ({
+          ...parameter,
+          default: ({ url: 'http://127.0.0.1:9999/path?q=a%27b&x=1#fragment', crawl: 1, failOn: 'critical' } as Record<string, unknown>)[parameter.name] ?? parameter.default,
+        })));
+        expect(parsed.steps).toEqual(template.steps.map(step => step.name === 'a11ygateScan'
+          ? { ...step, script: (step.script as string).replace(' --format', ' --baseline .a11ygate-baseline.json --format') }
+          : step));
+      }
+      await writeFile(path.join(cwd, file), '# project starter');
+      expect(await run(args, io)).toBe(0);
+      expect(await read(cwd, file)).toBe('# project starter');
+      expect(await run([...args, '--force'], io)).toBe(0);
+      expect(await read(cwd, file)).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
+    }));
+  }
+
+  it('refuses a symlink at the pilot directory', async () => temporary(async (cwd) => {
+    await symlink(cwd, path.join(cwd, 'a11ygate-pilot'));
+    expect(await run(['init', '--yes', '--target', 'gitlab', '--pilot', '--force'], capture(cwd).io)).toBe(2);
+    await expect(read(cwd, 'success-criteria.yml')).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
 
   it('keeps default Jenkins output identical to the canonical example', async () => temporary(async (cwd) => {
     expect(await run(['init', '--yes', '--target', 'jenkins'], capture(cwd).io)).toBe(0);
@@ -156,6 +255,17 @@ describe('a11ygate init', () => {
     expect(await run(['--help'], io)).toBe(0);
     expect(out()).toContain('a11ygate init [--yes]');
     await expect(read(cwd, '.a11ygate.yml')).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
+
+  it.each([
+    ['gitlab', '.gitlab-ci.a11ygate.yml'],
+    ['azure-devops', 'azure-pipelines.a11ygate.yml'],
+  ])('ships the %s pilot starter in the standalone bundle', async (target, file) => temporary(async (cwd) => {
+    const bin = path.resolve('packages/cli/dist/cli.mjs');
+    const result = spawnSync(process.execPath, [bin, 'init', '--yes', '--target', target, '--pilot'], { cwd, encoding: 'utf8', timeout: 10000 });
+    expect(result.status, result.stderr).toBe(0);
+    expect(yaml.load(await read(cwd, file))).toBeTypeOf('object');
+    expect(validatePilot(yaml.load(await read(cwd, 'a11ygate-pilot/success-criteria.yml')))).toBe(true);
   }));
 
   it('runs the bundled CLI with --yes through pipes, and refuses to prompt without a TTY', async () => temporary(async (cwd) => {

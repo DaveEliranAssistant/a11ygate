@@ -8,6 +8,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
+- **A11Y-R65:** CLI init supports GitLab and Azure DevOps starters, optional pilot kickoff files, and doctor checks for configured CI starter files.
+
 Consolidated in A11Y-R62: every task from A11Y-R23 to A11Y-R61 that merged to `main`, with its pull request. The package version is unchanged (**0.2.0**, npm `next` only) and nothing here is published yet. Known gaps recorded for these tasks are collected in [Known limits](../../docs/known-limits.md).
 
 ### Not included

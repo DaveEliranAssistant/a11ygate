@@ -39,11 +39,15 @@ special URL characters. The Jenkins shared library wraps URLs in shell quotes.
 | --- | --- |
 | GitHub (`--target github`) | `.a11ygate.yml`, `.github/workflows/a11ygate.yml` |
 | Jenkins (`--target jenkins`) | `.a11ygate.yml`, `Jenkinsfile` |
-| Either, with `--baseline <saved-scan>` | Also `.a11ygate-baseline.json` |
+| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml` |
+| Azure DevOps (`--target azure-devops`) | `.a11ygate.yml`, `azure-pipelines.a11ygate.yml` |
+| Any target, with `--baseline <saved-scan>` | Also `.a11ygate-baseline.json` |
 
 The config records setup choices and the doctor engine list, with model fixes
-disabled. The scanner does not read URL/crawl/fail-on defaults from config; the
-CI file passes those choices explicitly. Edit the CI flags when changing them.
+disabled. The generated CI file passes the scan choices explicitly. Edit the
+CI file when changing them. GitLab, Azure DevOps, and all `--pilot` runs also
+record `ciTarget`. When this key is present, `a11ygate doctor` checks that the
+corresponding file exists. You can set the key in an existing config.
 Existing files are skipped individually and init exits successfully. `--force`
 replaces regular starter files; it refuses symlink destinations and parents.
 It never replaces a fingerprint baseline, even with `--force`.
@@ -59,10 +63,10 @@ file starts with
 ```
 
 so editors with the YAML language server offer autocomplete and inline errors.
-Keys: `url`, `crawl`, `failOn`, `engines`, `modelFixes`, `baseline`, `formats`,
+Keys: `ciTarget`, `url`, `crawl`, `failOn`, `engines`, `modelFixes`, `baseline`, `formats`,
 `outDir`, `delayMs`, `reportVersion`, and `auth` (`storageState`, `loginScript`,
 `loginTimeoutMs`, `cookieEnv`, `headerEnv` — environment variable names only,
-never credentials). Each key notes its matching CLI flag (`x-cli`). Run
+never credentials). Scan settings note their matching CLI flags (`x-cli`). Run
 `a11ygate config validate [file]` or `a11ygate doctor` to get plain-English
 errors such as `unknown key 'engine' — did you mean 'engines'?`. Validation
 checks the file's shape only; it is not an accessibility assessment.
@@ -95,6 +99,28 @@ peers, and Chromium. Start the local application before the scan stage. The
 The library publishes JUnit and archives reports, maps findings to UNSTABLE,
 and execution errors to FAILURE.
 
+## Finish GitLab or Azure DevOps setup
+
+For GitLab, add the generated local include entry to your project's
+`.gitlab-ci.yml`. The starter runs on merge requests and publishes Code Quality
+and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md).
+
+For Azure DevOps, register `azure-pipelines.a11ygate.yml` as a standalone
+pipeline. It disables push triggers and targets PRs to `main` for supported
+repository hosts. For Azure Repos Git, set a build validation policy on the target
+branch. See the [Azure DevOps guide](azure-devops.md).
+
+Both starters expect the project's lockfile to install an A11yGate CLI with
+scan support. Start your authorized app before the scan step and wait for it
+to be ready. Review the integration guide for browser and dependency setup.
+
+## Pilot kickoff
+
+Add `--pilot` to any target to generate `a11ygate-pilot/success-criteria.yml`
+and `a11ygate-pilot/KICKOFF.md`. Replace the starter dates and customer
+placeholder at kickoff. Init prints the doctor, scan, baseline, pull request,
+and evidence-pack steps for your chosen target.
+
 ## Optional fingerprint baseline
 
 Create and review an initial scan report separately, then opt in during setup:
@@ -106,7 +132,7 @@ node /path/to/a11ygate/packages/cli/dist/cli.mjs init --yes --baseline a11y-resu
 This calls `a11ygate baseline create` on the saved directory (or JSON file) and
 writes `.a11ygate-baseline.json`. It does not start a browser or a live scan.
 Missing or incomplete evidence fails before starter files are written. Commit
-the reviewed baseline with the starter files; both generated CI targets pass it
+the reviewed baseline with the starter files; all generated CI targets pass it
 to the scanner. Existing accepted findings remain debt; a baseline is not an audit
 or conformance claim. Re-running init preserves existing baseline evidence.
 

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -143,8 +143,8 @@ describe('GitLab Code Quality', () => {
   });
 });
 
-it('checks the includable YAML structure against documented GitLab job keys and report paths', () => {
-  const config = yaml.load(readFileSync('integrations/gitlab/a11ygate.gitlab-ci.yml', 'utf8')) as Record<string, Record<string, unknown>>;
+function checkGitLabConfig(text: string) {
+  const config = yaml.load(text) as Record<string, Record<string, unknown>>;
   expect(Object.keys(config)).toEqual(['a11ygate']);
   const job = config.a11ygate!;
   expect(job.image).toBe('mcr.microsoft.com/playwright:v1.64.1-noble');
@@ -158,4 +158,21 @@ it('checks the includable YAML structure against documented GitLab job keys and 
   const args = script.replace('"$A11YGATE_URL"', url).replace('"$A11YGATE_FAIL_ON"', 'serious').split(' ').slice(4);
   expect(parseScanArgs(args)).toMatchObject({ ok: true, options: { formats: ['gitlab-codequality', 'junit'], maxPages: 1, failOn: 'serious' } });
   expect(job.script).toEqual(['npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --format gitlab-codequality,junit --out-dir a11y']);
+}
+
+it('checks the includable YAML structure against documented GitLab job keys and report paths', () => {
+  checkGitLabConfig(readFileSync('integrations/gitlab/a11ygate.gitlab-ci.yml', 'utf8'));
+});
+
+it('checks the generated GitLab job against the same GitLab structure and scan format requirements', async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'a11ygate-gitlab-init-'));
+  try {
+    expect(path.dirname(realpathSync(cwd))).toBe(realpathSync(tmpdir()));
+    expect(realpathSync(cwd)).not.toBe(realpathSync(process.cwd()));
+    const io = { cwd, stdout: () => {}, stderr: () => {} };
+    expect(await run(['init', '--yes', '--target', 'gitlab', '--url', 'http://127.0.0.1:3000', '--crawl', '1'], io)).toBe(0);
+    checkGitLabConfig(await readFile(path.join(cwd, '.gitlab-ci.a11ygate.yml'), 'utf8'));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

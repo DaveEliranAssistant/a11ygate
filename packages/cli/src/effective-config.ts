@@ -8,7 +8,7 @@ import { secretEnvValues } from '@/lib/evidence/secrets';
 
 export type ConfigCommand = 'scan' | 'ci' | 'doctor';
 type Env = Readonly<Record<string, string | undefined>>;
-type Wiring = { flag: string; aliases?: string[]; commands: ConfigCommand[]; default: unknown; env?: string[]; reason?: string };
+type Wiring = { flag?: string; aliases?: string[]; commands: ConfigCommand[]; default: unknown; env?: string[]; reason?: string };
 const scan: ConfigCommand[] = ['scan'];
 const reports: ConfigCommand[] = ['scan', 'ci'];
 /** Explicit registry: adding a schema property requires a wiring decision and a drift-test update. */
@@ -37,6 +37,7 @@ export const CONFIG_WIRING: Record<string, Wiring> = {
   exclude: { flag: '--exclude', commands: scan, default: [] },
   ignoreRobots: { flag: '--ignore-robots', commands: scan, default: false },
   failOn: { flag: '--fail-on', commands: reports, aliases: ['--threshold', '-t'], default: 'serious', env: ['A11Y_THRESHOLD'] },
+  ciTarget: { commands: ['doctor'], default: null },
   engines: { flag: '--engines', commands: ['scan', 'doctor'], default: ['axe'] },
   modelFixes: { flag: '--model-fixes', commands: ['doctor'], default: false, env: ['A11Y_MODEL_FIXES'], reason: 'Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions.' },
   baseline: { flag: '--baseline', aliases: ['-b'], commands: reports, default: null, env: ['A11Y_BASELINE'] },
@@ -114,6 +115,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     sources[key] = 'default';
     const value = get(yaml, key);
     if (value !== undefined) { values[key] = value; sources[key] = CONFIG_FILE; }
+    if (!wiring.flag) continue; // Repository-only metadata.
     for (const name of [...(wiring.env ?? []), configEnvName(key)]) {
       const text = env[name];
       if (text === undefined || text === '') continue;
@@ -131,7 +133,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]!;
     const [name] = token.split('=');
-    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...(w.aliases ?? [])].includes(name!));
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.flag && w.commands.includes(command) && [w.flag, ...(w.aliases ?? [])].includes(name!));
     if (!entry) {
       if (command === 'scan' && !token.startsWith('-')) {
         if (supplied.has('url')) throw new Error('Pass one scan URL.');
@@ -144,6 +146,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
       continue;
     }
     const [key, wiring] = entry;
+    const flag = wiring.flag!;
     if (key === 'url' && supplied.has('url')) throw new Error('Pass one scan URL.');
     const schema = schemaAt(key);
     let text = token.includes('=') ? token.slice(token.indexOf('=') + 1) : undefined;
@@ -180,7 +183,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
     else values[key] = value;
     sources[key] = `flag:${name}`; supplied.add(key);
     if (key === 'url') continue;
-    remaining.push(command === 'ci' && key === 'failOn' ? '--threshold' : wiring.flag);
+    remaining.push(command === 'ci' && key === 'failOn' ? '--threshold' : flag);
     if (schema.type !== 'boolean' || key === 'modelFixes') remaining.push(text);
   }
   // Repository consent is a security boundary, not an overridable option.
@@ -190,7 +193,7 @@ export function loadEffectiveConfig(command: ConfigCommand, argv: readonly strin
   }
   const prefix: string[] = [];
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
-    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === 'default') continue;
+    if (!wiring.flag || !wiring.commands.includes(command) || supplied.has(key) || sources[key] === 'default') continue;
     const value = values[key];
     if (key === 'url') continue;
     if (key === 'crawl' && value === 0) { prefix.push('--crawl', '1'); continue; }
@@ -230,7 +233,15 @@ export function printableConfig(config: EffectiveConfig, env: Env = process.env)
     if (url.hash) url.hash = '[REDACTED]';
     values[key] = url.href;
   }
-  return redactor.object(Object.fromEntries(Object.keys(CONFIG_WIRING).map(key => [key, { value: values[key], source: config.sources[key], appliesTo: CONFIG_WIRING[key]!.commands, ...(CONFIG_WIRING[key]!.reason ? { note: CONFIG_WIRING[key]!.reason } : {}) }])));
+  const entries = Object.entries(CONFIG_WIRING)
+    .filter(([key, wiring]) => wiring.flag || config.sources[key] !== 'default')
+    .map(([key, wiring]) => [key, {
+      value: values[key],
+      source: config.sources[key],
+      appliesTo: wiring.commands,
+      ...(wiring.reason ? { note: wiring.reason } : {}),
+    }]);
+  return redactor.object(Object.fromEntries(entries));
 }
 
 /** Provider budgets remain in the model subsystem; its switch comes only from this resolver. */

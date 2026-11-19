@@ -142,6 +142,7 @@ describe('(c) schema covers every CLI option', () => {
     '--update-baseline': 'ci gate: one-off baseline write',
     '--manual-evidence': 'ci gate: per-run evidence input',
     '--from': 'baseline/evidence/prospect: per-run input', '--output': 'baseline create: per-run output', '--out': 'evidence pack / report pdf: per-run output', '-o': 'report pdf: per-run output path (alias of --out)',
+    '--pilot': 'init: opt in to pilot starter files',
     '--company': 'prospect: per-run report recipient', '--offer': 'prospect: per-run pricing opt-in',
     '--authorized-by': 'prospect: per-run approver', '--authorization-note': 'prospect: per-run approval scope',
     '--commit': 'evidence pack / report pdf: per-run commit SHA',
