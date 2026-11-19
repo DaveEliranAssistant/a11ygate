@@ -36,7 +36,7 @@ In the rest of this page, `a11ygate` means `node /path/to/a11ygate/packages/cli/
 a11ygate doctor
 ```
 
-From a project directory where Playwright and `@axe-core/playwright` are not installed yet, `doctor` names what is missing (trimmed):
+From a project directory where Playwright and `@axe-core/playwright` are not installed yet, `doctor` names what is missing (trimmed). This transcript is from a fixture project that already had an `.a11ygate.yml`; in a fresh project the first line is `[SKIPPED] config: No .a11ygate.yml; defaults apply.`, which is expected because the pilot steps pass everything on the command line:
 
 ```text
 A11yGate doctor
