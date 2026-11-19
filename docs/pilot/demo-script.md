@@ -38,7 +38,7 @@ The regression toggle adds one icon-only "remove item" button with no accessible
 | 7. Summary | 1:00 | `a11ygate prospect --from scan-3-gate --company '<name>' --out-dir prospect-out --offer`, open `prospect-summary.pdf` | "This one-pager is what I'd leave with you. The offer block comes from our pricing config; today that's a 21-day pilot at no cost, then $990 a year." |
 | 8. Questions | 1:30 | [Objections](#likely-objections-and-honest-answers) | Answer from the limits pages; don't stretch. |
 
-Total: 9 minutes of talk; the scripted commands themselves take under 15 seconds.
+Total: 10 minutes of talk (the per-step minutes above add up to 10:00); the scripted commands themselves take under 15 seconds on the worker Mac. The CI runner time is printed as `demo kit total <ms>` in the e2e log (`e2e/demo-kit.spec.ts`).
 
 ## Likely objections and honest answers
 
