@@ -2209,7 +2209,7 @@ function helpText() {
   return `a11ygate \u2014 accessibility regression gate for axe-core JSON
 
 Usage:
-  a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
+  a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [--pilot] [--url <url>] [--crawl <n>] [--fail-on <impact>]
                        (see a11ygate init --help)
   a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
   a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json
@@ -2656,7 +2656,7 @@ var a11ygate_schema_default = {
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   title: "A11yGate repository config (.a11ygate.yml)",
-  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes ciTarget, engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   type: "object",
   additionalProperties: false,
   properties: {
@@ -2672,6 +2672,11 @@ var a11ygate_schema_default = {
       minimum: 0,
       maximum: 20,
       "x-cli": ["--crawl"]
+    },
+    ciTarget: {
+      description: "CI starter target checked by doctor.",
+      type: "string",
+      enum: ["github", "jenkins", "gitlab", "azure-devops"]
     },
     incremental: {
       description: "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",
@@ -3361,6 +3366,7 @@ var CONFIG_WIRING = {
   exclude: { flag: "--exclude", commands: scan, default: [] },
   ignoreRobots: { flag: "--ignore-robots", commands: scan, default: false },
   failOn: { flag: "--fail-on", commands: reports, aliases: ["--threshold", "-t"], default: "serious", env: ["A11Y_THRESHOLD"] },
+  ciTarget: { commands: ["doctor"], default: null },
   engines: { flag: "--engines", commands: ["scan", "doctor"], default: ["axe"] },
   modelFixes: { flag: "--model-fixes", commands: ["doctor"], default: false, env: ["A11Y_MODEL_FIXES"], reason: "Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions." },
   baseline: { flag: "--baseline", aliases: ["-b"], commands: reports, default: null, env: ["A11Y_BASELINE"] },
@@ -3444,6 +3450,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
       values[key] = value;
       sources[key] = CONFIG_FILE;
     }
+    if (!wiring.flag) continue;
     for (const name of [...wiring.env ?? [], configEnvName(key)]) {
       const text = env[name];
       if (text === void 0 || text === "") continue;
@@ -3464,7 +3471,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
   for (let i = 0; i < argv2.length; i++) {
     const token = argv2[i];
     const [name] = token.split("=");
-    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.flag && w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
     if (!entry) {
       if (command === "scan" && !token.startsWith("-")) {
         if (supplied.has("url")) throw new Error("Pass one scan URL.");
@@ -3480,6 +3487,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
       continue;
     }
     const [key, wiring] = entry;
+    const flag = wiring.flag;
     if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
     const schema = schemaAt(key);
     let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
@@ -3524,7 +3532,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
     sources[key] = `flag:${name}`;
     supplied.add(key);
     if (key === "url") continue;
-    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : wiring.flag);
+    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : flag);
     if (schema.type !== "boolean" || key === "modelFixes") remaining.push(text);
   }
   if (values.modelFixes && get(yaml, "modelFixes") !== true) {
@@ -3533,7 +3541,7 @@ function loadEffectiveConfig(command, argv2 = [], io = {}) {
   }
   const prefix = [];
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
-    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
+    if (!wiring.flag || !wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
     const value = values[key];
     if (key === "url") continue;
     if (key === "crawl" && value === 0) {
@@ -3580,7 +3588,13 @@ function printableConfig(config2, env = process.env) {
     if (url.hash) url.hash = "[REDACTED]";
     values[key] = url.href;
   }
-  return redactor.object(Object.fromEntries(Object.keys(CONFIG_WIRING).map((key) => [key, { value: values[key], source: config2.sources[key], appliesTo: CONFIG_WIRING[key].commands, ...CONFIG_WIRING[key].reason ? { note: CONFIG_WIRING[key].reason } : {} }])));
+  const entries2 = Object.entries(CONFIG_WIRING).filter(([key, wiring]) => wiring.flag || config2.sources[key] !== "default").map(([key, wiring]) => [key, {
+    value: values[key],
+    source: config2.sources[key],
+    appliesTo: wiring.commands,
+    ...wiring.reason ? { note: wiring.reason } : {}
+  }]);
+  return redactor.object(Object.fromEntries(entries2));
 }
 function effectiveModelFixConfig(config2, env = process.env) {
   const parsed = parseConfigYaml(config2.repoConfig ?? "");
@@ -8455,7 +8469,7 @@ Run a11ygate trend --help for usage.
 
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync, lstatSync, readFileSync as readFileSync3 } from "node:fs";
 import { createRequire as createRequire4 } from "node:module";
 import path15 from "node:path";
 
@@ -8975,6 +8989,15 @@ function adaptersForEnv(env = {}) {
   return listed.includes("stub") ? [...BUILTIN_ADAPTERS, stubAdapter("stub")] : BUILTIN_ADAPTERS;
 }
 
+// packages/cli/src/ci-targets.ts
+var CI_FILES = {
+  github: ".github/workflows/a11ygate.yml",
+  jenkins: "Jenkinsfile",
+  gitlab: ".gitlab-ci.a11ygate.yml",
+  "azure-devops": "azure-pipelines.a11ygate.yml"
+};
+var CI_TARGETS = Object.keys(CI_FILES);
+
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
 var sections = { auth: "doctor-config", config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
@@ -9018,6 +9041,21 @@ async function doctorChecks(options = {}, io = {}) {
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
   add("config", problems.length ? "fail" : config2 === null ? "skipped" : "pass", config2 === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  const target = effective.values.ciTarget;
+  if (target) {
+    const file = CI_FILES[target];
+    let present2 = false;
+    try {
+      present2 = lstatSync(path15.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
+    } catch {
+    }
+    findings.push({
+      check: "ci-file",
+      status: present2 ? "pass" : "fail",
+      message: present2 ? `${file} exists for ${target}.` : `Expected a regular ${file} for ${target}. Run a11ygate init --yes --target ${target} to restore the starter.`,
+      link: "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/init.md"
+    });
+  }
   const hasAuth = ["auth.storageState", "auth.loginScript", "auth.cookieEnv", "auth.headerEnv"].some((key) => {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
@@ -9118,7 +9156,7 @@ async function runDoctor(argv2, io = {}) {
   const stdout = io.stdout ?? ((text) => process.stdout.write(text));
   const stderr = io.stderr ?? ((text) => process.stderr.write(text));
   if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout("Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n");
+    stdout("Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted and checks the CI starter when ciTarget is set.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n");
     return 0;
   }
   let strict = false;
@@ -9164,9 +9202,103 @@ async function runDoctor(argv2, io = {}) {
 }
 
 // packages/cli/src/init.ts
+import { constants } from "node:fs";
 import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
 import path17 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
+
+// integrations/azure-devops/a11ygate.yml
+var a11ygate_default = "# A11yGate step template for Azure Pipelines.\n# Automated testing only. Not a WCAG audit, certification or legal advice.\n#\n# Reference a reviewed copy from a repository you own (see docs/integrations/azure-devops.md):\n#   steps:\n#     - template: integrations/azure-devops/a11ygate.yml@a11ygate\n#       parameters:\n#         url: 'http://127.0.0.1:3000'\n#\n# Scan only a local or explicitly authorized application. Start it in an earlier step.\n# Steps use `script:`, which runs bash on Linux/macOS and cmd.exe on Windows; every\n# command below is written to behave the same in both shells.\nparameters:\n  - name: url\n    type: string\n    default: 'http://127.0.0.1:3000'\n  - name: failOn\n    type: string\n    default: serious\n    values: [minor, moderate, serious, critical, none]\n  - name: crawl\n    type: number\n    default: 1\n  - name: outDir\n    type: string\n    default: a11y\n  - name: nodeVersion\n    type: string\n    default: '22.x'\n  - name: installCommand\n    type: string\n    default: 'npm ci'\n  - name: installBrowsers\n    type: boolean\n    default: true\n  - name: artifactName\n    type: string\n    default: a11ygate\n\nsteps:\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1\n  # The version is always passed explicitly; the task's own default (10.x) is never used.\n  - task: UseNode@1\n    displayName: 'A11yGate: use Node.js'\n    inputs:\n      versionSource: spec\n      version: '${{ parameters.nodeVersion }}'\n      checkLatest: false\n\n  - script: ${{ parameters.installCommand }}\n    displayName: 'A11yGate: install dependencies'\n\n  - ${{ if eq(parameters.installBrowsers, true) }}:\n      - script: npx --no-install playwright install --with-deps chromium\n        displayName: 'A11yGate: install Chromium'\n\n  # Exit 1 = findings at or above failOn; exit 2 = setup/scan error. Either fails this step and the job.\n  - script: npx --no-install a11ygate scan \"${{ parameters.url }}\" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --format junit,sarif --out-dir ${{ parameters.outDir }}\n    name: a11ygateScan\n    displayName: 'A11yGate: scan (fail-on ${{ parameters.failOn }})'\n\n  - script: npx --no-install a11ygate evidence pack --from ${{ parameters.outDir }} --out ${{ parameters.outDir }}/a11ygate-evidence.zip --commit $(Build.SourceVersion)\n    name: a11ygateEvidence\n    displayName: 'A11yGate: evidence pack'\n    condition: succeededOrFailed()\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2\n  - task: PublishTestResults@2\n    displayName: 'A11yGate: publish JUnit results'\n    condition: succeededOrFailed()\n    inputs:\n      testResultsFormat: JUnit\n      testResultsFiles: '${{ parameters.outDir }}/a11ygate-scan.junit.xml'\n      searchFolder: '$(System.DefaultWorkingDirectory)'\n      testRunTitle: A11yGate\n      failTaskOnFailedTests: false\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1\n  # HTML/Markdown/JSON reports, engine evidence, SARIF and the evidence pack zip.\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish reports and evidence pack'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}'\n      ArtifactName: '${{ parameters.artifactName }}'\n      publishLocation: Container\n\n  # The SARIF SAST Scans Tab extension (sariftools.scans) reads *.sarif from an artifact named CodeAnalysisLogs.\n  # https://marketplace.visualstudio.com/items?itemName=sariftools.scans\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish SARIF (CodeAnalysisLogs)'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}/a11ygate-scan.sarif'\n      ArtifactName: CodeAnalysisLogs\n      publishLocation: Container\n";
+
+// integrations/gitlab/a11ygate.gitlab-ci.yml
+var a11ygate_gitlab_ci_default = `# Include this file from a reviewed copy in your own repository.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+a11ygate:
+  stage: test
+  # Node + Chromium; keep the installed playwright version aligned with this tag.
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  variables:
+    # Start your authorized application in this job before scanning.
+    A11YGATE_URL: "http://127.0.0.1:3000"
+    A11YGATE_FAIL_ON: "serious"
+  before_script:
+    - npm ci
+  script:
+    - npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --format gitlab-codequality,junit --out-dir a11y
+  allow_failure: false
+  artifacts:
+    when: always
+    paths:
+      - a11y/
+    reports:
+      codequality: a11y/a11ygate-scan.gitlab-codequality.json
+      junit: a11y/a11ygate-scan.junit.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
+`;
+
+// config/pricing.json
+var pricing_default = {
+  plan: "A11yGate",
+  priceUsdPerYear: 990,
+  billing: "yearly",
+  pilot: {
+    priceUsd: 0,
+    lengthDays: 21
+  },
+  currency: "USD"
+};
+
+// packages/cli/src/init-pilot.ts
+var lengthDays = pricing_default.pilot.lengthDays;
+var schemaUrl = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json";
+function pilotSuccessCriteria(target) {
+  const start = /* @__PURE__ */ new Date();
+  const decision = new Date(start);
+  decision.setUTCDate(decision.getUTCDate() + lengthDays - 1);
+  return `# yaml-language-server: $schema=${schemaUrl}
+# Fill in the customer, dates, and coverage targets at kickoff.
+# ${AUTOMATED_TESTING_DISCLAIMER}
+schemaVersion: 1
+pilot:
+  customer: "[[MISSING]]"
+  ciProvider: ${target}
+  startDate: "${start.toISOString().slice(0, 10)}"
+  lengthDays: ${lengthDays}
+  decisionDate: "${decision.toISOString().slice(0, 10)}"
+criteria:
+  gateRunsOnEveryPrToMain: true
+  targetBranch: main
+  baselineCreated: true
+  maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2: 0
+  pagesOrFlowsCovered:
+    min: 5
+  evidencePackProduced: true
+`;
+}
+var PILOT_KICKOFF = `# A11yGate pilot kickoff
+
+Use [docs/pilot/kickoff-checklist.md in the A11yGate repository](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/kickoff-checklist.md) and fill in \`success-criteria.yml\` at kickoff.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var openReview = {
+  github: "gh pr create",
+  gitlab: "glab mr create",
+  "azure-devops": "az repos pr create",
+  jenkins: "git push -u origin HEAD  # then open a pull request on your repository host"
+};
+function pilotNextSteps(target, url, crawl2, failOn) {
+  return `Pilot next steps (put the current A11yGate CLI on your PATH).
+1. a11ygate doctor
+2. a11ygate scan '${url}' --crawl ${Math.max(1, crawl2)} --fail-on ${failOn} --out-dir a11y-results
+3. a11ygate baseline create a11y-results --output .a11ygate-baseline.json
+   Review the baseline, wire it into the CI scan, then commit and push the setup on a branch.
+4. ${openReview[target]}
+5. a11ygate evidence pack --from a11y-results --out a11ygate-evidence.zip
+`;
+}
 
 // packages/cli/src/config.ts
 import { readFile as readFile8 } from "node:fs/promises";
@@ -9248,12 +9380,13 @@ ${projectsMode ? AUTOMATED_TESTING_DISCLAIMER + "\n" : ""}`);
 var JENKINS_TEMPLATE = "// Declarative example for A11yGate. This is the file the docs and CI tests include.\n// Load integrations/jenkins as a shared library (see docs/integrations/jenkins.md once published),\n// or copy vars/a11yGate.groovy into your own library.\n//\n// Agent: Node 20+ and, for `scan`, Playwright Chromium. Docker image alternative: image: 'node:22'.\n// Automated testing only. Not a WCAG audit, certification or legal advice.\n\n@Library('a11ygate') _\n\npipeline {\n  agent any\n  options {\n    timestamps()\n  }\n  parameters {\n    string(name: 'SITE_URL', defaultValue: 'http://127.0.0.1:4173/', description: 'Site you are authorized to test')\n    choice(name: 'FAIL_ON', choices: ['serious', 'critical', 'moderate', 'minor', 'none'], description: 'Minimum impact that makes the build UNSTABLE')\n  }\n  stages {\n    stage('Accessibility scan') {\n      steps {\n        a11yGate(\n          url: params.SITE_URL,\n          crawl: 10,\n          failOn: params.FAIL_ON,\n          formats: ['junit', 'sarif', 'json', 'md'],\n          cli: 'node packages/cli/dist/cli.mjs',\n          outDir: 'a11y-results'\n        )\n      }\n    }\n  }\n  post {\n    always {\n      echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'\n    }\n  }\n}\n";
 
 // packages/cli/src/init.ts
-var INIT_HELP = `a11ygate init [--yes] [--target github|jenkins] [options]
+var INIT_HELP = `a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [options]
   --url <url>          Site you own or are authorized to test. Default: http://127.0.0.1:4173/
   --crawl <n>          0 = start URL only; 1\u201320 = same-origin crawl. Default: 10.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --baseline <input>  Opt in: run baseline create on a saved scan report or output directory.
                       Writes .a11ygate-baseline.json; never starts a scan.
+  --pilot             Add pilot success criteria, kickoff checklist link, and next commands.
   --yes               No prompts; use flags and defaults (works without a TTY).
   --force             Replace existing regular starter files. Symlinks are refused.
   -h, --help          Show this help.
@@ -9326,8 +9459,35 @@ function jenkinsStarter(options) {
   const choices = [options.failOn, ...impacts.filter((impact) => impact !== options.failOn)];
   return JENKINS_TEMPLATE.replace(defaultUrl, options.url).replace("['serious', 'critical', 'moderate', 'minor', 'none']", `[${choices.map((impact) => `'${impact}'`).join(", ")}]`).replace("crawl: 10,", `crawl: ${options.crawl || "false"},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ""}`);
 }
+function withBaseline(template, options) {
+  if (!options.baseline) return template;
+  return template.replace(/(a11ygate scan [^\n]+)( --format )/, "$1 --baseline .a11ygate-baseline.json$2");
+}
+function gitlabStarter(options) {
+  const job = a11ygate_gitlab_ci_default.replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`).replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`).replace(/(--crawl )\d+/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return withBaseline(job, options);
+}
+function azureStarter(options) {
+  const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
+# Azure Repos Git uses a build validation branch policy for PRs.
+# Start your authorized application before the scan step.
+trigger: none
+pr: [main]
+pool:
+  vmImage: ubuntu-latest
+
+`;
+  const pipeline = a11ygate_default.slice(a11ygate_default.indexOf("\nparameters:") + 1).replace(/(  - name: url\n    type: string\n    default: ).*/, (_, prefix) => prefix + JSON.stringify(options.url)).replace(/(  - name: failOn\n    type: string\n    default: ).*/, (_, prefix) => prefix + options.failOn).replace(/(  - name: crawl\n    type: number\n    default: ).*/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return header + withBaseline(pipeline, options);
+}
+var starters = {
+  github: githubStarter,
+  jenkins: jenkinsStarter,
+  gitlab: gitlabStarter,
+  "azure-devops": azureStarter
+};
 function validate(options) {
-  if (!["github", "jenkins"].includes(options.target)) throw new Error("--target must be github or jenkins.");
+  if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(", ")}.`);
   const url = new URL(options.url);
   if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password || /[\s\x00-\x1f\x7f'"\\`$]/.test(options.url)) {
     throw new Error("--url must be an HTTP(S) URL without credentials, whitespace, quotes, or shell interpolation; percent-encode special URL characters.");
@@ -9352,14 +9512,16 @@ async function writeStarter(cwd, file, content, force, stdout) {
     if (error.code !== "ENOENT") throw error;
     return null;
   });
+  if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   if (info && !force) {
     stdout(`Skipped existing ${file} (use --force to replace).
 `);
     return false;
   }
-  if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
   try {
-    await writeFile8(destination, content, { encoding: "utf8", flag: force ? "w" : "wx" });
+    await writeFile8(destination, content, { encoding: "utf8", flag });
   } catch (error) {
     if (!force && error.code === "EEXIST") {
       stdout(`Skipped existing ${file}.
@@ -9379,12 +9541,13 @@ async function runInit(argv2, io = {}) {
     stdout(INIT_HELP);
     return 0;
   }
-  const options = { target: "github", url: defaultUrl, crawl: 10, failOn: "serious", yes: false, force: false };
+  const options = { target: "github", url: defaultUrl, crawl: 10, failOn: "serious", yes: false, force: false, pilot: false };
   const supplied = /* @__PURE__ */ new Set();
   try {
     for (let i = 0; i < argv2.length; i++) {
       const flag = argv2[i];
       if (flag === "--yes") options.yes = true;
+      else if (flag === "--pilot") options.pilot = true;
       else if (flag === "--force") options.force = true;
       else if (["--target", "--url", "--crawl", "--fail-on", "--baseline"].includes(flag)) {
         const value = argv2[++i];
@@ -9404,7 +9567,7 @@ async function runInit(argv2, io = {}) {
       if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("Interactive init requires a TTY. Use --yes with flags for scripted setup.");
       const prompt = createInterface3({ input: process.stdin, output: process.stdout });
       try {
-        if (!supplied.has("--target")) options.target = (await prompt.question("CI target (github/jenkins) [github]: ")).trim() || options.target;
+        if (!supplied.has("--target")) options.target = (await prompt.question(`CI target (${CI_TARGETS.join("/")}) [github]: `)).trim() || options.target;
         if (!supplied.has("--url")) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
         if (!supplied.has("--crawl")) {
           const answer = (await prompt.question("Crawl pages (0 = start URL only, maximum 20) [10]: ")).trim();
@@ -9430,17 +9593,30 @@ async function runInit(argv2, io = {}) {
       if (existing) stdout("Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n");
       else if (await runBaseline(["create", options.baseline, "--output", ".a11ygate-baseline.json"], io) !== 0) return 2;
     }
+    const recordTarget = options.pilot || options.target === "gitlab" || options.target === "azure-devops";
     const config2 = `${SCHEMA_COMMENT}
 # ${AUTOMATED_TESTING_DISCLAIMER}
 # Setup choices; scan uses the explicit flags in the generated CI file.
-engines: [axe]
+${recordTarget ? `ciTarget: ${options.target}
+` : ""}engines: [axe]
 modelFixes: false
 url: ${JSON.stringify(options.url)}
 crawl: ${options.crawl}
 failOn: ${options.failOn}
 ${options.baseline ? "baseline: .a11ygate-baseline.json\n" : ""}`;
     await writeStarter(cwd, ".a11ygate.yml", config2, options.force, stdout);
-    await writeStarter(cwd, options.target === "github" ? ".github/workflows/a11ygate.yml" : "Jenkinsfile", options.target === "github" ? githubStarter(options) : jenkinsStarter(options), options.force, stdout);
+    await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
+    if (options.pilot) {
+      await writeStarter(cwd, "a11ygate-pilot/success-criteria.yml", pilotSuccessCriteria(options.target), options.force, stdout);
+      await writeStarter(cwd, "a11ygate-pilot/KICKOFF.md", PILOT_KICKOFF, options.force, stdout);
+    }
+    if (options.target === "gitlab") stdout(`Add this entry to your .gitlab-ci.yml include list:
+include:
+  - local: '${CI_FILES.gitlab}'
+`);
+    if (options.target === "azure-devops") stdout(`Register ${CI_FILES["azure-devops"]} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
+`);
+    if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
     stdout("Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n");
     if (options.target === "jenkins") stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}
@@ -9626,18 +9802,6 @@ var own_hosts_default = [
   "a11ygate.vercel.app",
   "qe-atlas.vercel.app"
 ];
-
-// config/pricing.json
-var pricing_default = {
-  plan: "A11yGate",
-  priceUsdPerYear: 990,
-  billing: "yearly",
-  pilot: {
-    priceUsd: 0,
-    lengthDays: 21
-  },
-  currency: "USD"
-};
 
 // lib/billing.ts
 var pricing = pricing_default;

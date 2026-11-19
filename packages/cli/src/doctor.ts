@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { adaptersForEnv } from '@/lib/modelfix/adapters';
 import { effectiveModelFixConfig, loadEffectiveConfig } from './effective-config';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { CI_FILES, type CiTarget } from './ci-targets';
 import { configProblems, parseConfigYaml, SCHEMA_PATH } from './config-schema';
 type Env = Readonly<Record<string, string | undefined>>;
 export type DoctorFinding = {
@@ -74,6 +75,19 @@ export async function doctorChecks(options: {
   const findings: DoctorFinding[] = [];
   const add = (check: string, status: DoctorFinding['status'], message: string) => findings.push({ check, status, message, link: GUIDE + sections[check] });
   add('config', problems.length ? 'fail' : config === null ? 'skipped' : 'pass', config === null && !problems.length ? 'No .a11ygate.yml; defaults apply.' : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join(' ')} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  const target = effective.values.ciTarget as CiTarget | null;
+  if (target) {
+    const file = CI_FILES[target];
+    let present = false;
+    try { present = lstatSync(path.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false; }
+    catch { /* An inaccessible CI file cannot be verified. */ }
+    findings.push({
+      check: 'ci-file',
+      status: present ? 'pass' : 'fail',
+      message: present ? `${file} exists for ${target}.` : `Expected a regular ${file} for ${target}. Run a11ygate init --yes --target ${target} to restore the starter.`,
+      link: 'https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/init.md',
+    });
+  }
   const hasAuth = ['auth.storageState', 'auth.loginScript', 'auth.cookieEnv', 'auth.headerEnv'].some(key => {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
@@ -182,7 +196,7 @@ export async function runDoctor(argv: readonly string[], io: DoctorIo = {}): Pro
   const stdout = io.stdout ?? ((text: string) => process.stdout.write(text));
   const stderr = io.stderr ?? ((text: string) => process.stderr.write(text));
   if (argv.includes('--help') || argv.includes('-h')) {
-    stdout('Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n');
+    stdout('Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted and checks the CI starter when ciTarget is set.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n');
     return 0;
   }
   let strict = false;

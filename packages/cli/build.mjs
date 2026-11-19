@@ -13,6 +13,9 @@ const actionOut = path.join(repoRoot, 'action', 'dist', 'cli.mjs');
 const atAlias = {
   name: 'at-alias',
   setup(buildContext) {
+    buildContext.onResolve({ filter: /\.yml\?raw$/ }, (args) => ({
+      path: path.resolve(args.resolveDir, args.path.slice(0, -'?raw'.length)),
+    }));
     buildContext.onResolve({ filter: /^@\// }, (args) => {
       const base = path.join(repoRoot, args.path.slice(2));
       return { path: existsSync(`${base}.ts`) ? `${base}.ts` : existsSync(path.join(base, 'index.ts')) ? path.join(base, 'index.ts') : base };
@@ -27,6 +30,7 @@ await mkdir(path.dirname(actionOut), { recursive: true });
 
 const cliBuild = await build({
   metafile: true,
+  loader: { '.yml': 'text' },
   entryPoints: [path.join(packageRoot, 'src', 'bin.ts')],
   bundle: true,
   platform: 'node',

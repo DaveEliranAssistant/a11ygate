@@ -1,6 +1,6 @@
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync, lstatSync, readFileSync as readFileSync2 } from "node:fs";
 import { createRequire } from "node:module";
 import path2 from "node:path";
 
@@ -634,7 +634,7 @@ var a11ygate_schema_default = {
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   title: "A11yGate repository config (.a11ygate.yml)",
-  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes ciTarget, engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   type: "object",
   additionalProperties: false,
   properties: {
@@ -650,6 +650,11 @@ var a11ygate_schema_default = {
       minimum: 0,
       maximum: 20,
       "x-cli": ["--crawl"]
+    },
+    ciTarget: {
+      description: "CI starter target checked by doctor.",
+      type: "string",
+      enum: ["github", "jenkins", "gitlab", "azure-devops"]
     },
     incremental: {
       description: "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",
@@ -1339,6 +1344,7 @@ var CONFIG_WIRING = {
   exclude: { flag: "--exclude", commands: scan, default: [] },
   ignoreRobots: { flag: "--ignore-robots", commands: scan, default: false },
   failOn: { flag: "--fail-on", commands: reports, aliases: ["--threshold", "-t"], default: "serious", env: ["A11Y_THRESHOLD"] },
+  ciTarget: { commands: ["doctor"], default: null },
   engines: { flag: "--engines", commands: ["scan", "doctor"], default: ["axe"] },
   modelFixes: { flag: "--model-fixes", commands: ["doctor"], default: false, env: ["A11Y_MODEL_FIXES"], reason: "Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions." },
   baseline: { flag: "--baseline", aliases: ["-b"], commands: reports, default: null, env: ["A11Y_BASELINE"] },
@@ -1422,6 +1428,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       values[key] = value;
       sources[key] = CONFIG_FILE;
     }
+    if (!wiring.flag) continue;
     for (const name of [...wiring.env ?? [], configEnvName(key)]) {
       const text = env[name];
       if (text === void 0 || text === "") continue;
@@ -1442,7 +1449,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     const [name] = token.split("=");
-    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.flag && w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
     if (!entry) {
       if (command === "scan" && !token.startsWith("-")) {
         if (supplied.has("url")) throw new Error("Pass one scan URL.");
@@ -1458,6 +1465,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       continue;
     }
     const [key, wiring] = entry;
+    const flag = wiring.flag;
     if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
     const schema = schemaAt(key);
     let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
@@ -1502,7 +1510,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     sources[key] = `flag:${name}`;
     supplied.add(key);
     if (key === "url") continue;
-    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : wiring.flag);
+    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : flag);
     if (schema.type !== "boolean" || key === "modelFixes") remaining.push(text);
   }
   if (values.modelFixes && get(yaml, "modelFixes") !== true) {
@@ -1511,7 +1519,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
   }
   const prefix = [];
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
-    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
+    if (!wiring.flag || !wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
     const value = values[key];
     if (key === "url") continue;
     if (key === "crawl" && value === 0) {
@@ -1556,6 +1564,15 @@ var CLI_NPM_PUBLISHED_VERSION = "0.1.0";
 var CLI_NPM_PACKAGE = `@qe-atlas/a11ygate@${CLI_NPM_PUBLISHED_VERSION}`;
 var CLI_NPM_UNRELEASED_NOTE = "Newer features are on main, not yet on npm.";
 var CLI_NPM_SENTENCE = `The CLI on npm is ${CLI_NPM_PACKAGE}. ${CLI_NPM_UNRELEASED_NOTE}`;
+
+// packages/cli/src/ci-targets.ts
+var CI_FILES = {
+  github: ".github/workflows/a11ygate.yml",
+  jenkins: "Jenkinsfile",
+  gitlab: ".gitlab-ci.a11ygate.yml",
+  "azure-devops": "azure-pipelines.a11ygate.yml"
+};
+var CI_TARGETS = Object.keys(CI_FILES);
 
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
@@ -1604,6 +1621,21 @@ async function doctorChecks(options = {}, io = {}) {
   const findings = [];
   const add = (check2, status, message) => findings.push({ check: check2, status, message, link: GUIDE + sections[check2] });
   add("config", problems.length ? "fail" : config === null ? "skipped" : "pass", config === null && !problems.length ? "No .a11ygate.yml; defaults apply." : problems.length ? `.a11ygate.yml has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.join(" ")} See ${SCHEMA_PATH}; run a11ygate config validate after fixing.` : `.a11ygate.yml is valid against ${SCHEMA_PATH}.`);
+  const target = effective.values.ciTarget;
+  if (target) {
+    const file = CI_FILES[target];
+    let present2 = false;
+    try {
+      present2 = lstatSync(path2.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
+    } catch {
+    }
+    findings.push({
+      check: "ci-file",
+      status: present2 ? "pass" : "fail",
+      message: present2 ? `${file} exists for ${target}.` : `Expected a regular ${file} for ${target}. Run a11ygate init --yes --target ${target} to restore the starter.`,
+      link: "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/init.md"
+    });
+  }
   const hasAuth = ["auth.storageState", "auth.loginScript", "auth.cookieEnv", "auth.headerEnv"].some((key) => {
     const value = effective.values[key];
     return Array.isArray(value) ? value.length > 0 : !!value;
@@ -1704,7 +1736,7 @@ async function runDoctor(argv, io = {}) {
   const stdout = io.stdout ?? ((text) => process.stdout.write(text));
   const stderr = io.stderr ?? ((text) => process.stderr.write(text));
   if (argv.includes("--help") || argv.includes("-h")) {
-    stdout("Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n");
+    stdout("Usage: a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]\nNode 20+; Action Node 22. Reads engines from .a11ygate.yml when omitted and checks the CI starter when ciTarget is set.\nDefault exits 0; --strict exits 1 for failed checks. Unknown checks are reported separately.\n");
     return 0;
   }
   let strict = false;

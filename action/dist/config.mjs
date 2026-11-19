@@ -112,7 +112,7 @@ var a11ygate_schema_default = {
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/a11ygate.schema.json",
   title: "A11yGate repository config (.a11ygate.yml)",
-  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  description: "Effective repository settings for A11yGate. CLI flags override environment variables, which override this file and then defaults. Scan consumes all live-scan settings; ci and the Action consume saved-result report settings; doctor consumes ciTarget, engines and modelFixes. See docs/configuration.md for command scopes and the modelFixes consent boundary. Automated testing only. Not a WCAG audit, certification or legal advice.",
   type: "object",
   additionalProperties: false,
   properties: {
@@ -128,6 +128,11 @@ var a11ygate_schema_default = {
       minimum: 0,
       maximum: 20,
       "x-cli": ["--crawl"]
+    },
+    ciTarget: {
+      description: "CI starter target checked by doctor.",
+      type: "string",
+      enum: ["github", "jenkins", "gitlab", "azure-devops"]
     },
     incremental: {
       description: "Opt-in local cache directory for rendered-DOM incremental scans. Absent: run engines on every page.",
@@ -859,6 +864,7 @@ var CONFIG_WIRING = {
   exclude: { flag: "--exclude", commands: scan, default: [] },
   ignoreRobots: { flag: "--ignore-robots", commands: scan, default: false },
   failOn: { flag: "--fail-on", commands: reports, aliases: ["--threshold", "-t"], default: "serious", env: ["A11Y_THRESHOLD"] },
+  ciTarget: { commands: ["doctor"], default: null },
   engines: { flag: "--engines", commands: ["scan", "doctor"], default: ["axe"] },
   modelFixes: { flag: "--model-fixes", commands: ["doctor"], default: false, env: ["A11Y_MODEL_FIXES"], reason: "Repository consent is mandatory; scan/ci do not generate model fixes. The Action uses this switch for suggestions." },
   baseline: { flag: "--baseline", aliases: ["-b"], commands: reports, default: null, env: ["A11Y_BASELINE"] },
@@ -942,6 +948,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       values[key] = value;
       sources[key] = CONFIG_FILE;
     }
+    if (!wiring.flag) continue;
     for (const name of [...wiring.env ?? [], configEnvName(key)]) {
       const text = env[name];
       if (text === void 0 || text === "") continue;
@@ -962,7 +969,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     const [name] = token.split("=");
-    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
+    const entry = Object.entries(CONFIG_WIRING).find(([, w]) => w.flag && w.commands.includes(command) && [w.flag, ...w.aliases ?? []].includes(name));
     if (!entry) {
       if (command === "scan" && !token.startsWith("-")) {
         if (supplied.has("url")) throw new Error("Pass one scan URL.");
@@ -978,6 +985,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
       continue;
     }
     const [key, wiring] = entry;
+    const flag = wiring.flag;
     if (key === "url" && supplied.has("url")) throw new Error("Pass one scan URL.");
     const schema = schemaAt(key);
     let text = token.includes("=") ? token.slice(token.indexOf("=") + 1) : void 0;
@@ -1022,7 +1030,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
     sources[key] = `flag:${name}`;
     supplied.add(key);
     if (key === "url") continue;
-    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : wiring.flag);
+    remaining.push(command === "ci" && key === "failOn" ? "--threshold" : flag);
     if (schema.type !== "boolean" || key === "modelFixes") remaining.push(text);
   }
   if (values.modelFixes && get(yaml, "modelFixes") !== true) {
@@ -1031,7 +1039,7 @@ function loadEffectiveConfig(command, argv = [], io = {}) {
   }
   const prefix = [];
   for (const [key, wiring] of Object.entries(CONFIG_WIRING)) {
-    if (!wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
+    if (!wiring.flag || !wiring.commands.includes(command) || supplied.has(key) || sources[key] === "default") continue;
     const value = values[key];
     if (key === "url") continue;
     if (key === "crawl" && value === 0) {
@@ -1078,7 +1086,13 @@ function printableConfig(config, env = process.env) {
     if (url.hash) url.hash = "[REDACTED]";
     values[key] = url.href;
   }
-  return redactor.object(Object.fromEntries(Object.keys(CONFIG_WIRING).map((key) => [key, { value: values[key], source: config.sources[key], appliesTo: CONFIG_WIRING[key].commands, ...CONFIG_WIRING[key].reason ? { note: CONFIG_WIRING[key].reason } : {} }])));
+  const entries = Object.entries(CONFIG_WIRING).filter(([key, wiring]) => wiring.flag || config.sources[key] !== "default").map(([key, wiring]) => [key, {
+    value: values[key],
+    source: config.sources[key],
+    appliesTo: wiring.commands,
+    ...wiring.reason ? { note: wiring.reason } : {}
+  }]);
+  return redactor.object(Object.fromEntries(entries));
 }
 function effectiveModelFixConfig(config, env = process.env) {
   const parsed = parseConfigYaml(config.repoConfig ?? "");

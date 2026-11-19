@@ -2,7 +2,7 @@ export function helpText(): string {
   return `a11ygate — accessibility regression gate for axe-core JSON
 
 Usage:
-  a11ygate init [--yes] [--target github|jenkins] [--url <url>] [--crawl <n>] [--fail-on <impact>]
+  a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [--pilot] [--url <url>] [--crawl <n>] [--fail-on <impact>]
                        (see a11ygate init --help)
   a11ygate doctor [--strict] [--engines axe,htmlcs,ibm,lighthouse] [--model-fixes on|off]
   a11ygate config validate [file]   Check .a11ygate.yml against schema/a11ygate.schema.json

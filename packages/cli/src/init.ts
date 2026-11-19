@@ -1,18 +1,24 @@
+import { constants } from 'node:fs';
 import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import azureTemplate from '../../../integrations/azure-devops/a11ygate.yml?raw';
+import gitlabTemplate from '../../../integrations/gitlab/a11ygate.gitlab-ci.yml?raw';
+import { CI_FILES, CI_TARGETS, type CiTarget } from './ci-targets';
+import { PILOT_KICKOFF, pilotNextSteps, pilotSuccessCriteria } from './init-pilot';
 import { runBaseline } from './baseline';
 import { SCHEMA_COMMENT } from './config';
 import { JENKINS_TEMPLATE } from './init-templates';
 import type { RunIo } from './run';
 
-export const INIT_HELP = `a11ygate init [--yes] [--target github|jenkins] [options]
+export const INIT_HELP = `a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [options]
   --url <url>          Site you own or are authorized to test. Default: http://127.0.0.1:4173/
   --crawl <n>          0 = start URL only; 1–20 = same-origin crawl. Default: 10.
   --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
   --baseline <input>  Opt in: run baseline create on a saved scan report or output directory.
                       Writes .a11ygate-baseline.json; never starts a scan.
+  --pilot             Add pilot success criteria, kickoff checklist link, and next commands.
   --yes               No prompts; use flags and defaults (works without a TTY).
   --force             Replace existing regular starter files. Symlinks are refused.
   -h, --help          Show this help.
@@ -21,7 +27,7 @@ Generated config records setup choices; scan flags in the CI file apply them.
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
 
-type Options = { target: string; url: string; crawl: number; failOn: string; baseline?: string; yes: boolean; force: boolean };
+type Options = { target: string; url: string; crawl: number; failOn: string; baseline?: string; yes: boolean; force: boolean; pilot: boolean };
 const impacts = ['serious', 'critical', 'moderate', 'minor', 'none'];
 const defaultUrl = 'http://127.0.0.1:4173/';
 // Source build with scan support; published 0.1.0 lacks scan. Review this ref when upgrading.
@@ -95,8 +101,45 @@ export function jenkinsStarter(options: Options): string {
     .replace('crawl: 10,', `crawl: ${options.crawl || 'false'},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ''}`);
 }
 
-function validate(options: Options) {
-  if (!['github', 'jenkins'].includes(options.target)) throw new Error('--target must be github or jenkins.');
+function withBaseline(template: string, options: Options): string {
+  if (!options.baseline) return template;
+  return template.replace(/(a11ygate scan [^\n]+)( --format )/, '$1 --baseline .a11ygate-baseline.json$2');
+}
+
+function gitlabStarter(options: Options): string {
+  const job = gitlabTemplate
+    .replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`)
+    .replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`)
+    .replace(/(--crawl )\d+/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return withBaseline(job, options);
+}
+
+function azureStarter(options: Options): string {
+  const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
+# Azure Repos Git uses a build validation branch policy for PRs.
+# Start your authorized application before the scan step.
+trigger: none
+pr: [main]
+pool:
+  vmImage: ubuntu-latest
+
+`;
+  const pipeline = azureTemplate.slice(azureTemplate.indexOf('\nparameters:') + 1)
+    .replace(/(  - name: url\n    type: string\n    default: ).*/, (_, prefix) => prefix + JSON.stringify(options.url))
+    .replace(/(  - name: failOn\n    type: string\n    default: ).*/, (_, prefix) => prefix + options.failOn)
+    .replace(/(  - name: crawl\n    type: number\n    default: ).*/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return header + withBaseline(pipeline, options);
+}
+
+const starters: Record<CiTarget, (options: Options) => string> = {
+  github: githubStarter,
+  jenkins: jenkinsStarter,
+  gitlab: gitlabStarter,
+  'azure-devops': azureStarter,
+};
+
+function validate(options: Options): asserts options is Options & { target: CiTarget } {
+  if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(', ')}.`);
   const url = new URL(options.url);
   if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || /[\s\x00-\x1f\x7f'"\\`$]/.test(options.url)) {
     throw new Error('--url must be an HTTP(S) URL without credentials, whitespace, quotes, or shell interpolation; percent-encode special URL characters.');
@@ -118,10 +161,12 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   }
   const destination = path.join(parent, parts.at(-1)!);
   const info = await lstat(destination).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+  if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   if (info && !force) { stdout(`Skipped existing ${file} (use --force to replace).\n`); return false; }
-  if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
   try {
-    await writeFile(destination, content, { encoding: 'utf8', flag: force ? 'w' : 'wx' });
+    await writeFile(destination, content, { encoding: 'utf8', flag });
   } catch (error) {
     if (!force && (error as NodeJS.ErrnoException).code === 'EEXIST') { stdout(`Skipped existing ${file}.\n`); return false; }
     throw error;
@@ -134,12 +179,13 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (argv.includes('--help') || argv.includes('-h')) { stdout(INIT_HELP); return 0; }
-  const options: Options = { target: 'github', url: defaultUrl, crawl: 10, failOn: 'serious', yes: false, force: false };
+  const options: Options = { target: 'github', url: defaultUrl, crawl: 10, failOn: 'serious', yes: false, force: false, pilot: false };
   const supplied = new Set<string>();
   try {
     for (let i = 0; i < argv.length; i++) {
       const flag = argv[i];
       if (flag === '--yes') options.yes = true;
+      else if (flag === '--pilot') options.pilot = true;
       else if (flag === '--force') options.force = true;
       else if (['--target', '--url', '--crawl', '--fail-on', '--baseline'].includes(flag)) {
         const value = argv[++i];
@@ -156,7 +202,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
       if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('Interactive init requires a TTY. Use --yes with flags for scripted setup.');
       const prompt = createInterface({ input: process.stdin, output: process.stdout });
       try {
-        if (!supplied.has('--target')) options.target = (await prompt.question('CI target (github/jenkins) [github]: ')).trim() || options.target;
+        if (!supplied.has('--target')) options.target = (await prompt.question(`CI target (${CI_TARGETS.join('/')}) [github]: `)).trim() || options.target;
         if (!supplied.has('--url')) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
         if (!supplied.has('--crawl')) {
           const answer = (await prompt.question('Crawl pages (0 = start URL only, maximum 20) [10]: ')).trim();
@@ -178,9 +224,17 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
       if (existing) stdout('Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n');
       else if (await runBaseline(['create', options.baseline, '--output', '.a11ygate-baseline.json'], io) !== 0) return 2;
     }
-    const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\nengines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
+    const recordTarget = options.pilot || options.target === 'gitlab' || options.target === 'azure-devops';
+    const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\n${recordTarget ? `ciTarget: ${options.target}\n` : ''}engines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
-    await writeStarter(cwd, options.target === 'github' ? '.github/workflows/a11ygate.yml' : 'Jenkinsfile', options.target === 'github' ? githubStarter(options) : jenkinsStarter(options), options.force, stdout);
+    await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
+    if (options.pilot) {
+      await writeStarter(cwd, 'a11ygate-pilot/success-criteria.yml', pilotSuccessCriteria(options.target), options.force, stdout);
+      await writeStarter(cwd, 'a11ygate-pilot/KICKOFF.md', PILOT_KICKOFF, options.force, stdout);
+    }
+    if (options.target === 'gitlab') stdout(`Add this entry to your .gitlab-ci.yml include list:\ninclude:\n  - local: '${CI_FILES.gitlab}'\n`);
+    if (options.target === 'azure-devops') stdout(`Register ${CI_FILES['azure-devops']} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.\n`);
+    if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
     stdout('Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n');
     if (options.target === 'jenkins') stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}\n`);
