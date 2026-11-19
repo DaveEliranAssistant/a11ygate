@@ -28,6 +28,7 @@ describe('pilot kit files (A11Y-R66)', () => {
   it('has every kit file and is linked from the docs index', () => {
     expect(pilotFiles).toEqual([
       'docs/pilot/README.md',
+      'docs/pilot/demo-script.md', // A11Y-R68 (#87)
       'docs/pilot/kickoff-checklist.md',
       'docs/pilot/pilot-terms.template.md',
       'docs/pilot/quickstart.md',
@@ -113,6 +114,23 @@ describe('pilot kit files (A11Y-R66)', () => {
     // The reduction advice depends on which steps need write scopes.
     expect(generated).not.toMatch(/github-script|gh (?:issue|pr) /);
     expect(generated).toContain('upload-sarif');
+  });
+
+  it('names the generated job id as the required check, not the workflow name', async () => {
+    const { githubStarter } = await import('@/packages/cli/src/init');
+    const generated = githubStarter({ target: 'github', url: 'http://127.0.0.1:4173/', crawl: 10, failOn: 'serious', baseline: 'a11y', yes: true, force: false } as Parameters<typeof githubStarter>[0]);
+    const jobId = /^jobs:\n {2}([\w-]+):$/m.exec(generated)?.[1];
+    expect(jobId).toBe('a11y');
+    const text = read('docs/pilot/quickstart.md');
+    expect(text).toContain(`make the \`${jobId}\` check`);
+    expect(text).not.toMatch(/make the `A11yGate` check required/);
+  });
+
+  it('never calls plain `scan` read-only; only `prospect` restricts requests', () => {
+    for (const rel of ['docs/pilot/quickstart.md', 'docs/pilot/pilot-terms.template.md', 'docs/pilot/kickoff-checklist.md', 'docs/pilot/README.md']) {
+      expect(read(rel), rel).not.toMatch(/read[- ]only/i);
+    }
+    expect(read('docs/pilot/quickstart.md')).toContain('`scan` is **not request-restricted**');
   });
 });
 

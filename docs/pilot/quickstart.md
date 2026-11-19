@@ -98,7 +98,7 @@ Scanning http://127.0.0.1:63570/about.html?ref=products
 …
 ```
 
-The scan stays on the same origin, honours `robots.txt`, and is read-only unless you opt in to interactions. Pages behind a login need a Playwright storage state file (`--storage-state`); see [Authenticated pages](../authenticated-pages.md) and use a test account only.
+The crawl stays on the same origin and honours `robots.txt`. A11yGate itself does not click controls or submit forms unless you opt in to interactions (`--interactions`, `--auto-interactions`) or a login script. `scan` is **not request-restricted**, though: each page loads in a real browser and runs its own JavaScript, so any requests the page makes on load (analytics, API calls, including non-GET requests) still happen. Point it at a test or staging environment, not production, unless the site owner has agreed. Only `a11ygate prospect` blocks non-GET/HEAD requests, form submissions and popups. Pages behind a login need a Playwright storage state file (`--storage-state`); see [Authenticated pages](../authenticated-pages.md) and use a test account only.
 
 ## 4. Baseline the existing findings (3 minutes)
 
@@ -191,7 +191,7 @@ permissions:
 
 The gate itself (the scan step's exit code) and the report artifact work with `contents: read` alone. Record the permissions you kept in the [kickoff checklist](kickoff-checklist.md).
 
-Add your application's install/build/start commands where the workflow comment says so, then make the `A11yGate` check required in the branch protection rule (or ruleset) for `main`. Details: [GitHub Action](../integrations/github-action.md), [init](../integrations/init.md).
+Add your application's install/build/start commands where the workflow comment says so, then make the `a11y` check (the job id in the generated workflow, shown as `A11yGate / a11y` in the PR checks list) required in the branch protection rule (or ruleset) for `main`. Details: [GitHub Action](../integrations/github-action.md), [init](../integrations/init.md).
 
 ### GitLab CI
 

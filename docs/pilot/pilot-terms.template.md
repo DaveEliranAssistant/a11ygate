@@ -46,7 +46,7 @@ Excluded:
 ## 5. Authorization to scan
 
 - The Customer confirms in writing, before any scan, that the site owner authorizes scanning of the named URLs and environments for the pilot dates.
-- Scans run read-only by default, on the same origin, honouring `robots.txt`. Authenticated pages are scanned only with test accounts the Customer controls.
+- Scans stay on the same origin and honour `robots.txt`. The tool does not click controls or submit forms unless the Customer opts in to interactions or a login script. Scanned pages load in a real browser and run their own scripts, so requests a page makes on load still happen; pilot scans therefore target a test or staging environment unless the site owner agrees otherwise in writing. Authenticated pages are scanned only with test accounts the Customer controls.
 - Customer responsibilities for the authorization: [[LEGAL REVIEW]]
 
 ## 6. Data handling
