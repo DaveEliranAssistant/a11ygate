@@ -76,9 +76,10 @@
           "type": "boolean"
         },
         "maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2": {
-          "description": "Maximum number of new serious or critical findings merged to the target branch after the end of week 2 (day 14) without a recorded review decision (a11ygate review). Usually 0.",
+          "description": "Maximum number of new serious or critical findings merged to the target branch after the end of week 2 (day 14) without a recorded review decision (a11ygate review). Pilot target: 0 (the schema allows no other value).",
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 0
         },
         "pagesOrFlowsCovered": {
           "description": "Coverage target: the scan must cover at least `min` pages or flows. `list` optionally names them.",

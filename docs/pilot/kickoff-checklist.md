@@ -15,6 +15,7 @@ Use this checklist in the kickoff call for the free 21-day pilot. Copy it into t
 
 - [ ] Customer: names the repository and the CI system (GitHub Actions, GitLab CI, Azure DevOps or Jenkins).
 - [ ] Customer: grants the owner the **least access needed**: read access to the repository and permission to open PRs or merge requests. No admin, no organization-wide access, no production deploy rights.
+- [ ] Customer: reviews the CI token permissions before committing the gate. The GitHub starter from `init` requests `issues: write`, `pull-requests: write` and `security-events: write` in addition to `contents: read`; for the pilot, keep only what is used (see [Wire the gate into CI](quickstart.md#github-actions)).
 - [ ] Customer: CI secrets stay with the customer. If authenticated pages need a test account, the customer stores it in their CI secret store; the owner never receives passwords.
 - [ ] Customer's admin: makes the A11yGate job a required check for PRs to `main` (A11yGate never changes repository settings).
 - [ ] Owner: records the access granted (who, what, when) in the pilot notes.

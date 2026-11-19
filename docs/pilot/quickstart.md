@@ -148,6 +148,8 @@ The zip holds the reports, the scope statement, what automated testing cannot co
 
 Pick your CI system. In each case: commit `.a11ygate-baseline.json`, start your application on loopback in the job, and make the job a **required** check for merges to `main` (that last step is a repository setting the customer's admin changes; A11yGate never changes repository settings).
 
+**Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI template defaults differ (the GitLab and Azure DevOps templates default to `http://127.0.0.1:3000` and one page), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, re-run step 3 and step 4 against that exact URL and crawl scope before committing the baseline.
+
 ### GitHub Actions
 
 `init` creates the config and the workflow, and with `--baseline` it also creates the fingerprint baseline from the saved scan and passes it to the scanner:
@@ -164,21 +166,48 @@ Review the starter before committing. Start your local app before scanning; only
 Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-The generated workflow runs on `pull_request` with read-only `contents` permission and this scan step:
+The generated workflow runs on `pull_request`, sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline), and has this scan step:
 
 ```text
 run: node .a11ygate-tool/packages/cli/dist/cli.mjs scan "$A11YGATE_URL" --crawl 10 --fail-on serious --baseline .a11ygate-baseline.json --format junit,sarif,json,md --out-dir a11y-results
 ```
 
+It requests these `GITHUB_TOKEN` permissions, as generated today:
+
+```yaml
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+```
+
+For a least-privilege pilot, reduce them before committing. No step in the generated workflow writes issues or pull requests, so `issues: write` and `pull-requests: write` can be removed. `security-events: write` is used only by the "Upload SARIF" step (GitHub code scanning). If the pilot does not use code scanning, delete that step and keep only:
+
+```yaml
+permissions:
+  contents: read
+```
+
+The gate itself (the scan step's exit code) and the report artifact work with `contents: read` alone. Record the permissions you kept in the [kickoff checklist](kickoff-checklist.md).
+
 Add your application's install/build/start commands where the workflow comment says so, then make the `A11yGate` check required in the branch protection rule (or ruleset) for `main`. Details: [GitHub Action](../integrations/github-action.md), [init](../integrations/init.md).
 
 ### GitLab CI
 
-`init` does not generate GitLab files yet. Copy the reviewed template [`integrations/gitlab/a11ygate.gitlab-ci.yml`](../../integrations/gitlab/a11ygate.gitlab-ci.yml) into your repository by hand and include it as shown in the [GitLab guide](../../integrations/gitlab/README.md). In your copy, add the baseline to the scan line:
+`init` does not generate GitLab files yet. Copy the reviewed template [`integrations/gitlab/a11ygate.gitlab-ci.yml`](../../integrations/gitlab/a11ygate.gitlab-ci.yml) into your repository by hand and include it as shown in the [GitLab guide](../../integrations/gitlab/README.md). The template defaults to `http://127.0.0.1:3000` and `--crawl 1`; in your copy, set the URL to the one the baseline was created from, raise the crawl to the same scope, and add the baseline to the scan line:
+
+```yaml
+  variables:
+    A11YGATE_URL: "http://127.0.0.1:4173/"
+    A11YGATE_FAIL_ON: "serious"
+```
 
 ```sh
-npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --baseline .a11ygate-baseline.json --format gitlab-codequality,junit --out-dir a11y
+npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 10 --fail-on "$A11YGATE_FAIL_ON" --baseline .a11ygate-baseline.json --format gitlab-codequality,junit --out-dir a11y
 ```
+
+Start your application on port 4173 in the job before this line.
 
 The template runs only for merge request pipelines. Turn on "Pipelines must succeed" for merge requests in the project settings so a failing scan blocks the merge.
 
@@ -188,6 +217,17 @@ The template runs only for merge request pipelines. Turn on "Pipelines must succ
 
 ```sh
 npx --no-install a11ygate scan "${{ parameters.url }}" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --baseline .a11ygate-baseline.json --format junit,sarif --out-dir ${{ parameters.outDir }}
+```
+
+The template defaults to `url: 'http://127.0.0.1:3000'` and `crawl: 1`. Pass the URL and crawl scope the baseline was created from, and start your application on port 4173 in an earlier step:
+
+```yaml
+steps:
+  - template: a11ygate.yml # path of your reviewed copy
+    parameters:
+      url: 'http://127.0.0.1:4173/'
+      crawl: 10
+      failOn: serious
 ```
 
 The template already produces an evidence pack on every run. Add the pipeline as a **build validation** branch policy on `main` so PRs cannot complete while it fails.
@@ -207,7 +247,7 @@ Configure the 'a11ygate' shared library and provision Node 20+, the source CLI a
 Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-The generated `Jenkinsfile` passes `baseline: '.a11ygate-baseline.json'` to the `a11yGate` step. Run it from a multibranch pipeline that builds pull requests, and report the build status back to your Git host as a required check. Details: [Jenkins](../integrations/jenkins.md).
+The generated `Jenkinsfile` scans `http://127.0.0.1:4173/` with `crawl: 10` (the same URL and scope as the baseline) and passes `baseline: '.a11ygate-baseline.json'` to the `a11yGate` step. Run it from a multibranch pipeline that builds pull requests, and report the build status back to your Git host as a required check. Details: [Jenkins](../integrations/jenkins.md).
 
 ## 7. Prove the gate on a PR (3 minutes)
 

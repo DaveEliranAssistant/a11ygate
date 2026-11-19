@@ -1,7 +1,8 @@
 // A11Y-R66: pilot onboarding kit (docs/pilot/). Docs commands and links are covered by
 // tests/docs-consistency.test.ts (it scans docs/**/*.md); this file checks the kit itself.
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
@@ -80,6 +81,78 @@ describe('pilot kit files (A11Y-R66)', () => {
     expect(text).not.toMatch(/init[^\n]*--target\s+(gitlab|azure)/);
     for (const heading of ['### GitHub Actions', '### GitLab CI', '### Azure DevOps', '### Jenkins']) expect(text, heading).toContain(heading);
   });
+
+  it('every CI example scans the same URL and crawl scope the baseline was created from', () => {
+    const text = read('docs/pilot/quickstart.md');
+    const ci = text.slice(text.indexOf('## 6. Wire the gate into CI'), text.indexOf('## 7.'));
+    const sections = ci.split(/^### /m).slice(1);
+    expect(sections).toHaveLength(4);
+    // Steps 3 and 4 (first scan and baseline) use this URL and scope.
+    const before = text.slice(0, text.indexOf('## 6.'));
+    expect(before).toContain('a11ygate scan http://127.0.0.1:4173/ --crawl 10');
+    for (const section of sections) {
+      const title = section.split('\n')[0];
+      expect(section, title).toContain('http://127.0.0.1:4173/');
+      expect(section, title).toMatch(/--crawl 10|crawl: 10/);
+      // The templates' defaults (port 3000, one page) would turn every baseline finding into a new one.
+      for (const block of section.matchAll(/```(?:sh|yaml)\n([\s\S]*?)```/g)) {
+        expect(block[1], title).not.toMatch(/127\.0\.0\.1:3000|--crawl 1\b|crawl: 1\b/);
+      }
+    }
+  });
+
+  it('documents the GitHub starter permissions exactly as init generates them, and how to reduce them', async () => {
+    const { githubStarter } = await import('@/packages/cli/src/init');
+    const generated = githubStarter({ target: 'github', url: 'http://127.0.0.1:4173/', crawl: 10, failOn: 'serious', baseline: 'a11y', yes: true, force: false } as Parameters<typeof githubStarter>[0]);
+    const permissions = /^permissions:\n(?:  .+\n)+/m.exec(generated)?.[0];
+    expect(permissions).toBeDefined();
+    const text = read('docs/pilot/quickstart.md');
+    expect(text).toContain(permissions as string);
+    expect(text).toContain('```yaml\npermissions:\n  contents: read\n```');
+    expect(generated).toContain('A11YGATE_URL: "http://127.0.0.1:4173/"');
+    // The reduction advice depends on which steps need write scopes.
+    expect(generated).not.toMatch(/github-script|gh (?:issue|pr) /);
+    expect(generated).toContain('upload-sarif');
+  });
+});
+
+// The R62 checker (tests/docs-consistency.test.ts) recognizes `a11ygate <command>` but not a
+// direct `node <path>/cli.mjs <command>` call. This additive check covers those calls in the kit.
+describe('pilot docs direct bundle invocations (A11Y-R66)', () => {
+  const CLI = path.join(repoRoot, 'packages/cli/dist/cli.mjs');
+  const help = (args: string[]): string => {
+    try {
+      return execFileSync(process.execPath, [CLI, ...args, '--help'], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' }, timeout: 30_000 });
+    } catch (error) {
+      const failed = error as { stdout?: string; stderr?: string };
+      return `${failed.stdout ?? ''}${failed.stderr ?? ''}`;
+    }
+  };
+
+  it('every `node .../cli.mjs <command>` command and flag exists in that command\'s --help', () => {
+    expect(existsSync(CLI), 'run npm run cli:build first').toBe(true);
+    const commands = new Set([...help([]).matchAll(/^\s+a11ygate \[?([a-z]+)]?/gm)].map((m) => m[1] as string));
+    const problems: string[] = [];
+    let invocations = 0;
+    for (const rel of markdownFiles) {
+      for (const match of read(rel).matchAll(/\bnode\s+\S*cli\.mjs((?:[ \t]+[^\s;&`|]+)*)/g)) {
+        const tokens = (match[1] ?? '').trim().split(/[ \t]+/).filter(Boolean);
+        const command = tokens[0] ?? '';
+        if (!command) continue; // a bare path, e.g. "`a11ygate` means `node .../cli.mjs`"
+        if (!commands.has(command)) {
+          problems.push(`${rel}: unknown command "${command}" in \`${match[0]}\``);
+          continue;
+        }
+        invocations += 1;
+        const commandHelp = help([command]);
+        for (const flag of (match[1] ?? '').match(/(?<![\w-])--[a-z0-9][a-z0-9-]*/g) ?? []) {
+          if (!new RegExp(`(?<![\\w-])${flag}(?![\\w-])`).test(commandHelp)) problems.push(`${rel}: ${flag} not in "a11ygate ${command} --help" (\`${match[0]}\`)`);
+        }
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
+    expect(invocations).toBeGreaterThanOrEqual(1);
+  }, 60_000);
 });
 
 describe('pilot success criteria schema (A11Y-R66)', () => {
@@ -90,6 +163,7 @@ describe('pilot success criteria schema (A11Y-R66)', () => {
   const invalid: Array<[string, (doc: PilotDoc) => void]> = [
     ['gate answer written as a string', (doc) => { doc.criteria.gateRunsOnEveryPrToMain = 'yes'; }],
     ['negative unreviewed-finding limit', (doc) => { doc.criteria.maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2 = -1; }],
+    ['unreviewed-finding limit above the spec value 0', (doc) => { doc.criteria.maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2 = 1; }],
     ['missing decision date', (doc) => { delete doc.pilot.decisionDate; }],
     ['unquoted YAML date (parsed as a Date)', (doc) => { doc.pilot.decisionDate = new Date('2026-12-21'); }],
     ['zero pages or flows covered', (doc) => { doc.criteria.pagesOrFlowsCovered.min = 0; }],
@@ -129,6 +203,29 @@ describe('pilot terms draft (A11Y-R66)', () => {
       const section = sections.find((s) => s.startsWith(title));
       expect(section, title).toBeDefined();
       expect(section, title).toContain('[[LEGAL REVIEW]]');
+    }
+    // Each clause keeps its own marker: moving a marker to another line must fail.
+    const clauses: Array<[string, string, string]> = [
+      ['1. Parties', '- Provider: [[MISSING]] (business/legal entity name', '[[LEGAL REVIEW]]'],
+      ['3. Price and billing', '- Taxes, invoicing entity and payment terms', '[[LEGAL REVIEW]]'],
+      ['5. Authorization to scan', '- Customer responsibilities for the authorization:', '[[LEGAL REVIEW]]'],
+      ['6. Data handling', '- Personal data, data-processing terms and cross-border transfer:', '[[LEGAL REVIEW]]'],
+      ['6. Data handling', "- Confidentiality of the Customer's code, findings and reports:", '[[LEGAL REVIEW]]'],
+      ['7. Access and end of pilot', '- Either party may end the pilot early by written notice:', '[[LEGAL REVIEW]]'],
+      ['8. Limits of automated testing', '- Warranties, disclaimers and limitation of liability:', '[[LEGAL REVIEW]]'],
+      ['9. Law and disputes', '- Governing law, jurisdiction and dispute resolution:', '[[LEGAL REVIEW]]'],
+      ['10. Acceptance', '- Signature blocks, date and method of acceptance', '[[LEGAL REVIEW]]'],
+      ['1. Parties', '- Provider:', '[[MISSING]]'],
+      ['1. Parties', '- Customer:', '[[MISSING]]'],
+      ['3. Price and billing', '- Taxes, invoicing entity and payment terms', '[[MISSING]]'],
+      ['6. Data handling', '- The Provider keeps copies only if the Customer agrees', '[[MISSING]]'],
+      ['10. Acceptance', '- Signature blocks, date and method of acceptance', '[[MISSING]]'],
+    ];
+    for (const [title, clause, marker] of clauses) {
+      const section = sections.find((s) => s.startsWith(title)) ?? '';
+      const line = section.split('\n').find((l) => l.startsWith(clause));
+      expect(line, `${title}: ${clause}`).toBeDefined();
+      expect(line, `${title}: ${clause}`).toContain(marker);
     }
     expect(text.match(/\[\[LEGAL REVIEW]]/g)?.length ?? 0).toBeGreaterThanOrEqual(10);
     expect(text.match(/\[\[MISSING]]/g)?.length ?? 0).toBeGreaterThanOrEqual(9);
