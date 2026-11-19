@@ -31,6 +31,7 @@ Start with the [README](../README.md) (quickstart, CI matrix, troubleshooting su
 - [Incremental scans](../packages/cli/README.md#incremental-scans-a11y-r60)
 - [Multi-project CI runs](../packages/cli/README.md#multi-project-ci-runs)
 - [Pilot scoping dry run (`a11ygate estimate`)](../packages/cli/README.md#pilot-scoping-dry-run-a11y-r55)
+- [10-minute demo script](pilot/demo-script.md): scripted local demo of the gate catching one new regression, with talk track and objections
 
 ## Reports, exports and evidence
 
