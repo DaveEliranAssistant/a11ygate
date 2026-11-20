@@ -20,7 +20,6 @@ What each CI integration was and was not run on is stated row by row in the [CI 
 - **Azure DevOps.** No Azure DevOps organization was used, so the template has not run on a real agent; the cmd.exe (Windows) path was not executed. Only one `CodeAnalysisLogs` artifact can exist per run; the guide says what to do when another tool already publishes one (A11Y-R24). The `nodeVersion` default is the `22.x` range, not an exact patch version (A11Y-R35). The deprecated Node.js v0 task noted in A11Y-R24 was replaced by `UseNode@1` in A11Y-R35.
 - **CircleCI.** `circleci config validate` was not run (no CircleCI CLI, no Docker, no account). No orb is published; that is an owner action (A11Y-R25).
 - **Bitbucket Pipelines.** No Bitbucket pipeline has run the template. Docker was unavailable, so the Playwright image was not run, and Bitbucket's test-report scanner and artifact upload are not exercised (A11Y-R40).
-- **Jenkins scheduled E2E on `main`.** The scheduled Jenkins E2E job fails because its Docker image copies only `source/` and misses `schema/`, `locales/en.json` and the `docs/perf` benchmark JSON. The fix is pending with the owner. The recorded acceptance run in the CI matrix is unaffected.
 - **Framework recipes.** `scan --start` process-group cleanup is tested on macOS/POSIX; Windows process-tree cleanup is not covered (A11Y-R26).
 
 ## Crawling and scope
