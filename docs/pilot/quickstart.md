@@ -134,17 +134,17 @@ Existing findings stay visible in every report. A baseline is a starting point f
 
 ### Replacing the baseline
 
-`baseline create` never overwrites an existing file: if `.a11ygate-baseline.json` already exists it stops with `Could not create baseline` and exit code 2, and the old baseline stays in use. To replace a baseline (for example because CI serves the application on another URL, here `http://127.0.0.1:8080/`), scan that exact URL and crawl scope into a separate folder, write the baseline under a new name, check that a re-scan with it passes, and only then replace the old file:
+`baseline create` never overwrites an existing file: if `.a11ygate-baseline.json` already exists it stops with `Could not create baseline` and exit code 2, and the old baseline stays in use. To replace a baseline (for example because CI serves the application on another URL, here `http://127.0.0.1:8080/`), scan that exact URL and crawl scope into a fresh folder, write the baseline under a new name, check that a re-scan with it passes, and only then replace the old file:
 
 ```sh
-rm -f .a11ygate-baseline.new.json
-a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --out-dir a11y-new
-a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json \
-  && a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --baseline .a11ygate-baseline.new.json --out-dir a11y-new \
+rm -rf a11y-new a11y-new-check .a11ygate-baseline.new.json
+a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --out-dir a11y-new; [ $? -le 1 ] \
+  && a11ygate baseline create a11y-new --output .a11ygate-baseline.new.json \
+  && a11ygate scan http://127.0.0.1:8080/ --crawl 10 --fail-on serious --baseline .a11ygate-baseline.new.json --out-dir a11y-new-check \
   && mv .a11ygate-baseline.new.json .a11ygate-baseline.json
 ```
 
-The first scan exits 1 while the existing findings are not baselined yet; that is expected. The `rm -f` removes a leftover candidate from an earlier attempt, and the `&&` chain replaces the active baseline only if the new baseline was written **and** the re-scan with it exits 0 (`0 new findings at or above serious`). If either step fails, `.a11ygate-baseline.json` is left unchanged: check that the URL and crawl scope match the first scan, then try again. Use the same URL and crawl scope in your CI file.
+The `rm -rf` clears the scan folders and any candidate left over from an earlier attempt, so the new baseline can only come from this run's scan. The first scan exits 1 while the existing findings are not baselined yet; that is expected. `[ $? -le 1 ]` continues only if it exited 0 or 1. Exit code 2 means a setup or scan error (for example, the application was not reachable), and then nothing else runs. After that, the `&&` chain replaces the active baseline only if the new baseline was written **and** the re-scan with it exits 0 (`0 new findings at or above serious`). If any step fails, `.a11ygate-baseline.json` is left unchanged: check that the URL and crawl scope match the first scan, then try again. Use the same URL and crawl scope in your CI file.
 
 ## 5. Evidence pack (2 minutes)
 
@@ -238,7 +238,16 @@ Review the starter before committing. Start your local app before scanning; only
 Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-`init` never edits your existing `.gitlab-ci.yml`; add the printed `include:` entry yourself. The generated `.gitlab-ci.a11ygate.yml` sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline) and has this scan line:
+`init` never edits your existing `.gitlab-ci.yml`; add the printed `include:` entry yourself. The generated job has `rules: - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`, so GitLab creates a merge request pipeline for it. If your root `.gitlab-ci.yml` has a `workflow: rules` block, that block decides which pipelines exist at all and must also allow merge request pipelines, or the gate never runs. Add a rule like this to the existing list, keeping your current rules:
+
+```yaml
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # …your existing workflow rules stay below
+```
+
+Open a test merge request after the include is in place and check that an `a11ygate` job appears in its pipeline. The generated `.gitlab-ci.a11ygate.yml` sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline) and has this scan line:
 
 ```text
 - npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 10 --fail-on "$A11YGATE_FAIL_ON" --baseline .a11ygate-baseline.json --format gitlab-codequality,junit --out-dir a11y

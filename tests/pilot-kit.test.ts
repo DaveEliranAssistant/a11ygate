@@ -135,7 +135,9 @@ describe('pilot kit files (A11Y-R66)', () => {
     expect(section).toContain('--baseline .a11ygate-baseline.new.json');
     // Promotion only after the candidate was written and the verification scan exited 0.
     expect(section).toMatch(/baseline create a11y-new --output \.a11ygate-baseline\.new\.json \\\n {2}&& a11ygate scan [^\n]*--baseline \.a11ygate-baseline\.new\.json[^\n]* \\\n {2}&& mv \.a11ygate-baseline\.new\.json \.a11ygate-baseline\.json/);
-    expect(section).toContain('rm -f .a11ygate-baseline.new.json');
+    // A fresh scan folder, and only a scan that exited 0 or 1 may feed the new baseline (exit 2 = setup error).
+    expect(section).toContain('rm -rf a11y-new a11y-new-check .a11ygate-baseline.new.json');
+    expect(section).toMatch(/--out-dir a11y-new; \[ \$\? -le 1 \] \\\n {2}&& a11ygate baseline create a11y-new /);
     expect(text).not.toMatch(/re-run step 3 and step 4/i);
     expect(read('packages/cli/src/baseline.ts')).toContain("flag: 'wx'");
   });
@@ -180,6 +182,11 @@ describe('pilot kit files (A11Y-R66)', () => {
         expect(generated.split('\n').map((line) => line.trim()), target).toContain(scanLine);
         expect(generated, target).toContain('"http://127.0.0.1:4173/"');
         expect(generated, target).not.toMatch(/127\.0\.0\.1:3000/);
+        if (target === 'gitlab') {
+          // Included jobs only run if the root workflow rules allow merge request pipelines.
+          expect(generated).toContain('$CI_PIPELINE_SOURCE == "merge_request_event"');
+          expect(section).toContain('workflow:\n  rules:\n    - if: \'$CI_PIPELINE_SOURCE == "merge_request_event"\'');
+        }
       } finally {
         await rm(cwd, { recursive: true, force: true });
       }
