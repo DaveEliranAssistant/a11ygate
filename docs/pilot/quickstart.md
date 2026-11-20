@@ -238,14 +238,21 @@ Review the starter before committing. Start your local app before scanning; only
 Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-`init` never edits your existing `.gitlab-ci.yml`; add the printed `include:` entry yourself. The generated job has `rules: - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`, so GitLab creates a merge request pipeline for it. If your root `.gitlab-ci.yml` has a `workflow: rules` block, that block decides which pipelines exist at all and must also allow merge request pipelines, or the gate never runs. Add a rule like this to the existing list, keeping your current rules:
+`init` never edits your existing `.gitlab-ci.yml`; add the printed `include:` entry yourself. GitLab also needs a rule that matches merge request pipelines **directly in the root `.gitlab-ci.yml`**. The rule inside the included job does not count ([GitLab: merge request pipelines](https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/): "Rules defined in `include:` … do not satisfy this requirement"). If your root file has no `workflow:` block yet, add the include and GitLab's standard branch-or-merge-request workflow rules:
 
 ```yaml
+include:
+  - local: '.gitlab-ci.a11ygate.yml'
+
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    # …your existing workflow rules stay below
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
 ```
+
+If it already has `workflow: rules`, add the `merge_request_event` rule as the first entry and keep your existing rules below it. Review the effect on your other jobs before committing: with these rules, a branch that has an open merge request runs a merge request pipeline instead of a branch pipeline.
 
 Open a test merge request after the include is in place and check that an `a11ygate` job appears in its pipeline. The generated `.gitlab-ci.a11ygate.yml` sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline) and has this scan line:
 

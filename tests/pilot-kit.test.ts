@@ -186,6 +186,10 @@ describe('pilot kit files (A11Y-R66)', () => {
           // Included jobs only run if the root workflow rules allow merge request pipelines.
           expect(generated).toContain('$CI_PIPELINE_SOURCE == "merge_request_event"');
           expect(section).toContain('workflow:\n  rules:\n    - if: \'$CI_PIPELINE_SOURCE == "merge_request_event"\'');
+          // GitLab ignores MR rules that come only from include:, so the root file needs one unconditionally.
+          expect(section).toContain("include:\n  - local: '.gitlab-ci.a11ygate.yml'\n\nworkflow:\n  rules:\n    - if: '$CI_PIPELINE_SOURCE == \"merge_request_event\"'");
+          expect(section).toContain('directly in the root `.gitlab-ci.yml`');
+          expect(section).not.toMatch(/If your root `\.gitlab-ci\.yml` has a `workflow: rules` block, that block decides/);
         }
       } finally {
         await rm(cwd, { recursive: true, force: true });
