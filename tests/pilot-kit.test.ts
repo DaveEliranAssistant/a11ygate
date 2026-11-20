@@ -78,8 +78,10 @@ describe('pilot kit files (A11Y-R66)', () => {
   it('the quickstart uses only the pilot commands and covers all four CI systems', () => {
     const text = read('docs/pilot/quickstart.md');
     for (const command of ['init', 'doctor', 'scan', 'baseline create', 'evidence pack']) expect(text, command).toContain(`a11ygate ${command}`);
-    // R65 (init for GitLab/Azure) is not on main: those sections must not use init.
-    expect(text).not.toMatch(/init[^\n]*--target\s+(gitlab|azure)/);
+    // R65 is on main: GitLab and Azure DevOps use init, not hand-copied templates.
+    expect(text).toContain('a11ygate init --yes --target gitlab --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y');
+    expect(text).toContain('a11ygate init --yes --target azure-devops --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y');
+    expect(text).not.toMatch(/init` does not generate (GitLab|Azure)/);
     for (const heading of ['### GitHub Actions', '### GitLab CI', '### Azure DevOps', '### Jenkins']) expect(text, heading).toContain(heading);
   });
 
@@ -146,7 +148,42 @@ describe('pilot kit files (A11Y-R66)', () => {
     const ci = text.slice(text.indexOf('## 6.'), text.indexOf('## 7.'));
     // Step 4 already wrote the baseline, so init must report it as kept, never as newly written.
     expect(ci).not.toContain('Wrote fingerprint baseline');
-    expect(ci.match(/Skipped existing \.a11ygate-baseline\.json/g)).toHaveLength(2);
+    expect(ci.match(/Skipped existing \.a11ygate-baseline\.json/g)).toHaveLength(4);
+  });
+
+  it('GitLab and Azure DevOps init transcripts and scan lines match a real init run', async () => {
+    const { mkdtemp, readFile, rm, writeFile } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const { runInit } = await import('@/packages/cli/src/init');
+    const text = read('docs/pilot/quickstart.md');
+    const cases = [
+      { target: 'gitlab', heading: '### GitLab CI', file: '.gitlab-ci.a11ygate.yml' },
+      { target: 'azure-devops', heading: '### Azure DevOps', file: 'azure-pipelines.a11ygate.yml' },
+    ];
+    for (const { target, heading, file } of cases) {
+      const start = text.indexOf(heading);
+      const section = text.slice(start, text.indexOf('\n### ', start + heading.length));
+      const cwd = await mkdtemp(path.join(os.tmpdir(), `a11ygate-r66-${target}-`));
+      try {
+        // Step 4 already wrote the baseline; init must keep it.
+        await writeFile(path.join(cwd, '.a11ygate-baseline.json'), '{}\n');
+        let out = '';
+        const code = await runInit(['--yes', '--target', target, '--url', 'http://127.0.0.1:4173/', '--crawl', '10', '--fail-on', 'serious', '--baseline', 'a11y'], {
+          cwd, stdout: (chunk: string) => { out += chunk; }, stderr: () => {},
+        });
+        expect(code, target).toBe(0);
+        const transcript = /```text\n([\s\S]*?)```/.exec(section)?.[1];
+        expect(transcript, target).toBe(out);
+        const generated = await readFile(path.join(cwd, file), 'utf8');
+        const scanLine = /```text\n(- [^\n]*a11ygate scan[^\n]*)\n```/.exec(section)?.[1];
+        expect(scanLine, target).toBeDefined();
+        expect(generated.split('\n').map((line) => line.trim()), target).toContain(scanLine);
+        expect(generated, target).toContain('"http://127.0.0.1:4173/"');
+        expect(generated, target).not.toMatch(/127\.0\.0\.1:3000/);
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    }
   });
 
   it('never calls plain `scan` read-only; only `prospect` restricts requests', () => {
@@ -275,5 +312,14 @@ describe('pilot terms draft (A11Y-R66)', () => {
   it('states no auto-billing and conversion only on explicit written acceptance', () => {
     expect(text).toContain('nothing bills automatically');
     expect(text).toContain('explicit written acceptance');
+  });
+});
+
+describe('Azure DevOps guide CLI install path (A11Y-R66)', () => {
+  it('does not point to an unpublished npm version and names the vendored install path', () => {
+    const text = read('docs/integrations/azure-devops.md');
+    expect(text).not.toMatch(/@next|0\.2\.0/);
+    expect(text).toContain('npm install --save-dev ./tools/a11ygate');
+    expect(text).toContain('(`@qe-atlas/a11ygate@0.1.0`) predates `scan`');
   });
 });

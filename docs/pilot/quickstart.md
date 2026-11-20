@@ -162,9 +162,9 @@ The zip holds the reports, the scope statement, what automated testing cannot co
 
 Pick your CI system. In each case: commit `.a11ygate-baseline.json`, start your application on loopback in the job, and make the job a **required** check for merges to `main` (that last step is a repository setting the customer's admin changes; A11yGate never changes repository settings).
 
-**Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI template defaults differ (the GitLab and Azure DevOps templates default to `http://127.0.0.1:3000` and one page), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, create a replacement baseline from that exact URL and crawl scope as shown in [Replacing the baseline](#replacing-the-baseline) before committing it.
+**Use the same URL and crawl scope in CI as in the baseline scan.** Finding fingerprints include the page URL (host and port included), so a baseline created from `http://127.0.0.1:4173/` with `--crawl 10` only matches a CI scan of `http://127.0.0.1:4173/` with `--crawl 10`. If the job serves the application on a different port, or the CI file uses other defaults (the hand-copied GitLab and Azure DevOps integration templates default to `http://127.0.0.1:3000` and one page; `init` replaces them with its `--url` and `--crawl`), every existing finding counts as new and the gate fails. Every example below uses `http://127.0.0.1:4173/` and `--crawl 10`, matching steps 3 and 4. If your CI job must use another URL, create a replacement baseline from that exact URL and crawl scope as shown in [Replacing the baseline](#replacing-the-baseline) before committing it.
 
-**The CLI in GitLab and Azure DevOps jobs.** The GitLab and Azure DevOps templates run `npx --no-install a11ygate`, which uses an A11yGate CLI already installed in **your** project and fetches nothing at scan time. The CLI on npm (0.1.0) predates `scan` and `evidence pack`, so for the pilot vendor the source-built CLI from step 1 into your repository and install it as a local development dependency, together with the browser packages, then commit the lockfile:
+**The CLI in GitLab and Azure DevOps jobs.** The GitLab and Azure DevOps files that `init` generates run `npx --no-install a11ygate`, which uses an A11yGate CLI already installed in **your** project and fetches nothing at scan time. The CLI on npm (0.1.0) predates `scan` and `evidence pack`, so for the pilot vendor the source-built CLI from step 1 into your repository and install it as a local development dependency, together with the browser packages, then commit the lockfile:
 
 ```sh
 mkdir -p tools && cp -R /path/to/a11ygate/packages/cli tools/a11ygate
@@ -172,7 +172,7 @@ npm install --save-dev ./tools/a11ygate playwright@1.64.1 @axe-core/playwright
 npx --no-install a11ygate --help
 ```
 
-The last command must print the A11yGate help in your project; then both templates' `npm ci` installs the same CLI in CI. This is the vendoring route described in the [GitLab guide](../../integrations/gitlab/README.md); keep the Playwright package version aligned with the CI image or the Chromium install step.
+The last command must print the A11yGate help in your project; then the generated job's `npm ci` installs the same CLI in CI. This is the vendoring route described in the [GitLab guide](../../integrations/gitlab/README.md); keep the Playwright package version aligned with the CI image or the Chromium install step.
 
 ### GitHub Actions
 
@@ -221,42 +221,55 @@ Add your application's install/build/start commands where the workflow comment s
 
 ### GitLab CI
 
-`init` does not generate GitLab files yet. Copy the reviewed template [`integrations/gitlab/a11ygate.gitlab-ci.yml`](../../integrations/gitlab/a11ygate.gitlab-ci.yml) into your repository by hand and include it as shown in the [GitLab guide](../../integrations/gitlab/README.md). The template defaults to `http://127.0.0.1:3000` and `--crawl 1`; in your copy, set the URL to the one the baseline was created from, raise the crawl to the same scope, and add the baseline to the scan line:
-
-```yaml
-  variables:
-    A11YGATE_URL: "http://127.0.0.1:4173/"
-    A11YGATE_FAIL_ON: "serious"
-```
+`init --target gitlab` generates the job from the reviewed integration template, with your URL, crawl scope and baseline filled in:
 
 ```sh
-npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 10 --fail-on "$A11YGATE_FAIL_ON" --baseline .a11ygate-baseline.json --format gitlab-codequality,junit --out-dir a11y
+a11ygate init --yes --target gitlab --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y
 ```
 
-Start your application on port 4173 in the job before this line.
+```text
+Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).
+Wrote .a11ygate.yml
+Wrote .gitlab-ci.a11ygate.yml
+Add this entry to your .gitlab-ci.yml include list:
+include:
+  - local: '.gitlab-ci.a11ygate.yml'
+Review the starter before committing. Start your local app before scanning; only scan authorized sites.
+Automated testing only. Not a WCAG audit, certification or legal advice.
+```
 
-The template runs only for merge request pipelines. Turn on "Pipelines must succeed" for merge requests in the project settings so a failing scan blocks the merge.
+`init` never edits your existing `.gitlab-ci.yml`; add the printed `include:` entry yourself. The generated `.gitlab-ci.a11ygate.yml` sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline) and has this scan line:
+
+```text
+- npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 10 --fail-on "$A11YGATE_FAIL_ON" --baseline .a11ygate-baseline.json --format gitlab-codequality,junit --out-dir a11y
+```
+
+Start your application on port 4173 in the job before the scan line (the file has a comment where). The job runs only for merge request pipelines. Turn on "Pipelines must succeed" for merge requests in the project settings so a failing scan blocks the merge. Details: [GitLab guide](../../integrations/gitlab/README.md), [init](../integrations/init.md).
 
 ### Azure DevOps
 
-`init` does not generate Azure Pipelines files yet. Use the step template [`integrations/azure-devops/a11ygate.yml`](../../integrations/azure-devops/a11ygate.yml) as described in the [Azure DevOps guide](../integrations/azure-devops.md). The template has no baseline parameter, so copy it into your repository and add the baseline to its scan step:
+`init --target azure-devops` generates a standalone pipeline from the reviewed step template, with your URL, crawl scope and baseline filled in:
 
 ```sh
-npx --no-install a11ygate scan "${{ parameters.url }}" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --baseline .a11ygate-baseline.json --format junit,sarif --out-dir ${{ parameters.outDir }}
+a11ygate init --yes --target azure-devops --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y
 ```
 
-The template defaults to `url: 'http://127.0.0.1:3000'` and `crawl: 1`. Pass the URL and crawl scope the baseline was created from, and start your application on port 4173 in an earlier step:
-
-```yaml
-steps:
-  - template: a11ygate.yml # path of your reviewed copy
-    parameters:
-      url: 'http://127.0.0.1:4173/'
-      crawl: 10
-      failOn: serious
+```text
+Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).
+Wrote .a11ygate.yml
+Wrote azure-pipelines.a11ygate.yml
+Register azure-pipelines.a11ygate.yml in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
+Review the starter before committing. Start your local app before scanning; only scan authorized sites.
+Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-The template already produces an evidence pack on every run. Add the pipeline as a **build validation** branch policy on `main` so PRs cannot complete while it fails.
+The generated `azure-pipelines.a11ygate.yml` has `trigger: none` and `pr: [main]`, defaults its `url` parameter to `"http://127.0.0.1:4173/"` and its `crawl` parameter to `10` (the same URL and scope as the baseline), and has this scan step:
+
+```text
+- script: npx --no-install a11ygate scan "${{ parameters.url }}" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --baseline .a11ygate-baseline.json --format junit,sarif --out-dir ${{ parameters.outDir }}
+```
+
+Start your application on port 4173 in a step before the scan. The pipeline also produces an evidence pack on every run. Register it in Azure Pipelines and add it as a **build validation** branch policy on `main` so PRs cannot complete while it fails. Details: [Azure DevOps guide](../integrations/azure-devops.md), [init](../integrations/init.md).
 
 ### Jenkins
 
