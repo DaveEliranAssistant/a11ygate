@@ -118,18 +118,27 @@ export async function runPilot(argv: readonly string[], io: RunIo): Promise<numb
     }
     for (const pack of [kickoff, latest]) packs.set(path.resolve(cwd, pack.source), pack);
     const output = path.resolve(cwd, options.outDir);
-    const names = ['pilot-results.html', 'pilot-results.pdf', 'quote.html', 'quote.pdf'];
-    const outputs = names.map(name => path.join(output, name));
-    await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], outputs);
+    const names = ['pilot-results.html', 'quote.html', 'pilot-results.pdf', 'quote.pdf'];
+    const [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath] = names.map(name => path.join(output, name));
+    await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath]);
 
     const customer = options.customer ?? criteria.pilot.customer;
     const stamp = (io.now ?? (() => new Date()))().toISOString();
     const results = pilotResultsHtml(kickoff, latest, [...packs.values()], criteria, options.criteria, customer);
     const quote = quoteHtml(customer, stamp.slice(0, 10), getCheckoutUrl(io.env, warn));
-    const reportPdf = await printProspectPdf(results, stamp);
-    const quotePdf = await printProspectPdf(quote, stamp);
-    const contents = [Buffer.from(results), reportPdf, Buffer.from(quote), quotePdf];
-    for (const [index, file] of outputs.entries()) await writeBinaryAtomic(file, contents[index]!);
+    await writeBinaryAtomic(resultsHtmlPath, Buffer.from(results));
+    await writeBinaryAtomic(quoteHtmlPath, Buffer.from(quote));
+    let reportPdf: Buffer;
+    let quotePdf: Buffer;
+    try {
+      reportPdf = await printProspectPdf(results, stamp);
+      quotePdf = await printProspectPdf(quote, stamp);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
+      throw new Error(`HTML saved to ${options.outDir}. Could not print PDFs (${reason}). PDF output requires Playwright Chromium (npx playwright install chromium).`);
+    }
+    await writeBinaryAtomic(resultsPdfPath, reportPdf);
+    await writeBinaryAtomic(quotePdfPath, quotePdf);
     stdout(`Wrote ${names.join(', ')} to ${options.outDir}\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
     return 0;
   } catch (error) {

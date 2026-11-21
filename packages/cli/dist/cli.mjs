@@ -8651,6 +8651,7 @@ function table(caption, headers, rows) {
 ${rows.map(([label, ...cells]) => `<tr><th scope="row">${label}</th>${cells.map((cell2) => `<td>${cell2}</td>`).join("")}</tr>`).join("\n")}
 </tbody></table>`;
 }
+var quoteDraftBanner = "DRAFT \u2014 needs Eliran review before sending";
 function pilotResultsHtml(kickoff, latest, packs, config2, criteriaPath, customer) {
   const trend = buildTrend(packs, "commit");
   const baseline = createFingerprintBaseline(kickoff.report);
@@ -8725,10 +8726,15 @@ ${table("Pilot targets and observations", ["Criterion", "Result", "Observation",
 <section>
 <h2>What automated testing can't cover</h2>
 <p>Use keyboard and screen-reader testing to review key flows, focus order, and whether text alternatives and labels make sense in context. Review pages and states outside the recorded scan scope.</p>
+</section>
+<section>
+<h2>Draft renewal quote</h2>
+<p><strong>${quoteDraftBanner}</strong></p>
+<p>${esc2(formatAnnualPrice(pricing))}/year (${esc2(pricing.currency)}). See the accompanying quote for the term and payment details.</p>
 </section>`);
 }
 function quoteHtml(customer, date, checkout, config2 = pricing) {
-  return document2(`${config2.plan} renewal quote`, `<p class="draft"><strong>DRAFT \u2014 needs Eliran review before sending</strong></p>
+  return document2(`${config2.plan} renewal quote`, `<p class="draft"><strong>${quoteDraftBanner}</strong></p>
 <dl>
 <dt>Customer</dt><dd>${esc2(customer)}</dd>
 <dt>Buyer details</dt><dd>[[MISSING: PO/legal entity]]</dd>
@@ -9005,17 +9011,26 @@ async function runPilot(argv2, io) {
     }
     for (const pack of [kickoff, latest]) packs.set(path15.resolve(cwd, pack.source), pack);
     const output = path15.resolve(cwd, options.outDir);
-    const names = ["pilot-results.html", "pilot-results.pdf", "quote.html", "quote.pdf"];
-    const outputs = names.map((name) => path15.join(output, name));
-    await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], outputs);
+    const names = ["pilot-results.html", "quote.html", "pilot-results.pdf", "quote.pdf"];
+    const [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath] = names.map((name) => path15.join(output, name));
+    await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath]);
     const customer = options.customer ?? criteria.pilot.customer;
     const stamp = (io.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
     const results = pilotResultsHtml(kickoff, latest, [...packs.values()], criteria, options.criteria, customer);
     const quote = quoteHtml(customer, stamp.slice(0, 10), getCheckoutUrl(io.env, warn));
-    const reportPdf = await printProspectPdf(results, stamp);
-    const quotePdf = await printProspectPdf(quote, stamp);
-    const contents = [Buffer.from(results), reportPdf, Buffer.from(quote), quotePdf];
-    for (const [index, file] of outputs.entries()) await writeBinaryAtomic(file, contents[index]);
+    await writeBinaryAtomic(resultsHtmlPath, Buffer.from(results));
+    await writeBinaryAtomic(quoteHtmlPath, Buffer.from(quote));
+    let reportPdf;
+    let quotePdf;
+    try {
+      reportPdf = await printProspectPdf(results, stamp);
+      quotePdf = await printProspectPdf(quote, stamp);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+      throw new Error(`HTML saved to ${options.outDir}. Could not print PDFs (${reason}). PDF output requires Playwright Chromium (npx playwright install chromium).`);
+    }
+    await writeBinaryAtomic(resultsPdfPath, reportPdf);
+    await writeBinaryAtomic(quotePdfPath, quotePdf);
     stdout(`Wrote ${names.join(", ")} to ${options.outDir}
 ${AUTOMATED_TESTING_DISCLAIMER}
 `);

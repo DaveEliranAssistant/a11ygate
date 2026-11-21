@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`pilot report with local Chromium > compares three packs, grades the targets, and writes the HTML goldens and selectable PDFs offline 1`] = `
+exports[`compares three packs, grades the targets, and writes the HTML goldens without Chromium 1`] = `
 "<!doctype html>
 <html lang="en">
 <head>
@@ -101,13 +101,18 @@ svg .hit { fill: transparent }
 <h2>What automated testing can't cover</h2>
 <p>Use keyboard and screen-reader testing to review key flows, focus order, and whether text alternatives and labels make sense in context. Review pages and states outside the recorded scan scope.</p>
 </section>
+<section>
+<h2>Draft renewal quote</h2>
+<p><strong>DRAFT — needs Eliran review before sending</strong></p>
+<p>$990/year (USD). See the accompanying quote for the term and payment details.</p>
+</section>
 </main>
 </body>
 </html>
 "
 `;
 
-exports[`pilot report with local Chromium > compares three packs, grades the targets, and writes the HTML goldens and selectable PDFs offline 2`] = `
+exports[`compares three packs, grades the targets, and writes the HTML goldens without Chromium 2`] = `
 "<!doctype html>
 <html lang="en">
 <head>

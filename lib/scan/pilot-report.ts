@@ -148,6 +148,8 @@ ${rows.map(([label, ...cells]) => `<tr><th scope="row">${label}</th>${cells.map(
 </tbody></table>`;
 }
 
+const quoteDraftBanner = 'DRAFT — needs Eliran review before sending';
+
 export function pilotResultsHtml(
   kickoff: PilotPack, latest: PilotPack, packs: PilotPack[], config: PilotCriteria, criteriaPath: string, customer: string,
 ): string {
@@ -203,11 +205,16 @@ ${table('Pilot targets and observations', ['Criterion', 'Result', 'Observation',
 <section>
 <h2>What automated testing can't cover</h2>
 <p>Use keyboard and screen-reader testing to review key flows, focus order, and whether text alternatives and labels make sense in context. Review pages and states outside the recorded scan scope.</p>
+</section>
+<section>
+<h2>Draft renewal quote</h2>
+<p><strong>${quoteDraftBanner}</strong></p>
+<p>${esc(formatAnnualPrice(pricing))}/year (${esc(pricing.currency)}). See the accompanying quote for the term and payment details.</p>
 </section>`);
 }
 
 export function quoteHtml(customer: string, date: string, checkout?: string, config = pricing): string {
-  return document(`${config.plan} renewal quote`, `<p class="draft"><strong>DRAFT — needs Eliran review before sending</strong></p>
+  return document(`${config.plan} renewal quote`, `<p class="draft"><strong>${quoteDraftBanner}</strong></p>
 <dl>
 <dt>Customer</dt><dd>${esc(customer)}</dd>
 <dt>Buyer details</dt><dd>[[MISSING: PO/legal entity]]</dd>
