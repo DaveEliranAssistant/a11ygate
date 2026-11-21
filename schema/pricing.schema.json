@@ -3,10 +3,11 @@
   "title": "A11yGate pricing configuration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["plan", "priceUsdPerYear", "billing", "pilot", "currency"],
+  "required": ["plan", "priceUsdPerYear", "billing", "termMonths", "pilot", "currency"],
   "properties": {
     "plan": { "type": "string", "minLength": 1 },
     "priceUsdPerYear": { "type": "integer", "minimum": 1 },
+    "termMonths": { "type": "integer", "minimum": 1 },
     "billing": { "const": "yearly" },
     "pilot": {
       "type": "object",

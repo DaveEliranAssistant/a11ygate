@@ -69,6 +69,8 @@ New opt-in commands and flags, all default off (see `a11ygate <command> --help`)
 
 ### Added: reports and exports
 
+- `a11ygate pilot report` compares kickoff and latest evidence packs, evaluates recorded pilot criteria, and writes local HTML and PDF results and a draft renewal quote (A11Y-R69). See the [pilot closeout guide](../../docs/pilot/README.md#close-out-a-pilot).
+
 - `a11ygate prospect <url|scan-dir>` and `prospect --from <scan-out-dir>` write a short HTML and PDF summary with prioritized issues, CI guidance, and a scope manifest. Third-party URL scans require recorded authorization. `--offer` includes the price and pilot from the billing config (A11Y-R67).
 
 - Likely shared components: repeated template findings are grouped across pages in HTML report v2, JSON and SARIF related locations. Totals and gate results are unchanged; groups are heuristics needing human review (A11Y-R29, [#45](https://github.com/DaveEliranAssistant/a11ygate/pull/45)).

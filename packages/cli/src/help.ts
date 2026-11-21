@@ -17,6 +17,8 @@ Usage:
   a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
                        (see a11ygate export --help)
   a11ygate prospect <url|scan-dir> | --from <scan-dir> (see prospect --help)
+  a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
+                       (see a11ygate pilot report --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
