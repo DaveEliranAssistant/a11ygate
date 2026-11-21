@@ -155,7 +155,7 @@ describe('docs command check (A11Y-R62)', () => {
 
   it('the built CLI lists its commands', () => {
     expect(builtIn, 'run npm run cli:build first').toBe(true);
-    for (const command of ['scan', 'ci', 'review', 'report', 'export', 'estimate', 'prospect', 'evidence', 'trend', 'config', 'doctor', 'init', 'baseline']) {
+    for (const command of ['scan', 'ci', 'review', 'report', 'export', 'estimate', 'prospect', 'pilot', 'evidence', 'trend', 'config', 'doctor', 'init', 'baseline']) {
       expect(commands, command).toContain(command);
     }
   });

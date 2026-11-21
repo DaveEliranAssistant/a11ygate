@@ -58,6 +58,9 @@ export type EvidenceManifest = {
   files: { path: string; bytes: number; sha256: string; source: PackFileSource }[];
 };
 
+export const PILOT_EVIDENCE_FILE = 'a11ygate-pilot-evidence.json';
+export const PILOT_EVIDENCE_PATH = `scan/${PILOT_EVIDENCE_FILE}`;
+
 export const MAX_PACK_FILE_BYTES = 64 * 1024 * 1024;
 export const MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
 

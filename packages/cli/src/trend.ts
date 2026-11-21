@@ -142,7 +142,19 @@ function scanReportFieldHint(text: string): string {
   return !value.counts ? 'field counts is missing' : 'field options is missing';
 }
 
-async function loadPacks(dir: string, warn: (message: string) => void): Promise<TrendRunInput[]> {
+export async function readPackZip(file: string): Promise<Map<string, Uint8Array>> {
+  const info = await lstat(file);
+  if (!info.isFile()) throw new Error(`${file}: expected a regular evidence pack ZIP.`);
+  if (info.size > MAX_PACK_TOTAL_BYTES * 2) throw new Error(`${file}: larger than an evidence pack can be.`);
+  return new Map(readZip(await readFile(file)).map((entry) => [entry.path, entry.data]));
+}
+
+export async function loadPacks(
+  dir: string,
+  warn: (message: string) => void,
+  parse: (source: string, files: Map<string, Uint8Array>) => TrendRunInput | string = readPack,
+  attachmentPath?: string,
+): Promise<TrendRunInput[]> {
   const inputs: TrendRunInput[] = [];
   for (const name of (await readdir(dir)).sort()) {
     const full = path.join(dir, name);
@@ -151,7 +163,7 @@ async function loadPacks(dir: string, warn: (message: string) => void): Promise<
     if (info.isFile() && name.toLowerCase().endsWith('.zip')) {
       if (info.size > MAX_PACK_TOTAL_BYTES * 2) { warn(`Skipped ${name}: larger than an evidence pack can be.`); continue; }
       try {
-        files = new Map(readZip(await readFile(full)).map((e) => [e.path, e.data]));
+        files = await readPackZip(full);
       } catch (error) {
         warn(`Skipped ${name}: ${(error as Error).message}`);
         continue;
@@ -162,8 +174,12 @@ async function loadPacks(dir: string, warn: (message: string) => void): Promise<
       const isFile = async (p: string) => (await lstat(p).catch(() => null))?.isFile() ?? false;
       if (!(await isFile(manifest)) || !(await isFile(scan))) continue;
       files = new Map([['manifest.json', await readFile(manifest)], [SCAN_PATH, await readFile(scan)]]);
+      if (attachmentPath) {
+        const attachment = path.join(full, attachmentPath);
+        if (await isFile(attachment)) files.set(attachmentPath, await readFile(attachment));
+      }
     } else continue;
-    const pack = readPack(name, files);
+    const pack = parse(name, files);
     if (typeof pack === 'string') warn(`Skipped ${pack}`);
     else inputs.push(pack);
   }

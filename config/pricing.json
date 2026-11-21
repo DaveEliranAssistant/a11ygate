@@ -1,6 +1,7 @@
 {
   "plan": "A11yGate",
   "priceUsdPerYear": 990,
+  "termMonths": 12,
   "billing": "yearly",
   "pilot": {
     "priceUsd": 0,

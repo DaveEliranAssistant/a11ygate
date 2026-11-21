@@ -198,7 +198,7 @@ function runLabel(run: TrendRun, order: TrendOrder = 'scan'): string {
 }
 
 /** Stacked bars (existing + new) per run. Inline SVG, no scripts; native <title> tooltips. */
-function chartSvg(runs: readonly TrendRun[], order: TrendOrder): string {
+export function chartSvg(runs: readonly TrendRun[], order: TrendOrder): string {
   const width = 640;
   const height = 260;
   const left = 44;

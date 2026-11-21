@@ -16,6 +16,7 @@ export const SCHEMA_COMMENT = `# yaml-language-server: $schema=${SCHEMA_URL}`;
 export type JsonSchema = {
   type?: string;
   anyOf?: JsonSchema[];
+  const?: unknown;
   enum?: readonly unknown[];
   properties?: Record<string, JsonSchema>;
   additionalProperties?: boolean | JsonSchema;
@@ -196,6 +197,10 @@ function check(schema: JsonSchema, value: unknown, where: string, errors: string
   if (schema.type && !matchesType(schema.type, value)) {
     const hint = schema.type === 'boolean' && (value === 'true' || value === 'false') ? ` (remove the quotes: ${value})` : '';
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== 'object' ? ` ${show(value)}` : ''}${hint}.`);
+    return;
+  }
+  if (schema.const !== undefined && schema.const !== value) {
+    errors.push(`'${label}' must be ${show(schema.const)}.`);
     return;
   }
   if (schema.enum && !schema.enum.includes(value as never)) {

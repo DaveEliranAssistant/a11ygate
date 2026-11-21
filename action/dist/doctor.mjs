@@ -1263,6 +1263,10 @@ function check(schema, value, where, errors) {
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
     return;
   }
+  if (schema.const !== void 0 && schema.const !== value) {
+    errors.push(`'${label}' must be ${show(schema.const)}.`);
+    return;
+  }
   if (schema.enum && !schema.enum.includes(value)) {
     errors.push(`'${label}' has invalid value ${show(value)} \u2014 use one of: ${schema.enum.join(", ")}.`);
     return;

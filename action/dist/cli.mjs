@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path22 = parsed.pathname || "/";
-    if (path22.length > 1 && path22.endsWith("/")) path22 = path22.slice(0, -1);
-    return path22 || "/";
+    let path23 = parsed.pathname || "/";
+    if (path23.length > 1 && path23.endsWith("/")) path23 = path23.slice(0, -1);
+    return path23 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path22 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path22.length > 1 && path22.endsWith("/")) path22 = path22.slice(0, -1);
-    return path22;
+    let path23 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path23.length > 1 && path23.endsWith("/")) path23 = path23.slice(0, -1);
+    return path23;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path22 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path23 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path22, html, !html || path22.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path23, html, !html || path23.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir10, readFile as readFile9, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
-import path21 from "node:path";
+import { mkdir as mkdir10, readFile as readFile10, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
+import path22 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -722,21 +722,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path22) {
+function readImpact(value, path23) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path22} must be minor, moderate, serious, critical, or null`
+    error: `${path23} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path22) {
+function readTarget(value, path23) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path22}.target must be an array of strings`;
+    return `${path23}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path22}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path23}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -744,52 +744,52 @@ function readTarget(value, path22) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path22}.target must be an array of strings`;
+    return `${path23}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path22) {
-  if (!isRecord(value)) return `${path22} must be an object`;
-  const target = readTarget(value.target, path22);
+function validateNode(value, path23) {
+  if (!isRecord(value)) return `${path23} must be an object`;
+  const target = readTarget(value.target, path23);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path22}.html must be a string`;
+  if (typeof value.html !== "string") return `${path23}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path22}.impact`);
+    const impact = readImpact(value.impact, `${path23}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path22) {
-  if (!isRecord(value)) return `${path22} must be an object`;
+function validateViolation(value, path23) {
+  if (!isRecord(value)) return `${path23} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path22}.id must be a non-empty string`;
+    return `${path23}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path22}.impact is missing`;
+    return `${path23}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path22}.impact`);
+  const impact = readImpact(value.impact, `${path23}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path22}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path23}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path22}.tags must be an array of strings`;
+    return `${path23}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path22}.help must be a non-empty string`;
+    return `${path23}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path22}.helpUrl must be a non-empty string`;
+    return `${path23}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path22}.nodes must contain at least one node`;
+    return `${path23}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path22}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path23}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -805,37 +805,37 @@ function validateViolation(value, path22) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path22) {
-  if (!isRecord(value)) return `${path22} must be an axe result object`;
+function validateResult(value, path23) {
+  if (!isRecord(value)) return `${path23} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path22}.url must be a non-empty string`;
+    return `${path23}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path22}.timestamp must be an ISO date string`;
+    return `${path23}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path22}.testEngine.version must be a non-empty string`;
+    return `${path23}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path22}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path23}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path22}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path23}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path22}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path22}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path22}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path22}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path23}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path23}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path23}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path23}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path22}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path23}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path22}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path23}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path22}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path23}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -925,9 +925,9 @@ function parseAxeDocuments(documents) {
   if (documents.length === 0) return { ok: false, error: "Choose at least one JSON file." };
   const results = [];
   let synthetic = false;
-  for (const document2 of documents) {
-    const parsed = parseAxeJson(document2.text);
-    if (!parsed.ok) return { ok: false, error: `${document2.name}: ${parsed.error}` };
+  for (const document3 of documents) {
+    const parsed = parseAxeJson(document3.text);
+    if (!parsed.ok) return { ok: false, error: `${document3.name}: ${parsed.error}` };
     results.push(...parsed.results);
     synthetic = synthetic || parsed.synthetic;
   }
@@ -936,7 +936,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path22 = pagePath(result.url);
+    const path23 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -951,7 +951,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path22,
+          path: path23,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -2224,6 +2224,8 @@ Usage:
   a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
                        (see a11ygate export --help)
   a11ygate prospect <url|scan-dir> | --from <scan-dir> (see prospect --help)
+  a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
+                       (see a11ygate pilot report --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
   a11ygate scan <url> [--crawl [n]] [--fail-on <impact>] [--out-dir <dir>] [--format <fmt>]
                        (see a11ygate scan --help)
@@ -2495,7 +2497,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path22) => {
+  const run2 = async (name, steps, index, path23) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2525,8 +2527,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path22) {
-        for (const control of path22) {
+      else if (path23) {
+        for (const control of path23) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2536,7 +2538,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path22 && path22.length < depth) children = (await revealedControls(page, path22.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path23 && path23.length < depth) children = (await revealedControls(page, path23.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2553,11 +2555,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path22) => {
-      if (autoUsed >= maxStates || used + path22.length > options.budget) return;
+    const explore = async (path23) => {
+      if (autoUsed >= maxStates || used + path23.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path22.map((c) => c.name).join(">"), void 0, void 0, path22);
-      for (const child of children) await explore([...path22, child]);
+      const children = await run2(path23.map((c) => c.name).join(">"), void 0, void 0, path23);
+      for (const child of children) await explore([...path23, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -3283,6 +3285,10 @@ function check(schema, value, where, errors) {
   if (schema.type && !matchesType(schema.type, value)) {
     const hint = schema.type === "boolean" && (value === "true" || value === "false") ? ` (remove the quotes: ${value})` : "";
     errors.push(`'${label}' must be ${expected[schema.type] ?? schema.type}, but got ${typeName(value)}${value !== null && typeof value !== "object" ? ` ${show(value)}` : ""}${hint}.`);
+    return;
+  }
+  if (schema.const !== void 0 && schema.const !== value) {
+    errors.push(`'${label}' must be ${show(schema.const)}.`);
     return;
   }
   if (schema.enum && !schema.enum.includes(value)) {
@@ -6841,13 +6847,13 @@ import { createHash as createHash4 } from "node:crypto";
 // lib/evidence/zip.ts
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 var CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
+  const table2 = new Uint32Array(256);
   for (let n = 0; n < 256; n += 1) {
     let c = n;
     for (let k = 0; k < 8; k += 1) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
-    table[n] = c >>> 0;
+    table2[n] = c >>> 0;
   }
-  return table;
+  return table2;
 })();
 function crc32(data) {
   let crc = 4294967295;
@@ -6857,8 +6863,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path22) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path22);
+function shouldStore(path23) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path23);
 }
 function createZip(entries2) {
   const local = [];
@@ -7000,6 +7006,8 @@ function readZip(zip, limits = {}) {
 // lib/evidence/pack.ts
 var EVIDENCE_DISCLAIMER = AUTOMATED_TESTING_DISCLAIMER;
 var COMMIT_UNAVAILABLE_NOTE = "Commit SHA unavailable: it was not passed with --commit and could not be read from a git work tree. No SHA was invented.";
+var PILOT_EVIDENCE_FILE = "a11ygate-pilot-evidence.json";
+var PILOT_EVIDENCE_PATH = `scan/${PILOT_EVIDENCE_FILE}`;
 var MAX_PACK_FILE_BYTES = 64 * 1024 * 1024;
 var MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
 function sha256(data) {
@@ -7060,8 +7068,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path22) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path22);
+function isTextPath(path23) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path23);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -7210,8 +7218,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path22, make] of generated) {
-    if (!files.has(path22)) files.set(path22, { path: path22, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path23, make] of generated) {
+    if (!files.has(path23)) files.set(path23, { path: path23, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -7260,7 +7268,7 @@ function buildEvidencePack(input) {
 // packages/cli/src/evidence.ts
 var ENGINE_FILE = /^(axe|htmlcs|ibm|lighthouse)\.json$/;
 var SCREENSHOT_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|jpe?g|webp)$/i;
-var REPORT_FILES = ["a11ygate-scan.md", "a11ygate-scan.html", "a11ygate-scan.sarif", "a11ygate-scan.junit.xml"];
+var REPORT_FILES = ["a11ygate-scan.md", "a11ygate-scan.html", "a11ygate-scan.sarif", "a11ygate-scan.junit.xml", PILOT_EVIDENCE_FILE];
 function evidenceHelpText() {
   return `a11ygate evidence pack \u2014 bundle one scan's outputs into a single zip
 
@@ -7278,6 +7286,7 @@ Options:
 The pack contains report.md and report.html (scope, what automated testing cannot cover,
 disclaimer), scan/ (JSON, Markdown, HTML, SARIF, JUnit), engines/<id>.json and screenshots/
 when present, and manifest.json (versions, commit, UTC timestamps, SHA-256 of every file).
+An optional ${PILOT_EVIDENCE_FILE} in --from is included for pilot reporting.
 Only these known files are read; .env files, credentials and environment values are never
 included. Packing is refused if a file appears to contain a credential.
 
@@ -8387,7 +8396,13 @@ function scanReportFieldHint(text) {
   for (const key of ["pages", "findings"]) if (!Array.isArray(value[key])) return `field ${key} must be a list`;
   return !value.counts ? "field counts is missing" : "field options is missing";
 }
-async function loadPacks(dir, warn) {
+async function readPackZip(file) {
+  const info = await lstat3(file);
+  if (!info.isFile()) throw new Error(`${file}: expected a regular evidence pack ZIP.`);
+  if (info.size > MAX_PACK_TOTAL_BYTES * 2) throw new Error(`${file}: larger than an evidence pack can be.`);
+  return new Map(readZip(await readFile7(file)).map((entry) => [entry.path, entry.data]));
+}
+async function loadPacks(dir, warn, parse = readPack, attachmentPath) {
   const inputs = [];
   for (const name of (await readdir3(dir)).sort()) {
     const full = path14.join(dir, name);
@@ -8399,7 +8414,7 @@ async function loadPacks(dir, warn) {
         continue;
       }
       try {
-        files = new Map(readZip(await readFile7(full)).map((e) => [e.path, e.data]));
+        files = await readPackZip(full);
       } catch (error) {
         warn(`Skipped ${name}: ${error.message}`);
         continue;
@@ -8410,8 +8425,12 @@ async function loadPacks(dir, warn) {
       const isFile = async (p) => (await lstat3(p).catch(() => null))?.isFile() ?? false;
       if (!await isFile(manifest) || !await isFile(scan2)) continue;
       files = /* @__PURE__ */ new Map([["manifest.json", await readFile7(manifest)], [SCAN_PATH, await readFile7(scan2)]]);
+      if (attachmentPath) {
+        const attachment = path14.join(full, attachmentPath);
+        if (await isFile(attachment)) files.set(attachmentPath, await readFile7(attachment));
+      }
     } else continue;
-    const pack = readPack(name, files);
+    const pack = parse(name, files);
     if (typeof pack === "string") warn(`Skipped ${pack}`);
     else inputs.push(pack);
   }
@@ -8467,11 +8486,568 @@ Run a11ygate trend --help for usage.
   return 0;
 }
 
+// packages/cli/src/pilot.ts
+import { readFile as readFile8 } from "node:fs/promises";
+import path15 from "node:path";
+
+// config/pricing.json
+var pricing_default = {
+  plan: "A11yGate",
+  priceUsdPerYear: 990,
+  termMonths: 12,
+  billing: "yearly",
+  pilot: {
+    priceUsd: 0,
+    lengthDays: 21
+  },
+  currency: "USD"
+};
+
+// lib/billing.ts
+var pricing = pricing_default;
+function formatAnnualPrice(config2) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: config2.currency,
+    maximumFractionDigits: 0
+  }).format(config2.priceUsdPerYear);
+}
+var annualPrice = formatAnnualPrice(pricing);
+function isPublicHttpsUrl(url, raw2) {
+  return url.protocol === "https:" && /^https:\/\/[^/\\\s]/i.test(raw2) && !url.username && !url.password;
+}
+function getCheckoutUrl(env = process.env, warn = console.warn) {
+  const value = env.A11YGATE_CHECKOUT_URL;
+  if (value === void 0 || value === "") return void 0;
+  const url = URL.canParse(value) ? new URL(value) : void 0;
+  if (url && isPublicHttpsUrl(url, value)) {
+    return url.href;
+  }
+  warn("Ignoring A11YGATE_CHECKOUT_URL. Set it to an absolute HTTPS checkout URL without credentials.");
+  return void 0;
+}
+
+// lib/scan/pilot-report.ts
+function isIsoDay(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+var scanPath = (pack) => `${pack.source}!/scan/a11ygate-scan.json`;
+var evidencePath = (pack, field) => `${pack.source}!/scan/a11ygate-pilot-evidence.json#${field}`;
+function evaluateCriteria(config2, latest, criteriaPath) {
+  const { pilot, criteria } = config2;
+  const evidence = latest.pilotEvidence;
+  const branch = criteria.targetBranch ?? "main";
+  const { gate, postWeekTwoMerges, baselineCommitted, evidenceDeliveredOn } = evidence ?? {};
+  const day = new Date(pilot.startDate);
+  day.setUTCDate(day.getUTCDate() + 14);
+  const weekThree = day.toISOString().slice(0, 10);
+  const matchesWindow = (window2, from) => window2?.targetBranch === branch && window2.from === from && window2.through === pilot.decisionDate;
+  const completePages = latest.report.pages.filter((page) => page.scanStatus === "complete");
+  const pages = /* @__PURE__ */ new Set();
+  const flows = /* @__PURE__ */ new Set();
+  const flowNames = /* @__PURE__ */ new Set();
+  for (const page of completePages) {
+    const url = URL.canParse(page.url) ? new URL(page.url) : void 0;
+    if (url?.hash) {
+      flows.add(url.href);
+      const name = url.hash.slice(1);
+      try {
+        flowNames.add(decodeURIComponent(name));
+      } catch {
+        flowNames.add(name);
+      }
+    } else {
+      const finalUrl = page.finalUrl || page.url;
+      pages.add(normalizeUrl(finalUrl) ?? finalUrl);
+    }
+  }
+  const routes = new Set([...pages].flatMap((url) => URL.canParse(url) ? [new URL(url).pathname] : []));
+  const requiredPages = criteria.pagesOrFlowsCovered;
+  const missingRoutes = (requiredPages.list ?? []).filter((name) => name.startsWith("/") && !routes.has(name));
+  const unverifiedFlows = (requiredPages.list ?? []).filter((name) => !name.startsWith("/") && !flows.has(name) && !flowNames.has(name) && !(URL.canParse(name) && !new URL(name).hash && pages.has(normalizeUrl(name) ?? name)));
+  const hasPageEvidence = latest.report.pages.some((page) => page.scanStatus != null);
+  const measuredCount = pages.size + flows.size;
+  const coverage = measuredCount >= requiredPages.min && !missingRoutes.length ? unverifiedFlows.length ? null : true : hasPageEvidence ? false : null;
+  const coverageDetail = `${pages.size} distinct completed pages and ${flows.size} completed interaction states; target ${requiredPages.min}.` + (missingRoutes.length ? ` Paths absent from completed scans: ${missingRoutes.join(", ")}.` : "") + (unverifiedFlows.length ? ` Named flows without a recorded match: ${unverifiedFlows.join(", ")}.` : "");
+  const rows = [];
+  const add = (label, selected, result, detail, path23) => rows.push({
+    label,
+    result: selected ? result : null,
+    detail: selected ? detail : "Target was not selected at kickoff.",
+    path: selected ? path23 : criteriaPath
+  });
+  const fullGate = gate && matchesWindow(gate, pilot.startDate);
+  add(
+    `Required gate runs on every PR to ${branch}`,
+    criteria.gateRunsOnEveryPrToMain,
+    fullGate ? gate.required && gate.pullRequests === 0 ? null : gate.required && gate.gateRuns === gate.pullRequests : null,
+    fullGate ? `${gate.gateRuns} of ${gate.pullRequests} PRs had a gate run. Required check recorded: ${gate.required ? "yes" : "no"}.` : "A complete PR history and required-check record for the target branch and pilot dates are needed.",
+    evidencePath(latest, "gate")
+  );
+  add(
+    "Fingerprint baseline committed",
+    criteria.baselineCreated,
+    baselineCommitted ?? null,
+    baselineCommitted === void 0 ? "Repository confirmation is missing." : `Committed baseline recorded: ${baselineCommitted ? "yes" : "no"}.`,
+    evidencePath(latest, "baselineCommitted")
+  );
+  const fullMerges = postWeekTwoMerges && matchesWindow(postWeekTwoMerges, weekThree);
+  const mergeCount = fullMerges ? postWeekTwoMerges.unreviewedNewSeriousOrCritical : void 0;
+  const max = criteria.maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2;
+  add(
+    "Unreviewed new serious or critical findings merged after week 2",
+    true,
+    mergeCount === void 0 ? null : mergeCount <= max,
+    mergeCount === void 0 ? "Complete merge and review records for the post-week-two window are needed." : `${mergeCount} recorded; maximum ${max}.`,
+    evidencePath(latest, "postWeekTwoMerges")
+  );
+  add("Pages or flows covered", true, coverage, coverageDetail, scanPath(latest));
+  add(
+    "Evidence pack produced and handed to customer before the decision date",
+    criteria.evidencePackProduced,
+    evidenceDeliveredOn === void 0 ? null : evidenceDeliveredOn >= pilot.startDate && evidenceDeliveredOn < pilot.decisionDate,
+    evidenceDeliveredOn === void 0 ? "The pack is available locally. A handoff date is needed." : `Handoff recorded on ${evidenceDeliveredOn}. Decision date ${pilot.decisionDate}.`,
+    evidencePath(latest, "evidenceDeliveredOn")
+  );
+  return rows;
+}
+function document2(title, body, styles = "") {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>${esc2(title)}</title>
+<style>
+${REPORT_V2_STYLE}
+code, a { overflow-wrap: anywhere }
+tbody tr, figure { break-inside: avoid }
+figure { margin: 0 }
+svg .grid { stroke: #999 }
+svg .axis { fill: var(--muted); font-size: 11px }
+svg .value { fill: var(--text); font-size: 12px }
+svg .s-existing { fill: #2a78d6 }
+svg .s-new { fill: #eb6834 }
+svg .hit { fill: transparent }
+${styles}
+</style>
+</head>
+<body>
+<header>
+<h1>${esc2(title)}</h1>
+<p class="disclaimer">${AUTOMATED_TESTING_DISCLAIMER}</p>
+</header>
+<main>
+${body}
+</main>
+</body>
+</html>
+`;
+}
+function table(caption, headers, rows) {
+  return `<table><caption>${caption}</caption><thead><tr>${headers.map((label) => `<th scope="col">${label}</th>`).join("")}</tr></thead><tbody>
+${rows.map(([label, ...cells]) => `<tr><th scope="row">${label}</th>${cells.map((cell2) => `<td>${cell2}</td>`).join("")}</tr>`).join("\n")}
+</tbody></table>`;
+}
+var quoteDraftBanner = "DRAFT \u2014 needs Eliran review before sending";
+function pilotResultsHtml(kickoff, latest, packs, config2, criteriaPath, customer) {
+  const trend = buildTrend(packs, "commit");
+  const baseline = createFingerprintBaseline(kickoff.report);
+  const current = createFingerprintBaseline(latest.report);
+  const known = new Set(baseline.findings.map((finding2) => finding2.fingerprint));
+  const added = current.findings.filter((finding2) => !known.has(finding2.fingerprint)).length;
+  const { fixed, unassessed } = applyFingerprintBaseline(latest.report, baseline).baseline;
+  const impacts2 = [...IMPACTS, "unknown"];
+  const totals = (pack) => impacts2.map((impact) => pack.report.findings.filter((finding2) => (finding2.impact ?? "unknown") === impact).length);
+  const before = totals(kickoff);
+  const after = totals(latest);
+  const criteria = evaluateCriteria(config2, latest, criteriaPath);
+  const activity = packs.flatMap((pack) => {
+    const gate = pack.pilotEvidence?.gate;
+    return gate ? [[
+      `<code>${esc2(evidencePath(pack, "gate"))}</code>`,
+      esc2(gate.targetBranch),
+      `${gate.from} to ${gate.through}`,
+      gate.pullRequests,
+      gate.gateRuns,
+      gate.required ? "Yes" : "No"
+    ]] : [];
+  });
+  return document2(`Pilot results for ${customer}`, `<section>
+<h2>Kickoff and latest scans</h2>
+<p>Kickoff evidence <code>${esc2(scanPath(kickoff))}</code><br>Latest evidence <code>${esc2(scanPath(latest))}</code></p>
+${table("Recorded findings by impact", ["Impact", "Kickoff", "Latest"], [
+    ...impacts2.map((impact, index) => [impact, before[index], after[index]]),
+    ["Total", kickoff.report.findings.length, latest.report.findings.length]
+  ])}
+${table("Fingerprint groups compared with kickoff", ["Status", "Groups"], [
+    ["New", added],
+    ["Fixed", fixed],
+    ["Remaining", current.findings.length - added],
+    ["Unassessed", unassessed]
+  ])}
+<p>Fixed groups were absent from a comparable scan of the same page. Groups without comparable coverage are unassessed.</p>
+</section>
+<section>
+<h2>Trend across evidence packs</h2>
+<p>Oldest first by ${trend.ordering.used === "commit" ? "commit time" : "scan time"}. Blue shows groups also present in the previous run. Orange shows new groups.</p>
+${trend.ordering.note ? `<p>${esc2(trend.ordering.note)}</p>` : ""}
+<figure>${chartSvg(trend.runs, trend.ordering.used)}</figure>
+${table(
+    "Trend runs",
+    ["Evidence pack", trend.ordering.used === "commit" ? "Commit time" : "Scan time", "Groups", "New", "Existing", "Fixed", "Unassessed"],
+    trend.runs.map((run2) => [
+      `<code>${esc2(run2.source)}</code>`,
+      esc2(run2.committedAt && trend.ordering.used === "commit" ? run2.committedAt : run2.timestamp),
+      run2.total,
+      run2.new,
+      run2.existing,
+      run2.fixed,
+      run2.unassessed
+    ])
+  )}
+</section>
+<section>
+<h2>PR-gate activity</h2>
+${activity.length ? table("Recorded PR-gate windows", ["Evidence", "Branch", "Dates (UTC)", "PRs", "PRs with runs", "Required"], activity) : "<p>No PR-gate activity was recorded in these packs.</p>"}
+</section>
+<section>
+<h2>Success criteria</h2>
+<p>Targets from <code>${esc2(criteriaPath)}</code>. Pilot dates ${config2.pilot.startDate} to ${config2.pilot.decisionDate} (UTC).</p>
+${table("Pilot targets and observations", ["Criterion", "Result", "Observation", "Evidence"], criteria.map((row) => [
+    esc2(row.label),
+    row.result === null ? "Not measurable" : row.result ? "Met" : "Not met",
+    esc2(row.detail),
+    `<code>${esc2(row.path)}</code>`
+  ]))}
+</section>
+<section>
+<h2>What automated testing can't cover</h2>
+<p>Use keyboard and screen-reader testing to review key flows, focus order, and whether text alternatives and labels make sense in context. Review pages and states outside the recorded scan scope.</p>
+</section>
+<section>
+<h2>Draft renewal quote</h2>
+<p><strong>${quoteDraftBanner}</strong></p>
+<p>${esc2(formatAnnualPrice(pricing))}/year (${esc2(pricing.currency)}). See the accompanying quote for the term and payment details.</p>
+</section>`);
+}
+function quoteHtml(customer, date, checkout, config2 = pricing) {
+  return document2(`${config2.plan} renewal quote`, `<p class="draft"><strong>${quoteDraftBanner}</strong></p>
+<dl>
+<dt>Customer</dt><dd>${esc2(customer)}</dd>
+<dt>Buyer details</dt><dd>[[MISSING: PO/legal entity]]</dd>
+<dt>Quote date</dt><dd><time datetime="${date}">${date}</time>, valid for 30 days</dd>
+<dt>Price</dt><dd>${esc2(formatAnnualPrice(config2))}/year (${esc2(config2.currency)}), billed ${esc2(config2.billing)}</dd>
+<dt>Term</dt><dd>${config2.termMonths} months, starts on explicit written acceptance</dd>
+<dt>Payment</dt><dd>${checkout ? `<a href="${esc2(checkout)}">${esc2(checkout)}</a>` : "invoice on request"}</dd>
+</dl>
+<h2>What's included</h2>
+<ul>
+<li>Compare automated accessibility findings against a baseline in CI.</li>
+<li>Generate evidence reports and export findings for developer handoff.</li>
+<li>Track changes across scans using evidence packs and trend reports.</li>
+</ul>`, ".draft{border:2px solid;padding:.5rem 1rem} dt{font-weight:700} dd{margin:0 0 .6rem}");
+}
+
+// schema/pilot-success.schema.json
+var pilot_success_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json",
+  title: "A11yGate pilot success criteria",
+  description: "Machine-checkable success criteria for one A11yGate pilot (A11Y-R66). Filled in at kickoff from docs/pilot/success-criteria.template.yml and read by later pilot tooling (A11Y-R69). Targets only: measured results are recorded elsewhere. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  type: "object",
+  additionalProperties: false,
+  required: ["schemaVersion", "pilot", "criteria"],
+  properties: {
+    schemaVersion: {
+      description: "Version of this file format. Always 1 for this schema.",
+      const: 1
+    },
+    pilot: {
+      description: "Who the pilot is for and when it ends.",
+      type: "object",
+      additionalProperties: false,
+      required: ["customer", "startDate", "lengthDays", "decisionDate"],
+      properties: {
+        customer: {
+          description: 'Customer or team name as agreed at kickoff. Use "[[MISSING]]" until known.',
+          type: "string",
+          minLength: 1
+        },
+        repository: {
+          description: 'Repository the gate runs in, for example "org/app". Optional.',
+          type: "string",
+          minLength: 1
+        },
+        ciProvider: {
+          description: "CI system the gate runs in.",
+          enum: ["github", "gitlab", "azure-devops", "jenkins"]
+        },
+        startDate: {
+          description: "First pilot day, ISO date YYYY-MM-DD (quote it in YAML).",
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        lengthDays: {
+          description: "Pilot length in days. Must match pilot.lengthDays in config/pricing.json.",
+          type: "integer",
+          minimum: 1,
+          maximum: 90
+        },
+        decisionDate: {
+          description: "Date the customer decides to convert, extend or stop, ISO date YYYY-MM-DD (quote it in YAML). Normally the last pilot day.",
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    },
+    criteria: {
+      description: "Targets that define a successful pilot. Each one is checkable from CI history, the repository, or the scan outputs.",
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "gateRunsOnEveryPrToMain",
+        "baselineCreated",
+        "maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2",
+        "pagesOrFlowsCovered",
+        "evidencePackProduced"
+      ],
+      properties: {
+        gateRunsOnEveryPrToMain: {
+          description: "true = the A11yGate job must run on every PR (or merge request) to the target branch and be a required check. false = not a pilot target.",
+          type: "boolean"
+        },
+        targetBranch: {
+          description: "Branch the gate protects. Default: main.",
+          type: "string",
+          minLength: 1,
+          default: "main"
+        },
+        baselineCreated: {
+          description: "true = a fingerprint baseline (a11ygate baseline create) must be committed to the repository.",
+          type: "boolean"
+        },
+        maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2: {
+          description: "Maximum number of new serious or critical findings merged to the target branch after the end of week 2 (day 14) without a recorded review decision (a11ygate review). Pilot target: 0 (the schema allows no other value).",
+          type: "integer",
+          minimum: 0,
+          maximum: 0
+        },
+        pagesOrFlowsCovered: {
+          description: "Coverage target: the scan must cover at least `min` pages or flows. `list` optionally names them.",
+          type: "object",
+          additionalProperties: false,
+          required: ["min"],
+          properties: {
+            min: {
+              description: "Minimum number of pages or flows covered (N).",
+              type: "integer",
+              minimum: 1
+            },
+            list: {
+              description: 'Optional names or URL paths of the pages or flows (for example "/checkout").',
+              type: "array",
+              items: { type: "string", minLength: 1 }
+            }
+          }
+        },
+        evidencePackProduced: {
+          description: "true = at least one evidence pack (a11ygate evidence pack) must be produced and handed to the customer before the decision date.",
+          type: "boolean"
+        }
+      }
+    }
+  }
+};
+
+// schema/pilot-evidence.schema.json
+var pilot_evidence_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  title: "A11yGate pilot evidence attachment",
+  description: "Optional recorded observations from the pilot repository, CI history and handoff records. Automated testing only. Not a WCAG audit, certification or legal advice.",
+  type: "object",
+  additionalProperties: false,
+  required: ["schemaVersion"],
+  properties: {
+    schemaVersion: { const: 1 },
+    baselineCommitted: { type: "boolean" },
+    evidenceDeliveredOn: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    gate: {
+      type: "object",
+      additionalProperties: false,
+      required: ["targetBranch", "from", "through", "required", "pullRequests", "gateRuns"],
+      properties: {
+        targetBranch: { type: "string", minLength: 1 },
+        from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        through: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        required: { type: "boolean" },
+        pullRequests: { type: "integer", minimum: 0 },
+        gateRuns: { type: "integer", minimum: 0 }
+      }
+    },
+    postWeekTwoMerges: {
+      type: "object",
+      additionalProperties: false,
+      required: ["targetBranch", "from", "through", "unreviewedNewSeriousOrCritical"],
+      properties: {
+        targetBranch: { type: "string", minLength: 1 },
+        from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        through: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        unreviewedNewSeriousOrCritical: { type: "integer", minimum: 0 }
+      }
+    }
+  }
+};
+
+// packages/cli/src/pilot.ts
+var HELP = `Usage: a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
+                            [--packs <dir>] [--customer <name>] [--out-dir <dir>]
+
+Write pilot-results.html/.pdf and a draft quote.html/.pdf locally.
+--packs adds the packs in a directory to the timeline.
+--customer overrides the customer in the success criteria.
+--out-dir defaults to pilot-report. PDF output requires Playwright Chromium.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+function parseArgs2(argv2) {
+  const values = /* @__PURE__ */ new Map();
+  const allowed = ["--kickoff", "--latest", "--criteria", "--packs", "--customer", "--out-dir"];
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    const eq = token.indexOf("=");
+    const flag = eq < 0 ? token : token.slice(0, eq);
+    if (!allowed.includes(flag)) throw new Error(`Unknown pilot report option ${token}.`);
+    if (values.has(flag)) throw new Error(`Pass ${flag} once.`);
+    const value = eq < 0 ? argv2[++i]?.trim() : token.slice(eq + 1).trim();
+    if (!value || eq < 0 && value.startsWith("--")) throw new Error(`${flag} needs a value.`);
+    values.set(flag, value);
+  }
+  for (const flag of ["--kickoff", "--latest", "--criteria"]) {
+    if (!values.has(flag)) throw new Error(`Pass ${flag}.
+${HELP.split("\n")[0]}`);
+  }
+  return {
+    kickoff: values.get("--kickoff"),
+    latest: values.get("--latest"),
+    criteria: values.get("--criteria"),
+    packs: values.get("--packs"),
+    customer: values.get("--customer"),
+    outDir: values.get("--out-dir") ?? "pilot-report"
+  };
+}
+function parseCriteria(text, source) {
+  const parsed = parseConfigYaml(text);
+  const errors = !parsed.ok ? parsed.errors : parsed.value == null ? ["expected a mapping."] : validateConfig(parsed.value, pilot_success_schema_default);
+  if (errors.length || !parsed.ok) throw new Error(`${source}: ${errors.join(" ")}`);
+  const config2 = parsed.value;
+  const { startDate, decisionDate } = config2.pilot;
+  if (!isIsoDay(startDate) || !isIsoDay(decisionDate) || decisionDate < startDate) {
+    throw new Error(`${source}: pilot.startDate and pilot.decisionDate must be valid calendar dates in chronological order.`);
+  }
+  return config2;
+}
+function parsePilotPack(source, files, warn) {
+  const pack = readPack(source, files);
+  if (typeof pack === "string") return pack;
+  const data = files.get(PILOT_EVIDENCE_PATH);
+  const digest = pack.manifest.files.find((file) => file.path === PILOT_EVIDENCE_PATH)?.sha256;
+  if (!data && !digest) return pack;
+  try {
+    if (!data || digest !== sha256(data)) throw new Error("attachment missing or SHA-256 mismatch");
+    const parsed = JSON.parse(Buffer.from(data).toString("utf8"));
+    if (parsed == null || validateConfig(parsed, pilot_evidence_schema_default).length) throw new Error("invalid attachment schema");
+    const evidence = parsed;
+    const { gate, postWeekTwoMerges, evidenceDeliveredOn } = evidence;
+    for (const window2 of [gate, postWeekTwoMerges]) {
+      if (window2 && (!isIsoDay(window2.from) || !isIsoDay(window2.through) || window2.from > window2.through)) {
+        throw new Error("invalid date range");
+      }
+    }
+    if (gate && gate.gateRuns > gate.pullRequests || evidenceDeliveredOn !== void 0 && !isIsoDay(evidenceDeliveredOn)) {
+      throw new Error("invalid PR counts or handoff date");
+    }
+    return { ...pack, pilotEvidence: evidence };
+  } catch (error) {
+    const reason = error instanceof SyntaxError ? "invalid JSON" : error.message;
+    warn(`Ignored ${source}!/${PILOT_EVIDENCE_PATH}: ${reason}.`);
+    return pack;
+  }
+}
+async function runPilot(argv2, io) {
+  const stdout = io.stdout ?? ((message) => process.stdout.write(message));
+  const stderr = io.stderr ?? ((message) => process.stderr.write(message));
+  const warn = (message) => stderr(`Warning: ${message}
+`);
+  const cwd = io.cwd ?? process.cwd();
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(HELP);
+    return 0;
+  }
+  try {
+    if (argv2[0] !== "report") throw new Error("Use a11ygate pilot report. See a11ygate pilot report --help.");
+    const options = parseArgs2(argv2.slice(1));
+    const criteria = parseCriteria(await readFile8(path15.resolve(cwd, options.criteria), "utf8"), options.criteria);
+    const loadEndpoint = async (source) => {
+      const files = await readPackZip(path15.resolve(cwd, source));
+      const pack = parsePilotPack(source, files, warn);
+      if (typeof pack === "string") throw new Error(pack);
+      return pack;
+    };
+    const kickoff = await loadEndpoint(options.kickoff);
+    const latest = await loadEndpoint(options.latest);
+    const packs = /* @__PURE__ */ new Map();
+    if (options.packs) {
+      const dir = options.packs;
+      const loaded = await loadPacks(
+        path15.resolve(cwd, dir),
+        warn,
+        (name, files) => parsePilotPack(path15.join(dir, name), files, warn),
+        PILOT_EVIDENCE_PATH
+      );
+      for (const pack of loaded) packs.set(path15.resolve(cwd, pack.source), pack);
+    }
+    for (const pack of [kickoff, latest]) packs.set(path15.resolve(cwd, pack.source), pack);
+    const output = path15.resolve(cwd, options.outDir);
+    const names = ["pilot-results.html", "quote.html", "pilot-results.pdf", "quote.pdf"];
+    const [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath] = names.map((name) => path15.join(output, name));
+    await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath]);
+    const customer = options.customer ?? criteria.pilot.customer;
+    const stamp = (io.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
+    const results = pilotResultsHtml(kickoff, latest, [...packs.values()], criteria, options.criteria, customer);
+    const quote = quoteHtml(customer, stamp.slice(0, 10), getCheckoutUrl(io.env, warn));
+    await writeBinaryAtomic(resultsHtmlPath, Buffer.from(results));
+    await writeBinaryAtomic(quoteHtmlPath, Buffer.from(quote));
+    let reportPdf;
+    let quotePdf;
+    try {
+      reportPdf = await printProspectPdf(results, stamp);
+      quotePdf = await printProspectPdf(quote, stamp);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message.split("\n")[0] : String(error);
+      throw new Error(`HTML saved to ${options.outDir}. Could not print PDFs (${reason}). PDF output requires Playwright Chromium (npx playwright install chromium).`);
+    }
+    await writeBinaryAtomic(resultsPdfPath, reportPdf);
+    await writeBinaryAtomic(quotePdfPath, quotePdf);
+    stdout(`Wrote ${names.join(", ")} to ${options.outDir}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Pilot report failed: ${error instanceof Error ? error.message : String(error)}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 2;
+  }
+}
+
 // packages/cli/src/doctor.ts
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync as readFileSync3 } from "node:fs";
 import { createRequire as createRequire4 } from "node:module";
-import path15 from "node:path";
+import path16 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -8627,8 +9203,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path22) {
-  const match = /\.([a-z0-9]+)$/i.exec(path22);
+function fileKind(path23) {
+  const match = /\.([a-z0-9]+)$/i.exec(path23);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -8939,8 +9515,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path22, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path22) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path23, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path23) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -9006,7 +9582,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire4(path15.join(cwd, "package.json"));
+  const require3 = createRequire4(path16.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -9018,7 +9594,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync3(path15.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync3(path16.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -9046,7 +9622,7 @@ async function doctorChecks(options = {}, io = {}) {
     const file = CI_FILES[target];
     let present2 = false;
     try {
-      present2 = lstatSync(path15.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
+      present2 = lstatSync(path16.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
     } catch {
     }
     findings.push({
@@ -9204,7 +9780,7 @@ async function runDoctor(argv2, io = {}) {
 // packages/cli/src/init.ts
 import { constants } from "node:fs";
 import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
-import path17 from "node:path";
+import path18 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
 // integrations/azure-devops/a11ygate.yml
@@ -9237,18 +9813,6 @@ a11ygate:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - when: never
 `;
-
-// config/pricing.json
-var pricing_default = {
-  plan: "A11yGate",
-  priceUsdPerYear: 990,
-  billing: "yearly",
-  pilot: {
-    priceUsd: 0,
-    lengthDays: 21
-  },
-  currency: "USD"
-};
 
 // packages/cli/src/init-pilot.ts
 var lengthDays = pricing_default.pilot.lengthDays;
@@ -9301,8 +9865,8 @@ function pilotNextSteps(target, url, crawl2, failOn) {
 }
 
 // packages/cli/src/config.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import path16 from "node:path";
+import { readFile as readFile9 } from "node:fs/promises";
+import path17 from "node:path";
 var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
   Show effective settings and sources; credential values are redacted.
 a11ygate config validate [file]
@@ -9357,7 +9921,7 @@ ${debugDetail(error)}`);
   const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
   let text;
   try {
-    text = await readFile8(path16.resolve(io.cwd ?? process.cwd(), file), "utf8");
+    text = await readFile9(path17.resolve(io.cwd ?? process.cwd(), file), "utf8");
   } catch (error) {
     stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
 `);
@@ -9500,14 +10064,14 @@ async function writeStarter(cwd, file, content, force, stdout) {
   const parts = file.split("/");
   let parent = root;
   for (const part of parts.slice(0, -1)) {
-    parent = path17.join(parent, part);
+    parent = path18.join(parent, part);
     await mkdir7(parent).catch((error) => {
       if (error.code !== "EEXIST") throw error;
     });
     const info2 = await lstat4(parent);
     if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
   }
-  const destination = path17.join(parent, parts.at(-1));
+  const destination = path18.join(parent, parts.at(-1));
   const info = await lstat4(destination).catch((error) => {
     if (error.code !== "ENOENT") throw error;
     return null;
@@ -9586,7 +10150,7 @@ async function runInit(argv2, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     if (options.baseline) {
-      const existing = await lstat4(path17.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+      const existing = await lstat4(path18.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
         return null;
       });
@@ -9792,7 +10356,7 @@ function inferProjectName(results) {
 
 // packages/cli/src/prospect.ts
 import { mkdir as mkdir8, stat as stat5 } from "node:fs/promises";
-import path18 from "node:path";
+import path19 from "node:path";
 
 // config/own-hosts.json
 var own_hosts_default = [
@@ -9802,14 +10366,6 @@ var own_hosts_default = [
   "a11ygate.vercel.app",
   "qe-atlas.vercel.app"
 ];
-
-// lib/billing.ts
-var pricing = pricing_default;
-var annualPrice = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: pricing.currency,
-  maximumFractionDigits: 0
-}).format(pricing.priceUsdPerYear);
 
 // lib/scan/prospect-report.ts
 function prospectHtml(report, options) {
@@ -9880,7 +10436,7 @@ ${authorization}
 }
 
 // packages/cli/src/prospect.ts
-var HELP = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--company <name>] [--out-dir <dir>] [--offer]
+var HELP2 = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--company <name>] [--out-dir <dir>] [--offer]
        a11ygate prospect --from <scan-dir|scan.json> [--company <name>] [--out-dir <dir>] [--offer]
 
 Write a prospect summary (HTML and PDF) and manifest to prospect-out by default.
@@ -9965,20 +10521,20 @@ async function runProspect(argv2, io = {}) {
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
   const cwd = io.cwd ?? process.cwd();
   if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(HELP);
+    stdout(HELP2);
     return 0;
   }
   try {
     const options = parseProspectArgs(argv2);
-    const output = path18.resolve(cwd, options.outDir);
-    const htmlPath = path18.join(output, "prospect-summary.html");
-    const pdfPath = path18.join(output, "prospect-summary.pdf");
-    const manifestPath = path18.join(output, "prospect-manifest.json");
+    const output = path19.resolve(cwd, options.outDir);
+    const htmlPath = path19.join(output, "prospect-summary.html");
+    const pdfPath = path19.join(output, "prospect-summary.pdf");
+    const manifestPath = path19.join(output, "prospect-manifest.json");
     const outputs = [htmlPath, pdfPath, manifestPath];
     let source;
     if (!options.url) {
-      const input = path18.resolve(cwd, options.input);
-      source = (await stat5(input)).isDirectory() ? path18.join(input, "a11ygate-scan.json") : input;
+      const input = path19.resolve(cwd, options.input);
+      source = (await stat5(input)).isDirectory() ? path19.join(input, "a11ygate-scan.json") : input;
     }
     await assertSafeOutputs(cwd, source ? [source] : [], outputs);
     const report = options.url ? await scanProspectUrl(options.url, options.maxPages, io) : await readScanInput(options.input, cwd);
@@ -10014,7 +10570,7 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 
 // packages/cli/src/estimate.ts
 import { mkdir as mkdir9, writeFile as writeFile9 } from "node:fs/promises";
-import path19 from "node:path";
+import path20 from "node:path";
 
 // docs/perf/chromium-bench-axe-500.json
 var chromium_bench_axe_500_default = {
@@ -10499,9 +11055,9 @@ ${DISCLAIMER2}
         options.engines = value;
       } else throw new Error(`Unknown estimate option: ${flag}`);
     }
-    const dir = path19.resolve(io.cwd ?? process.cwd(), outDir);
+    const dir = path20.resolve(io.cwd ?? process.cwd(), outDir);
     await mkdir9(dir, { recursive: true });
-    const outputs = ["estimate.json", "estimate.md"].map((name) => path19.join(dir, name));
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path20.join(dir, name));
     await assertSafeOutputs(dir, [], outputs);
     const report = await estimateSite(options);
     await writeFile9(outputs[0], JSON.stringify(report, null, 2) + "\n");
@@ -10519,7 +11075,7 @@ ${DISCLAIMER2}
 
 // packages/cli/src/export.ts
 import { writeFile as writeFile10 } from "node:fs/promises";
-import path20 from "node:path";
+import path21 from "node:path";
 
 // lib/export-csv.ts
 function csvField(value) {
@@ -10773,9 +11329,9 @@ async function runExport(argv2, io = {}) {
       stdout(text);
       return 0;
     }
-    const inputs = [args.input, path20.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    const inputs = [args.input, path21.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
     await assertSafeOutputs(cwd, inputs, [args.output]);
-    await writeFile10(path20.resolve(cwd, args.output), text, "utf8");
+    await writeFile10(path21.resolve(cwd, args.output), text, "utf8");
     const count = buildTickets(report, now).length;
     stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -10790,7 +11346,7 @@ ${debugDetail(error)}`);
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path21.resolve(cwd, file);
+  return path22.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
@@ -10803,7 +11359,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile9(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile10(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -10819,14 +11375,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path21.dirname(fileURLToPath(import.meta.url));
+  const here = path22.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path21.join(here, "..", "package.json"),
-    path21.join(here, "..", "..", "packages", "cli", "package.json")
+    path22.join(here, "..", "package.json"),
+    path22.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile9(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile10(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -10903,6 +11459,7 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "export") return runExport(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
+  if (argv2[0] === "pilot") return runPilot(argv2.slice(1), io);
   if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
   if (argv2[0] === "ci" && argv2.some((arg) => arg === "--projects" || arg.startsWith("--projects="))) {
     return runProjects(argv2.slice(1), { ...io, version: await readVersion() });
@@ -10945,7 +11502,7 @@ ${debugDetail(error)}`);
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
         if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path21.join(await realpath3(path21.dirname(absolute)).catch(() => path21.dirname(absolute)), path21.basename(absolute));
+        return path22.join(await realpath3(path22.dirname(absolute)).catch(() => path22.dirname(absolute)), path22.basename(absolute));
       });
       const info = await stat6(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
@@ -10953,9 +11510,9 @@ ${debugDetail(error)}`);
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path21.join(options.outDir, formatFileName("ci", "json")),
-      path21.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path21.join(options.outDir, formatFileName("ci", format)))
+      path22.join(options.outDir, formatFileName("ci", "json")),
+      path22.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path22.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -11092,7 +11649,7 @@ ${debugDetail(error)}`);
       const dir = resolveInput(cwd, options.outDir);
       await mkdir10(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile11(path21.join(dir, name), content, "utf8");
+        await writeFile11(path22.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

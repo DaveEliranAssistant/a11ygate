@@ -1,0 +1,183 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compares three packs, grades the targets, and writes the HTML goldens without Chromium 1`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Pilot results for Fixture &lt;Shop&gt;</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+@media (prefers-color-scheme:dark){:root{--bg:#121212;--surface:#1f1f1f;--text:#ececec;--muted:#bdbdbd;--link:#8ab4f8;--border:#8c8c8c;--critical:#ff8a80;--serious:#ffb870;--moderate:#e8cc6a;--minor:#a8cdf5;--unknown:#bdbdbd}}
+body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
+a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+code{background:var(--surface);color:var(--text);padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
+caption{text-align:left;font-weight:600}
+li{margin:.4rem 0}.muted{color:var(--muted)}.verdict{font-size:1.25rem;font-weight:700}
+.impact{font-weight:600;text-transform:capitalize}.critical{color:var(--critical)}.serious{color:var(--serious)}.moderate{color:var(--moderate)}.minor{color:var(--minor)}.unknown{color:var(--unknown)}
+.tag{border:1px solid var(--border);border-radius:.25rem;padding:0 .3em;font-size:.875rem}
+.disclaimer{border:2px solid var(--border);background:var(--surface);padding:.5rem .75rem;font-weight:600}
+section>section{border-top:1px solid var(--border);margin-top:1rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media print{
+:root{--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+body{max-width:none;padding:0;font-size:11pt;color:#000;background:#fff}
+nav{display:none}
+a{color:#000;text-decoration:underline}
+#how-to-fix a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;word-break:break-all}
+h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
+#top-fixes,#how-to-fix,#limits{break-before:page}
+}
+code, a { overflow-wrap: anywhere }
+tbody tr, figure { break-inside: avoid }
+figure { margin: 0 }
+svg .grid { stroke: #999 }
+svg .axis { fill: var(--muted); font-size: 11px }
+svg .value { fill: var(--text); font-size: 12px }
+svg .s-existing { fill: #2a78d6 }
+svg .s-new { fill: #eb6834 }
+svg .hit { fill: transparent }
+
+</style>
+</head>
+<body>
+<header>
+<h1>Pilot results for Fixture &lt;Shop&gt;</h1>
+<p class="disclaimer">Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+</header>
+<main>
+<section>
+<h2>Kickoff and latest scans</h2>
+<p>Kickoff evidence <code>packs/kickoff.zip!/scan/a11ygate-scan.json</code><br>Latest evidence <code>packs/latest.zip!/scan/a11ygate-scan.json</code></p>
+<table><caption>Recorded findings by impact</caption><thead><tr><th scope="col">Impact</th><th scope="col">Kickoff</th><th scope="col">Latest</th></tr></thead><tbody>
+<tr><th scope="row">minor</th><td>0</td><td>0</td></tr>
+<tr><th scope="row">moderate</th><td>0</td><td>1</td></tr>
+<tr><th scope="row">serious</th><td>1</td><td>1</td></tr>
+<tr><th scope="row">critical</th><td>1</td><td>0</td></tr>
+<tr><th scope="row">unknown</th><td>0</td><td>0</td></tr>
+<tr><th scope="row">Total</th><td>2</td><td>2</td></tr>
+</tbody></table>
+<table><caption>Fingerprint groups compared with kickoff</caption><thead><tr><th scope="col">Status</th><th scope="col">Groups</th></tr></thead><tbody>
+<tr><th scope="row">New</th><td>1</td></tr>
+<tr><th scope="row">Fixed</th><td>1</td></tr>
+<tr><th scope="row">Remaining</th><td>1</td></tr>
+<tr><th scope="row">Unassessed</th><td>0</td></tr>
+</tbody></table>
+<p>Fixed groups were absent from a comparable scan of the same page. Groups without comparable coverage are unassessed.</p>
+</section>
+<section>
+<h2>Trend across evidence packs</h2>
+<p>Oldest first by commit time. Blue shows groups also present in the previous run. Orange shows new groups.</p>
+
+<figure><svg role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 640 260" width="100%" preserveAspectRatio="xMinYMin meet"><title id="chart-title">Findings per run</title><desc id="chart-desc">Stacked bars of existing and new findings for each run, oldest first. The same numbers are in the table below.</desc><line class="grid" x1="44" x2="628" y1="212" y2="212"/><text class="axis" x="38" y="216" text-anchor="end">0</text><line class="grid" x1="44" x2="628" y1="163" y2="163"/><text class="axis" x="38" y="167" text-anchor="end">1</text><line class="grid" x1="44" x2="628" y1="114" y2="114"/><text class="axis" x="38" y="118" text-anchor="end">2</text><line class="grid" x1="44" x2="628" y1="65" y2="65"/><text class="axis" x="38" y="69" text-anchor="end">3</text><line class="grid" x1="44" x2="628" y1="16" y2="16"/><text class="axis" x="38" y="20" text-anchor="end">4</text><g><title>2026-12-01 (0000000): 2 findings — 2 new, 0 existing, 0 fixed</title><rect class="s-new" x="117.33333333333333" y="114" width="48" height="98"/><rect class="hit" x="44" y="16" width="194.66666666666666" height="196"/><text class="value" x="141.33333333333331" y="110" text-anchor="middle">2</text><text class="axis" x="141.33333333333331" y="228" text-anchor="middle">2026-12-01</text><text class="axis" x="141.33333333333331" y="242" text-anchor="middle">0000000</text></g><g><title>2026-12-09 (0000000): 1 findings — 0 new, 1 existing, 1 fixed</title><rect class="s-existing" x="312" y="163" width="48" height="49"/><rect class="hit" x="238.66666666666666" y="16" width="194.66666666666666" height="196"/><text class="value" x="336" y="159" text-anchor="middle">1</text><text class="axis" x="336" y="228" text-anchor="middle">2026-12-09</text><text class="axis" x="336" y="242" text-anchor="middle">0000000</text></g><g><title>2026-12-21 (0000000): 2 findings — 1 new, 1 existing, 0 fixed</title><rect class="s-existing" x="506.66666666666663" y="163" width="48" height="49"/><rect class="s-new" x="506.66666666666663" y="114" width="48" height="47"/><rect class="hit" x="433.3333333333333" y="16" width="194.66666666666666" height="196"/><text class="value" x="530.6666666666666" y="110" text-anchor="middle">2</text><text class="axis" x="530.6666666666666" y="228" text-anchor="middle">2026-12-21</text><text class="axis" x="530.6666666666666" y="242" text-anchor="middle">0000000</text></g></svg></figure>
+<table><caption>Trend runs</caption><thead><tr><th scope="col">Evidence pack</th><th scope="col">Commit time</th><th scope="col">Groups</th><th scope="col">New</th><th scope="col">Existing</th><th scope="col">Fixed</th><th scope="col">Unassessed</th></tr></thead><tbody>
+<tr><th scope="row"><code>packs/kickoff.zip</code></th><td>2026-12-01T08:00:00Z</td><td>2</td><td>2</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><th scope="row"><code>packs/mid.zip</code></th><td>2026-12-09T08:00:00Z</td><td>1</td><td>0</td><td>1</td><td>1</td><td>0</td></tr>
+<tr><th scope="row"><code>packs/latest.zip</code></th><td>2026-12-21T08:00:00Z</td><td>2</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+</tbody></table>
+</section>
+<section>
+<h2>PR-gate activity</h2>
+<table><caption>Recorded PR-gate windows</caption><thead><tr><th scope="col">Evidence</th><th scope="col">Branch</th><th scope="col">Dates (UTC)</th><th scope="col">PRs</th><th scope="col">PRs with runs</th><th scope="col">Required</th></tr></thead><tbody>
+<tr><th scope="row"><code>packs/latest.zip!/scan/a11ygate-pilot-evidence.json#gate</code></th><td>main</td><td>2026-12-01 to 2026-12-21</td><td>4</td><td>3</td><td>Yes</td></tr>
+<tr><th scope="row"><code>packs/mid.zip!/scan/a11ygate-pilot-evidence.json#gate</code></th><td>main</td><td>2026-12-01 to 2026-12-09</td><td>2</td><td>2</td><td>Yes</td></tr>
+</tbody></table>
+</section>
+<section>
+<h2>Success criteria</h2>
+<p>Targets from <code>a11ygate-pilot/success-criteria.yml</code>. Pilot dates 2026-12-01 to 2026-12-21 (UTC).</p>
+<table><caption>Pilot targets and observations</caption><thead><tr><th scope="col">Criterion</th><th scope="col">Result</th><th scope="col">Observation</th><th scope="col">Evidence</th></tr></thead><tbody>
+<tr><th scope="row">Required gate runs on every PR to main</th><td>Not met</td><td>3 of 4 PRs had a gate run. Required check recorded: yes.</td><td><code>packs/latest.zip!/scan/a11ygate-pilot-evidence.json#gate</code></td></tr>
+<tr><th scope="row">Fingerprint baseline committed</th><td>Met</td><td>Committed baseline recorded: yes.</td><td><code>packs/latest.zip!/scan/a11ygate-pilot-evidence.json#baselineCommitted</code></td></tr>
+<tr><th scope="row">Unreviewed new serious or critical findings merged after week 2</th><td>Met</td><td>0 recorded; maximum 0.</td><td><code>packs/latest.zip!/scan/a11ygate-pilot-evidence.json#postWeekTwoMerges</code></td></tr>
+<tr><th scope="row">Pages or flows covered</th><td>Met</td><td>2 distinct completed pages and 0 completed interaction states; target 2.</td><td><code>packs/latest.zip!/scan/a11ygate-scan.json</code></td></tr>
+<tr><th scope="row">Evidence pack produced and handed to customer before the decision date</th><td>Met</td><td>Handoff recorded on 2026-12-19. Decision date 2026-12-21.</td><td><code>packs/latest.zip!/scan/a11ygate-pilot-evidence.json#evidenceDeliveredOn</code></td></tr>
+</tbody></table>
+</section>
+<section>
+<h2>What automated testing can't cover</h2>
+<p>Use keyboard and screen-reader testing to review key flows, focus order, and whether text alternatives and labels make sense in context. Review pages and states outside the recorded scan scope.</p>
+</section>
+<section>
+<h2>Draft renewal quote</h2>
+<p><strong>DRAFT — needs Eliran review before sending</strong></p>
+<p>$990/year (USD). See the accompanying quote for the term and payment details.</p>
+</section>
+</main>
+</body>
+</html>
+"
+`;
+
+exports[`compares three packs, grades the targets, and writes the HTML goldens without Chromium 2`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>A11yGate renewal quote</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+@media (prefers-color-scheme:dark){:root{--bg:#121212;--surface:#1f1f1f;--text:#ececec;--muted:#bdbdbd;--link:#8ab4f8;--border:#8c8c8c;--critical:#ff8a80;--serious:#ffb870;--moderate:#e8cc6a;--minor:#a8cdf5;--unknown:#bdbdbd}}
+body{font:16px/1.5 system-ui,sans-serif;max-width:62rem;margin:0 auto;padding:1rem;color:var(--text);background:var(--bg)}
+a{color:var(--link)}a:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+code{background:var(--surface);color:var(--text);padding:0 .2em;word-break:break-all}
+table{border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--border);padding:.25rem .5rem;text-align:left}
+caption{text-align:left;font-weight:600}
+li{margin:.4rem 0}.muted{color:var(--muted)}.verdict{font-size:1.25rem;font-weight:700}
+.impact{font-weight:600;text-transform:capitalize}.critical{color:var(--critical)}.serious{color:var(--serious)}.moderate{color:var(--moderate)}.minor{color:var(--minor)}.unknown{color:var(--unknown)}
+.tag{border:1px solid var(--border);border-radius:.25rem;padding:0 .3em;font-size:.875rem}
+.disclaimer{border:2px solid var(--border);background:var(--surface);padding:.5rem .75rem;font-weight:600}
+section>section{border-top:1px solid var(--border);margin-top:1rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media print{
+:root{--bg:#ffffff;--surface:#f2f2f2;--text:#1a1a1a;--muted:#4a4a4a;--link:#0b57d0;--border:#767676;--critical:#a00000;--serious:#8a3a00;--moderate:#6b4e00;--minor:#2f4f6f;--unknown:#4a4a4a}
+body{max-width:none;padding:0;font-size:11pt;color:#000;background:#fff}
+nav{display:none}
+a{color:#000;text-decoration:underline}
+#how-to-fix a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;word-break:break-all}
+h2,h3{break-after:avoid}li,tr,.disclaimer{break-inside:avoid}
+#top-fixes,#how-to-fix,#limits{break-before:page}
+}
+code, a { overflow-wrap: anywhere }
+tbody tr, figure { break-inside: avoid }
+figure { margin: 0 }
+svg .grid { stroke: #999 }
+svg .axis { fill: var(--muted); font-size: 11px }
+svg .value { fill: var(--text); font-size: 12px }
+svg .s-existing { fill: #2a78d6 }
+svg .s-new { fill: #eb6834 }
+svg .hit { fill: transparent }
+.draft{border:2px solid;padding:.5rem 1rem} dt{font-weight:700} dd{margin:0 0 .6rem}
+</style>
+</head>
+<body>
+<header>
+<h1>A11yGate renewal quote</h1>
+<p class="disclaimer">Automated testing only. Not a WCAG audit, certification or legal advice.</p>
+</header>
+<main>
+<p class="draft"><strong>DRAFT — needs Eliran review before sending</strong></p>
+<dl>
+<dt>Customer</dt><dd>Fixture &lt;Shop&gt;</dd>
+<dt>Buyer details</dt><dd>[[MISSING: PO/legal entity]]</dd>
+<dt>Quote date</dt><dd><time datetime="2026-12-21">2026-12-21</time>, valid for 30 days</dd>
+<dt>Price</dt><dd>$990/year (USD), billed yearly</dd>
+<dt>Term</dt><dd>12 months, starts on explicit written acceptance</dd>
+<dt>Payment</dt><dd>invoice on request</dd>
+</dl>
+<h2>What's included</h2>
+<ul>
+<li>Compare automated accessibility findings against a baseline in CI.</li>
+<li>Generate evidence reports and export findings for developer handoff.</li>
+<li>Track changes across scans using evidence packs and trend reports.</li>
+</ul>
+</main>
+</body>
+</html>
+"
+`;

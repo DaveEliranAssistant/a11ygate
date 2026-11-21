@@ -2,7 +2,7 @@ import { AuthRedactor } from '@/lib/scan/redact';
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { buildEvidencePack, COMMIT_UNAVAILABLE_NOTE, secretEnvValues, type CommitInfo, type EnvLike, type PackInputFile } from '@/lib/evidence/pack';
+import { buildEvidencePack, COMMIT_UNAVAILABLE_NOTE, PILOT_EVIDENCE_FILE, secretEnvValues, type CommitInfo, type EnvLike, type PackInputFile } from '@/lib/evidence/pack';
 
 export type EvidenceIo = {
   cwd?: string;
@@ -22,7 +22,7 @@ export type EvidenceOptions = { help: boolean; from?: string; out?: string; comm
 const ENGINE_FILE = /^(axe|htmlcs|ibm|lighthouse)\.json$/;
 const SCREENSHOT_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|jpe?g|webp)$/i;
 /** Report files copied verbatim when present; everything else in --from is ignored (allowlist). */
-const REPORT_FILES = ['a11ygate-scan.md', 'a11ygate-scan.html', 'a11ygate-scan.sarif', 'a11ygate-scan.junit.xml'];
+const REPORT_FILES = ['a11ygate-scan.md', 'a11ygate-scan.html', 'a11ygate-scan.sarif', 'a11ygate-scan.junit.xml', PILOT_EVIDENCE_FILE];
 
 export function evidenceHelpText(): string {
   return `a11ygate evidence pack — bundle one scan's outputs into a single zip
@@ -41,6 +41,7 @@ Options:
 The pack contains report.md and report.html (scope, what automated testing cannot cover,
 disclaimer), scan/ (JSON, Markdown, HTML, SARIF, JUnit), engines/<id>.json and screenshots/
 when present, and manifest.json (versions, commit, UTC timestamps, SHA-256 of every file).
+An optional ${PILOT_EVIDENCE_FILE} in --from is included for pilot reporting.
 Only these known files are read; .env files, credentials and environment values are never
 included. Packing is refused if a file appears to contain a credential.
 
