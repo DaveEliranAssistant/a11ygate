@@ -51,7 +51,7 @@ Adapt the build/start commands to your application. Only set `url` to a local or
 | `installBrowsers` | `true` | Runs `npx --no-install playwright install --with-deps chromium`. |
 | `artifactName` | `a11ygate` | Name of the reports/evidence artifact. |
 
-The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format` and `evidence pack`, i.e. `@qe-atlas/a11ygate@next` / 0.2.0 or a vendored `packages/cli`), plus `playwright` and `@axe-core/playwright`. Every command uses `npx --no-install`, so nothing is fetched from the registry at scan time.
+The consuming project's lockfile must provide the A11yGate CLI from a revision containing `scan`, `--format` and `evidence pack`, plus `playwright` and `@axe-core/playwright`. The CLI on npm (`@qe-atlas/a11ygate@0.1.0`) predates `scan` and `evidence pack`, so vendor a source build of this revision's `packages/cli` as `tools/a11ygate` and install it as a local development dependency (`npm install --save-dev ./tools/a11ygate playwright @axe-core/playwright`), committing the resulting lockfile; see the [pilot quickstart](../pilot/quickstart.md#6-wire-the-gate-into-ci-10-minutes) and the [GitLab guide](../../integrations/gitlab/README.md). Every command uses `npx --no-install`, so nothing is fetched from the registry at scan time.
 
 ## What the steps do
 

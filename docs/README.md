@@ -21,6 +21,7 @@ Start with the [README](../README.md) (quickstart, CI matrix, troubleshooting su
 - [Bitbucket Pipelines](integrations/bitbucket.md)
 - [Framework recipes](recipes/README.md): [Next.js](recipes/nextjs.md), [Vite + React](recipes/vite-react.md), [Angular](recipes/angular.md), [Storybook](recipes/storybook.md)
 - [Troubleshooting](troubleshooting.md): `doctor` messages and gate exit-2 errors
+- [Pilot onboarding kit](pilot/README.md): 30-minute quickstart, kickoff checklist, success-criteria template and a pilot terms draft (draft: needs review before use)
 
 ## Scanning and configuration
 
