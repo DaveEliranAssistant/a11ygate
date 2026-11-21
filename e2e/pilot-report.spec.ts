@@ -12,6 +12,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const cli = path.join(repoRoot, 'packages/cli/dist/cli.mjs');
 const run = promisify(execFile);
 const banned = /fixes everything|\bcompliant\b|\bcertified\b|\bguarantees?\b|\bconformant\b|lawsuit-proof/i;
+// pdf.js on Linux runners returns ligature glyphs as separate items ("certi fi cation"); rejoin them before matching.
+const rejoinLigatures = (text: string) => text.replace(/ (ffi|ffl|ff|fi|fl) /g, '$1');
 
 test('pilot report compares three local scan packs and prints the results and draft quote', async ({}, testInfo) => {
   test.setTimeout(120_000);
@@ -62,11 +64,13 @@ test('pilot report compares three local scan packs and prints the results and dr
     const { pages } = await pdfInfo(await readFile(path.join(cwd, 'pilot-report', file)));
     if (file === 'quote.pdf') expect(pages).toHaveLength(1);
     else expect(pages.length).toBeGreaterThan(1);
-    for (const page of pages) {
+    for (const raw of pages) {
+      const page = rejoinLigatures(raw);
       expect(page).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      expect(raw).not.toMatch(banned);
       expect(page).not.toMatch(banned);
     }
-    const content = pages.join(' ');
+    const content = rejoinLigatures(pages.join(' '));
     expect(content).toContain(`$${pricing.priceUsdPerYear.toLocaleString('en-US')}/year`);
     expect(content).toContain('DRAFT — needs Eliran review before sending');
   }
