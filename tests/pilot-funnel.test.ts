@@ -1,7 +1,7 @@
 // A11Y-R70: offline "prospect -> pilot -> paid" dry run on fixtures, plus the owner-runbook
 // checklist. Runs in plain `npm test` without Chromium: the scan transport is a stubbed
 // fixture site on a loopback URL and only the PDF printer is mocked (as in pilot-report.test.ts).
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, it, vi } from 'vitest';
 import pricing from '@/config/pricing.json';
@@ -52,6 +52,57 @@ function fixtureEngine(home: Violation[], contact: Violation[], scannedAt: strin
     close: async () => undefined,
   });
 }
+/**
+ * Every file the funnel writes (and every entry inside each evidence pack) must match exactly one
+ * rule. `required` artifacts are customer-facing and must carry the disclaimer. `exempt` ones are
+ * listed with the reason they are not required to; a file matching no rule fails the test.
+ */
+type Rule = { pattern: RegExp; required: true } | { pattern: RegExp; required: false; reason: string };
+const ARTIFACT_RULES: Rule[] = [
+  { pattern: /^owner\/prospect-out\/prospect-summary\.html$/, required: true },
+  { pattern: /^owner\/prospect-out\/prospect-manifest\.json$/, required: true },
+  { pattern: /^customer-repo\/\.gitlab-ci\.a11ygate\.yml$/, required: true },
+  { pattern: /^customer-repo\/\.a11ygate\.yml$/, required: true },
+  { pattern: /^customer-repo\/a11ygate-pilot\/(KICKOFF\.md|success-criteria\.yml)$/, required: true },
+  { pattern: /(^|\/)a11ygate-scan\.html$/, required: true },
+  { pattern: /\.zip!\/(report\.md|report\.html|manifest\.json)$/, required: true },
+  { pattern: /^customer-repo\/pilot-report\/(pilot-results|quote)\.html$/, required: true },
+  { pattern: /(^|\/)a11ygate-scan\.md$/, required: false,
+    reason: 'scan Markdown for PR comments/step summaries: no disclaimer on main unless a baseline is used; left unchanged to keep goldens byte-identical (owner decision)' },
+  { pattern: /(^|\/)a11ygate-scan\.json$/, required: false, reason: 'machine-readable scan report' },
+  { pattern: /(^|\/)engines\/axe\.json$/, required: false, reason: 'raw axe engine output' },
+  { pattern: /(^|\/)a11ygate-pilot-evidence\.json$/, required: false, reason: 'machine-readable pilot evidence input' },
+  { pattern: /(^|\/)a11ygate-scan\.(sarif|junit\.xml)$/, required: false, reason: 'machine-readable CI formats (SARIF, JUnit)' },
+  { pattern: /^customer-repo\/\.a11ygate-baseline\.json$/, required: false, reason: 'machine-readable fingerprint baseline' },
+  { pattern: /\.pdf$/, required: false, reason: 'PDF printer is mocked here; its HTML source is checked above and PDFs in prospect/pilot-report tests' },
+];
+/** Files verified (2026-11-22) to lack the disclaimer. Update this list if the scan Markdown gains it. */
+const EXPECTED_WITHOUT_DISCLAIMER = [
+  'customer-repo/kickoff/a11ygate-scan.json', 'customer-repo/kickoff/a11ygate-scan.md', 'customer-repo/kickoff/engines/axe.json',
+  'customer-repo/latest/a11ygate-pilot-evidence.json', 'customer-repo/latest/engines/axe.json', 'customer-repo/mid/engines/axe.json',
+  'customer-repo/packs/kickoff.zip!/engines/axe.json', 'customer-repo/packs/kickoff.zip!/scan/a11ygate-scan.json',
+  'customer-repo/packs/kickoff.zip!/scan/a11ygate-scan.md', 'customer-repo/packs/latest.zip!/engines/axe.json',
+  'customer-repo/packs/latest.zip!/scan/a11ygate-pilot-evidence.json', 'customer-repo/packs/mid.zip!/engines/axe.json',
+  'customer-repo/pilot-report/pilot-results.pdf', 'customer-repo/pilot-report/quote.pdf',
+  'owner/prospect-out/prospect-summary.pdf', 'owner/prospect-scan/a11ygate-scan.json', 'owner/prospect-scan/a11ygate-scan.md',
+  'owner/prospect-scan/engines/axe.json',
+].sort();
+
+async function listArtifacts(root: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const walk = async (dir: string): Promise<void> => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      const rel = path.relative(root, file).split(path.sep).join('/');
+      if (entry.isDirectory()) await walk(file);
+      else if (file.endsWith('.zip')) for (const e of readZip(await readFile(file))) out.set(`${rel}!/${e.path}`, Buffer.from(e.data).toString('utf8'));
+      else out.set(rel, await readFile(file, 'utf8'));
+    }
+  };
+  await walk(root);
+  return out;
+}
+
 const noRobots: FetchLike = async () => ({ ok: false, status: 404, text: async () => '' });
 
 it('runs prospect -> init --pilot -> scan -> baseline -> gate fail -> 3 evidence packs -> pilot report -> quote offline', async () => {
@@ -152,6 +203,20 @@ it('runs prospect -> init --pilot -> scan -> baseline -> gate fail -> 3 evidence
       expect(text, name).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(text, name).not.toMatch(BANNED);
     }
+
+    // Every generated text artifact is classified; customer-facing ones carry the disclaimer.
+    const all = await listArtifacts(root);
+    const without: string[] = [];
+    for (const [name, text] of all) {
+      const rule = ARTIFACT_RULES.find(r => r.pattern.test(name));
+      expect(rule, `unclassified artifact: ${name}`).toBeDefined();
+      if (rule!.required) expect(text, name).toContain(AUTOMATED_TESTING_DISCLAIMER);
+      else expect(rule!.reason.length, name).toBeGreaterThan(0);
+      if (!text.includes(AUTOMATED_TESTING_DISCLAIMER)) without.push(name);
+      expect(text, name).not.toMatch(BANNED);
+    }
+    for (const name of artifacts.keys()) expect(all.has(name) || [...all.keys()].some(k => k.endsWith(`/${name}`)), name).toBe(true);
+    expect(without.sort()).toEqual(EXPECTED_WITHOUT_DISCLAIMER);
     expect(network.attempts).toEqual([]);
   } finally {
     vi.mocked(printProspectPdf).mockReset();

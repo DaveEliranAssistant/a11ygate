@@ -15,7 +15,7 @@ Payments and pricing (A11Y-R63, [billing setup](../billing-setup.md)):
 - [ ] Choose the payment provider, or decide to sell by invoice only.
 - [ ] Create the payment-provider account and the $990/yr product (skip when selling by invoice only).
 - [ ] Tax, VAT and invoicing setup (Israeli business registration) before the first invoice.
-- [ ] Set `A11YGATE_CHECKOUT_URL` (an `https:` URL without credentials) in the Vercel environment. Leave it unset to show “invoice on request” on `/pricing` and on quotes.
+- [ ] Set `A11YGATE_CHECKOUT_URL` (an `https:` URL without credentials) in the Vercel environment for the web app (`/pricing`), and also in the shell environment where you run `a11ygate pilot report`, which reads it at run time for the quote. Leave it unset in either place to show “invoice on request” there.
 - [ ] Set `A11YGATE_PRICING_ENABLED=1` in the Vercel environment when the public price should appear. Off by default: `/pricing` returns 404 and the home page shows no price.
 
 Pilot requests and the public offer (A11Y-R64):
@@ -113,6 +113,10 @@ a11ygate evidence pack --from latest --out packs/latest.zip
 a11ygate pilot report --kickoff packs/kickoff.zip --latest packs/latest.zip --packs packs --criteria a11ygate-pilot/success-criteria.yml --customer "Example Ltd"
 ```
 
+Known limit: the scan Markdown report (`a11ygate-scan.md`, used for PR comments and CI step summaries) carries no disclaimer on main unless a baseline is used. It was left unchanged to keep existing report goldens byte-identical (see the owner decision below). Share the evidence pack's `report.md`/`report.html` or the HTML scan report with customers; those carry the disclaimer.
+
+- [ ] Decide whether to add the disclaimer to the scan Markdown report (`a11ygate-scan.md`); this changes the existing report goldens.
+
 This writes `pilot-results.html/.pdf` and `quote.html/.pdf` to `pilot-report/`. Criteria without records show **Not measurable**. Read the results before sharing them; hand the evidence pack and results to the customer yourself.
 
 ### 8. Quote
@@ -121,7 +125,7 @@ This writes `pilot-results.html/.pdf` and `quote.html/.pdf` to `pilot-report/`. 
 
 ### 9. Checkout link or invoice
 
-- With `A11YGATE_CHECKOUT_URL` set (and valid `https:`), the quote shows that link on the payment line.
+- `a11ygate pilot report` reads `A11YGATE_CHECKOUT_URL` from the environment where it runs (for example `A11YGATE_CHECKOUT_URL=https://… a11ygate pilot report …`). The Vercel setting only configures the web app. With a valid `https:` value, the quote shows that link on the payment line.
 - Without it, the quote reads “invoice on request”: issue the invoice yourself after written acceptance. Nothing bills automatically.
 
 If the customer does not convert, follow the end-of-pilot steps in the [kickoff checklist](kickoff-checklist.md): delete scan outputs per the agreed retention period and revoke repository and CI access.
