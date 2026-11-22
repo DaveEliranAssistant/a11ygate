@@ -30,6 +30,7 @@ describe('pilot kit files (A11Y-R66)', () => {
       'docs/pilot/README.md',
       'docs/pilot/demo-script.md', // A11Y-R68 (#87)
       'docs/pilot/kickoff-checklist.md',
+      'docs/pilot/owner-runbook.md', // A11Y-R70
       'docs/pilot/pilot-terms.template.md',
       'docs/pilot/quickstart.md',
       'docs/pilot/success-criteria.template.yml',

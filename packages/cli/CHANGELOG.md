@@ -8,7 +8,27 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
-- **A11Y-R65:** CLI init supports GitLab and Azure DevOps starters, optional pilot kickoff files, and doctor checks for configured CI starter files.
+### Pilot funnel (A11Y-R63 to A11Y-R70)
+
+Everything needed to take one lead from a prospect scan to a pilot and a quote. The package version is unchanged (**0.2.0**) and nothing is published. Public price and pilot UI stay off until the owner turns on `A11YGATE_PRICING_ENABLED`. Owner decisions still open are listed as checkboxes in the [owner runbook](../../docs/pilot/owner-runbook.md).
+
+- **A11Y-R63:** flag-gated pricing: `config/pricing.json` ($990 per year, free 21-day pilot) with its schema, a `/pricing` page that returns 404 while `A11YGATE_PRICING_ENABLED` is off, an optional hosted checkout link from `A11YGATE_CHECKOUT_URL`, and [billing setup](../../docs/billing-setup.md) owner steps ([#82](https://github.com/DaveEliranAssistant/a11ygate/pull/82)).
+- **A11Y-R64:** web app: CI-gate offer and pilot request button behind the pricing flag (`A11YGATE_PILOT_REQUEST_URL` or the waitlist form), and the npm claim corrected to the published 0.1.0 ([#83](https://github.com/DaveEliranAssistant/a11ygate/pull/83)).
+- **A11Y-R65:** CLI init supports GitLab and Azure DevOps starters, optional pilot kickoff files (`init --pilot`), and doctor checks for configured CI starter files ([#88](https://github.com/DaveEliranAssistant/a11ygate/pull/88)).
+- **A11Y-R66:** [pilot onboarding kit](../../docs/pilot/README.md): quickstart, kickoff checklist, success-criteria template and schema, and a pilot terms draft that needs legal review ([#86](https://github.com/DaveEliranAssistant/a11ygate/pull/86)).
+- **A11Y-R67:** `a11ygate prospect <url> | --from <scan-dir>` writes a prospect summary (HTML and PDF) and manifest; URLs outside `config/own-hosts.json` need `--authorized-by` and `--authorization-note`; `--offer` adds the price from config ([#84](https://github.com/DaveEliranAssistant/a11ygate/pull/84)).
+- **A11Y-R68:** 10-minute [demo script](../../docs/pilot/demo-script.md) with a fixture app, scripted run and talk track ([#87](https://github.com/DaveEliranAssistant/a11ygate/pull/87)).
+- **A11Y-R69:** `a11ygate pilot report` writes pilot results and a draft renewal quote (HTML and PDF) from evidence packs and the success criteria; evidence packs may include `a11ygate-pilot-evidence.json` ([#89](https://github.com/DaveEliranAssistant/a11ygate/pull/89)).
+- **A11Y-R70:** offline end-to-end funnel test (`tests/pilot-funnel.test.ts`), [owner runbook](../../docs/pilot/owner-runbook.md) and README “Pilot” section (docs and tests only).
+- **A11Y-R71:** Jenkins Docker e2e build context includes `config/` ([#85](https://github.com/DaveEliranAssistant/a11ygate/pull/85)).
+
+#### Pilot funnel: open items
+
+- No payment-provider account, product, checkout URL or tax setup: owner actions (A11Y-R63).
+- Public price and pilot offer are not switched on in production: owner approval (A11Y-R64).
+- No npm publish of 0.2.0 and no version bump: owner action (`npm login`).
+- The pilot terms and quote wording have no legal or tax review yet; no invoice issuer details.
+- Nothing is sent to prospects or customers by any command; Eliran sends reports and quotes by hand.
 
 Consolidated in A11Y-R62: every task from A11Y-R23 to A11Y-R61 that merged to `main`, with its pull request. The package version is unchanged (**0.2.0**, npm `next` only) and nothing here is published yet. Known gaps recorded for these tasks are collected in [Known limits](../../docs/known-limits.md).
 

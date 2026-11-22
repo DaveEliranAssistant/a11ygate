@@ -8,7 +8,7 @@ The scan tool runs in the browser at [https://a11ygate.vercel.app](https://a11yg
 
 **Informational only. Not legal advice. Not a certification of EAA compliance.** Automated checks cover only part of WCAG; this is evidence, not certification.
 
-Contents: [5-minute quickstart](#5-minute-quickstart) · [Features](#features) · [CI matrix](#ci-matrix) · [Troubleshooting](#troubleshooting) · [What A11yGate does not do](#what-a11ygate-does-not-do) · [Known limits](docs/known-limits.md) · [Docs index](docs/README.md) · [Reference](#web-app)
+Contents: [5-minute quickstart](#5-minute-quickstart) · [Features](#features) · [CI matrix](#ci-matrix) · [Troubleshooting](#troubleshooting) · [What A11yGate does not do](#what-a11ygate-does-not-do) · [Pilot](#pilot) · [Known limits](docs/known-limits.md) · [Docs index](docs/README.md) · [Reference](#web-app)
 
 Every code block in this README is included from a file that a test runs or checks; [`tests/readme-docs.test.ts`](tests/readme-docs.test.ts) fails on drift.
 
@@ -88,6 +88,18 @@ Malformed input files (`.a11ygate.yml`, fingerprint baseline, interactions, `--s
 ## What A11yGate does not do
 
 A11yGate is an automated regression gate. It does not do a manual accessibility audit, it does not test with assistive technology (screen readers, switch access, voice control, magnifiers), it does not give legal advice, and it does not certify anything. Details and other limits: [docs/what-a11ygate-does-not-do.md](docs/what-a11ygate-does-not-do.md).
+
+## Pilot
+
+A11yGate is offered as a free 21-day pilot ($0, no payment details collected), followed by an optional $990 per year subscription by explicit written acceptance. Price and pilot length come from [`config/pricing.json`](config/pricing.json). The public price and pilot offer on the web app stay off until the owner sets `A11YGATE_PRICING_ENABLED=1` ([billing setup](docs/billing-setup.md)).
+
+The pilot path uses existing CLI commands: `a11ygate prospect --from <scan-dir>` (prospect summary), `a11ygate init --pilot` (starter files and success criteria for GitHub, GitLab, Azure DevOps or Jenkins), `a11ygate scan`, `a11ygate baseline create`, `a11ygate evidence pack` and `a11ygate pilot report` (pilot results and a draft quote). [`tests/pilot-funnel.test.ts`](tests/pilot-funnel.test.ts) runs the whole path offline on fixtures. No command sends anything to a prospect or customer.
+
+- [Pilot onboarding kit](docs/pilot/README.md): quickstart, kickoff checklist, success criteria and a pilot terms draft (needs review before use).
+- [Owner runbook](docs/pilot/owner-runbook.md): per-pilot steps and the owner decisions still open.
+- [10-minute demo script](docs/pilot/demo-script.md).
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Web app
 
