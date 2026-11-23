@@ -119,12 +119,18 @@ workflow:
 ```
 
 The branch and tag rules keep your branch and tag pipelines running. With an
-existing root file, init keeps every job and key and adds only the missing local
-include and `workflow:` block. It skips the file when the rule and include are
-already there; `--force` never replaces this file. If the file has a `workflow:`
-block without a `merge_request_event` rule, or a layout init cannot extend safely,
-init leaves it unchanged, prints this snippet, and exits with code 2. A symlinked
-root file is refused. The job runs on merge requests and publishes Code Quality
+existing root file, init keeps every job, key and byte already there and only
+inserts lines: the local include (a new entry in an existing `include:` list, or
+an `include:` block), the `merge_request_event` rule (as the first entry of an
+existing `workflow: rules` list, or the `workflow:` block above), and a comment
+with the disclaimer. It skips the file when the rule and include are already
+there; `--force` never replaces this file. Init edits only a plain top-level block
+mapping it can read. For anything else, such as an indented or flow-style root,
+`---` document markers, tabs, anchors, aliases or `!reference` in `workflow:` or
+`include:`, a trailing block scalar (`|`, `>`), or a merge request rule with
+`when: never`, init leaves the file unchanged, prints this snippet, and exits
+with code 2. Then add the include and the rule (as the first `workflow: rules`
+entry) yourself. A symlinked root file is refused. The job runs on merge requests and publishes Code Quality
 and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md) and
 [GitLab CI in the pilot quickstart](../pilot/quickstart.md#gitlab-ci).
 

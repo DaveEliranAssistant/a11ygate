@@ -47,6 +47,21 @@ const ownMrRule = (root: Root) => (root.workflow?.rules ?? []).some((rule) => ru
 /** Removes the include: block so the assertion cannot be satisfied by include text alone. */
 const withoutInclude = (text: string) => text.replace(/^include:[^\n]*\n(?:(?:[ ]+|- )[^\n]*\n|\n)*/m, '');
 
+/** Every line of the original is kept, byte for byte and in order; the result only adds lines and parses. */
+function expectInsertedOnly(original: string, result: string) {
+  const before = original.split('\n');
+  const after = result.split('\n');
+  let i = 0;
+  for (const line of after) if (i < before.length && line === before[i]) i++;
+  expect(i, 'original lines kept in order').toBe(before.length);
+  expect(after.length).toBeGreaterThan(before.length);
+  expect(() => load(result)).not.toThrow();
+  const parsed = load(result);
+  for (const [key, value] of Object.entries(load(original) ?? {})) {
+    if (key !== 'include' && key !== 'workflow') expect(parsed[key], key).toEqual(value);
+  }
+}
+
 describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
   it('writes a root file whose own workflow rules create merge request pipelines and includes the generated job', async () => temporary(async (cwd) => {
     const { code, out } = await init(cwd);
@@ -67,7 +82,7 @@ describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
     expect(out).toContain(`Wrote ${JOBS}\nWrote ${ROOT}\n`);
     expect(out).not.toContain('Add this entry');
     await expect(text).toMatchFileSnapshot(`fixtures/init/gitlab/${ROOT}`);
-    await expect(await read(cwd, JOBS)).toMatchFileSnapshot(`fixtures/init/gitlab/${JOBS}`);
+    await expect(await read(cwd, JOBS)).toMatchFileSnapshot('fixtures/init/gitlab/jobs.gitlab-ci.yml');
     await expect(await read(cwd, '.a11ygate.yml')).toMatchFileSnapshot('fixtures/init/gitlab/.a11ygate.yml');
     await expect(out).toMatchFileSnapshot('fixtures/init/gitlab/stdout.txt');
   }));
@@ -132,10 +147,25 @@ describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
   }));
 
   it.each([
-    ['a workflow without a merge request rule', 'workflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n\nbuild:\n  script: [make]\n'],
     ['a merge request rule that says when: never', 'workflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n      when: never\n    - when: always\n'],
     ['a string include', 'include: ci/shared.yml\nbuild:\n  script: [make]\n'],
     ['YAML document markers', '---\nbuild:\n  script: [make]\n'],
+    ['several YAML documents', 'build:\n  script: [make]\n---\ntest:\n  script: [true]\n'],
+    // Review of #91: an indented root mapping is valid YAML, but appending column-0 keys would break it.
+    ['an indented root mapping', '  build:\n    script: [make]\n  test:\n    script: [true]\n'],
+    // Review of #91: appended lines would become part of a trailing keep-chomping block scalar.
+    ['a trailing |+ block scalar', 'notes:\n  text: |+\n    hello\n'],
+    ['a trailing top-level |+ block scalar without a final newline', 'build:\n  script: [make]\nmessage: |+\n  hello'],
+    ['a trailing >- block scalar', 'build:\n  script:\n    - >-\n      make all\n'],
+    ['a flow-style root mapping', '{build: {script: [make]}}\n'],
+    ['tab characters', 'build:\n  script:\n    - make\t-j2\n'],
+    ['mixed line endings', 'build:\r\n  script: [make]\n'],
+    ['a top-level merge key', '.base: &base\n  image: node\n<<: *base\n'],
+    ['a workflow alias', '.wf: &wf\n  rules:\n    - if: $CI_COMMIT_BRANCH\nworkflow: *wf\n'],
+    ['workflow rules from !reference', 'workflow:\n  rules:\n    - !reference [.rules, branch]\n'],
+    ['flow-style workflow rules', 'workflow:\n  rules: [{if: $CI_COMMIT_BRANCH}]\n'],
+    ['an anchored workflow rules list', 'workflow:\n  rules: &rules\n    - if: $CI_COMMIT_BRANCH\n'],
+    ['a local include of the job file with its own rules', `include:\n  - local: '${JOBS}'\n    rules:\n      - if: $CI_COMMIT_BRANCH\n`],
   ])('leaves a root file with %s unchanged, prints the snippet and exits non-zero', async (_, original) => temporary(async (cwd) => {
     await writeFile(path.join(cwd, ROOT), original);
     const result = await init(cwd);
@@ -147,6 +177,97 @@ describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
     expect(await read(cwd, JOBS)).toContain('a11ygate:');
     expect(result.out).toContain(AUTOMATED_TESTING_DISCLAIMER);
   }));
+
+  it.each([
+    ['indented', 'workflow:\n  name: Pipeline\n  rules:\n    - if: $CI_COMMIT_BRANCH == "main"\n    - if: $CI_COMMIT_TAG\n      when: always\n\nbuild:\n  script: [make]\n', '    '],
+    ['indentless', 'workflow:\n  rules:\n  - if: $CI_COMMIT_BRANCH\n\nbuild:\n  script: [make]\n', '  '],
+  ])('prepends the merge request rule to an existing %s workflow rules list and keeps the other rules', async (_, original, indent) => temporary(async (cwd) => {
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code, result.err).toBe(0);
+    expect(result.out).toContain(`Updated ${ROOT}: added the include and the merge_request_event workflow rule`);
+    const text = await read(cwd, ROOT);
+    expectInsertedOnly(original, text);
+    expect(text).toContain(`  rules:\n${indent}# Added by a11ygate init. ${AUTOMATED_TESTING_DISCLAIMER}\n${indent}- if: '${MR}'\n`);
+    const root = load(text);
+    const before = load(original).workflow!.rules!;
+    expect(root.workflow!.rules).toEqual([{ if: MR }, ...before]);
+    expect(root.build).toEqual({ script: ['make'] });
+    expect(root.include).toEqual([{ local: JOBS }]);
+    // A rerun finds both and leaves the file alone.
+    expect((await init(cwd)).out).toContain(`Skipped existing ${ROOT}`);
+    expect(await read(cwd, ROOT)).toBe(text);
+  }));
+
+  it('adds rules that keep branch and tag pipelines to a workflow block without rules', async () => temporary(async (cwd) => {
+    const original = 'workflow:\n  name: "Pipeline for $CI_COMMIT_REF_NAME"\n\nbuild:\n  script: [make]\n';
+    await writeFile(path.join(cwd, ROOT), original);
+    expect((await init(cwd)).code).toBe(0);
+    const text = await read(cwd, ROOT);
+    expectInsertedOnly(original, text);
+    const root = load(text);
+    expect(root.workflow).toMatchObject({ name: 'Pipeline for $CI_COMMIT_REF_NAME' });
+    expect(root.workflow!.rules!.map((rule) => rule.if)).toEqual([MR, '$CI_COMMIT_BRANCH', '$CI_COMMIT_TAG']);
+  }));
+
+  it.each([
+    ['a cross-project include of a file with the same name', `include:\n  - project: group/shared\n    file: '/${JOBS}'\n  - remote: 'https://example.invalid/${JOBS}'\n  - template: ${JOBS}\n`],
+    ['a rules:changes mention of the job file', `build:\n  script: [make]\n  rules:\n    - changes:\n        - ${JOBS}\n`],
+    ['a comment that mentions the job file', `# TODO include ${JOBS}\nbuild:\n  script: [make]\n`],
+  ])('does not mistake %s for the local include', async (_, original) => temporary(async (cwd) => {
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code, result.err).toBe(0);
+    expect(result.out).toContain(`Updated ${ROOT}: added the include`);
+    const text = await read(cwd, ROOT);
+    expectInsertedOnly(original, text);
+    const root = load(text);
+    expect(root.include).toEqual(expect.arrayContaining([{ local: JOBS }]));
+    expect(ownMrRule(root)).toBe(true);
+  }));
+
+  it.each([
+    ['a list entry', `include:\n  - '${JOBS}'\n`],
+    ['a local entry with a leading slash', `include:\n- local: "/${JOBS}"  # job\n`],
+    ['a string include', `include: ${JOBS}\n`],
+  ])('recognises the local include written as %s', async (_, include) => temporary(async (cwd) => {
+    const original = `${include}workflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'\n`;
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain(`Skipped existing ${ROOT}`);
+    expect(await read(cwd, ROOT)).toBe(original);
+  }));
+
+  it('adds the disclaimer when it only inserts the include into an existing list', async () => temporary(async (cwd) => {
+    const original = `include:\n  - template: Security/SAST.gitlab-ci.yml\n\nworkflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n`;
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain(`Updated ${ROOT}: added the include;`);
+    const text = await read(cwd, ROOT);
+    expectInsertedOnly(original, text);
+    expect(text).toContain(`include:\n  # Added by a11ygate init. ${AUTOMATED_TESTING_DISCLAIMER}\n  - local: '${JOBS}'\n`);
+    expect(text.split(AUTOMATED_TESTING_DISCLAIMER).length).toBe(2);
+  }));
+
+  it('does not repeat the disclaimer when the root file already carries it', () => {
+    const original = `# ${AUTOMATED_TESTING_DISCLAIMER}\ninclude:\n  - template: Jobs/SAST.gitlab-ci.yml\nworkflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n`;
+    const plan = planGitlabRoot(original);
+    expect(plan.kind).toBe('update');
+    if (plan.kind !== 'update') return;
+    expect(plan.text.split(AUTOMATED_TESTING_DISCLAIMER).length).toBe(2);
+    expectInsertedOnly(original, plan.text);
+  });
+
+  it('only inserts lines and keeps trailing block scalars that are not last unchanged', () => {
+    const original = 'notes:\n  text: |+\n    hello\n\nbuild:\n  script: [make]';
+    const plan = planGitlabRoot(original);
+    expect(plan.kind).toBe('update');
+    if (plan.kind !== 'update') return;
+    expect(plan.text.startsWith(`${original}\n`)).toBe(true);
+    expect((load(plan.text) as { notes: { text: string } }).notes.text).toBe((load(original) as { notes: { text: string } }).notes.text);
+  });
 
   it('refuses a symlinked root file, without and with --force, before writing anything', async () => temporary(async (cwd) => {
     const outside = await mkdtemp(path.join(tmpdir(), 'a11ygate-r72-outside-'));

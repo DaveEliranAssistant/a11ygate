@@ -9837,93 +9837,179 @@ function gitlabRootFile() {
 ${EXPLAINER}
 ${GITLAB_ROOT_SNIPPET}`;
 }
-var KEY_RE = /^(?:"([^"]+)"|'([^']+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
+var KEY_RE = /^[ ]*(?:"([^"]+)"|'([^']+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
+var UNSAFE_KEY_START = /^[?&*!|>%@`{}[\],]/;
 var MR_IF_RE = /\$CI_PIPELINE_SOURCE\s*==\s*\\?["']merge_request_event\\?["']/;
-var LOCAL_INCLUDE_RE = new RegExp(`(^|[\\s'"/:-])${CI_FILES.gitlab.replace(/\./g, "\\.")}['"]?[ \\t]*(#.*)?$`);
+var NODE_PROPERTY_RE = /(^|[\s[{,])(?:&[\w-]|\*[\w-]|![\w!]|<<[ \t]*:)/;
+var BLOCK_SCALAR_RE = /(?:^[ ]*-|:)[ \t]+(?:[!&][^\s]*[ \t]+)*[|>][-+0-9]*[ \t]*(?:#.*)?$/;
 var indentOf = (line) => /^[ ]*/.exec(line)[0].length;
 var meaningful = (line) => line.trim() !== "" && !line.trim().startsWith("#");
-function topLevelKeys(lines) {
+var stripComment2 = (value) => value.replace(/(^|[ \t]+)#.*$/, "").trim();
+var unquoted = (line) => line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, '""');
+var JOB_FILES = /* @__PURE__ */ new Set([CI_FILES.gitlab, `/${CI_FILES.gitlab}`]);
+function scalar2(raw2) {
+  const value = stripComment2(raw2);
+  const single = /^'((?:[^']|'')*)'$/.exec(value);
+  if (single) return single[1].replace(/''/g, "'");
+  const double = /^"([^"\\]*)"$/.exec(value);
+  if (double) return double[1];
+  return /^[^\s'"&*!|>%@`{}[\],#?-][^#]*$/.test(value) ? value : void 0;
+}
+function mappingKeys(lines, from, to) {
   const keys = [];
-  for (const [i, line] of lines.entries()) {
-    if (!meaningful(line) || /^[ ]/.test(line)) continue;
-    if (/^-([ \t]|$)/.test(line) && keys.length) continue;
-    if (line.startsWith("	")) return "it uses tab indentation";
+  let indent = -1;
+  for (let i = from; i < to; i++) {
+    const line = lines[i];
+    if (!meaningful(line)) continue;
+    const at = indentOf(line);
+    if (indent < 0) indent = at;
+    if (at > indent) continue;
+    if (at < indent) return `line ${i + 1} is indented less than the mapping it belongs to`;
+    if (/^[ ]*-([ ]|$)/.test(line)) {
+      if (keys.length && !keys[keys.length - 1].value) continue;
+      return `line ${i + 1} is a list item where init expects a key`;
+    }
     const match = KEY_RE.exec(line);
-    if (!match) return `line ${i + 1} is not a top-level key this tool can read`;
+    if (!match) return `line ${i + 1} is not a key this tool can read`;
     const name = match[1] ?? match[2] ?? match[3];
-    if (keys.some((key) => key.name === name)) return `it repeats the top-level key '${name}'`;
-    keys.push({ name, start: i, end: lines.length, value: (match[4] ?? "").replace(/(^|[ \t]+)#.*$/, "").trim() });
+    if (match[3] && (UNSAFE_KEY_START.test(name) || name === "<<")) return `line ${i + 1} uses a YAML key form init does not edit`;
+    if (keys.some((key) => key.name === name)) return `it repeats the key '${name}'`;
+    const value = stripComment2(match[4] ?? "");
+    if (/^['"]/.test(value) && scalar2(value) === void 0) return `line ${i + 1} has a quoted value init cannot read`;
+    if (/^[[{]/.test(value) && !/[\]}]$/.test(value)) return `line ${i + 1} has a multi-line flow value`;
+    keys.push({ name, start: i, end: to, indent, value });
   }
   for (const [i, key] of keys.entries()) if (keys[i + 1]) key.end = keys[i + 1].start;
   return keys;
 }
-function hasMergeRequestRule(block) {
-  for (const [i, line] of block.entries()) {
-    if (!/^\s*(-\s+)?if:/.test(line) || !MR_IF_RE.test(line)) continue;
-    let start = i;
-    while (start > 0 && !/^\s*-\s/.test(block[start])) start--;
-    const dash = indentOf(block[start]);
-    let end = start + 1;
-    while (end < block.length && (!meaningful(block[end]) || indentOf(block[end]) > dash)) end++;
-    if (!block.slice(start, end).some((item) => /^\s*(-\s+)?when:\s*['"]?never\b/.test(item))) return true;
+function sequenceItems(lines, from, to) {
+  const first = lines.slice(from, to).find(meaningful);
+  if (!first || !/^[ ]*-([ ]|$)/.test(first)) return "it is not a block list";
+  const indent = indentOf(first);
+  const items = [];
+  for (let i = from; i < to; i++) {
+    const line = lines[i];
+    if (!meaningful(line)) continue;
+    if (indentOf(line) < indent) return `line ${i + 1} is indented less than its list`;
+    if (indentOf(line) === indent) {
+      if (!/^[ ]*-([ ]|$)/.test(line)) return `line ${i + 1} breaks the list`;
+      items.push([line]);
+    } else items[items.length - 1].push(line);
   }
-  return false;
+  return { indent, items };
+}
+var hasNodeProperties = (lines) => lines.some((line) => meaningful(line) && NODE_PROPERTY_RE.test(unquoted(line)));
+var enablesMergeRequests = (item) => /^[ ]*-[ ]+if:/.test(item[0]) && MR_IF_RE.test(item[0]) && !item.slice(1).some((line) => /^[ ]*when:[ \t]*['"]?never\b/.test(line));
+function planWorkflow(lines, workflow, tag) {
+  const manual = (reason) => ({ kind: "manual", reason: `its workflow: block ${reason}` });
+  if (workflow.value) return manual("is not a plain block mapping");
+  const body = lines.slice(workflow.start + 1, workflow.end);
+  if (hasNodeProperties(body)) return manual("uses anchors, aliases, tags or merge keys");
+  const keys = mappingKeys(lines, workflow.start + 1, workflow.end);
+  if (typeof keys === "string") return manual(`cannot be read safely (${keys})`);
+  if (!keys.length) return manual("is empty");
+  const childIndent = " ".repeat(keys[0].indent);
+  const rules2 = keys.find((key) => key.name === "rules");
+  if (!rules2) {
+    const ruleLines = GITLAB_WORKFLOW_BLOCK.split("\n").slice(1, -1).map((line) => `${childIndent}${line.slice(2)}`);
+    return { kind: "insert", insertion: { at: workflow.start + 1, lines: [`${childIndent}${tag}`, ...ruleLines] } };
+  }
+  if (rules2.value) return manual("has rules: that are not a plain block list");
+  const list = sequenceItems(lines, rules2.start + 1, rules2.end);
+  if (typeof list === "string") return manual(`has rules: that init cannot read safely (${list})`);
+  if (list.items.some(enablesMergeRequests)) return { kind: "present" };
+  if (list.items.some((item) => item.some((line) => line.includes("merge_request_event")))) {
+    return manual("already has a merge_request_event rule that does not create merge request pipelines");
+  }
+  const itemIndent = " ".repeat(list.indent);
+  return { kind: "insert", insertion: { at: rules2.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`] } };
+}
+function planInclude(lines, include, tag) {
+  const manual = (reason) => ({ kind: "manual", reason: `its include: entry ${reason}` });
+  if (include.value) {
+    const file = scalar2(include.value);
+    if (file !== void 0 && JOB_FILES.has(file)) return { kind: "present" };
+    return manual("is not a block list init can extend safely");
+  }
+  const list = sequenceItems(lines, include.start + 1, include.end);
+  if (typeof list === "string") return manual(`is not a block list init can extend safely (${list})`);
+  if (hasNodeProperties(lines.slice(include.start + 1, include.end))) return manual("uses anchors, aliases, tags or merge keys");
+  for (const item of list.items) {
+    const rest = item[0].replace(/^[ ]*-[ ]*/, "");
+    const extra = item.slice(1).filter(meaningful);
+    const local = /^local:[ \t]+(.*)$/.exec(rest);
+    const file = scalar2(local ? local[1] : rest);
+    if (!extra.length && file !== void 0 && JOB_FILES.has(file)) return { kind: "present" };
+    if (item.some((line) => /(^|[\s{,])local:/.test(line)) && item.some((line) => line.includes(CI_FILES.gitlab))) {
+      return manual(`already includes ${CI_FILES.gitlab} in a form init cannot confirm`);
+    }
+  }
+  const itemIndent = " ".repeat(list.indent);
+  return { kind: "insert", insertion: { at: include.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}${INCLUDE_ITEM}`] } };
 }
 function planGitlabRoot(original) {
-  const eol = original.includes("\r\n") ? "\r\n" : "\n";
-  const text = original.replace(/\r\n/g, "\n");
-  if (text.includes("\r")) return { kind: "manual", reason: "it uses unsupported line endings" };
-  if (/^(---|\.\.\.)([ \t]|$)/m.test(text)) return { kind: "manual", reason: "it uses YAML document markers" };
+  const manual = (reason) => ({ kind: "manual", reason });
+  const crlf = original.includes("\r\n");
+  if (crlf && /(^|[^\r])\n/.test(original)) return manual("it mixes line endings");
+  const text = crlf ? original.replace(/\r\n/g, "\n") : original;
+  if (text.includes("\r")) return manual("it uses unsupported line endings");
+  if (text.startsWith("\uFEFF")) return manual("it starts with a byte order mark");
+  if (text.includes("	")) return manual("it contains tab characters");
+  if (/^(---|\.\.\.)([ ]|$)/m.test(text)) return manual("it uses YAML document markers");
   const lines = text.split("\n");
-  const keys = topLevelKeys(lines);
-  if (typeof keys === "string") return { kind: "manual", reason: keys };
+  const firstLine = lines.find(meaningful);
+  if (firstLine && indentOf(firstLine) > 0) return manual("its top-level mapping is indented");
+  const keys = mappingKeys(lines, 0, lines.length);
+  if (typeof keys === "string") return manual(keys);
   const workflow = keys.find((key) => key.name === "workflow");
   const include = keys.find((key) => key.name === "include");
-  let ruleNeeded = true;
-  if (workflow) {
-    const block = lines.slice(workflow.start + 1, workflow.end);
-    if (workflow.value || !hasMergeRequestRule(block)) {
-      return { kind: "manual", reason: "it already has a workflow: block without a merge_request_event rule that init can merge safely" };
-    }
-    ruleNeeded = false;
-  }
-  let includeAt;
-  let includeNeeded = true;
-  if (include) {
-    const block = lines.slice(include.start, include.end);
-    if (block.some((line) => meaningful(line) && LOCAL_INCLUDE_RE.test(line.replace(/[ \t]+#.*$/, "")))) includeNeeded = false;
-    else {
-      const first = lines.slice(include.start + 1, include.end).find(meaningful);
-      if (include.value || !first || !/^[ ]*-\s/.test(first)) {
-        return { kind: "manual", reason: "its include: entry is not a block list init can extend safely" };
-      }
-      includeAt = { line: include.start + 1, indent: " ".repeat(indentOf(first)) };
-    }
-  }
-  if (!ruleNeeded && !includeNeeded) return { kind: "unchanged" };
+  const tagged = { done: original.includes(AUTOMATED_TESTING_DISCLAIMER) };
+  const tag = () => {
+    const disclaimer = tagged.done ? "" : ` ${AUTOMATED_TESTING_DISCLAIMER}`;
+    tagged.done = true;
+    return `# Added by a11ygate init.${disclaimer}`;
+  };
+  const plans = [];
+  if (workflow) plans.push({ at: workflow.start, plan: () => planWorkflow(lines, workflow, tag()), label: "merge_request_event workflow rule" });
+  if (include) plans.push({ at: include.start, plan: () => planInclude(lines, include, tag()), label: "include" });
+  plans.sort((a, b) => a.at - b.at);
+  const insertions = [];
   const added = [];
-  const out = [...lines];
-  if (includeAt) {
-    out.splice(includeAt.line, 0, `${includeAt.indent}# Added by a11ygate init.`, `${includeAt.indent}${INCLUDE_ITEM}`);
-    added.push("include");
+  for (const entry of plans) {
+    const before = tagged.done;
+    const result = entry.plan();
+    if (result.kind === "manual") return manual(result.reason);
+    if (result.kind === "present") {
+      tagged.done = before;
+      continue;
+    }
+    insertions.push(result.insertion);
+    added.push(entry.label);
   }
-  let body = out.join("\n");
   const appended = [];
-  if (includeNeeded && !includeAt) {
+  if (!include) {
     appended.push(GITLAB_INCLUDE_BLOCK);
-    added.push("include");
+    added.unshift("include");
   }
-  if (ruleNeeded) {
+  if (!workflow) {
     appended.push(GITLAB_WORKFLOW_BLOCK);
     added.push("merge_request_event workflow rule");
   }
+  if (!insertions.length && !appended.length) return { kind: "unchanged" };
+  const last = keys[keys.length - 1];
+  if (appended.length && last && lines.slice(last.start, last.end).some((line) => BLOCK_SCALAR_RE.test(line))) {
+    return manual("its last top-level key holds a block scalar, so appending could change its value");
+  }
+  const out = [...lines];
+  for (const insertion of [...insertions].sort((a, b) => b.at - a.at)) out.splice(insertion.at, 0, ...insertion.lines);
+  let body = out.join("\n");
   if (appended.length) {
     if (body && !body.endsWith("\n")) body += "\n";
-    body += `${body ? "\n" : ""}# Added by a11ygate init. ${AUTOMATED_TESTING_DISCLAIMER}
+    body += `${body ? "\n" : ""}${tag()}
 ${EXPLAINER}
 ${appended.join("\n")}`;
   }
-  return { kind: "update", text: body.replace(/\n/g, eol), added };
+  return { kind: "update", text: crlf ? body.replace(/\n/g, "\r\n") : body, added: added.sort((a, b) => a === "include" ? -1 : b === "include" ? 1 : 0) };
 }
 
 // packages/cli/src/init-pilot.ts
