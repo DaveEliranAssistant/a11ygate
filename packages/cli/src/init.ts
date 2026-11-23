@@ -1,11 +1,12 @@
 import { constants } from 'node:fs';
-import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import azureTemplate from '../../../integrations/azure-devops/a11ygate.yml?raw';
 import gitlabTemplate from '../../../integrations/gitlab/a11ygate.gitlab-ci.yml?raw';
 import { CI_FILES, CI_TARGETS, type CiTarget } from './ci-targets';
+import { GITLAB_ROOT_FILE, GITLAB_ROOT_SNIPPET, gitlabRootFile, planGitlabRoot, type GitlabRootPlan } from './init-gitlab';
 import { PILOT_KICKOFF, pilotNextSteps, pilotSuccessCriteria } from './init-pilot';
 import { runBaseline } from './baseline';
 import { SCHEMA_COMMENT } from './config';
@@ -175,6 +176,33 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   return true;
 }
 
+/** Reads the customer's root .gitlab-ci.yml before anything is written. Refuses symlinks, even with --force. */
+async function planRoot(cwd: string): Promise<GitlabRootPlan | { kind: 'create' }> {
+  const destination = path.join(await realpath(cwd), GITLAB_ROOT_FILE);
+  const info = await lstat(destination).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+  if (!info) return { kind: 'create' };
+  if (!info.isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
+  return planGitlabRoot(await readFile(destination, { encoding: 'utf8', flag: constants.O_RDONLY | constants.O_NOFOLLOW }));
+}
+
+/** Never replaces the customer's root pipeline, even with --force: it only adds the missing rule/include. */
+async function applyRoot(cwd: string, plan: GitlabRootPlan | { kind: 'create' }, stdout: (text: string) => void, stderr: (text: string) => void): Promise<boolean> {
+  if (plan.kind === 'create') { await writeStarter(cwd, GITLAB_ROOT_FILE, gitlabRootFile(), false, stdout); return true; }
+  if (plan.kind === 'unchanged') {
+    stdout(`Skipped existing ${GITLAB_ROOT_FILE} (it already has a merge_request_event workflow rule and includes ${CI_FILES.gitlab}).\n`);
+    return true;
+  }
+  if (plan.kind === 'manual') {
+    stderr(`Left ${GITLAB_ROOT_FILE} unchanged: ${plan.reason}. GitLab needs a merge_request_event rule in the root file itself; add the include and the rule yourself, for example:\n${GITLAB_ROOT_SNIPPET}`);
+    return false;
+  }
+  const destination = path.join(await realpath(cwd), GITLAB_ROOT_FILE);
+  if (!(await lstat(destination)).isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
+  await writeFile(destination, plan.text, { encoding: 'utf8', flag: constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW });
+  stdout(`Updated ${GITLAB_ROOT_FILE}: added the ${plan.added.join(' and the ')}; existing jobs and keys kept.\n`);
+  return true;
+}
+
 export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<number> {
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
@@ -218,6 +246,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const rootPlan = options.target === 'gitlab' ? await planRoot(cwd) : undefined;
     // Baselines deliberately retain baseline create's exclusive-create rule, even with --force.
     if (options.baseline) {
       const existing = await lstat(path.join(cwd, '.a11ygate-baseline.json')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
@@ -228,17 +257,18 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\n${recordTarget ? `ciTarget: ${options.target}\n` : ''}engines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
     await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
+    const rootMerged = rootPlan ? await applyRoot(cwd, rootPlan, stdout, stderr) : true;
     if (options.pilot) {
       await writeStarter(cwd, 'a11ygate-pilot/success-criteria.yml', pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, 'a11ygate-pilot/KICKOFF.md', PILOT_KICKOFF, options.force, stdout);
     }
-    if (options.target === 'gitlab') stdout(`Add this entry to your .gitlab-ci.yml include list:\ninclude:\n  - local: '${CI_FILES.gitlab}'\n`);
+    if (options.target === 'gitlab' && rootMerged) stdout(`Open a test merge request and check that its pipeline runs the A11yGate job.\n`);
     if (options.target === 'azure-devops') stdout(`Register ${CI_FILES['azure-devops']} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.\n`);
     if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
     stdout('Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n');
     if (options.target === 'jenkins') stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}\n`);
-    return 0;
+    return rootMerged ? 0 : 2;
   } catch (error) {
     stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;

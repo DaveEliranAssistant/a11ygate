@@ -39,7 +39,7 @@ special URL characters. The Jenkins shared library wraps URLs in shell quotes.
 | --- | --- |
 | GitHub (`--target github`) | `.a11ygate.yml`, `.github/workflows/a11ygate.yml` |
 | Jenkins (`--target jenkins`) | `.a11ygate.yml`, `Jenkinsfile` |
-| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml` |
+| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml`, and the root `.gitlab-ci.yml` (created, or extended with the include and `merge_request_event` rule) |
 | Azure DevOps (`--target azure-devops`) | `.a11ygate.yml`, `azure-pipelines.a11ygate.yml` |
 | Any target, with `--baseline <saved-scan>` | Also `.a11ygate-baseline.json` |
 
@@ -101,9 +101,32 @@ and execution errors to FAILURE.
 
 ## Finish GitLab or Azure DevOps setup
 
-For GitLab, add the generated local include entry to your project's
-`.gitlab-ci.yml`. The starter runs on merge requests and publishes Code Quality
-and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md).
+For GitLab, init writes the job to `.gitlab-ci.a11ygate.yml` and puts a
+`merge_request_event` rule directly in the root `.gitlab-ci.yml`, next to a local
+include of the job file. GitLab does not use rules from `include:` files to decide
+whether to create a merge request pipeline, so an `include:` entry alone is not
+enough. Without a root file, init writes:
+
+```yaml
+include:
+  - local: '.gitlab-ci.a11ygate.yml'
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+```
+
+The branch and tag rules keep your branch and tag pipelines running. With an
+existing root file, init keeps every job and key and adds only the missing local
+include and `workflow:` block. It skips the file when the rule and include are
+already there; `--force` never replaces this file. If the file has a `workflow:`
+block without a `merge_request_event` rule, or a layout init cannot extend safely,
+init leaves it unchanged, prints this snippet, and exits with code 2. A symlinked
+root file is refused. The job runs on merge requests and publishes Code Quality
+and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md) and
+[GitLab CI in the pilot quickstart](../pilot/quickstart.md#gitlab-ci).
 
 For Azure DevOps, register `azure-pipelines.a11ygate.yml` as a standalone
 pipeline. It disables push triggers and targets PRs to `main` for supported

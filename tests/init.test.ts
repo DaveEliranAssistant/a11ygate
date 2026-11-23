@@ -134,11 +134,16 @@ describe('a11ygate init', () => {
       expect(ci).toContain('http://127.0.0.1:9999/path?q=a%27b&x=1#fragment');
       expect(ci).toContain('critical');
       expect(ci).toContain('--baseline .a11ygate-baseline.json');
-      expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
+      // A11Y-R72: GitLab extends the root file with the MR rule and include, keeping existing content.
+      const root = target === 'gitlab' ? await read(cwd, '.gitlab-ci.yml') : '# project pipeline';
+      if (target === 'gitlab') expect(root.startsWith('# project pipeline\n')).toBe(true);
+      else expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
       expect(await read(cwd, '.a11ygate.yml')).toContain(`ciTarget: ${target}`);
       if (target === 'gitlab') {
         expect(ci).toContain('--crawl 1');
-        expect(out()).toContain("include:\n  - local: '.gitlab-ci.a11ygate.yml'");
+        expect(root).toContain("include:\n  - local: '.gitlab-ci.a11ygate.yml'");
+        expect(root).toContain('$CI_PIPELINE_SOURCE == "merge_request_event"');
+        expect(out()).toContain('Updated .gitlab-ci.yml');
       } else {
         const parsed = yaml.load(ci) as { trigger: string; pr: string[]; parameters: { name: string; default: unknown }[]; steps: Record<string, unknown>[] };
         const template = yaml.load(await readFile('integrations/azure-devops/a11ygate.yml', 'utf8')) as typeof parsed;
@@ -156,7 +161,7 @@ describe('a11ygate init', () => {
       expect(await read(cwd, file)).toBe('# project starter');
       expect(await run([...args, '--force'], io)).toBe(0);
       expect(await read(cwd, file)).toContain(AUTOMATED_TESTING_DISCLAIMER);
-      expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
+      expect(await read(cwd, '.gitlab-ci.yml')).toBe(root);
     }));
   }
 

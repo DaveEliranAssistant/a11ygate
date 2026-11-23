@@ -8,6 +8,10 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
+### GitLab merge request rule (A11Y-R72)
+
+- **A11Y-R72:** `init --target gitlab` now also writes the root `.gitlab-ci.yml` with a local include of `.gitlab-ci.a11ygate.yml` and a `workflow: rules` entry for `merge_request_event` (plus branch and tag rules, so those pipelines keep running). GitLab does not use rules from `include:` files to create merge request pipelines. An existing root file keeps all of its jobs and keys; init adds only the missing include and rule, skips the file when both are present (even with `--force`), refuses symlinks, and leaves a `workflow:` block it cannot merge unchanged, printing the snippet and exiting with code 2. The old "add this include entry" hint is gone. GitHub, Jenkins and Azure DevOps init output is unchanged. GitLab docs (quickstart, init guide, GitLab guide, owner runbook) describe the same flow.
+
 ### Pilot funnel (A11Y-R63 to A11Y-R70)
 
 Everything needed to take one lead from a prospect scan to a pilot and a quote. The package version is unchanged (**0.2.0**) and nothing is published. Public price and pilot UI stay off until the owner turns on `A11YGATE_PRICING_ENABLED`. Owner decisions still open are listed as checkboxes in the [owner runbook](../../docs/pilot/owner-runbook.md).

@@ -62,6 +62,8 @@ const ARTIFACT_RULES: Rule[] = [
   { pattern: /^owner\/prospect-out\/prospect-summary\.html$/, required: true },
   { pattern: /^owner\/prospect-out\/prospect-manifest\.json$/, required: true },
   { pattern: /^customer-repo\/\.gitlab-ci\.a11ygate\.yml$/, required: true },
+  // A11Y-R72: init also writes the root pipeline with the merge_request_event rule.
+  { pattern: /^customer-repo\/\.gitlab-ci\.yml$/, required: true },
   { pattern: /^customer-repo\/\.a11ygate\.yml$/, required: true },
   { pattern: /^customer-repo\/a11ygate-pilot\/(KICKOFF\.md|success-criteria\.yml)$/, required: true },
   { pattern: /(^|\/)a11ygate-scan\.html$/, required: true },
@@ -140,7 +142,7 @@ it('runs prospect -> init --pilot -> scan -> baseline -> gate fail -> 3 evidence
     // 2. Pilot starter in the customer's (temporary) repository.
     expect(await run(['init', '--yes', '--target', 'gitlab', '--pilot', '--url', SITE, '--crawl', '2'], { cwd: repo, stdout, stderr }),
       JSON.stringify(stderr.mock.calls)).toBe(0);
-    for (const file of ['.gitlab-ci.a11ygate.yml', '.a11ygate.yml', 'a11ygate-pilot/success-criteria.yml', 'a11ygate-pilot/KICKOFF.md']) {
+    for (const file of ['.gitlab-ci.a11ygate.yml', '.gitlab-ci.yml', '.a11ygate.yml', 'a11ygate-pilot/success-criteria.yml', 'a11ygate-pilot/KICKOFF.md']) {
       await keep(file, path.join(repo, file));
     }
     expect(artifacts.get('a11ygate-pilot/success-criteria.yml')).toContain(`lengthDays: ${pricing.pilot.lengthDays}`);
@@ -198,7 +200,8 @@ it('runs prospect -> init --pilot -> scan -> baseline -> gate fail -> 3 evidence
     expect(vi.mocked(printProspectPdf)).toHaveBeenCalledTimes(3); // prospect summary, pilot results, quote
 
     // Every customer-visible artifact carries the disclaimer and no compliance claim.
-    expect([...artifacts.keys()]).toHaveLength(17);
+    // 18 since A11Y-R72: init also writes the root .gitlab-ci.yml.
+    expect([...artifacts.keys()]).toHaveLength(18);
     for (const [name, text] of artifacts) {
       expect(text, name).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(text, name).not.toMatch(BANNED);

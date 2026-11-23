@@ -2,11 +2,20 @@
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
-Copy [`a11ygate.gitlab-ci.yml`](./a11ygate.gitlab-ci.yml) into a repository you own or are authorized to test, then include the reviewed copy:
+The quickest route is `a11ygate init --target gitlab` ([init guide](../../docs/integrations/init.md#finish-gitlab-or-azure-devops-setup)). It writes the job to `.gitlab-ci.a11ygate.yml` and adds the include and the merge request rule to your root `.gitlab-ci.yml`.
+
+To set it up by hand, copy [`a11ygate.gitlab-ci.yml`](./a11ygate.gitlab-ci.yml) into a repository you own or are authorized to test. Then include the reviewed copy **and** add a `merge_request_event` rule directly in the root `.gitlab-ci.yml`. GitLab does not use rules from `include:` files when it decides whether to create a merge request pipeline, so the include alone is not enough ([GitLab: merge request pipelines](https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/)):
 
 ```yaml
 include:
   - local: integrations/gitlab/a11ygate.gitlab-ci.yml
+
+# Root rules: create merge request pipelines and keep branch and tag pipelines.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
 
 # Override the included job to start your application on loopback.
 a11ygate:
@@ -18,7 +27,7 @@ a11ygate:
     - node -e 'const u="http://127.0.0.1:3000/"; for(let i=0;i<60;i++){try{if((await fetch(u)).ok)process.exit(0)}catch{} await new Promise(r=>setTimeout(r,1000))}process.exit(1)' --input-type=module
 ```
 
-Adapt the build/start commands to your application. The template scans only `http://127.0.0.1:3000` by default, with one page (`--crawl 1`), and runs only for merge request pipelines. Only set `A11YGATE_URL` to a local or explicitly authorized application. The template performs no login, deployment, or publishing.
+If your root file already has `workflow: rules`, add the `merge_request_event` rule as the first entry instead of a second `workflow:` block. Adapt the build/start commands to your application. The template scans only `http://127.0.0.1:3000` by default, with one page (`--crawl 1`), and runs only for merge request pipelines. Only set `A11YGATE_URL` to a local or explicitly authorized application. The template performs no login, deployment, or publishing.
 
 The consuming project's lockfile must include the A11yGate CLI **from a revision containing this format**, `playwright@1.64.1`, and `@axe-core/playwright`. The Node + Chromium image is `mcr.microsoft.com/playwright:v1.64.1-noble`; keep Playwright's package and image versions aligned. The image supplies browsers and system dependencies, but not the npm packages ([Playwright Docker documentation](https://playwright.dev/docs/docker)). The CLI version fields remain unchanged by this task; an older published `0.2.0` does not imply support for this format. Before a release, you can vendor this revision's `packages/cli` as `tools/a11ygate` and install it as a local development dependency (`npm install --save-dev ./tools/a11ygate playwright@1.64.1 @axe-core/playwright`), committing the resulting lockfile. No registry publication is required. In the A11yGate repository, the workspace CLI and its checked-in bundle already provide the binary.
 

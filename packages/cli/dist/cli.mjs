@@ -209,7 +209,7 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir10, readFile as readFile10, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
+import { mkdir as mkdir10, readFile as readFile11, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
 import path22 from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9779,7 +9779,7 @@ async function runDoctor(argv2, io = {}) {
 
 // packages/cli/src/init.ts
 import { constants } from "node:fs";
-import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
+import { lstat as lstat4, mkdir as mkdir7, readFile as readFile10, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
 import path18 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
@@ -9813,6 +9813,118 @@ a11ygate:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - when: never
 `;
+
+// packages/cli/src/init-gitlab.ts
+var GITLAB_ROOT_FILE = ".gitlab-ci.yml";
+var INCLUDE_ITEM = `- local: '${CI_FILES.gitlab}'`;
+var GITLAB_INCLUDE_BLOCK = `include:
+  ${INCLUDE_ITEM}
+`;
+var GITLAB_WORKFLOW_BLOCK = `workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+`;
+var EXPLAINER = `# GitLab creates merge request pipelines only when the root .gitlab-ci.yml has a
+# matching rule; rules inside included files do not count. The branch and tag rules
+# keep branch and tag pipelines running. See integrations/gitlab/README.md.`;
+var GITLAB_ROOT_SNIPPET = `${GITLAB_INCLUDE_BLOCK}
+${GITLAB_WORKFLOW_BLOCK}`;
+function gitlabRootFile() {
+  return `# ${AUTOMATED_TESTING_DISCLAIMER}
+# Root pipeline written by a11ygate init. The A11yGate job lives in ${CI_FILES.gitlab}.
+${EXPLAINER}
+${GITLAB_ROOT_SNIPPET}`;
+}
+var KEY_RE = /^(?:"([^"]+)"|'([^']+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
+var MR_IF_RE = /\$CI_PIPELINE_SOURCE\s*==\s*\\?["']merge_request_event\\?["']/;
+var LOCAL_INCLUDE_RE = new RegExp(`(^|[\\s'"/:-])${CI_FILES.gitlab.replace(/\./g, "\\.")}['"]?[ \\t]*(#.*)?$`);
+var indentOf = (line) => /^[ ]*/.exec(line)[0].length;
+var meaningful = (line) => line.trim() !== "" && !line.trim().startsWith("#");
+function topLevelKeys(lines) {
+  const keys = [];
+  for (const [i, line] of lines.entries()) {
+    if (!meaningful(line) || /^[ ]/.test(line)) continue;
+    if (/^-([ \t]|$)/.test(line) && keys.length) continue;
+    if (line.startsWith("	")) return "it uses tab indentation";
+    const match = KEY_RE.exec(line);
+    if (!match) return `line ${i + 1} is not a top-level key this tool can read`;
+    const name = match[1] ?? match[2] ?? match[3];
+    if (keys.some((key) => key.name === name)) return `it repeats the top-level key '${name}'`;
+    keys.push({ name, start: i, end: lines.length, value: (match[4] ?? "").replace(/(^|[ \t]+)#.*$/, "").trim() });
+  }
+  for (const [i, key] of keys.entries()) if (keys[i + 1]) key.end = keys[i + 1].start;
+  return keys;
+}
+function hasMergeRequestRule(block) {
+  for (const [i, line] of block.entries()) {
+    if (!/^\s*(-\s+)?if:/.test(line) || !MR_IF_RE.test(line)) continue;
+    let start = i;
+    while (start > 0 && !/^\s*-\s/.test(block[start])) start--;
+    const dash = indentOf(block[start]);
+    let end = start + 1;
+    while (end < block.length && (!meaningful(block[end]) || indentOf(block[end]) > dash)) end++;
+    if (!block.slice(start, end).some((item) => /^\s*(-\s+)?when:\s*['"]?never\b/.test(item))) return true;
+  }
+  return false;
+}
+function planGitlabRoot(original) {
+  const eol = original.includes("\r\n") ? "\r\n" : "\n";
+  const text = original.replace(/\r\n/g, "\n");
+  if (text.includes("\r")) return { kind: "manual", reason: "it uses unsupported line endings" };
+  if (/^(---|\.\.\.)([ \t]|$)/m.test(text)) return { kind: "manual", reason: "it uses YAML document markers" };
+  const lines = text.split("\n");
+  const keys = topLevelKeys(lines);
+  if (typeof keys === "string") return { kind: "manual", reason: keys };
+  const workflow = keys.find((key) => key.name === "workflow");
+  const include = keys.find((key) => key.name === "include");
+  let ruleNeeded = true;
+  if (workflow) {
+    const block = lines.slice(workflow.start + 1, workflow.end);
+    if (workflow.value || !hasMergeRequestRule(block)) {
+      return { kind: "manual", reason: "it already has a workflow: block without a merge_request_event rule that init can merge safely" };
+    }
+    ruleNeeded = false;
+  }
+  let includeAt;
+  let includeNeeded = true;
+  if (include) {
+    const block = lines.slice(include.start, include.end);
+    if (block.some((line) => meaningful(line) && LOCAL_INCLUDE_RE.test(line.replace(/[ \t]+#.*$/, "")))) includeNeeded = false;
+    else {
+      const first = lines.slice(include.start + 1, include.end).find(meaningful);
+      if (include.value || !first || !/^[ ]*-\s/.test(first)) {
+        return { kind: "manual", reason: "its include: entry is not a block list init can extend safely" };
+      }
+      includeAt = { line: include.start + 1, indent: " ".repeat(indentOf(first)) };
+    }
+  }
+  if (!ruleNeeded && !includeNeeded) return { kind: "unchanged" };
+  const added = [];
+  const out = [...lines];
+  if (includeAt) {
+    out.splice(includeAt.line, 0, `${includeAt.indent}# Added by a11ygate init.`, `${includeAt.indent}${INCLUDE_ITEM}`);
+    added.push("include");
+  }
+  let body = out.join("\n");
+  const appended = [];
+  if (includeNeeded && !includeAt) {
+    appended.push(GITLAB_INCLUDE_BLOCK);
+    added.push("include");
+  }
+  if (ruleNeeded) {
+    appended.push(GITLAB_WORKFLOW_BLOCK);
+    added.push("merge_request_event workflow rule");
+  }
+  if (appended.length) {
+    if (body && !body.endsWith("\n")) body += "\n";
+    body += `${body ? "\n" : ""}# Added by a11ygate init. ${AUTOMATED_TESTING_DISCLAIMER}
+${EXPLAINER}
+${appended.join("\n")}`;
+  }
+  return { kind: "update", text: body.replace(/\n/g, eol), added };
+}
 
 // packages/cli/src/init-pilot.ts
 var lengthDays = pricing_default.pilot.lengthDays;
@@ -10098,6 +10210,38 @@ async function writeStarter(cwd, file, content, force, stdout) {
 `);
   return true;
 }
+async function planRoot(cwd) {
+  const destination = path18.join(await realpath2(cwd), GITLAB_ROOT_FILE);
+  const info = await lstat4(destination).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  if (!info) return { kind: "create" };
+  if (!info.isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
+  return planGitlabRoot(await readFile10(destination, { encoding: "utf8", flag: constants.O_RDONLY | constants.O_NOFOLLOW }));
+}
+async function applyRoot(cwd, plan, stdout, stderr) {
+  if (plan.kind === "create") {
+    await writeStarter(cwd, GITLAB_ROOT_FILE, gitlabRootFile(), false, stdout);
+    return true;
+  }
+  if (plan.kind === "unchanged") {
+    stdout(`Skipped existing ${GITLAB_ROOT_FILE} (it already has a merge_request_event workflow rule and includes ${CI_FILES.gitlab}).
+`);
+    return true;
+  }
+  if (plan.kind === "manual") {
+    stderr(`Left ${GITLAB_ROOT_FILE} unchanged: ${plan.reason}. GitLab needs a merge_request_event rule in the root file itself; add the include and the rule yourself, for example:
+${GITLAB_ROOT_SNIPPET}`);
+    return false;
+  }
+  const destination = path18.join(await realpath2(cwd), GITLAB_ROOT_FILE);
+  if (!(await lstat4(destination)).isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
+  await writeFile8(destination, plan.text, { encoding: "utf8", flag: constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW });
+  stdout(`Updated ${GITLAB_ROOT_FILE}: added the ${plan.added.join(" and the ")}; existing jobs and keys kept.
+`);
+  return true;
+}
 async function runInit(argv2, io = {}) {
   const stdout = io.stdout ?? ((s) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s) => process.stderr.write(s));
@@ -10149,6 +10293,7 @@ async function runInit(argv2, io = {}) {
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const rootPlan = options.target === "gitlab" ? await planRoot(cwd) : void 0;
     if (options.baseline) {
       const existing = await lstat4(path18.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
@@ -10170,13 +10315,12 @@ failOn: ${options.failOn}
 ${options.baseline ? "baseline: .a11ygate-baseline.json\n" : ""}`;
     await writeStarter(cwd, ".a11ygate.yml", config2, options.force, stdout);
     await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
+    const rootMerged = rootPlan ? await applyRoot(cwd, rootPlan, stdout, stderr) : true;
     if (options.pilot) {
       await writeStarter(cwd, "a11ygate-pilot/success-criteria.yml", pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, "a11ygate-pilot/KICKOFF.md", PILOT_KICKOFF, options.force, stdout);
     }
-    if (options.target === "gitlab") stdout(`Add this entry to your .gitlab-ci.yml include list:
-include:
-  - local: '${CI_FILES.gitlab}'
+    if (options.target === "gitlab" && rootMerged) stdout(`Open a test merge request and check that its pipeline runs the A11yGate job.
 `);
     if (options.target === "azure-devops") stdout(`Register ${CI_FILES["azure-devops"]} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
 `);
@@ -10185,7 +10329,7 @@ include:
     if (options.target === "jenkins") stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}
 `);
-    return 0;
+    return rootMerged ? 0 : 2;
   } catch (error) {
     stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}
 `);
@@ -11359,7 +11503,7 @@ async function readDocuments(files, cwd) {
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile10(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile11(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -11382,7 +11526,7 @@ async function readVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile10(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile11(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
