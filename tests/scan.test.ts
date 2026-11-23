@@ -228,6 +228,7 @@ describe('scan report', () => {
   it('preserves the pre-plugin axe-only report bytes for a local result fixture', () => {
     const r = report();
     expect(JSON.stringify(r, null, 2) + '\n').toMatchSnapshot('axe-only JSON');
+    // The Markdown golden includes the disclaimer added in A11Y-R73.
     expect(scanMarkdown(r)).toMatchSnapshot('axe-only Markdown');
     expect(scanHtml(r)).toMatchSnapshot('axe-only HTML');
   });
@@ -329,7 +330,9 @@ describe('runScan with an injected engine', () => {
       expect(await runScan([ORIGIN, '--crawl', '--out-dir', 'out'], { ...opts, engine: engineFor(pages) })).toBe(1);
       const json = JSON.parse(await readFile(path.join(dir, 'out/a11ygate-scan.json'), 'utf8'));
       expect(json).toMatchObject({ version: '9.9.9', counts: { pagesScanned: 2, findings: 2 } });
-      expect(await readFile(path.join(dir, 'out/a11ygate-scan.md'), 'utf8')).toContain('color-contrast');
+      const markdown = await readFile(path.join(dir, 'out/a11ygate-scan.md'), 'utf8');
+      expect(markdown).toContain('color-contrast');
+      expect(markdown.split('\n')).toContain('Automated testing only. Not a WCAG audit, certification or legal advice.');
       expect(await readFile(path.join(dir, 'out/a11ygate-scan.html'), 'utf8')).toContain('<!doctype html>');
       expect(await runScan([ORIGIN, '--crawl', '--fail-on', 'critical'], { ...opts, engine: engineFor(pages) })).toBe(0);
       expect(await runScan([ORIGIN, '--crawl', '--fail-on', 'none'], { ...opts, engine: engineFor(pages) })).toBe(0);

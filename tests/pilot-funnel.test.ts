@@ -67,8 +67,7 @@ const ARTIFACT_RULES: Rule[] = [
   { pattern: /(^|\/)a11ygate-scan\.html$/, required: true },
   { pattern: /\.zip!\/(report\.md|report\.html|manifest\.json)$/, required: true },
   { pattern: /^customer-repo\/pilot-report\/(pilot-results|quote)\.html$/, required: true },
-  { pattern: /(^|\/)a11ygate-scan\.md$/, required: false,
-    reason: 'scan Markdown for PR comments/step summaries: no disclaimer on main unless a baseline is used; left unchanged to keep goldens byte-identical (owner decision)' },
+  { pattern: /(^|\/)a11ygate-scan\.md$/, required: true },
   { pattern: /(^|\/)a11ygate-scan\.json$/, required: false, reason: 'machine-readable scan report' },
   { pattern: /(^|\/)engines\/axe\.json$/, required: false, reason: 'raw axe engine output' },
   { pattern: /(^|\/)a11ygate-pilot-evidence\.json$/, required: false, reason: 'machine-readable pilot evidence input' },
@@ -76,15 +75,15 @@ const ARTIFACT_RULES: Rule[] = [
   { pattern: /^customer-repo\/\.a11ygate-baseline\.json$/, required: false, reason: 'machine-readable fingerprint baseline' },
   { pattern: /\.pdf$/, required: false, reason: 'PDF printer is mocked here; its HTML source is checked above and PDFs in prospect/pilot-report tests' },
 ];
-/** Files verified (2026-11-22) to lack the disclaimer. Update this list if the scan Markdown gains it. */
+/** Generated artifacts expected to lack the disclaimer. */
 const EXPECTED_WITHOUT_DISCLAIMER = [
-  'customer-repo/kickoff/a11ygate-scan.json', 'customer-repo/kickoff/a11ygate-scan.md', 'customer-repo/kickoff/engines/axe.json',
+  'customer-repo/kickoff/a11ygate-scan.json', 'customer-repo/kickoff/engines/axe.json',
   'customer-repo/latest/a11ygate-pilot-evidence.json', 'customer-repo/latest/engines/axe.json', 'customer-repo/mid/engines/axe.json',
   'customer-repo/packs/kickoff.zip!/engines/axe.json', 'customer-repo/packs/kickoff.zip!/scan/a11ygate-scan.json',
-  'customer-repo/packs/kickoff.zip!/scan/a11ygate-scan.md', 'customer-repo/packs/latest.zip!/engines/axe.json',
+  'customer-repo/packs/latest.zip!/engines/axe.json',
   'customer-repo/packs/latest.zip!/scan/a11ygate-pilot-evidence.json', 'customer-repo/packs/mid.zip!/engines/axe.json',
   'customer-repo/pilot-report/pilot-results.pdf', 'customer-repo/pilot-report/quote.pdf',
-  'owner/prospect-out/prospect-summary.pdf', 'owner/prospect-scan/a11ygate-scan.json', 'owner/prospect-scan/a11ygate-scan.md',
+  'owner/prospect-out/prospect-summary.pdf', 'owner/prospect-scan/a11ygate-scan.json',
   'owner/prospect-scan/engines/axe.json',
 ].sort();
 

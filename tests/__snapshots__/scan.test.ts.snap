@@ -433,6 +433,8 @@ exports[`scan report > preserves the pre-plugin axe-only report bytes for a loca
 
 3 findings at or above serious: image-alt, color-contrast, label.
 
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
 | Severity | Findings |
 | --- | --- |
 | critical | 2 |

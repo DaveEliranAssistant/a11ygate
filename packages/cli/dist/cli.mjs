@@ -1521,7 +1521,7 @@ function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
     "",
     cell(report.reason),
     ...diffScanSummary(report, t).flatMap((line) => ["", cell(line)]),
-    ...report.diffScan ? ["", AUTOMATED_TESTING_DISCLAIMER] : [],
+    ...report.diffScan || !report.baseline && !report.engines ? ["", AUTOMATED_TESTING_DISCLAIMER] : [],
     "",
     `| ${t.t("md.severityColumn")} | ${t.t("md.findingsColumn")} |`,
     "| --- | --- |",
