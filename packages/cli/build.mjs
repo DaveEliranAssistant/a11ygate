@@ -7,7 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(packageRoot, '../..');
-const outfile = path.join(packageRoot, 'dist', 'cli.mjs');
+const pilotStage = process.env.A11YGATE_PILOT_STAGE;
+const sourceSha = pilotStage && process.env.A11YGATE_RELEASE_BUILD !== '1'
+  ? process.env.A11YGATE_PILOT_SOURCE_SHA
+  : '';
+if (pilotStage && process.env.A11YGATE_RELEASE_BUILD !== '1' && !/^[a-f0-9]{7,64}$/.test(sourceSha ?? '')) {
+  throw new Error('Expected a Git commit abbreviation for the pilot build.');
+}
+const outfile = path.join(pilotStage || packageRoot, 'dist', 'cli.mjs');
 const actionOut = path.join(repoRoot, 'action', 'dist', 'cli.mjs');
 
 const atAlias = {
@@ -26,7 +33,6 @@ const atAlias = {
 checkEngineLicenses();
 
 await mkdir(path.dirname(outfile), { recursive: true });
-await mkdir(path.dirname(actionOut), { recursive: true });
 
 const cliBuild = await build({
   metafile: true,
@@ -37,6 +43,7 @@ const cliBuild = await build({
   format: 'esm',
   target: 'node20',
   outfile,
+  define: { A11YGATE_PILOT_VERSION_SUFFIX: JSON.stringify(sourceSha ? ` (source ${sourceSha})` : '') },
   banner: { js: '#!/usr/bin/env node' },
   legalComments: 'none',
   // Optional peer dependencies for `a11ygate scan`; loaded with dynamic import at runtime.
@@ -51,67 +58,73 @@ for (const input of Object.keys(cliBuild.metafile.inputs)) {
   if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency: ${input}`);
 }
 
-// Pure, network-free fix rules for the Action's suggested changes (action/suggestions.mjs).
-await build({
-  entryPoints: [path.join(repoRoot, 'lib', 'fix', 'index.ts')],
-  bundle: true,
-  platform: 'node',
-  format: 'esm',
-  target: 'node20',
-  outfile: path.join(repoRoot, 'action', 'dist', 'fix.mjs'),
-  legalComments: 'none',
-  logLevel: 'warning',
-  plugins: [atAlias],
-});
-
-// Optional model-fix orchestrator (routing only, no provider code or network) for the Action.
-await build({
-  entryPoints: [path.join(repoRoot, 'lib', 'modelfix', 'index.ts')],
-  bundle: true,
-  platform: 'node',
-  format: 'esm',
-  target: 'node20',
-  outfile: path.join(repoRoot, 'action', 'dist', 'modelfix.mjs'),
-  legalComments: 'none',
-  logLevel: 'warning',
-  plugins: [atAlias],
-});
-
-// Isolated verifier for the Action (git worktree + local 127.0.0.1 re-scan). Loaded only when model
-// fixes are on and the repository opted in. Browser packages stay optional runtime peers.
-const verifyBuild = await build({
-  metafile: true,
-  entryPoints: [path.join(repoRoot, 'lib', 'modelfix-verify', 'index.ts')],
-  bundle: true,
-  platform: 'node',
-  format: 'esm',
-  target: 'node20',
-  outfile: path.join(repoRoot, 'action', 'dist', 'modelfix-verify.mjs'),
-  legalComments: 'none',
-  external: ['playwright', 'playwright-core', '@axe-core/playwright'],
-  logLevel: 'warning',
-  plugins: [atAlias],
-});
-for (const input of Object.keys(verifyBuild.metafile.inputs)) {
-  if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency in modelfix-verify: ${input}`);
-}
-
-// Shared configuration resolver for the Action's model suggestions.
-await build({
-  entryPoints: [path.join(packageRoot, 'src', 'effective-config.ts')],
-  bundle: true, platform: 'node', format: 'esm', target: 'node20',
-  outfile: path.join(repoRoot, 'action', 'dist', 'config.mjs'),
-  legalComments: 'none', logLevel: 'warning', plugins: [atAlias],
-});
-
-// Shared read-only preflight; browser peers are resolved only at runtime.
-await build({
-  entryPoints: [path.join(packageRoot, 'src', 'doctor.ts')],
-  bundle: true, platform: 'node', format: 'esm', target: 'node20',
-  outfile: path.join(repoRoot, 'action', 'dist', 'doctor.mjs'),
-  legalComments: 'none', logLevel: 'warning', plugins: [atAlias],
-});
-
 await chmod(outfile, 0o755);
-await copyFile(outfile, actionOut);
-await chmod(actionOut, 0o755);
+if (!pilotStage) await buildAction();
+
+async function buildAction() {
+  await mkdir(path.dirname(actionOut), { recursive: true });
+
+  // Pure, network-free fix rules for the Action's suggested changes (action/suggestions.mjs).
+  await build({
+    entryPoints: [path.join(repoRoot, 'lib', 'fix', 'index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile: path.join(repoRoot, 'action', 'dist', 'fix.mjs'),
+    legalComments: 'none',
+    logLevel: 'warning',
+    plugins: [atAlias],
+  });
+
+  // Optional model-fix orchestrator (routing only, no provider code or network) for the Action.
+  await build({
+    entryPoints: [path.join(repoRoot, 'lib', 'modelfix', 'index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile: path.join(repoRoot, 'action', 'dist', 'modelfix.mjs'),
+    legalComments: 'none',
+    logLevel: 'warning',
+    plugins: [atAlias],
+  });
+
+  // Isolated verifier for the Action (git worktree + local 127.0.0.1 re-scan). Loaded only when model
+  // fixes are on and the repository opted in. Browser packages stay optional runtime peers.
+  const verifyBuild = await build({
+    metafile: true,
+    entryPoints: [path.join(repoRoot, 'lib', 'modelfix-verify', 'index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile: path.join(repoRoot, 'action', 'dist', 'modelfix-verify.mjs'),
+    legalComments: 'none',
+    external: ['playwright', 'playwright-core', '@axe-core/playwright'],
+    logLevel: 'warning',
+    plugins: [atAlias],
+  });
+  for (const input of Object.keys(verifyBuild.metafile.inputs)) {
+    if (input.includes('node_modules/')) throw new Error(`Unexpected bundled dependency in modelfix-verify: ${input}`);
+  }
+
+  // Shared configuration resolver for the Action's model suggestions.
+  await build({
+    entryPoints: [path.join(packageRoot, 'src', 'effective-config.ts')],
+    bundle: true, platform: 'node', format: 'esm', target: 'node20',
+    outfile: path.join(repoRoot, 'action', 'dist', 'config.mjs'),
+    legalComments: 'none', logLevel: 'warning', plugins: [atAlias],
+  });
+
+  // Shared read-only preflight; browser peers are resolved only at runtime.
+  await build({
+    entryPoints: [path.join(packageRoot, 'src', 'doctor.ts')],
+    bundle: true, platform: 'node', format: 'esm', target: 'node20',
+    outfile: path.join(repoRoot, 'action', 'dist', 'doctor.mjs'),
+    legalComments: 'none', logLevel: 'warning', plugins: [atAlias],
+  });
+
+  await copyFile(outfile, actionOut);
+  await chmod(actionOut, 0o755);
+}
