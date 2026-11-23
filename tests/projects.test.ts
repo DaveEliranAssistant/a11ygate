@@ -66,6 +66,8 @@ describe('multi-project runs', () => {
         expect(result.disclaimer).toBe(AUTOMATED_TESTING_DISCLAIMER);
         const report = JSON.parse(await readFile(path.join(cwd, 'out', name, 'a11ygate-scan.json'), 'utf8'));
         expect(report.startUrl).toBe(`http://127.0.0.1/${name}`);
+        const markdown = await readFile(path.join(cwd, 'out', name, 'a11ygate-scan.md'), 'utf8');
+        expect(markdown.split('\n')).toContain(AUTOMATED_TESTING_DISCLAIMER);
       }
       const xml = await readFile(path.join(cwd, 'out/a11ygate-projects.junit.xml'), 'utf8');
       expect(parseJenkinsJunit(xml).map(s => [s.name, s.failures, s.errors])).toEqual([['clean', 0, 0], ['unreachable', 0, 1], ['violations', 1, 0]]);

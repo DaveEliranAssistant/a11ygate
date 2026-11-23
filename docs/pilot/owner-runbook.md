@@ -113,10 +113,6 @@ a11ygate evidence pack --from latest --out packs/latest.zip
 a11ygate pilot report --kickoff packs/kickoff.zip --latest packs/latest.zip --packs packs --criteria a11ygate-pilot/success-criteria.yml --customer "Example Ltd"
 ```
 
-Known limit: the scan Markdown report (`a11ygate-scan.md`, used for PR comments and CI step summaries) carries no disclaimer on main unless a baseline is used. It was left unchanged to keep existing report goldens byte-identical (see the owner decision below). Share the evidence pack's `report.md`/`report.html` or the HTML scan report with customers; those carry the disclaimer.
-
-- [ ] Decide whether to add the disclaimer to the scan Markdown report (`a11ygate-scan.md`); this changes the existing report goldens.
-
 This writes `pilot-results.html/.pdf` and `quote.html/.pdf` to `pilot-report/`. Criteria without records show **Not measurable**. Read the results before sharing them; hand the evidence pack and results to the customer yourself.
 
 ### 8. Quote

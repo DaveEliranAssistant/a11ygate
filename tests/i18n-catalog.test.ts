@@ -262,6 +262,7 @@ describe('(a) report templates take user-visible strings from the catalog', () =
     const bestPractice = t.t('wcag.bestPracticeGroup');
     for (const lang of ['en-XA', 'ar-XB'] as const) {
       const md = scanMarkdown(r, lang);
+      expect(md.split('\n')).toContain(AUTOMATED_TESTING_DISCLAIMER);
       const html = scanHtmlV2(r, { lang });
       for (const out of [md, html]) {
         // ar-XB keeps the English letters inside bidi override marks, so only en-XA can assert absence.

@@ -103,7 +103,7 @@ export function scanMarkdown(report: ScanReport, lang: ReportLang = DEFAULT_REPO
     '',
     cell(report.reason),
     ...diffScanSummary(report, t).flatMap(line => ['', cell(line)]),
-    ...(report.diffScan ? ['', AUTOMATED_TESTING_DISCLAIMER] : []),
+    ...(report.diffScan || (!report.baseline && !report.engines) ? ['', AUTOMATED_TESTING_DISCLAIMER] : []),
     '',
     `| ${t.t('md.severityColumn')} | ${t.t('md.findingsColumn')} |`,
     '| --- | --- |',
