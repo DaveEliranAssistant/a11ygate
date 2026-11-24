@@ -68,6 +68,14 @@ Read the summary first. It names the scan scope and the automated-testing limits
 
 ### 3. Kickoff
 
+Make a bundle from a clean checkout of the reviewed commit. After `npm ci`, run:
+
+```sh
+npm run pilot:bundle
+```
+
+Verify the files with `shasum -a 256 -c SHA256SUMS` from `pilot-bundle/`. Eliran sends the commit-stamped tarball, `SHA256SUMS`, and `INSTALL.md` directly to the customer. Any GitHub Release attachment or npm publication is also Eliran-only.
+
 Go through the [kickoff checklist](kickoff-checklist.md) with the customer: written scan authorization from the site owner, least-privilege access, target URLs, contacts, retention and deletion. Agree on the success criteria. In the customer repository (or a branch they review):
 
 ```bash

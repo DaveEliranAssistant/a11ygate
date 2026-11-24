@@ -11485,7 +11485,8 @@ ${debugDetail(error)}`);
     return 0;
   }
   if (options.version) {
-    stdout(`${await readVersion()}
+    const suffix = true ? "" : "";
+    stdout(`${await readVersion()}${suffix}
 `);
     return 0;
   }
