@@ -1,6 +1,8 @@
 import { clientAddress, hashUserAgent, sha256 } from '@/lib/waitlist/hash';
 import {
   MAX_WAITLIST_BYTES,
+  PILOT_REQUEST_SOURCE,
+  PILOT_REQUEST_SUCCESS,
   WAITLIST_INVALID,
   WAITLIST_JSON_ERROR,
   WAITLIST_RATE_LIMITED,
@@ -25,14 +27,8 @@ export type WaitlistDeps = {
   now?: () => number;
 };
 
-const successBody = { ok: true as const, message: WAITLIST_SUCCESS };
-
 function json(status: number, body: unknown): Response {
   return Response.json(body, { status });
-}
-
-function success(): Response {
-  return json(200, successBody);
 }
 
 export function databaseUrl(): string | null {
@@ -75,7 +71,9 @@ export async function handleWaitlistPost(request: Request, deps: WaitlistDeps): 
     if (!validated.ok) {
       return json(400, { ok: false, message: WAITLIST_INVALID, fields: validated.fields });
     }
-    if (validated.honeypot) return success();
+    const pilot = validated.variant === 'pilot';
+    const successBody = { ok: true, message: pilot ? PILOT_REQUEST_SUCCESS : WAITLIST_SUCCESS };
+    if (validated.honeypot) return json(200, successBody);
     if (!deps.databaseConfigured) {
       return json(503, { ok: false, message: WAITLIST_UNAVAILABLE });
     }
@@ -83,13 +81,13 @@ export async function handleWaitlistPost(request: Request, deps: WaitlistDeps): 
     try {
       await deps.insert({
         ...validated.signup,
-        source: WAITLIST_SOURCE,
+        source: pilot ? PILOT_REQUEST_SOURCE : WAITLIST_SOURCE,
         userAgentHash: hashUserAgent(request.headers.get('user-agent')),
       });
     } catch {
       return json(503, { ok: false, message: WAITLIST_UNAVAILABLE });
     }
-    return success();
+    return json(200, successBody);
   } catch {
     return json(503, { ok: false, message: WAITLIST_UNAVAILABLE });
   }

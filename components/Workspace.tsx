@@ -11,7 +11,8 @@ import { Findings } from '@/components/Findings';
 import { ManualEvidence } from '@/components/ManualEvidence';
 import { ImportPanel } from '@/components/ImportPanel';
 import { Summary } from '@/components/Summary';
-import { WaitlistForm, type WaitlistVariant } from '@/components/WaitlistForm';
+import { WaitlistForm } from '@/components/WaitlistForm';
+import type { WaitlistVariant } from '@/lib/waitlist/validate';
 
 export function Workspace({
   offer,

@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { annualPrice, pricing } from '@/lib/billing';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { pilot, pilotRequestText } from '@/lib/pilot-offer';
 
 export const OFFER_HEADING = 'Accessibility gate in your CI, with evidence for every release';
-export const PILOT_CTA = 'Request a free pilot';
 
 /** Integrations with a guide or template on main (integrations/, docs/integrations/). */
 export const SUPPORTED_CI = [
@@ -17,11 +17,11 @@ export const SUPPORTED_CI = [
 
 export const yearlyPriceText = `${annualPrice} per year`;
 
-function pilotLength(days: number): string {
-  return days % 7 === 0 ? `${days / 7}-week` : `${days}-day`;
-}
+const pilotDescription = pilot.price === 'free'
+  ? `a free ${pilot.length} pilot`
+  : `a ${pilot.length} pilot for ${pilot.price}`;
 
-export const pilotText = `Start with a free ${pilotLength(pricing.pilot.lengthDays)} pilot`;
+export const pilotText = `Start with ${pilotDescription}`;
 
 export function PilotOffer({ pilotHref }: { pilotHref: string }) {
   const external = /^https:/i.test(pilotHref);
@@ -55,13 +55,17 @@ export function PilotOffer({ pilotHref }: { pilotHref: string }) {
         <li>
           <strong>Week 1, setup and baseline:</strong> add the gate to one pipeline and record a
           baseline of current findings.
+          {pilot.weeks < 3 && ' Enable the gate on pull requests to catch new serious or critical findings.'}
         </li>
+        {pilot.weeks >= 3 && (
+          <li>
+            <strong>{pilot.weeks === 3 ? 'Week 2' : `Weeks 2–${pilot.weeks - 1}`}, gate on pull requests:</strong>{' '}
+            new serious or critical findings fail the check; baselined ones don&apos;t.
+          </li>
+        )}
         <li>
-          <strong>Week 2, gate on pull requests:</strong> new serious or critical findings fail the
-          check; baselined ones don&apos;t.
-        </li>
-        <li>
-          <strong>Week 3, results review:</strong> go through the findings and the evidence pack,
+          <strong>{pilot.weeks > 1 ? `Week ${pilot.weeks}, results review:` : 'Results review:'}</strong>{' '}
+          go through the findings and the evidence pack,
           then subscribe or walk away. Nothing is billed automatically.
         </li>
       </ol>
@@ -75,7 +79,7 @@ export function PilotOffer({ pilotHref }: { pilotHref: string }) {
 
       <p className="hero-actions">
         <a className="button button-ink" href={pilotHref} rel={external ? 'noopener' : undefined}>
-          {PILOT_CTA}
+          {pilotRequestText}
         </a>
         <Link href="/pricing">See pricing</Link>
       </p>

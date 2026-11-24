@@ -15,6 +15,7 @@ test('waitlist form shows default, error, and success states', async ({ page }) 
     }
     posts += 1;
     const body = route.request().postDataJSON() as { email?: string; consent?: boolean };
+    expect(body).not.toHaveProperty('variant');
     if (body.email === 'bad@example.com') {
       await route.fulfill({
         status: 400,

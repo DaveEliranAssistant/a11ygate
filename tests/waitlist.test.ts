@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { databaseUrl, handleWaitlistPost, type WaitlistRow } from '@/lib/waitlist/handle';
-import { WAITLIST_SUCCESS, WAITLIST_UNAVAILABLE } from '@/lib/waitlist/messages';
+import { PILOT_REQUEST_SUCCESS, WAITLIST_SUCCESS, WAITLIST_UNAVAILABLE, WAITLIST_VARIANT_ERROR } from '@/lib/waitlist/messages';
 import { createRateLimiter } from '@/lib/waitlist/rate-limit';
 import { normalizeEmail, validateWaitlistInput } from '@/lib/waitlist/validate';
 
@@ -183,30 +183,40 @@ describe('waitlist validation and dedupe', () => {
   });
 });
 
-describe('pilot request variant of the waitlist form (A11Y-R64)', () => {
-  it('sends the same payload as the waitlist form through the real handler and stores one row with consent', async () => {
-    // Exactly the field set WaitlistForm posts for variant="pilot" (identical to variant="waitlist").
+describe('waitlist and pilot intake variants', () => {
+  it('stores a pilot request with consent and the pilot source', async () => {
     const pilotPayload = {
+      variant: 'pilot',
       email: 'Pilot.Lead@Example.com',
       role: 'QA lead',
       company: 'Example Co',
       consent: true,
       company_website: '',
     };
-    const form = readFileSync(new URL('../components/WaitlistForm.tsx', import.meta.url), 'utf8');
-    const postedBody = form.slice(form.indexOf("method: 'POST'"));
-    for (const key of Object.keys(pilotPayload)) expect(postedBody).toContain(key);
-
     const result = await post(pilotPayload);
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ ok: true, message: WAITLIST_SUCCESS });
+    expect(result.body).toEqual({ ok: true, message: PILOT_REQUEST_SUCCESS });
     expect(result.inserted).toHaveLength(1);
     expect(result.inserted[0]).toMatchObject({
       email: 'pilot.lead@example.com',
       role: 'QA lead',
       company: 'Example Co',
       consent: true,
-      source: 'landing',
+      source: 'pilot-request',
     });
+  });
+
+  it('preserves the waitlist source and response for an explicit waitlist variant', async () => {
+    const result = await post({ variant: 'waitlist', email: 'person@example.com', consent: true });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, message: WAITLIST_SUCCESS });
+    expect(result.inserted).toMatchObject([{ source: 'landing' }]);
+  });
+
+  it.each(['unknown', '', null, false, 3, {}])('rejects invalid variant %j with a field error', async (variant) => {
+    const result = await post({ variant, email: 'person@example.com', consent: true });
+    expect(result.status).toBe(400);
+    expect(result.body.fields).toEqual({ variant: WAITLIST_VARIANT_ERROR });
+    expect(result.inserted).toEqual([]);
   });
 });
