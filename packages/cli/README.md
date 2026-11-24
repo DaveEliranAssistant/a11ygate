@@ -8,9 +8,16 @@ See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-
 
 ## Usage
 
+The regression gate below works with every published version, including 0.1.0:
+
 ```bash
 npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
-npx @qe-atlas/a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y
+```
+
+`--format`, `--out-dir` and every subcommand other than `ci` (for example `scan`, `init`, `doctor`, `baseline`, `report`, `evidence`, `prospect` and `pilot`) need 0.2.0 or later. 0.2.0 is not on npm yet (npm serves 0.1.0). Until it is, install the [pilot tarball](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use a [source build](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#source-build-fallback), then run the locally installed CLI without fetching from the registry:
+
+```bash
+npx --no-install a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y
 ```
 
 `a11ygate ci` is the same gate as the default command. `--format` writes machine-readable reports for CI systems (JUnit XML for Jenkins, SARIF 2.1.0 for GitHub code scanning). Every report includes this disclaimer: "Automated testing only. Not a WCAG audit, certification or legal advice."

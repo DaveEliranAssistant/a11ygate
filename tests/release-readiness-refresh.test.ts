@@ -19,12 +19,15 @@ const SIGN_OFF_SENTENCE =
 const NEXT_TAG_CLAIMS: RegExp[] = [
   /a11ygate@next\b/i,
   /(?:^|[\s`'"(])@next(?![\w/-])/,
-  /\b0\.2\.0`?\s+(?:is\s+)?(?:now\s+)?(?:on|published\s+(?:on|to))\s+npm\b/i,
-  /\b0\.2\.0`?\s+(?:is\s+)?(?:on|available\s+on)\s+(?:the\s+)?npm\s+`?next`?\s+tag/i,
+  /(?<![\d.])0\.2\.0(?:`|\*{1,2}|_{1,2})?\s+(?:is\s+)?(?:now\s+)?(?:on|published\s+(?:on|to))\s+npm\b/i,
+  /(?<![\d.])0\.2\.0(?:`|\*{1,2}|_{1,2})?\s+(?:is\s+)?(?:on|available\s+on)\s+(?:the\s+)?npm\s+`?next`?\s+tag/i,
   /\b(?:npx|npm\s+(?:install|i|add|exec))\b[^\n]*@qe-atlas\/a11ygate@0\.2\.0/,
+  // An unpinned registry `npx` resolves to npm `latest` (0.1.0), which has only the gate (`ci` / default
+  // command). Pointing it at a 0.2.0-only subcommand or flag fails for the reader.
+  /\bnpx\s+(?:(?:-y|--yes)\s+)?@qe-atlas\/a11ygate(?![@\w/-])[^\n]*?(?:\s(?:scan|init|doctor|config|baseline|review|report|export|prospect|pilot|estimate|evidence|trend)\b|\s--(?:format|out-dir|projects|manual-evidence)\b)/,
 ];
 
-/** Returns `file:line: text` for every line that claims a published 0.2.0 or an npm `next` tag. */
+/** Returns `file:line: text` for every line that claims a published 0.2.0 or an npm `next` tag, or runs a 0.2.0-only command from the registry. */
 function nextTagProblems(rel: string, text: string): string[] {
   const problems: string[] = [];
   text.split('\n').forEach((line, index) => {
@@ -99,6 +102,13 @@ describe('no npm `next` tag claims while 0.2.0 is unpublished (A11Y-R75)', () =>
       'Version 0.2.0 is published to npm.',
       '`0.2.0` is on the npm `next` tag.',
       'npx @qe-atlas/a11ygate@0.2.0 scan http://127.0.0.1:3000/',
+      '**0.2.0** is on npm.',
+      '`0.2.0` is now on npm.',
+      '__0.2.0__ is published to npm.',
+      '**0.2.0** is on the npm `next` tag.',
+      'npx @qe-atlas/a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y',
+      'npx @qe-atlas/a11ygate scan http://127.0.0.1:3000/ --out-dir a11y',
+      'npx --yes @qe-atlas/a11ygate init --yes --target jenkins',
     ];
     for (const line of planted) expect(nextTagProblems('planted.md', `ok\n${line}\n`), line).toEqual([`planted.md:2: ${line}`]);
 
@@ -110,6 +120,11 @@ describe('no npm `next` tag claims while 0.2.0 is unpublished (A11Y-R75)', () =>
       "import localFont from '@next/font/local';",
       'chore: bump @qe-atlas/a11ygate to 0.2.0 for the next tag (A11Y-R22)',
       '## Tarball audit (`npm pack` of `@qe-atlas/a11ygate@0.2.0`)',
+      '0.2.0 is not on npm yet (npm serves 0.1.0).',
+      'npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json --markdown summary.md # exit 1',
+      'npx @qe-atlas/a11ygate --help # exit 0',
+      'npx --no-install a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y',
+      "def cli = (args.cli ?: 'npx --yes @qe-atlas/a11ygate').toString()",
     ];
     for (const line of legitimate) expect(nextTagProblems('legit.md', line), line).toEqual([]);
   });

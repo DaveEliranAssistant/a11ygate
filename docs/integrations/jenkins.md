@@ -138,7 +138,7 @@ The step is `a11yGate(url:, crawl:, failOn:, formats:, ...)`. See the header of 
 | `formats` | List or comma-separated: `junit`, `sarif`, `json`, `md`. Default: all four. Requires `--out-dir`. |
 | `baseline` | Optional fingerprint baseline path, created from saved scan evidence with `a11ygate baseline create`. |
 | `outDir` | Report directory. Default: `a11y-results`. |
-| `cli` | Command that runs the CLI. Default: `npx --yes @qe-atlas/a11ygate`. Use a source build until `scan`/`--format` are published. |
+| `cli` | Command that runs the CLI. Default: `npx --yes @qe-atlas/a11ygate`. npm serves only 0.1.0, which lacks `scan`/`--format`; until 0.2.0 is published, install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) and set `cli: 'npx --no-install a11ygate'`, or use a source build. |
 | `image` | Optional Docker image. When set, the step runs inside `docker.image(image).inside(...)`. |
 | `dockerArgs` | Optional string passed to `.inside(...)`. |
 
