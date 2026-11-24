@@ -105,8 +105,26 @@ describe('flag-gated pilot offer', () => {
     }));
     const text = visibleText(await renderOffer());
     expect(text).toContain('$1,234 per year');
-    expect(text).toContain('Start with a free 10-day pilot');
+    expect(text).toContain('Start with a free 2-week pilot');
+    expect(text).toContain('Enable the gate on pull requests');
+    expect(text).toContain('Week 2, results review:');
+    expect(text).not.toContain('Week 3');
     expect(text).not.toContain('$990');
+  });
+
+  it('shows the configured price for a one-week pilot and keeps all steps in that week', async () => {
+    vi.resetModules();
+    vi.doMock('@/config/pricing.json', () => ({
+      default: { ...pricing, pilot: { lengthDays: 7, priceUsd: 100 } },
+    }));
+    const text = visibleText(await renderOffer());
+    expect(text).toContain('Start with a 1-week pilot for $100');
+    expect(text).toContain('Request a pilot');
+    expect(text).not.toContain('free');
+    expect(text).toContain('Week 1, setup and baseline:');
+    expect(text).toContain('Enable the gate on pull requests');
+    expect(text).toContain('Results review:');
+    expect(text).not.toContain('Week 2');
   });
 
   it('links the CTA to the given pilot URL and the secondary link to /pricing', async () => {

@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import pricing from '../config/pricing.json';
 import { PILOT_REQUEST_HREF } from '../lib/billing';
 import { AUTOMATED_TESTING_DISCLAIMER, CLI_NPM_SENTENCE } from '../lib/copy';
+import { handleWaitlistPost, type WaitlistRow } from '../lib/waitlist/handle';
 import { PILOT_REQUEST_INTRO } from '../lib/waitlist/messages';
 import { expectNoSeriousViolations } from './support';
 
@@ -18,8 +19,8 @@ const price = `${new Intl.NumberFormat('en-US', {
 const MAIN_FLAG_OFF = readFileSync('e2e/fixtures/home-flag-off-main.txt', 'utf8');
 const OLD_NPM_SENTENCE = 'The CLI is on npm as @qe-atlas/a11ygate@0.2.0.';
 
-async function stubWaitlist(page: Page, available: boolean): Promise<{ posts: number }> {
-  const state = { posts: 0 };
+async function stubWaitlist(page: Page, available: boolean, beforePost?: Promise<void>) {
+  const state = { posts: 0, inserted: [] as WaitlistRow[] };
   await page.route('**/api/waitlist', async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ available }) });
@@ -27,12 +28,27 @@ async function stubWaitlist(page: Page, available: boolean): Promise<{ posts: nu
     }
     state.posts += 1;
     const body = route.request().postDataJSON() as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['company', 'company_website', 'consent', 'email', 'role']);
+    expect(Object.keys(body).sort()).toEqual([
+      'company', 'company_website', 'consent', 'email', 'role', 'variant',
+    ]);
+    expect(body.variant).toBe('pilot');
     expect(body.consent).toBe(true);
+    await beforePost;
+    const response = await handleWaitlistPost(new Request(route.request().url(), {
+      method: 'POST',
+      body: route.request().postData() ?? '',
+    }), {
+      databaseConfigured: available,
+      insert: async (row) => {
+        state.inserted.push(row);
+        return 'created';
+      },
+      takeToken: () => ({ allowed: true }),
+    });
     await route.fulfill({
-      status: 200,
+      status: response.status,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, message: 'You are on the waitlist.' }),
+      body: await response.text(),
     });
   });
   return state;
@@ -94,7 +110,9 @@ async function blockOtherOrigins(page: Page, base: string): Promise<void> {
 test('flag on, no pilot URL: CTA reaches the reused waitlist form by keyboard and submits', async ({ page }) => {
   await withFlagOnServer('', async (base) => {
     await blockOtherOrigins(page, base);
-    const waitlist = await stubWaitlist(page, true);
+    let finishPost!: () => void;
+    const pendingPost = new Promise<void>((resolve) => { finishPost = resolve; });
+    const waitlist = await stubWaitlist(page, true, pendingPost);
     await page.goto(`${base}/`);
 
     const offer = page.locator('section.offer');
@@ -127,10 +145,33 @@ test('flag on, no pilot URL: CTA reaches the reused waitlist form by keyboard an
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#waitlist-heading$/);
 
-    await form.getByLabel('Email').fill('person@example.com');
-    await form.getByLabel('I agree to receive product updates about A11yGate.').check();
-    await form.getByRole('button', { name: 'Join the waitlist' }).click();
-    await expect(page.locator('#waitlist-success')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(form.getByRole('link', { name: 'Run it in CI now' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(form.getByLabel('Email')).toBeFocused();
+    await page.keyboard.type('person@example.com');
+    await page.keyboard.press('Tab');
+    await expect(form.getByLabel('Role (optional)')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(form.getByLabel('Company (optional)')).toBeFocused();
+    await page.keyboard.press('Tab');
+    const consent = form.getByLabel('I agree to receive product updates about A11yGate.');
+    await expect(consent).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(consent).toBeChecked();
+    await page.keyboard.press('Tab');
+    const submit = form.getByRole('button', { name: 'Request a free pilot', exact: true });
+    await expect(submit).toBeFocused();
+    await page.keyboard.press('Enter');
+    try {
+      await expect(form.getByRole('button', { name: 'Sending…', exact: true })).toBeDisabled();
+    } finally {
+      finishPost();
+    }
+    const success = page.locator('#waitlist-success');
+    await expect(success).toHaveText('Thanks. Eliran reads every request personally; there is no automated follow-up.');
+    await expect(success).toBeFocused();
+    expect(waitlist.inserted).toMatchObject([{ email: 'person@example.com', source: 'pilot-request' }]);
     expect(waitlist.posts).toBe(1);
     await expectNoSeriousViolations(page, 'home (flag on, pilot request sent)');
   });

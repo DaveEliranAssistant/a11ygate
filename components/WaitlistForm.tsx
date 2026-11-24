@@ -2,16 +2,16 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CiCommands } from '@/components/CiCommands';
+import { pilotRequestText } from '@/lib/pilot-offer';
 import {
-  PILOT_REQUEST_HEADING,
   PILOT_REQUEST_INTRO,
+  PILOT_REQUEST_PENDING,
+  PILOT_REQUEST_SUCCESS,
   WAITLIST_INVALID,
   WAITLIST_SUCCESS,
   WAITLIST_UNAVAILABLE,
 } from '@/lib/waitlist/messages';
-import { validateWaitlistInput, type WaitlistFields } from '@/lib/waitlist/validate';
-
-export type WaitlistVariant = 'waitlist' | 'pilot';
+import { validateWaitlistInput, type WaitlistFields, type WaitlistVariant } from '@/lib/waitlist/validate';
 
 type Phase = 'loading' | 'unavailable' | 'ready' | 'done';
 
@@ -21,6 +21,9 @@ type ApiError = {
 };
 
 export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVariant } = {}) {
+  const isPilot = variant === 'pilot';
+  const submitText = isPilot ? pilotRequestText : 'Join the waitlist';
+  const pendingText = isPilot ? PILOT_REQUEST_PENDING : 'Joining…';
   const [phase, setPhase] = useState<Phase>('loading');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
@@ -60,6 +63,7 @@ export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVaria
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validated = validateWaitlistInput({
+      variant,
       email,
       role,
       company,
@@ -91,6 +95,7 @@ export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVaria
           company,
           consent,
           company_website: honeypot,
+          ...(isPilot ? { variant } : {}),
         }),
       });
       const body = (await response.json().catch(() => ({}))) as ApiError;
@@ -113,9 +118,9 @@ export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVaria
 
   return (
     <section className="waitlist" aria-labelledby="waitlist-heading">
-      {variant === 'pilot' ? (
+      {isPilot ? (
         <>
-          <h2 id="waitlist-heading">{PILOT_REQUEST_HEADING}</h2>
+          <h2 id="waitlist-heading">{submitText}</h2>
           <p>{PILOT_REQUEST_INTRO}</p>
         </>
       ) : (
@@ -138,7 +143,7 @@ export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVaria
       {phase === 'done' ? (
         <>
           <p ref={successRef} id="waitlist-success" role="status" tabIndex={-1}>
-            {WAITLIST_SUCCESS}
+            {isPilot ? PILOT_REQUEST_SUCCESS : WAITLIST_SUCCESS}
           </p>
           <h3>Run it in CI now</h3>
           <CiCommands stepHeading="h4" />
@@ -232,7 +237,7 @@ export function WaitlistForm({ variant = 'waitlist' }: { variant?: WaitlistVaria
           ) : null}
           <div className="row-actions">
             <button type="submit" className="primary" disabled={pending}>
-              {pending ? 'Joining…' : 'Join the waitlist'}
+              {pending ? pendingText : submitText}
             </button>
           </div>
         </form>

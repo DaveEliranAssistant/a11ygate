@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { getCheckoutUrl, getPilotRequestHref, getPilotRequestUrl, isPricingEnabled, PILOT_REQUEST_HREF } from '@/lib/billing';
+import { describePilot } from '@/lib/pilot-offer';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -77,4 +78,13 @@ it.each([
   expect(getPilotRequestHref()).toBe(PILOT_REQUEST_HREF);
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('A11YGATE_PILOT_REQUEST_URL'));
   expect(warn.mock.calls[0]?.[0]).not.toContain(value);
+});
+
+it.each([
+  [14, 0, { weeks: 2, length: '2-week', price: 'free' }],
+  [10, 100, { weeks: 2, length: '2-week', price: '$100' }],
+  [21, 100, { weeks: 3, length: '3-week', price: '$100' }],
+  [7, 25.50, { weeks: 1, length: '1-week', price: '$25.50' }],
+] as const)('describes a %i-day pilot priced at %i USD', (lengthDays, priceUsd, expected) => {
+  expect(describePilot({ lengthDays, priceUsd })).toEqual(expected);
 });
