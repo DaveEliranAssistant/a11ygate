@@ -13,7 +13,7 @@ The step runs the CLI (`scan`), publishes JUnit, archives HTML/SARIF/JSON/Markdo
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
-Full install, parameters, agent requirements and troubleshooting: [docs/integrations/jenkins.md](../../docs/integrations/jenkins.md). Published `@qe-atlas/a11ygate@0.1.0` (`latest`) does not include `scan` or `--format`. Use `@qe-atlas/a11ygate@next` (0.2.0) or a source build (`cli: 'node packages/cli/dist/cli.mjs'`).
+Full install, parameters, agent requirements and troubleshooting: [docs/integrations/jenkins.md](../../docs/integrations/jenkins.md). npm serves only `@qe-atlas/a11ygate@0.1.0` (`latest`), which does not include `scan` or `--format`; 0.2.0 is not published and there is no npm `next` tag yet. Until a release is published, install the [pilot tarball](../../docs/pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use the [source build](../../docs/pilot/quickstart.md#source-build-fallback) (`cli: 'node packages/cli/dist/cli.mjs'`).
 
 ## Tests
 

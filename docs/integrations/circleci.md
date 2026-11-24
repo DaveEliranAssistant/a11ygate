@@ -33,7 +33,7 @@ Only set `url` to a local or explicitly authorized application. The config perfo
 | `install-command` | string | `npm ci` | Dependency install command. |
 | `start-command` | string | builds and starts a Next.js-style app on `127.0.0.1:3000` | Runs as a background step, followed by a wait for `url`. Empty = skip both (the app is already running). |
 
-The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format`, `baseline create` and `evidence pack`, i.e. `@qe-atlas/a11ygate@next` / 0.2.0 or a vendored `packages/cli`), plus `playwright` and `@axe-core/playwright`. Every A11yGate command uses `npx --no-install`, so nothing is fetched from the registry at scan time.
+The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format`, `baseline create` and `evidence pack`, i.e. the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or a [source build](../pilot/quickstart.md#source-build-fallback) of `packages/cli`; npm serves only 0.1.0, which lacks them), plus `playwright` and `@axe-core/playwright`. Every A11yGate command uses `npx --no-install`, so nothing is fetched from the registry at scan time.
 
 ## What the job does
 

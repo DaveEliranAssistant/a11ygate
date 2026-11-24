@@ -49,7 +49,7 @@ Start with the [README](../README.md) (quickstart, CI matrix, troubleshooting su
 
 ## Releases and design
 
-- [0.2.0 upgrade notes](releases/0.2.0-upgrade-notes.md) and [0.2.0 readiness](releases/0.2.0-readiness.md)
+- [0.2.0 upgrade notes](releases/0.2.0-upgrade-notes.md) and [0.2.0 readiness](releases/0.2.0-readiness.md); [0.2.0 readiness refresh, 2026-11](releases/0.2.0-readiness-refresh-2026-11.md) (0.2.0 is not published yet)
 - [Unreleased upgrade notes](../packages/cli/CHANGELOG.md#upgrade-notes) (changes on `main` after 0.2.0)
 - [Design draft: model-written fix PRs](design/model-written-fix-prs.md) (not a commitment to ship)
 - [Show HN draft](outreach/show-hn-draft.md) (outreach draft)

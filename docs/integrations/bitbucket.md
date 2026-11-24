@@ -20,7 +20,7 @@ script:
 
 Only point `A11YGATE_URL` at a local or explicitly authorized application. The config performs no login, deployment or publishing, uses no pipe, and needs no secured variables.
 
-The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format`, `baseline create` and `evidence pack`, i.e. `@qe-atlas/a11ygate@next` / 0.2.0 or a vendored `packages/cli`), plus `playwright@1.64.1` and `@axe-core/playwright`. Every A11yGate command uses `npx --no-install`, so nothing is fetched from the registry at scan time. The image `mcr.microsoft.com/playwright:v1.64.1-noble` supplies Node, Chromium and its system libraries, but not your npm packages ([Playwright Docker documentation](https://playwright.dev/docs/docker)). Keep the image tag and the installed `playwright` version aligned.
+The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format`, `baseline create` and `evidence pack`, i.e. the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or a [source build](../pilot/quickstart.md#source-build-fallback) of `packages/cli`; npm serves only 0.1.0, which lacks them), plus `playwright@1.64.1` and `@axe-core/playwright`. Every A11yGate command uses `npx --no-install`, so nothing is fetched from the registry at scan time. The image `mcr.microsoft.com/playwright:v1.64.1-noble` supplies Node, Chromium and its system libraries, but not your npm packages ([Playwright Docker documentation](https://playwright.dev/docs/docker)). Keep the image tag and the installed `playwright` version aligned.
 
 ### Settings
 
