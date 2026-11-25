@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
 import { CheckoutButton } from '@/components/CheckoutButton';
 import { annualPrice, isPricingEnabled, getPilotRequestHref, pricing } from '@/lib/billing';
-import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { AUTOMATED_TESTING_DISCLAIMER, SAMPLE_DELIVERABLES_URL } from '@/lib/copy';
 import { pilot } from '@/lib/pilot-offer';
 
 export const metadata: Metadata = {
@@ -31,6 +31,10 @@ export default async function PricingPage() {
       <h2>{pilot.length} {pilot.price} pilot</h2>
       <p>Try the regression gate in your CI and review the evidence it produces.</p>
       <p><a href={getPilotRequestHref()}>Request a pilot</a></p>
+      <p>
+        <a href={SAMPLE_DELIVERABLES_URL}>See sample deliverables</a>{' '}
+        (built from our demo app, not a customer site)
+      </p>
 
       <h2>Frequently asked questions</h2>
       <h3>How does the pilot convert?</h3>

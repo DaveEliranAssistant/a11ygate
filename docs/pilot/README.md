@@ -11,6 +11,8 @@ Customer-ready material for the free 21-day pilot of A11yGate ($0, no payment de
 | [Success criteria template](success-criteria.template.yml) | Machine-checkable pilot targets, validated by [`schema/pilot-success.schema.json`](../../schema/pilot-success.schema.json). |
 | [Pilot terms draft](pilot-terms.template.md) | **Draft only: needs Eliran/legal review before use.** Never send it as final. |
 
+See the [sample deliverables](../samples/README.md) (built from our demo app, marked SAMPLE) for what a pilot produces.
+
 ## Pilot flow
 
 1. Kickoff: go through the [kickoff checklist](kickoff-checklist.md). No scan before written authorization from the site owner.
