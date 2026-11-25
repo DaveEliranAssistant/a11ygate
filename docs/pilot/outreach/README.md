@@ -30,11 +30,12 @@ The timings are suggestions, not a schedule to automate. At most two follow-ups;
 - The disclaimer line "Automated testing only. Not a WCAG audit, certification or legal advice." stays in every message, in English, word for word. It is never translated.
 - Hebrew versions are **not** machine-translated. Each template has a `[[HE: Eliran to write]]` stub; Eliran writes the Hebrew text himself.
 - Price and pilot length are never typed by hand: use `{{price_usd_per_year}}` and `{{pilot_length_days}}`. They will be filled from [`config/pricing.json`](../../../config/pricing.json) by a later renderer (A11Y-R78); until then, copy the values from that file.
+- Every customer-visible piece carries the disclaimer "Automated testing only. Not a WCAG audit, certification or legal advice.", in English, word for word. Parts meant to be pasted or forwarded on their own (each answer in [objections](objections.md), the forwardable blurb in the [warm intro request](warm-intro-request.md)) sit between `copy:start` and `copy:end` HTML comment markers and end with the disclaimer: copy the whole unit, and include the disclaimer line in every reply.
 - The `{{why_now}}` sentence must be public, dated and checkable, and is always followed by its link in `{{why_now_source}}`. If there is no source, delete the sentence.
 - No claims that a site will meet a law or standard, no certificates, no promises of results, and no names of other vendors. The positioning is "a CI gate with evidence, not an overlay widget". Answers to hard questions come from [what A11yGate does not do](../../what-a11ygate-does-not-do.md) and [known limits](../../known-limits.md).
 - Never write that a prospect's site has problems unless it was scanned with written permission from the site owner (see the [kickoff checklist](../kickoff-checklist.md)). Never invent alt text, labels or accessible names in a message.
 
-`tests/outreach-templates.test.ts` checks the banner, the disclaimer, the placeholder list below, the absence of literal prices and pilot lengths, the `{{why_now}}` → `{{why_now_source}}` order, the LinkedIn length and the banned-claims and vendor-name grep.
+`tests/outreach-templates.test.ts` checks the banner, the disclaimer (in every message and every copy unit), the placeholder list below, the absence of literal prices and pilot lengths, the `{{why_now}}` → `{{why_now_source}}` order, the LinkedIn length and the banned-claims and vendor-name grep.
 
 ## Placeholders
 

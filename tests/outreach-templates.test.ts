@@ -68,6 +68,15 @@ const message = (text: string) => {
   const match = /<!-- message:start -->\n([\s\S]*?)\n<!-- message:end -->/.exec(text);
   return match?.[1];
 };
+/** Copy units: blocks meant to be pasted or forwarded on their own (an objection answer, a forwardable blurb). */
+const COPY_UNIT = /<!-- copy:start -->\n([\s\S]*?)\n<!-- copy:end -->/g;
+const copyUnits = (text: string) => [...text.matchAll(COPY_UNIT)].map((m) => m[1] as string);
+const stripCopyMarkers = (text: string) => text.replace(/^<!-- copy:(?:start|end) -->$/gm, '');
+/** Strips a leading Markdown quote marker so quoted blurbs are compared on their text. */
+const unquote = (unit: string) => unit.replace(/^> ?/gm, '');
+/** Returns the copy units that do not end with the exact disclaimer (empty = all good). */
+const unitsMissingDisclaimer = (text: string) =>
+  copyUnits(text).filter((unit) => !unquote(unit).trimEnd().endsWith(AUTOMATED_TESTING_DISCLAIMER));
 const render = (text: string) => text.replace(/\{\{([a-z_]+)}}/g, (_, name: string) => longest(name));
 
 describe('outreach kit files (A11Y-R77)', () => {
@@ -91,12 +100,59 @@ describe('outreach kit files (A11Y-R77)', () => {
     const text = read(rel);
     const body = message(text);
     expect(body, rel).toBeDefined();
-    expect((body as string).trimEnd().endsWith(AUTOMATED_TESTING_DISCLAIMER), rel).toBe(true);
+    expect(stripCopyMarkers(body as string).trimEnd().endsWith(AUTOMATED_TESTING_DISCLAIMER), rel).toBe(true);
     // No Hebrew text anywhere: Hebrew is written by Eliran, never machine-translated.
     expect(text).not.toMatch(/[֐-׿]/);
     const he = text.slice(text.indexOf('(HE)'));
     expect(he).toContain(HE_STUB);
     expect(he).not.toContain('<!-- message:start -->');
+  });
+
+  it.each(FILES)('(a) %s: every copy unit (pasted or forwarded on its own) ends with the exact disclaimer', (rel) => {
+    const text = read(rel);
+    const starts = text.match(/<!-- copy:start -->/g)?.length ?? 0;
+    const ends = text.match(/<!-- copy:end -->/g)?.length ?? 0;
+    expect(ends, rel).toBe(starts);
+    expect(copyUnits(text).length, rel).toBe(starts);
+    expect(unitsMissingDisclaimer(text), rel).toEqual([]);
+  });
+
+  it('(a) every objection answer is its own copy unit with the disclaimer, and the instructions say to keep it', () => {
+    const text = read(`${DIR}/objections.md`);
+    const body = message(text) as string;
+    const questions = body.match(/^\*\*"/gm)?.length ?? 0;
+    expect(questions).toBeGreaterThanOrEqual(10);
+    const units = copyUnits(text);
+    expect(units.length).toBe(questions);
+    for (const unit of units) expect(unit.match(/^\*\*"/gm)?.length, unit).toBe(1);
+    // Nothing in the answers sits outside a copy unit.
+    expect(body.replace(COPY_UNIT, '').trim()).toBe('');
+    expect(text).toContain('include the disclaimer line in every reply');
+  });
+
+  it('(a) the forwardable warm-intro blurb carries the disclaimer inside the blurb itself', () => {
+    const text = read(`${DIR}/warm-intro-request.md`);
+    const units = copyUnits(message(text) as string);
+    expect(units).toHaveLength(1);
+    const blurb = unquote(units[0] as string);
+    expect(blurb).toContain('runs A11yGate');
+    expect(blurb.trimEnd().endsWith(AUTOMATED_TESTING_DISCLAIMER)).toBe(true);
+    // No other quoted snippet in the message outside a copy unit.
+    expect((message(text) as string).replace(COPY_UNIT, '')).not.toMatch(/^(?:> |")/m);
+  });
+
+  it('(a) the copy-unit check fails when the disclaimer is removed (negative case)', () => {
+    for (const rel of [`${DIR}/objections.md`, `${DIR}/warm-intro-request.md`]) {
+      const text = read(rel);
+      const firstUnit = copyUnits(text)[0] as string;
+      const stripped = firstUnit.replace(/\n(?:> ?)?Automated testing only\. Not a WCAG audit, certification or legal advice\.$/, '');
+      expect(stripped, rel).not.toBe(firstUnit);
+      const broken = text.replace(firstUnit, stripped);
+      expect(unitsMissingDisclaimer(broken), rel).toHaveLength(1);
+      // A reworded disclaimer is not accepted either.
+      const reworded = text.replace(firstUnit, firstUnit.replace('legal advice.', 'legal advice'));
+      expect(unitsMissingDisclaimer(reworded), rel).toHaveLength(1);
+    }
   });
 
   it.each(FILES)('(a) %s uses only allowlisted placeholders, all well-formed', (rel) => {

@@ -19,8 +19,13 @@ Why now: {{why_now}} (source: {{why_now_source}}).
 
 I'm building A11yGate, a CI gate with evidence, not an overlay widget. It runs automated accessibility checks on every pull request, keeps the existing findings as a baseline and fails the build only when something new and serious appears. I'm offering a free {{pilot_length_days}}-day pilot to a few teams and would like to ask {{prospect_first_name}} for 15 minutes.
 
-If it helps, here is a two-line blurb you can forward:
-"{{sender_name}} runs A11yGate, an automated accessibility gate for CI. Free {{pilot_length_days}}-day pilot, no payment details, nothing billed automatically."
+If it helps, here is a short blurb you can forward as it is (please keep the last line):
+
+<!-- copy:start -->
+> {{sender_name}} runs A11yGate, an automated accessibility gate for CI. Free {{pilot_length_days}}-day pilot, no payment details, nothing billed automatically.
+>
+> Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
 
 No worries at all if it's not a fit.
 
