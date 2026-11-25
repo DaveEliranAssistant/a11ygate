@@ -23,3 +23,5 @@ examples/recipes/*/.angular/
 examples/recipes/*/scan.json
 examples/recipes/*/.a11ygate.yml
 examples/recipes/*/.github/
+
+/go-live-preview/
