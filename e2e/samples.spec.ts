@@ -3,6 +3,10 @@
 // marking on every sample and every PDF page, (c) hosts. Needs Chromium, so it lives in e2e/ and runs on CI.
 // It does not use the Next server that playwright.config.ts starts.
 //
+// PDF text is compared with ALL whitespace removed: pdf.js splits ligature glyphs differently on Linux and macOS
+// ("a fi ctional", "certi fi cation"), so spacing is not stable across platforms. The injected SAMPLE marking
+// also turns ligatures off (font-variant-ligatures: none).
+//
 // Refresh the stored text after an intended change: A11Y_UPDATE_SAMPLE_TEXT=1 npx playwright test e2e/samples.spec.ts
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,7 +14,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
+import { pathToFileURL } from 'node:url';
+import { chromium, expect, test } from '@playwright/test';
 import { readZip } from '../lib/evidence/zip';
 import { pdfInfo } from '../tests/pdf-info';
 
@@ -18,45 +23,169 @@ const repoRoot = path.resolve(__dirname, '..');
 const committed = path.join(repoRoot, 'docs/samples');
 const expectedDir = path.join(repoRoot, 'e2e/fixtures/samples');
 const DISCLAIMER = 'Automated testing only. Not a WCAG audit, certification or legal advice.';
+const SAMPLE_HOST = '127.0.0.1:4173';
 const SAMPLE_FILES = [
   'prospect-summary.pdf', 'pilot-results.pdf', 'quote-sample.pdf', 'evidence-pack-sample.zip', 'report.html',
   'screenshot-pr-gate.png', 'screenshot-report-summary.png', 'screenshot-trend.png',
 ];
+const PNGS = SAMPLE_FILES.filter((f) => f.endsWith('.png'));
 const PDFS = ['prospect-summary.pdf', 'pilot-results.pdf', 'quote-sample.pdf'];
 const banned = /fixes everything|\bcompliant\b|\bcertified\b|\bguarantees?\b|\bconformant\b|lawsuit-proof/i;
-// pdf.js on Linux runners returns ligature glyphs as separate items ("certi fi cation"); rejoin them before matching.
+// For human-readable stored expectations only; comparisons use squeeze().
 const rejoinLigatures = (text: string) => text.replace(/ (ffi|ffl|ff|fi|fl) /g, '$1');
 const squeeze = (text: string) => text.replace(/\s+/g, '');
-// Footer printed on every page by build-samples.mjs, plus the rotated SAMPLE watermark (pdf.js may split its letters).
-const FOOTER = new RegExp(`(?:SAMPLE)?SAMPLE·ExampleLtd·demoappdata${squeeze(DISCLAIMER).replace(/[.,]/g, '\\$&')}Page\\d+of\\d+`, 'g');
-// Reference-documentation hosts the CLI links to (rule help, WCAG, A11yGate itself, SARIF schema). Nothing on them is scanned.
-const REFERENCE_HOSTS = new Set(['www.w3.org', 'dequeuniversity.com', 'a11ygate.vercel.app', 'json.schemastore.org']);
+const reEscape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Footer printed on every page by build-samples.mjs (whitespace removed).
+const FOOTER = new RegExp(`SAMPLE·ExampleLtd·demoappdata${reEscape(squeeze(DISCLAIMER))}Page\\d+of\\d+`, 'g');
+// Banner at the top of page 1 (whitespace removed).
+const BANNER = squeeze(`SAMPLE Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site. ${DISCLAIMER}`);
 
-type ScreenshotCheck = { bannerText: string; bannerInViewport: boolean; watermarkVisible: boolean };
-const readZipEntries = (zip: Buffer) => readZip(zip).map((e) => ({ path: e.path, data: Buffer.from(e.data) }));
-
-let outDir = '';
-let screenshots: Record<string, ScreenshotCheck> = {};
-let hits: string[] = [];
-
-/** Page texts with whitespace removed; body = all pages joined with footers and watermark removed. */
-async function pdfText(file: string) {
-  const { pages } = await pdfInfo(await readFile(file));
-  const squeezed = pages.map(squeeze);
-  return { pages, squeezed, body: squeezed.map((p) => p.replace(FOOTER, '')).join('') };
+/** What one PDF page is missing. The large rotated SAMPLE watermark is required in addition to the footer. */
+function pageMarkingProblems(rawPage: string, pageIndex: number): string[] {
+  const problems: string[] = [];
+  let rest = squeeze(rawPage);
+  const footers = rest.match(FOOTER)?.length ?? 0;
+  if (footers !== 1) problems.push(`expected 1 SAMPLE footer with the disclaimer, found ${footers}`);
+  rest = rest.replace(FOOTER, '');
+  if (pageIndex === 0) {
+    if (!rest.includes(BANNER)) problems.push('page 1 has no SAMPLE banner with the disclaimer');
+    rest = rest.replace(BANNER, '');
+  }
+  // Body text from the CLI never contains upper-case "SAMPLE"; what is left is the watermark.
+  if (!rest.includes('SAMPLE')) problems.push('no SAMPLE watermark');
+  return problems;
 }
+
+// --- (c) hosts -------------------------------------------------------------------------------------------
+// Reference-link hosts the CLI writes into every report (rule help, WCAG Understanding pages, SARIF schema,
+// the A11yGate site in the user agent / SARIF tool info). They may appear only as link targets, never as a
+// scanned page.
+const REFERENCE_HOSTS = new Set(['www.w3.org', 'dequeuniversity.com', 'a11ygate.vercel.app', 'json.schemastore.org']);
+// Contexts in which a reference URL is a link target/reference: HTML href, Markdown link target, the
+// user-agent "+url", or one of the CLI's reference JSON/SARIF keys.
+const REFERENCE_CONTEXT = /(?:href="|\]\(|; \+|\bguidance: |"(?:helpUrl|helpUri|\$schema|informationUri|wcagUrl|url)": ")$/;
+const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/([^/\s"'<>)\]`\\]+)/gi;
+
+/** Every URL host in `text` that is not the demo app and not an allowed reference link in a reference context. */
+function hostProblems(text: string): string[] {
+  const problems: string[] = [];
+  if (/localhost|\[::1\]|0\.0\.0\.0/i.test(text)) problems.push('mentions localhost / ::1 / 0.0.0.0');
+  for (const m of text.matchAll(URL_RE)) {
+    const host = m[1]!.toLowerCase();
+    if (host === SAMPLE_HOST) continue;
+    const before = text.slice(Math.max(0, m.index! - 40), m.index);
+    if (REFERENCE_HOSTS.has(host) && REFERENCE_CONTEXT.test(before)) continue;
+    problems.push(`${host} (after "${before.slice(-25)}")`);
+  }
+  return [...new Set(problems)];
+}
+
+/** Every scanned page / target URL in the evidence pack's structured outputs. */
+function scannedUrls(entries: { path: string; data: Buffer }[]): string[] {
+  const get = (name: string) => entries.find((e) => e.path === name)?.data.toString('utf8') ?? '';
+  const urls: string[] = [];
+  const scan = JSON.parse(get('scan/a11ygate-scan.json'));
+  if (scan.startUrl) urls.push(scan.startUrl);
+  for (const p of scan.pages ?? []) urls.push(p.url);
+  for (const f of scan.findings ?? []) urls.push(f.pageUrl ?? f.url);
+  const sarif = JSON.parse(get('scan/a11ygate-scan.sarif'));
+  for (const run of sarif.runs ?? []) {
+    for (const r of run.results ?? []) {
+      for (const l of r.locations ?? []) {
+        // SARIF artifact paths are a11ygate-pages/<host>-<port>/<path>; map back to the page's origin.
+        const uri: string | undefined = l.physicalLocation?.artifactLocation?.uri;
+        const local = uri?.match(/^a11ygate-pages\/([^/]+)-(\d+)\/(.*)$/);
+        urls.push(local ? `http://${local[1]}:${local[2]}/${local[3]}` : uri!);
+        for (const logical of l.logicalLocations ?? []) if (logical.kind === 'url') urls.push(logical.fullyQualifiedName);
+      }
+    }
+    for (const a of run.artifacts ?? []) urls.push(a.location?.uri);
+  }
+  const junit = get('scan/a11ygate-scan.junit.xml');
+  for (const m of junit.matchAll(/(?:name|classname|value)="([a-z][a-z0-9+.-]*:\/\/[^"]+)"/gi)) urls.push(m[1]!);
+  for (const name of ['scan/a11ygate-scan.md', 'report.md']) {
+    for (const line of get(name).split('\n')) if (/^\s*[-*|]/.test(line)) for (const m of line.matchAll(/(?<!\]\()\bhttps?:\/\/[^\s)|`]+/g)) urls.push(m[0]);
+  }
+  const manifest = JSON.parse(get('manifest.json'));
+  for (const value of JSON.stringify(manifest).match(/https?:\/\/[^"\\]+/g) ?? []) urls.push(value);
+  return urls.filter((u): u is string => typeof u === 'string' && u.length > 0);
+}
+
+const isScannedOk = (url: string) => {
+  try {
+    return new URL(url).host === SAMPLE_HOST;
+  } catch {
+    return false;
+  }
+};
+
+const readZipEntries = (zip: Buffer) => readZip(zip).map((e) => ({ path: e.path, data: Buffer.from(e.data) }));
 
 async function sampleTexts(dir: string): Promise<{ name: string; text: string }[]> {
   const texts: { name: string; text: string }[] = [];
   for (const file of PDFS) texts.push({ name: file, text: (await pdfInfo(await readFile(path.join(dir, file)))).pages.join('\n') });
   texts.push({ name: 'report.html', text: await readFile(path.join(dir, 'report.html'), 'utf8') });
+  texts.push({ name: 'screenshot-checks.json', text: await readFile(path.join(dir, 'screenshot-checks.json'), 'utf8') });
   for (const entry of readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip')))) {
     if (!/\.png$/i.test(entry.path)) texts.push({ name: `evidence-pack-sample.zip!/${entry.path}`, text: entry.data.toString('utf8') });
   }
   return texts;
 }
 
-test.describe.serial('sample deliverables pack (A11Y-R79)', () => {
+// --- pure checks of the checkers (no Chromium, no rebuild) -------------------------------------------------
+test.describe('sample pack checkers (A11Y-R79)', () => {
+  test('a PDF page without the rotated SAMPLE watermark fails', async () => {
+    const stored = await readFile(path.join(expectedDir, 'quote-sample.pdf.txt'), 'utf8');
+    expect(pageMarkingProblems(stored, 0)).toEqual([]);
+    const noWatermark = stored.replace(/S\s*A\s*M\s*P\s*L\s*E(?=\s*SAMPLE\s*·)/, '');
+    expect(noWatermark).not.toBe(stored);
+    expect(pageMarkingProblems(noWatermark, 0)).toEqual(['no SAMPLE watermark']);
+    const noFooter = stored.replace(/SAMPLE · Example Ltd · demo app data/, '');
+    expect(pageMarkingProblems(noFooter, 0)[0]).toMatch(/expected 1 SAMPLE footer/);
+    // Linux pdf.js splits ligatures; the check does not depend on spacing.
+    expect(pageMarkingProblems(stored.replace('a fictional', 'a fi ctional').replace('certification', 'certi fi cation'), 0)).toEqual([]);
+  });
+
+  test('a scanned URL on another host fails, reference links only pass in link context', async () => {
+    expect(hostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toEqual([]);
+    expect(hostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toEqual([]);
+    expect(hostProblems('Site: https://example.com/')).toHaveLength(1);
+    expect(hostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
+    expect(hostProblems('"pageUrl": "https://www.w3.org/"')).toHaveLength(1);
+    expect(hostProblems('http://localhost:3000/')).not.toEqual([]);
+    const entries = [
+      { path: 'scan/a11ygate-scan.json', data: Buffer.from(JSON.stringify({ pages: [{ url: `http://${SAMPLE_HOST}/` }, { url: 'https://dequeuniversity.com/' }], findings: [] })) },
+      { path: 'scan/a11ygate-scan.sarif', data: Buffer.from(JSON.stringify({ runs: [{ results: [{ locations: [{ physicalLocation: { artifactLocation: { uri: 'https://example.com/a' } } }] }] }] })) },
+      { path: 'manifest.json', data: Buffer.from('{}') },
+    ];
+    expect(scannedUrls(entries).filter((u) => !isScannedOk(u))).toEqual(['https://dequeuniversity.com/', 'https://example.com/a']);
+  });
+});
+
+test('build-samples refuses to capture a screenshot of a page without the SAMPLE banner and watermark', async () => {
+  // Dynamic import: the spec is compiled to CommonJS, build-samples.mjs is ESM.
+  const { screenshot, watermarkHtml }: typeof import('../scripts/build-samples.mjs') = await import(pathToFileURL(path.join(repoRoot, 'scripts/build-samples.mjs')).href);
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'a11ygate-samples-shot-'));
+  const browser = await chromium.launch();
+  try {
+    const html = '<!doctype html><html lang="en"><head><title>t</title></head><body><main><h1>Report</h1></main></body></html>';
+    await expect(screenshot(browser, html, path.join(dir, 'bare.png'))).rejects.toThrow(/Refusing to write bare\.png/);
+    expect(existsSync(path.join(dir, 'bare.png'))).toBe(false);
+    const noWatermark = watermarkHtml(html).replace(/<div class="a11ygate-sample-watermark"[^>]*>SAMPLE<\/div>/, '');
+    await expect(screenshot(browser, noWatermark, path.join(dir, 'nowm.png'))).rejects.toThrow(/Refusing/);
+    const shot = await screenshot(browser, watermarkHtml(html), path.join(dir, 'ok.png'));
+    expect(shot.sha256).toBe(createHash('sha256').update(await readFile(path.join(dir, 'ok.png'))).digest('hex'));
+  } finally {
+    await browser.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// --- rebuild + checks (one build, shared; tests are independent, not serial) --------------------------------
+test.describe('sample deliverables pack (A11Y-R79)', () => {
+  let outDir = '';
+  let hits: string[] = [];
+
   test.beforeAll(async () => {
     test.setTimeout(240_000);
     outDir = await mkdtemp(path.join(os.tmpdir(), 'a11ygate-samples-e2e-'));
@@ -68,7 +197,7 @@ test.describe.serial('sample deliverables pack (A11Y-R79)', () => {
         { cwd: repoRoot, env, timeout: 220_000, maxBuffer: 16 * 1024 * 1024 },
         (error, stdout, stderr) => (error ? reject(new Error(`npm run samples failed: ${error.message}\n${stdout}\n${stderr}`)) : resolve()));
     });
-    ({ screenshots, hits } = JSON.parse(await readFile(checks, 'utf8')));
+    ({ hits } = JSON.parse(await readFile(checks, 'utf8')));
     await rm(checks, { force: true });
   });
   test.afterAll(async () => {
@@ -76,38 +205,39 @@ test.describe.serial('sample deliverables pack (A11Y-R79)', () => {
   });
 
   test('npm run samples writes every sample and only fetches the local demo app', async () => {
-    for (const file of SAMPLE_FILES) expect(existsSync(path.join(outDir, file)), file).toBe(true);
-    for (const file of [...SAMPLE_FILES, 'README.md']) expect(existsSync(path.join(committed, file)), `docs/samples/${file}`).toBe(true);
+    for (const file of [...SAMPLE_FILES, 'screenshot-checks.json']) expect(existsSync(path.join(outDir, file)), file).toBe(true);
+    for (const file of [...SAMPLE_FILES, 'screenshot-checks.json', 'README.md']) expect(existsSync(path.join(committed, file)), `docs/samples/${file}`).toBe(true);
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.filter((hit) => !/^(GET|HEAD) \//.test(hit))).toEqual([]);
   });
 
   test('(a) PDF text of rebuilt and committed samples matches the stored expectations', async () => {
     for (const file of PDFS) {
-      const fresh = await pdfText(path.join(outDir, file));
+      const { pages } = await pdfInfo(await readFile(path.join(outDir, file)));
       const expectedFile = path.join(expectedDir, `${file}.txt`);
-      if (process.env.A11Y_UPDATE_SAMPLE_TEXT === '1') {
-        const readable = fresh.pages.map((p) => rejoinLigatures(p)).join('\n');
-        await writeFile(expectedFile, `${readable.trim()}\n`);
-      }
-      const expected = squeeze(await readFile(expectedFile, 'utf8')).split('\n').join('');
-      const expectedBody = expected.replace(FOOTER, '');
-      expect(fresh.body, `${file} (rebuilt)`).toBe(expectedBody);
-      expect((await pdfText(path.join(committed, file))).body, `docs/samples/${file}`).toBe(expectedBody);
+      if (process.env.A11Y_UPDATE_SAMPLE_TEXT === '1') await writeFile(expectedFile, `${pages.map(rejoinLigatures).join('\n').trim()}\n`);
+      const expected = squeeze(await readFile(expectedFile, 'utf8'));
+      expect(squeeze(pages.join('')), `${file} (rebuilt)`).toBe(expected);
+      const committedPages = (await pdfInfo(await readFile(path.join(committed, file)))).pages;
+      expect(squeeze(committedPages.join('')), `docs/samples/${file}`).toBe(expected);
     }
   });
 
-  test('(b) every sample carries the disclaimer and the SAMPLE marking', async () => {
-    for (const dir of [outDir, committed]) {
+  for (const which of ['rebuilt', 'committed'] as const) {
+    test(`(b) every ${which} PDF page has the SAMPLE watermark, the SAMPLE footer and the disclaimer`, async () => {
+      const dir = which === 'rebuilt' ? outDir : committed;
       for (const file of PDFS) {
-        const { pages, squeezed } = await pdfText(path.join(dir, file));
+        const { pages } = await pdfInfo(await readFile(path.join(dir, file)));
         expect(pages.length, file).toBeGreaterThan(0);
-        for (const [i, page] of squeezed.entries()) {
-          expect(page.match(FOOTER), `${file} page ${i + 1}: SAMPLE footer with disclaimer`).toHaveLength(1);
-          expect(rejoinLigatures(pages[i]!), `${file} page ${i + 1}`).not.toMatch(banned);
+        for (const [i, page] of pages.entries()) {
+          expect(pageMarkingProblems(page, i), `${file} page ${i + 1}`).toEqual([]);
+          expect(rejoinLigatures(page), `${file} page ${i + 1}`).not.toMatch(banned);
         }
-        expect(rejoinLigatures(pages[0]!)).toContain(`SAMPLE Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site. ${DISCLAIMER}`);
       }
+    });
+
+    test(`(b) ${which} report.html and evidence pack carry the disclaimer and the SAMPLE marking`, async () => {
+      const dir = which === 'rebuilt' ? outDir : committed;
       const report = await readFile(path.join(dir, 'report.html'), 'utf8');
       expect(report).toContain(DISCLAIMER);
       expect(report).toContain('data-sample-banner><strong>SAMPLE</strong> Example Ltd is a fictional customer.');
@@ -127,44 +257,52 @@ test.describe.serial('sample deliverables pack (A11Y-R79)', () => {
         expect(data?.length, file.path).toBe(file.bytes);
         expect(createHash('sha256').update(data!).digest('hex'), file.path).toBe(file.sha256);
       }
-      for (const png of SAMPLE_FILES.filter((f) => f.endsWith('.png'))) {
+    });
+
+    test(`(b) each ${which} PNG was captured from a page showing the SAMPLE banner, disclaimer and watermark`, async () => {
+      const dir = which === 'rebuilt' ? outDir : committed;
+      const sidecar = JSON.parse(await readFile(path.join(dir, 'screenshot-checks.json'), 'utf8'));
+      expect(sidecar.disclaimer).toBe(DISCLAIMER);
+      expect(Object.keys(sidecar.screenshots).sort()).toEqual([...PNGS].sort());
+      for (const png of PNGS) {
         const bytes = await readFile(path.join(dir, png));
+        const shot = sidecar.screenshots[png];
+        // The checks belong to exactly this file: a PNG replaced or re-captured without the markings fails here.
+        expect(createHash('sha256').update(bytes).digest('hex'), `${png} sha256 vs screenshot-checks.json`).toBe(shot.sha256);
         expect(bytes.subarray(1, 4).toString('latin1'), png).toBe('PNG');
         expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], png).toEqual([1000, 720]);
+        expect(shot.bannerInViewport, png).toBe(true);
+        expect(shot.watermarkVisible, png).toBe(true);
+        expect(shot.watermarkText, png).toBe('SAMPLE');
+        expect(shot.bannerText, png).toContain('SAMPLE Example Ltd is a fictional customer.');
+        expect(shot.bannerText, png).toContain(DISCLAIMER);
       }
-    }
+    });
+
+    test(`(c) ${which}: every scanned URL is on 127.0.0.1, other hosts only as reference links`, async () => {
+      const dir = which === 'rebuilt' ? outDir : committed;
+      const texts = await sampleTexts(dir);
+      texts.push({ name: 'README.md', text: await readFile(path.join(committed, 'README.md'), 'utf8') });
+      for (const { name, text } of texts) expect(hostProblems(text), name).toEqual([]);
+      // PDFs have no reference links at all: every URL in them is a scanned page on the demo app
+      // (the prospect summary lists its site and pages; pilot results and quote have no URLs).
+      for (const { name, text } of texts.filter((t) => t.name.endsWith('.pdf'))) {
+        const urls = text.match(/https?:\/\/\S+/g) ?? [];
+        if (name === 'prospect-summary.pdf') expect(urls.length, name).toBeGreaterThan(4);
+        expect(urls.filter((u) => !isScannedOk(u)), name).toEqual([]);
+      }
+      const urls = scannedUrls(readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip'))));
+      expect(urls.length).toBeGreaterThan(4);
+      expect(urls.filter((u) => !isScannedOk(u))).toEqual([]);
+    });
+  }
+
+  test('README describes every file and carries the disclaimer', async () => {
     const readme = await readFile(path.join(committed, 'README.md'), 'utf8');
     expect(readme).toContain(DISCLAIMER);
     expect(readme).toContain('All data comes from our demo app');
     expect(readme).toContain('**SAMPLE**');
     expect(readme).not.toMatch(banned);
-    for (const file of SAMPLE_FILES) expect(readme, file).toContain(`[${file}](${file})`);
-    // PNGs: the captured viewport showed the SAMPLE banner with the disclaimer and the watermark.
-    expect(Object.keys(screenshots).sort()).toEqual(SAMPLE_FILES.filter((f) => f.endsWith('.png')).sort());
-    for (const [png, shot] of Object.entries(screenshots)) {
-      expect(shot.bannerInViewport, png).toBe(true);
-      expect(shot.watermarkVisible, png).toBe(true);
-      expect(shot.bannerText, png).toContain('SAMPLE');
-      expect(shot.bannerText, png).toContain(DISCLAIMER);
-    }
-  });
-
-  test('(c) no scanned host other than 127.0.0.1 appears in any sample', async () => {
-    for (const dir of [outDir, committed]) {
-      const texts = await sampleTexts(dir);
-      texts.push({ name: 'README.md', text: await readFile(path.join(committed, 'README.md'), 'utf8') });
-      for (const { name, text } of texts) {
-        expect(text, name).not.toMatch(/localhost|\[::1\]|0\.0\.0\.0/i);
-        const hosts = [...text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/([^/\s"'<>)\]`\\]+)/gi)].map((m) => m[1]!.toLowerCase());
-        const other = [...new Set(hosts)].filter((host) => host !== '127.0.0.1:4173' && !REFERENCE_HOSTS.has(host));
-        expect(other, name).toEqual([]);
-      }
-      // Every scanned page is on the demo app.
-      const scan = readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip'))).find((e) => e.path === 'scan/a11ygate-scan.json')!;
-      const report = JSON.parse(scan.data.toString('utf8'));
-      const pageUrls = [...(report.pages ?? []).map((p: { url: string }) => p.url), ...(report.findings ?? []).map((f: { pageUrl: string }) => f.pageUrl)];
-      expect(pageUrls.length).toBeGreaterThan(0);
-      for (const url of pageUrls) expect(new URL(url).host, url).toBe('127.0.0.1:4173');
-    }
+    for (const file of [...SAMPLE_FILES, 'screenshot-checks.json']) expect(readme, file).toContain(`[${file}](${file})`);
   });
 });

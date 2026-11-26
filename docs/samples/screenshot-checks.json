@@ -1,0 +1,30 @@
+{
+  "note": "SAMPLE: Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site.",
+  "disclaimer": "Automated testing only. Not a WCAG audit, certification or legal advice.",
+  "screenshots": {
+    "screenshot-pr-gate.png": {
+      "file": "screenshot-pr-gate.png",
+      "sha256": "4e39905c39e68bdc5a17b685dfeb5000d07fc7d28acc8bb96c4afb63dcbcf3b0",
+      "bannerText": "SAMPLE Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site. Automated testing only. Not a WCAG audit, certification or legal advice.",
+      "bannerInViewport": true,
+      "watermarkText": "SAMPLE",
+      "watermarkVisible": true
+    },
+    "screenshot-report-summary.png": {
+      "file": "screenshot-report-summary.png",
+      "sha256": "1ff12670686d3cfc461a5d33e888d50baebd6665c523b44d24971c145da6166f",
+      "bannerText": "SAMPLE Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site. Automated testing only. Not a WCAG audit, certification or legal advice.",
+      "bannerInViewport": true,
+      "watermarkText": "SAMPLE",
+      "watermarkVisible": true
+    },
+    "screenshot-trend.png": {
+      "file": "screenshot-trend.png",
+      "sha256": "50c6b7afb1b1a7444547ba40e84c36aedb596727c13d20406c5212966300576d",
+      "bannerText": "SAMPLE Example Ltd is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site. Automated testing only. Not a WCAG audit, certification or legal advice.",
+      "bannerInViewport": true,
+      "watermarkText": "SAMPLE",
+      "watermarkVisible": true
+    }
+  }
+}

@@ -14,12 +14,13 @@ These are the files a pilot produces, so you can see them before you start one. 
 | [screenshot-pr-gate.png](screenshot-pr-gate.png) | The PR gate failing on the one new finding (an unnamed icon button) while existing findings stay in the baseline. |
 | [screenshot-report-summary.png](screenshot-report-summary.png) | The top of the HTML report: verdict and executive summary. |
 | [screenshot-trend.png](screenshot-trend.png) | The trend report across the three evidence packs from the sample pilot. |
+| [screenshot-checks.json](screenshot-checks.json) | For each screenshot: its SHA-256 and what the page showed when it was captured (SAMPLE banner with the disclaimer, SAMPLE watermark). |
 
 ## How the samples are made
 
 `npm run samples` runs the [demo flow](../pilot/demo-script.md) on the local demo app: kickoff scan, baseline, mid-pilot scan, one regression, gate scan, evidence packs, then `prospect --offer`, `pilot report` and `trend`. It then adds the SAMPLE marking and the Example Ltd name, rewrites the local port to 127.0.0.1:4173 and prints the PDFs with Playwright Chromium. Dates come from `SOURCE_DATE_EPOCH` (default 2026-11-26). Use `npm run samples -- --out-dir <dir>` to write somewhere else. Needs `npm run cli:build` and Playwright Chromium.
 
-External links inside the reports point to rule documentation (W3C WCAG pages and axe-core rule help) and to the A11yGate site; no other site was scanned.
+Every scanned page is on 127.0.0.1. The only other hosts in the files are reference links the CLI writes into every report: rule documentation (W3C WCAG pages, axe-core rule help), the SARIF schema and the A11yGate site (also in the scanner's user agent). No other site was scanned.
 
 The samples show what automated testing finds on one small demo app. They do not show what a scan of your site will find, and they cover only part of WCAG.
 

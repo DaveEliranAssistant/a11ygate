@@ -32,6 +32,8 @@ export const SAMPLE_FILES = [
   'prospect-summary.pdf', 'pilot-results.pdf', 'quote-sample.pdf', 'evidence-pack-sample.zip', 'report.html',
   'screenshot-pr-gate.png', 'screenshot-report-summary.png', 'screenshot-trend.png',
 ];
+/** Sidecar written next to the PNGs: what each screenshot's page showed when it was captured, bound by SHA-256. */
+export const SCREENSHOT_CHECKS = 'screenshot-checks.json';
 export const SAMPLE_NOTE = `${SAMPLE_MARK}: ${SAMPLE_CUSTOMER} is a fictional customer. All data comes from the A11yGate demo app (fixtures/demo-app), not a customer site.`;
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -76,9 +78,9 @@ function normaliseText(text, port, stamp) {
 }
 
 const WATERMARK_CSS = `
-.a11ygate-sample-banner{margin:0 0 12px;padding:8px 12px;border:2px solid #8a1c1c;background:#fff4f4;color:#5c0f0f;font:600 13px/1.4 system-ui,sans-serif}
+.a11ygate-sample-banner{font-variant-ligatures:none;margin:0 0 12px;padding:8px 12px;border:2px solid #8a1c1c;background:#fff4f4;color:#5c0f0f;font:600 13px/1.4 system-ui,sans-serif}
 .a11ygate-sample-banner strong{letter-spacing:.08em}
-.a11ygate-sample-watermark{position:fixed;top:42%;left:0;right:0;text-align:center;font:800 110px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(138,28,28,.12);transform:rotate(-28deg);pointer-events:none;z-index:2147483647}`;
+.a11ygate-sample-watermark{font-variant-ligatures:none;position:fixed;top:42%;left:0;right:0;text-align:center;font:800 110px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(138,28,28,.12);transform:rotate(-28deg);pointer-events:none;z-index:2147483647}`;
 
 /** Add the SAMPLE banner (with the disclaimer) at the top and a fixed SAMPLE watermark that prints on every page. */
 export function watermarkHtml(html) {
@@ -90,7 +92,7 @@ export function watermarkHtml(html) {
   return out;
 }
 
-const FOOTER = `<div style="width:100%;margin:0 14mm;font:8px/1.3 system-ui,sans-serif;color:#333;display:flex;gap:8px;justify-content:space-between">`
+const FOOTER = `<div style="width:100%;margin:0 14mm;font:8px/1.3 system-ui,sans-serif;font-variant-ligatures:none;color:#333;display:flex;gap:8px;justify-content:space-between">`
   + `<span><b>${SAMPLE_MARK}</b> · ${SAMPLE_CUSTOMER} · demo app data</span><span>${DISCLAIMER}</span>`
   + `<span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`;
 
@@ -112,17 +114,36 @@ async function printPdf(browser, html, stamp) {
   }
 }
 
-/** Screenshot the top of a page and report what the captured viewport shows (for the tests). */
-async function screenshot(browser, html, file) {
-  const context = await browser.newContext({ javaScriptEnabled: false, colorScheme: 'light', viewport: { width: 1000, height: 720 }, deviceScaleFactor: 1 });
+/**
+ * Screenshot the top of a page. Before capturing, check in the page DOM that the viewport shows the SAMPLE
+ * banner (with the disclaimer) and the SAMPLE watermark; refuse to write the PNG otherwise. Returns those
+ * checks plus the PNG's SHA-256 so the tests can bind them to the committed/rebuilt file.
+ */
+export async function screenshot(browser, html, file) {
+  const viewport = { width: 1000, height: 720 };
+  const context = await browser.newContext({ javaScriptEnabled: false, colorScheme: 'light', viewport, deviceScaleFactor: 1 });
   try {
     await context.route('**/*', (route) => route.abort());
     const page = await context.newPage();
     await page.setContent(html, { waitUntil: 'load' });
-    await page.screenshot({ path: file, type: 'png' });
+    const inViewport = (box) => !!box && box.y >= 0 && box.x >= 0 && box.y + box.height <= viewport.height && box.width > 0;
     const banner = page.locator('[data-sample-banner]');
-    const box = await banner.boundingBox();
-    return { bannerText: (await banner.innerText()).replace(/\s+/g, ' '), bannerInViewport: !!box && box.y >= 0 && box.y + box.height <= 720, watermarkVisible: await page.locator('.a11ygate-sample-watermark').isVisible() };
+    const watermark = page.locator('.a11ygate-sample-watermark');
+    const bannerCount = await banner.count();
+    const watermarkCount = await watermark.count();
+    const check = {
+      bannerText: bannerCount === 1 ? (await banner.innerText()).replace(/\s+/g, ' ').trim() : '',
+      bannerInViewport: bannerCount === 1 && inViewport(await banner.boundingBox()),
+      watermarkText: watermarkCount === 1 ? (await watermark.innerText()).trim() : '',
+      watermarkVisible: watermarkCount === 1 && (await watermark.isVisible()),
+    };
+    if (!check.bannerInViewport || !check.watermarkVisible || !check.bannerText.includes(SAMPLE_MARK)
+      || !check.bannerText.includes(DISCLAIMER) || check.watermarkText !== SAMPLE_MARK) {
+      throw new Error(`Refusing to write ${path.basename(file)}: the page does not show the SAMPLE banner with the disclaimer and the SAMPLE watermark.`);
+    }
+    const png = await page.screenshot({ type: 'png' });
+    await writeFile(file, png);
+    return { file: path.basename(file), sha256: createHash('sha256').update(png).digest('hex'), ...check };
   } finally {
     await context.close();
   }
@@ -272,6 +293,7 @@ export async function buildSamples({ outDir, epoch = DEFAULT_SOURCE_DATE_EPOCH, 
     } finally {
       await browser.close();
     }
+    await writeFile(path.join(outDir, SCREENSHOT_CHECKS), `${JSON.stringify({ note: SAMPLE_NOTE, disclaimer: DISCLAIMER, screenshots }, null, 2)}\n`);
     await writeFile(path.join(outDir, 'evidence-pack-sample.zip'), await sampleEvidencePack(path.join(work, 'packs/latest.zip')));
     log(`Wrote ${SAMPLE_FILES.length} samples to ${outDir}`);
     return { outDir, screenshots, hits: [...app.hits] };
