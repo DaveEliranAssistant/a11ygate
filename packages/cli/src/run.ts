@@ -36,6 +36,8 @@ import { runProspect } from './prospect';
 import { runEstimate } from './estimate';
 import { runExport } from './export';
 
+declare const A11YGATE_PILOT_VERSION_SUFFIX: string;
+
 export type RunIo = {
   cwd?: string;
   stdout?: (chunk: string) => void;
@@ -203,7 +205,8 @@ export async function run(argv: readonly string[], io: RunIo = {}): Promise<numb
     return 0;
   }
   if (options.version) {
-    stdout(`${await readVersion()}\n`);
+    const suffix = typeof A11YGATE_PILOT_VERSION_SUFFIX === 'string' ? A11YGATE_PILOT_VERSION_SUFFIX : '';
+    stdout(`${await readVersion()}${suffix}\n`);
     return 0;
   }
   if (options.current.length === 0) {

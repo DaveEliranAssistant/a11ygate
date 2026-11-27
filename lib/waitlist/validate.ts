@@ -3,13 +3,17 @@ import {
   WAITLIST_CONSENT_ERROR,
   WAITLIST_EMAIL_ERROR,
   WAITLIST_ROLE_ERROR,
+  WAITLIST_VARIANT_ERROR,
 } from '@/lib/waitlist/messages';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const MAX_TEXT = 80;
 
+export type WaitlistVariant = 'waitlist' | 'pilot';
+
 export type WaitlistFields = {
+  variant?: string;
   email?: string;
   role?: string;
   company?: string;
@@ -24,8 +28,8 @@ export type WaitlistSignup = {
 };
 
 export type WaitlistValidation =
-  | { ok: true; honeypot: true }
-  | { ok: true; honeypot: false; signup: WaitlistSignup }
+  | { ok: true; honeypot: true; variant: WaitlistVariant }
+  | { ok: true; honeypot: false; variant: WaitlistVariant; signup: WaitlistSignup }
   | { ok: false; fields: WaitlistFields };
 
 export function normalizeEmail(value: string): string {
@@ -50,7 +54,11 @@ export function validateWaitlistInput(input: unknown): WaitlistValidation {
     return { ok: false, fields: { email: WAITLIST_EMAIL_ERROR, consent: WAITLIST_CONSENT_ERROR } };
   }
   const record = input as Record<string, unknown>;
-  if (honeypotFilled(record.company_website)) return { ok: true, honeypot: true };
+  const variant = record.variant === undefined ? 'waitlist' : record.variant;
+  if (variant !== 'waitlist' && variant !== 'pilot') {
+    return { ok: false, fields: { variant: WAITLIST_VARIANT_ERROR } };
+  }
+  if (honeypotFilled(record.company_website)) return { ok: true, honeypot: true, variant };
 
   const fields: WaitlistFields = {};
   const email = typeof record.email === 'string' ? normalizeEmail(record.email) : '';
@@ -68,6 +76,7 @@ export function validateWaitlistInput(input: unknown): WaitlistValidation {
   return {
     ok: true,
     honeypot: false,
+    variant,
     signup: {
       email,
       role: role.ok ? role.value : null,

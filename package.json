@@ -18,12 +18,15 @@
     "test:e2e": "NEXT_TELEMETRY_DISABLED=1 playwright test",
     "db:migrate": "node scripts/migrate-waitlist.mjs",
     "cli:build": "node packages/cli/build.mjs",
+    "pilot-requests": "node scripts/list-pilot-requests.mjs",
+    "pilot:bundle": "node scripts/pilot-bundle.mjs",
     "a11ygate": "node packages/cli/dist/cli.mjs",
     "test:jenkins": "cd integrations/jenkins && ./gradlew test",
     "licenses:check": "node scripts/check-engine-licenses.mjs",
     "prebuild": "npm run licenses:check",
     "pretest": "npm run licenses:check",
-    "bench": "node scripts/bench-chromium.mjs"
+    "bench": "node scripts/bench-chromium.mjs",
+    "go-live:preflight": "node scripts/go-live-preflight.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

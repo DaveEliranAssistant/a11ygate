@@ -20,7 +20,7 @@ Payments and pricing (A11Y-R63, [billing setup](../billing-setup.md)):
 
 Pilot requests and the public offer (A11Y-R64):
 
-- [ ] Decide where pilot requests go: set `A11YGATE_PILOT_REQUEST_URL` to an `https:` URL or a `mailto:` address, or leave it unset and read the waitlist database (the “Request a free pilot” button then opens the waitlist form).
+- [ ] Decide where pilot requests go: set `A11YGATE_PILOT_REQUEST_URL` to an `https:` URL or a `mailto:` address, or leave it unset to collect requests through the landing page form and read the waitlist database with the command below.
 - [ ] Approve turning `A11YGATE_PRICING_ENABLED` on in production (this also shows the pilot offer on the home page).
 
 CI starters (A11Y-R65): no separate decision.
@@ -50,6 +50,28 @@ npm package:
 
 - [ ] Decide whether to publish 0.2.0: `npm login` and publish 0.2.0 to the `next` tag are owner actions. The npm `latest` tag is 0.1.0; nothing here publishes.
 
+## Flip the switch
+
+**ELIRAN-ONLY.** Set Vercel environment variables and deploy only after reviewing the intended state. Before each step, set the proposed combination in your local shell and run the preflight. Correct any errors before making the Vercel change. The preflight reads the three settings from your shell and shows the web offer and the quote payment line with destination details redacted. Keep checkout unset through the first two steps.
+
+1. [ ] **CTA destination first.** Run `npm run go-live:preflight`, then set `A11YGATE_PILOT_REQUEST_URL` to an HTTPS link without credentials or a `mailto:` address. Leave it unset to keep pilot requests on the landing page waitlist form.
+2. [ ] **Pricing flag second.** Run `npm run go-live:preflight`, then set `A11YGATE_PRICING_ENABLED` to `1` to show the home offer and open `/pricing` with the invoice button.
+3. [ ] **Checkout last.** Run `npm run go-live:preflight`, then set `A11YGATE_CHECKOUT_URL` to the HTTPS checkout link without credentials. Leave it unset for invoice-only billing. The quote uses the checkout setting from the shell that runs the CLI.
+
+To review the four local browser previews, run `npm run test:e2e -- e2e/go-live.spec.ts` and open the screenshots in `go-live-preview/`.
+
+## List pilot requests (Eliran only)
+
+Set `DATABASE_URL` in your shell using the production database connection string. Use a role with read-only access if available. Run this command from the repository root:
+
+```sh
+npm run --silent pilot-requests -- --i-am-the-owner
+```
+
+The script reads only rows tagged `pilot-request` and prints CSV to stdout, newest first. The CSV contains contact information. Keep it out of the repository and review it privately.
+
+Each email keeps the source from its first submission. If someone joined the waitlist before requesting a pilot with the same email, the original row keeps its `landing` source and won't appear in this export.
+
 ## Per-pilot steps
 
 ### 1. Approve the prospect scan
@@ -67,6 +89,14 @@ Or build the summary offline from a scan you already have: `a11ygate prospect --
 Read the summary first. It names the scan scope and the automated-testing limits, and it never proposes alt text or labels. Send the PDF from your own mail account. Nothing is sent by A11yGate.
 
 ### 3. Kickoff
+
+Make a bundle from a clean checkout of the reviewed commit. After `npm ci`, run:
+
+```sh
+npm run pilot:bundle
+```
+
+Verify the files with `shasum -a 256 -c SHA256SUMS` from `pilot-bundle/`. Eliran sends the commit-stamped tarball, `SHA256SUMS`, and `INSTALL.md` directly to the customer. Any GitHub Release attachment or npm publication is also Eliran-only.
 
 Go through the [kickoff checklist](kickoff-checklist.md) with the customer: written scan authorization from the site owner, least-privilege access, target URLs, contacts, retention and deletion. Agree on the success criteria. In the customer repository (or a branch they review):
 
@@ -112,10 +142,6 @@ a11ygate evidence pack --from latest --out packs/latest.zip
 ```bash
 a11ygate pilot report --kickoff packs/kickoff.zip --latest packs/latest.zip --packs packs --criteria a11ygate-pilot/success-criteria.yml --customer "Example Ltd"
 ```
-
-Known limit: the scan Markdown report (`a11ygate-scan.md`, used for PR comments and CI step summaries) carries no disclaimer on main unless a baseline is used. It was left unchanged to keep existing report goldens byte-identical (see the owner decision below). Share the evidence pack's `report.md`/`report.html` or the HTML scan report with customers; those carry the disclaimer.
-
-- [ ] Decide whether to add the disclaimer to the scan Markdown report (`a11ygate-scan.md`); this changes the existing report goldens.
 
 This writes `pilot-results.html/.pdf` and `quote.html/.pdf` to `pilot-report/`. Criteria without records show **Not measurable**. Read the results before sharing them; hand the evidence pack and results to the customer yourself.
 

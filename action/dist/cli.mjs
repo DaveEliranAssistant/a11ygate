@@ -1521,7 +1521,7 @@ function scanMarkdown(report, lang = DEFAULT_REPORT_LANG) {
     "",
     cell(report.reason),
     ...diffScanSummary(report, t).flatMap((line) => ["", cell(line)]),
-    ...report.diffScan ? ["", AUTOMATED_TESTING_DISCLAIMER] : [],
+    ...report.diffScan || !report.baseline && !report.engines ? ["", AUTOMATED_TESTING_DISCLAIMER] : [],
     "",
     `| ${t.t("md.severityColumn")} | ${t.t("md.findingsColumn")} |`,
     "| --- | --- |",
@@ -8503,8 +8503,7 @@ var pricing_default = {
   currency: "USD"
 };
 
-// lib/billing.ts
-var pricing = pricing_default;
+// lib/billing-env.mjs
 function formatAnnualPrice(config2) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -8512,7 +8511,6 @@ function formatAnnualPrice(config2) {
     maximumFractionDigits: 0
   }).format(config2.priceUsdPerYear);
 }
-var annualPrice = formatAnnualPrice(pricing);
 function isPublicHttpsUrl(url, raw2) {
   return url.protocol === "https:" && /^https:\/\/[^/\\\s]/i.test(raw2) && !url.username && !url.password;
 }
@@ -8526,6 +8524,10 @@ function getCheckoutUrl(env = process.env, warn = console.warn) {
   warn("Ignoring A11YGATE_CHECKOUT_URL. Set it to an absolute HTTPS checkout URL without credentials.");
   return void 0;
 }
+
+// lib/billing.ts
+var pricing = pricing_default;
+var annualPrice = formatAnnualPrice(pricing);
 
 // lib/scan/pilot-report.ts
 function isIsoDay(value) {
@@ -11715,7 +11717,8 @@ ${debugDetail(error)}`);
     return 0;
   }
   if (options.version) {
-    stdout(`${await readVersion()}
+    const suffix = true ? "" : "";
+    stdout(`${await readVersion()}${suffix}
 `);
     return 0;
   }

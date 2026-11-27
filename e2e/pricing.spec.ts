@@ -57,7 +57,7 @@ for (const mode of ['invoice', 'checkout'] as const) {
       const main = page.getByRole('main');
       await expect(main.getByRole('heading', { name: `${pricing.plan} pricing` })).toBeVisible();
       await expect(main.getByText(`${price}/year (${pricing.currency})`, { exact: true })).toBeVisible();
-      await expect(main.getByRole('heading', { name: `${pricing.pilot.lengthDays}-day free pilot` })).toBeVisible();
+      await expect(main.getByRole('heading', { name: `3-week free pilot` })).toBeVisible();
       await expect(main.getByText(AUTOMATED_TESTING_DISCLAIMER, { exact: false })).toBeVisible();
       expect(await response!.text()).not.toContain('[[OWNER: tax/invoice wording]]');
 

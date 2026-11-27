@@ -8,7 +8,7 @@ Before you start, complete the [kickoff checklist](kickoff-checklist.md). In par
 
 | Step | Time | What you get |
 | --- | --- | --- |
-| [1. Build the CLI](#1-build-the-cli-5-minutes) | 5 min | `packages/cli/dist/cli.mjs` from a source checkout |
+| [1. Install the tarball you received](#1-install-the-tarball-you-received-5-minutes) | 5 min | A11yGate installed in your project |
 | [2. Preflight with doctor](#2-preflight-with-doctor-2-minutes) | 2 min | Node, browser and engine checks |
 | [3. First scan](#3-first-scan-5-minutes) | 5 min | `a11y/a11ygate-scan.{json,md,html}` |
 | [4. Baseline the existing findings](#4-baseline-the-existing-findings-3-minutes) | 3 min | `.a11ygate-baseline.json` |
@@ -16,19 +16,38 @@ Before you start, complete the [kickoff checklist](kickoff-checklist.md). In par
 | [6. Wire the gate into CI](#6-wire-the-gate-into-ci-10-minutes) | 10 min | A required check on every PR to `main` |
 | [7. Prove the gate on a PR](#7-prove-the-gate-on-a-pr-3-minutes) | 3 min | One passing PR and, optionally, one blocked PR |
 
-## 1. Build the CLI (5 minutes)
+## 1. Install the tarball you received (5 minutes)
 
-The published npm package `@qe-atlas/a11ygate@0.1.0` does not include `init` or `scan`. Use a source build of A11yGate, pinned to a commit you have reviewed:
+Eliran sends the tarball, `SHA256SUMS`, and `INSTALL.md` directly. Put the tarball and `SHA256SUMS` in your project's root, then verify the download.
+
+```sh
+shasum -a 256 -c SHA256SUMS
+```
+
+Use the install line from `INSTALL.md`, which has the exact tarball filename and pinned Playwright version. Replace `SHORT_SHA` with the suffix on the file you received if you use this example.
+
+```sh
+npm install --save-dev ./qe-atlas-a11ygate-0.2.0-SHORT_SHA.tgz playwright@1.64.1 @axe-core/playwright
+npx playwright install chromium
+npx --no-install a11ygate doctor
+```
+
+Run the later `a11ygate` examples from your project directory with the `npx --no-install` prefix. If you commit the local dependency and its lockfile for CI, include the tarball at the same path.
+
+### Source build fallback
+
+If you don't have a tarball, build from a reviewed commit. Replace `REVIEWED_COMMIT` with its SHA.
 
 ```sh
 git clone https://github.com/DaveEliranAssistant/a11ygate.git
 cd a11ygate
+git checkout --detach REVIEWED_COMMIT
 npm ci
 npm run cli:build
 npx playwright install chromium
 ```
 
-In the rest of this page, `a11ygate` means `node /path/to/a11ygate/packages/cli/dist/cli.mjs`, run from **your** project directory.
+For the source build, run the later `a11ygate` examples as `node /path/to/a11ygate/packages/cli/dist/cli.mjs` from your project directory.
 
 ## 2. Preflight with doctor (2 minutes)
 
