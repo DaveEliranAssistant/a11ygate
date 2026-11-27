@@ -23,30 +23,88 @@ export const REFERENCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 const REFERENCE_TEXT_HOSTS = new Set(['www.w3.org', 'dequeuniversity.com', 'a11ygate.vercel.app', 'json.schemastore.org']);
 const REFERENCE_TEXT_CONTEXT = /(?:href="|\]\(|; \+|\bguidance: )$/;
-const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/([^/\s"'<>)\]`\\]+)[^\s"'<>)\]`\\]*/gi;
 const LOOPBACK_ALIASES = /localhost|\[::1\]|0\.0\.0\.0/i;
+/** The demo app origin, as a LITERAL prefix of the raw string (checked before `new URL()` can normalise 127.1,
+ * 0x7f.0.0.1, 2130706433, upper case, backslashes or userinfo into it). */
+const SCANNED_RAW = /^http:\/\/127\.0\.0\.1:4173(?:[/?#][^\s\\@]*)?$/;
 
-/** True only for http://127.0.0.1:4173/... (the normalised demo app origin). */
+/**
+ * Every URL-like token in a string:
+ *  - `scheme://authority` and protocol-relative `//authority` (also with backslashes, `\\example.com`), wherever
+ *    they appear: href/src/srcset/action/poster/cite values, CSS url(...), JSON strings and plain text;
+ *  - special schemes with fewer slashes, which browsers still resolve to a host (`https:example.com`, `http:/x`);
+ *  - bare hostnames with a common TLD (`www.example.com`, `example.com/page`) and bare IPv4 addresses followed by a
+ *    port or path (`10.0.0.1:80`, `10.0.0.1/x`, SARIF `127.0.0.1-4173/`; EN 301 549 clauses like 9.4.1.2 are not hosts).
+ * `host` is the raw authority (userinfo and port included, lower-cased) so `a@b`, `127.1:4173` etc. never match an
+ * allowed host by accident.
+ */
+const AUTHORITY = '[^\\s"\'<>()\\[\\]`\\\\/?#,]+';
+const URL_TOKEN = new RegExp(
+  [
+    `\\b[a-z][a-z0-9+.-]*:[\\\\/]{2}(${AUTHORITY})`, // scheme://host (also scheme:\\\\host)
+    `\\b(?:https?|wss?|ftp):[\\\\/]?(?![\\\\/])(${AUTHORITY})`, // http:host, http:/host
+    `(?<![\\w:\\\\/])[\\\\/]{2}(?=[a-z0-9\\[])(${AUTHORITY})`, // //host (protocol-relative)
+  ].join('|'),
+  'gi',
+);
+const URL_REST = /[^\s"'<>)\]`\\]*/y;
+const TLDS = 'com|org|net|io|dev|app|co|uk|de|fr|il|eu|us|gov|edu|info|biz|ai|me|ly|xyz|site|tech|online|cloud|page|example|test|invalid|local|internal';
+const BARE_HOST = new RegExp(`(?<![\\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![\\w-])(?::\\d+)?|(?<![\\w.])\\d{1,3}(?:\\.\\d{1,3}){3}(?=[:/-]\\w)(?::\\d+)?`, 'gi');
+
+type UrlToken = { raw: string; host: string; index: number; bare: boolean };
+
+/** Undo the encodings a browser (or a JS string) would undo, so `&#47;&#47;host` and `https:\/\/host` are seen. */
+export function decodeForHostCheck(text: string): string {
+  return text
+    .replace(/&#(\d+);?/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);?/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&(?:sol|solidus);/gi, '/').replace(/&colon;/gi, ':').replace(/&bsol;/gi, '\\').replace(/&period;/gi, '.')
+    .replace(/\\u00(2f|3a|5c)/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\x(2f|3a|5c)/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\\//g, '/');
+}
+
+export function urlTokens(text: string): UrlToken[] {
+  const tokens: UrlToken[] = [];
+  const covered: [number, number][] = [];
+  for (const m of text.matchAll(URL_TOKEN)) {
+    URL_REST.lastIndex = m.index! + m[0].length;
+    const rest = URL_REST.exec(text)?.[0] ?? '';
+    const raw = m[0] + rest;
+    tokens.push({ raw, host: (m[1] ?? m[2] ?? m[3])!.toLowerCase(), index: m.index!, bare: false });
+    covered.push([m.index!, m.index! + raw.length]);
+  }
+  for (const m of text.matchAll(BARE_HOST)) {
+    if (covered.some(([a, b]) => m.index! >= a && m.index! < b)) continue;
+    tokens.push({ raw: m[0], host: m[0].toLowerCase(), index: m.index!, bare: true });
+  }
+  return tokens.sort((a, b) => a.index - b.index);
+}
+
+/** True only for http://127.0.0.1:4173/... (the normalised demo app origin), checked on the raw string. */
 export function isScannedOk(url: unknown): boolean {
-  if (typeof url !== 'string') return false;
+  if (typeof url !== 'string' || !SCANNED_RAW.test(url)) return false;
   try {
     const u = new URL(url);
-    return u.protocol === 'http:' && u.host === SAMPLE_HOST;
+    return u.protocol === 'http:' && u.host === SAMPLE_HOST && u.username === '' && u.password === '';
   } catch {
     return false;
   }
 }
 
+/** A bare (scheme-less) host token is fine only if it is the demo app itself (e.g. SARIF `127.0.0.1-4173` paths). */
+const bareOk = (host: string) => host === '127.0.0.1' || host === SAMPLE_HOST;
+
 /** Problems in a non-JSON text sample (HTML, Markdown, XML, PDF text). */
-export function textHostProblems(text: string): string[] {
+export function textHostProblems(input: string): string[] {
+  const text = decodeForHostCheck(input);
   const problems: string[] = [];
   if (LOOPBACK_ALIASES.test(text)) problems.push('mentions localhost / ::1 / 0.0.0.0');
-  for (const m of text.matchAll(URL_RE)) {
-    const host = m[1]!.toLowerCase();
-    if (host === SAMPLE_HOST && isScannedOk(m[0])) continue;
-    const before = text.slice(Math.max(0, m.index! - 40), m.index);
-    if (REFERENCE_TEXT_HOSTS.has(host) && REFERENCE_TEXT_CONTEXT.test(before)) continue;
-    problems.push(`${m[0]} (after "${before.slice(-25)}")`);
+  for (const t of urlTokens(text)) {
+    const before = text.slice(Math.max(0, t.index - 40), t.index);
+    if (t.bare ? bareOk(t.host) : isScannedOk(t.raw)) continue;
+    if (!t.bare && REFERENCE_TEXT_HOSTS.has(t.host) && /^https:\/\//.test(t.raw) && REFERENCE_TEXT_CONTEXT.test(before)) continue;
+    problems.push(`${t.raw} (after "${before.slice(-25)}")`);
   }
   return [...new Set(problems)];
 }
@@ -55,12 +113,11 @@ export function textHostProblems(text: string): string[] {
 export function jsonHostProblems(value: unknown): string[] {
   const problems: string[] = [];
   const check = (text: string, path: string, key: string | undefined) => {
-    if (LOOPBACK_ALIASES.test(text)) problems.push(`${path}: mentions localhost / ::1 / 0.0.0.0`);
-    for (const m of text.matchAll(URL_RE)) {
-      const host = m[1]!.toLowerCase();
-      const allowed = key !== undefined && Object.hasOwn(REFERENCE_FIELDS, key) ? REFERENCE_FIELDS[key]! : undefined;
-      if (allowed ? allowed.includes(host) : isScannedOk(m[0])) continue;
-      problems.push(`${path}: ${m[0]}`);
+    if (LOOPBACK_ALIASES.test(decodeForHostCheck(text))) problems.push(`${path}: mentions localhost / ::1 / 0.0.0.0`);
+    const allowed = key !== undefined && Object.hasOwn(REFERENCE_FIELDS, key) ? REFERENCE_FIELDS[key]! : undefined;
+    for (const t of urlTokens(decodeForHostCheck(text))) {
+      if (t.bare ? bareOk(t.host) : allowed ? allowed.includes(t.host) && /^https:\/\//.test(t.raw) : isScannedOk(t.raw)) continue;
+      problems.push(`${path}: ${t.raw}`);
     }
   };
   const walk = (v: unknown, path: string, key: string | undefined) => {

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createZip } from '../lib/evidence/zip';
 import {
-  evidencePackHostProblems, fileHostProblems, jsonHostProblems, readZipEntries, SAMPLE_HOST, scannedUrls, textHostProblems,
+  evidencePackHostProblems, fileHostProblems, isScannedOk, jsonHostProblems, readZipEntries, SAMPLE_HOST, scannedUrls, textHostProblems,
   type Entry,
 } from './sample-hosts';
 
@@ -82,6 +82,65 @@ describe('sample pack host check (A11Y-R79 c)', () => {
     // A generic `url` key is a scanned URL, never a reference link.
     expect(jsonHostProblems({ url: PLANTED })).toEqual(['$.url: https://dequeuniversity.com/']);
     expect(jsonHostProblems({ results: [{ url: LOCAL, wcagUrl: 'https://www.w3.org/WAI/x' }] })).toHaveLength(1);
+  });
+
+  // Review 3 (2026-11-27): protocol-relative URLs and loopback aliases that new URL() normalises to 127.0.0.1.
+  it('FAILS on a protocol-relative //example.com/ planted as the scanned site in report.html', async () => {
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    for (const planted of [
+      html.replace(`Start URL: <code>${LOCAL}`, 'Start URL: <code>//example.com/'),
+      html.replace(`<code>${LOCAL}products.html`, '<code>//example.com/products.html'),
+      html.replace('</body>', '<img src="//example.com/x.png" alt=""></body>'),
+      html.replace('</body>', '<img srcset="/a.png 1x, //example.com/b.png 2x" alt=""></body>'),
+      html.replace('</body>', '<form action="\\\\example.com/x"></form></body>'),
+      html.replace('</body>', '<div style="background:url(//example.com/bg.png)"></div></body>'),
+      html.replace('</body>', '<a href="https:example.com/x">x</a></body>'),
+      html.replace('</body>', '<a href="&#47;&#47;example.com/x">x</a></body>'),
+      html.replace('</body>', '<script>const u = "https:\\/\\/example.com/";</script></body>'),
+      html.replace('</body>', '<p>Scanned site: www.example.com</p></body>'),
+      html.replace('</body>', '<p>Scanned site: example.com/checkout</p></body>'),
+    ]) {
+      expect(planted).not.toBe(html);
+      expect(fileHostProblems('report.html', planted), planted.slice(-120)).not.toEqual([]);
+    }
+    // Same through the evidence pack's copy of report.html.
+    const entries = withEntry(await packEntries(), 'report.html', (s) => s.replace(`Start URL: <code>${LOCAL}`, 'Start URL: <code>//example.com/'));
+    expect(evidencePackHostProblems(entries).some((p) => p.includes('report.html') && p.includes('//example.com/'))).toBe(true);
+  });
+
+  it('FAILS when the axe result url in engines/axe.json is http://127.1:4173/ (or another loopback alias)', async () => {
+    const entries = await packEntries();
+    for (const alias of [
+      'http://127.1:4173/', 'http://0x7f.0.0.1:4173/', 'http://2130706433:4173/', 'http://0177.0.0.1:4173/',
+      'http://localhost:4173/', 'http://[::1]:4173/', 'http://user@127.0.0.1:4173/', 'http://127.0.0.1:4173@example.com/',
+      'HTTP://127.0.0.1:4173/', 'http:\\\\127.0.0.1:4173/', 'http:/127.0.0.1:4173/', '//127.0.0.1:4173/', 'http://127.0.0.1.:4173/',
+    ]) {
+      const axe = JSON.parse(text(entries.find((e) => e.path === 'engines/axe.json')!));
+      axe[0].url = axe[0].url.replace(LOCAL, alias);
+      expect(axe[0].url.startsWith(alias), alias).toBe(true);
+      const planted = entries.map((e) => (e.path === 'engines/axe.json' ? { path: e.path, data: Buffer.from(JSON.stringify(axe, null, 2)) } : e));
+      const problems = evidencePackHostProblems(createZip(planted));
+      expect(problems.some((p) => p.includes('engines/axe.json $[0].url')), alias).toBe(true);
+      expect(problems.some((p) => p.startsWith('scanned URL not on') && p.includes(alias)), alias).toBe(true);
+    }
+  });
+
+  it('isScannedOk checks the literal raw string before URL normalisation', () => {
+    expect(isScannedOk(LOCAL)).toBe(true);
+    expect(isScannedOk(`${LOCAL}checkout.html?x=1#y`)).toBe(true);
+    expect(isScannedOk('http://127.0.0.1:4173')).toBe(true);
+    for (const bad of ['http://127.1:4173/', 'http://0x7f000001:4173/', 'http://127.0.0.1:4174/', 'http://127.0.0.1/', 'https://127.0.0.1:4173/', 'http://127.0.0.1:4173\\@example.com/']) {
+      expect(isScannedOk(bad), bad).toBe(false);
+    }
+  });
+
+  it('the stored PDF text expectations pass the text check', async () => {
+    const fixtures = path.join(__dirname, '..', 'e2e', 'fixtures', 'samples');
+    for (const name of ['prospect-summary.pdf.txt', 'pilot-results.pdf.txt', 'quote-sample.pdf.txt']) {
+      const stored = await readFile(path.join(fixtures, name), 'utf8');
+      expect(textHostProblems(stored), name).toEqual([]);
+      expect(textHostProblems(stored.replace(LOCAL, '//example.com/') + '\nSite: //example.com/'), name).not.toEqual([]);
+    }
   });
 
   it('reference fields pass only with their reference hosts', () => {

@@ -85,6 +85,10 @@ test.describe('sample pack checkers (A11Y-R79)', () => {
     expect(fileHostProblems('x.json', '{"pageUrl": "https://www.w3.org/"}')).toHaveLength(1);
     expect(fileHostProblems('x.json', '{"url": "https://dequeuniversity.com/"}')).toHaveLength(1);
     expect(textHostProblems('http://localhost:3000/')).not.toEqual([]);
+    // Review 3: protocol-relative URLs and loopback aliases normalised by new URL() fail too.
+    expect(textHostProblems('Start URL: <code>//example.com/</code>')).toHaveLength(1);
+    expect(fileHostProblems('x.json', '{"url": "http://127.1:4173/"}')).toHaveLength(1);
+    expect(isScannedOk('http://127.1:4173/')).toBe(false);
     const entries = [
       { path: 'scan/a11ygate-scan.json', data: Buffer.from(JSON.stringify({ pages: [{ url: 'http://127.0.0.1:4173/' }, { url: 'https://dequeuniversity.com/' }], findings: [] })) },
       { path: 'scan/a11ygate-scan.sarif', data: Buffer.from(JSON.stringify({ runs: [{ results: [{ locations: [{ physicalLocation: { artifactLocation: { uri: 'https://example.com/a' } } }] }] }] })) },
