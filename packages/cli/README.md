@@ -4,7 +4,7 @@ Command-line accessibility regression gate for [axe-core](https://github.com/deq
 
 Licensed under the [MIT License](LICENSE).
 
-See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-upgrade-notes.md) for 0.2.0. The npm `latest` tag remains 0.1.0 until a separate approval; 0.2.0 is intended for the `next` tag only.
+See the [changelog](CHANGELOG.md) and [upgrade notes](../../docs/releases/0.2.0-upgrade-notes.md) for 0.2.0. To see which versions npm serves, run `npm view @qe-atlas/a11ygate versions dist-tags`.
 
 ## Usage
 
@@ -14,10 +14,18 @@ The regression gate below works with every published version, including 0.1.0:
 npx @qe-atlas/a11ygate --current axe.json --baseline a11y/baseline.json
 ```
 
-`--format`, `--out-dir` and every subcommand other than `ci` (for example `scan`, `init`, `doctor`, `baseline`, `report`, `evidence`, `prospect` and `pilot`) need 0.2.0 or later. 0.2.0 is not on npm yet (npm serves 0.1.0). Until it is, install the [pilot tarball](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use a [source build](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#source-build-fallback), then run the locally installed CLI without fetching from the registry:
+`--format`, `--out-dir` and every subcommand other than `ci` (for example `scan`, `init`, `doctor`, `baseline`, `report`, `evidence`, `prospect` and `pilot`) need 0.2.0 or later. Check the version you run with `a11ygate --version`, and the versions npm serves with `npm view @qe-atlas/a11ygate versions`. If npm does not serve 0.2.0 or later, install the CLI as described in the pilot quickstart.
+
+If you installed the [pilot tarball](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) into your project's `node_modules`, run the installed CLI without fetching from the registry:
 
 ```bash
 npx --no-install a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y
+```
+
+If you use a [source build](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#source-build-fallback), it is not installed into `node_modules`, so run its built file with Node. Replace `<path-to-checkout>` with the path to your a11ygate checkout:
+
+```bash
+node <path-to-checkout>/packages/cli/dist/cli.mjs ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y
 ```
 
 `a11ygate ci` is the same gate as the default command. `--format` writes machine-readable reports for CI systems (JUnit XML for Jenkins, SARIF 2.1.0 for GitHub code scanning). Every report includes this disclaimer: "Automated testing only. Not a WCAG audit, certification or legal advice."

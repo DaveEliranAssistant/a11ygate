@@ -192,3 +192,117 @@ describe('readiness refresh content (A11Y-R75)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Fix round 2026-11-27: packages/cli/README.md ships inside the npm tarball (and the pilot
+// tarball), so it must stay true whether or not 0.2.0 is published, and each install path
+// needs its own invocation. README.md is the repo README and may carry a dated status line.
+
+/** Publish-status claims that turn false the moment a version is published. */
+const TIME_RELATIVE_PUBLISH_CLAIMS: RegExp[] = [
+  /\bnot on npm yet\b/i,
+  /\buntil it is\b/i,
+  /\bnot yet published\b/i,
+  /\bis not published\b/i,
+  /\bremains 0\.1\.0\b/i,
+];
+
+function timeRelativePublishProblems(rel: string, text: string): string[] {
+  const problems: string[] = [];
+  text.split('\n').forEach((line, index) => {
+    if (TIME_RELATIVE_PUBLISH_CLAIMS.some((re) => re.test(line))) problems.push(`${rel}:${index + 1}: ${line.trim()}`);
+  });
+  return problems;
+}
+
+/**
+ * Splits markdown into paragraphs (blank-line separated, fenced blocks kept whole) and flags a
+ * paragraph that mentions a source build when the next code block runs `npx --no-install a11ygate`:
+ * a source build is not installed into node_modules, so `npx --no-install` cannot find it.
+ */
+function sourceBuildNpxProblems(text: string): string[] {
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let inFence = false;
+  for (const line of text.split('\n')) {
+    if (line.startsWith('```')) inFence = !inFence;
+    if (!inFence && !line.startsWith('```') && line.trim() === '') {
+      if (current.length) blocks.push(current.join('\n'));
+      current = [];
+    } else current.push(line);
+  }
+  if (current.length) blocks.push(current.join('\n'));
+  const problems: string[] = [];
+  blocks.forEach((block, index) => {
+    const prose = block.startsWith('```') ? '' : block;
+    const next = blocks[index + 1] ?? '';
+    const labelledSourceBuild = /source build/i.test(prose);
+    if (labelledSourceBuild && /npx\s+--no-install\s+a11ygate/.test(`${prose}\n${next.startsWith('```') ? next : ''}`)) {
+      problems.push(prose.split('\n')[0]!.slice(0, 120));
+    }
+  });
+  return problems;
+}
+
+const PACKAGED_README = 'packages/cli/README.md';
+
+describe('packaged CLI README stays true across a publish (A11Y-R75 fix round)', () => {
+  const packaged = read(PACKAGED_README);
+  const rootReadme = read('README.md');
+
+  it('has no time-relative publish claim', () => {
+    const problems = timeRelativePublishProblems(PACKAGED_README, packaged);
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+
+  it('flags planted time-relative publish claims', () => {
+    const planted = [
+      '`--format` needs 0.2.0 or later. 0.2.0 is not on npm yet (npm serves 0.1.0).',
+      'Until it is, install the pilot tarball.',
+      '0.2.0 is not yet published.',
+      'Version 0.2.0 is not published to npm.',
+      'The npm `latest` tag remains 0.1.0 until a separate approval.',
+    ];
+    for (const line of planted) expect(timeRelativePublishProblems('planted.md', `ok\n${line}\n`), line).toEqual([`planted.md:2: ${line}`]);
+    expect(timeRelativePublishProblems('legit.md', '`--format` needs 0.2.0 or later. Check `npm view @qe-atlas/a11ygate versions`.')).toEqual([]);
+  });
+
+  it('states the version requirement and links both install paths with absolute URLs', () => {
+    expect(packaged).toContain('need 0.2.0 or later');
+    expect(packaged).toContain('a11ygate --version');
+    expect(packaged).toContain('npm view @qe-atlas/a11ygate versions');
+    expect(packaged).toContain(
+      '(https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes)',
+    );
+    expect(packaged).toContain('(https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#source-build-fallback)');
+  });
+
+  it('gives the tarball `npx --no-install` and the source build `node <path>/packages/cli/dist/cli.mjs`', () => {
+    expect(packaged).toMatch(/pilot tarball\][^\n]*node_modules[^\n]*\n\n```bash\nnpx --no-install a11ygate ci /);
+    expect(packaged).toMatch(/source build\][^\n]*\n\n```bash\nnode <path-to-checkout>\/packages\/cli\/dist\/cli\.mjs ci /);
+    expect(sourceBuildNpxProblems(packaged)).toEqual([]);
+  });
+
+  it('flags a planted source-build instruction that uses `npx --no-install`', () => {
+    const planted = [
+      'Install the pilot tarball or use a [source build](x), then run the locally installed CLI:',
+      '',
+      '```bash',
+      'npx --no-install a11ygate ci --current axe.json --baseline a11y/baseline.json --format junit,sarif --out-dir a11y',
+      '```',
+    ].join('\n');
+    expect(sourceBuildNpxProblems(planted)).toHaveLength(1);
+    expect(sourceBuildNpxProblems(planted.replace('npx --no-install a11ygate', 'node <path-to-checkout>/packages/cli/dist/cli.mjs'))).toEqual([]);
+    expect(sourceBuildNpxProblems('If you installed the pilot tarball:\n\n```bash\nnpx --no-install a11ygate ci\n```')).toEqual([]);
+  });
+
+  it('README.md does not imply 0.2.0 shipped and agrees with lib/copy.ts and the refresh status', () => {
+    const IMPLIES_SHIPPED = /Features after 0\.2\.0 are not yet published/;
+    expect(rootReadme).not.toMatch(IMPLIES_SHIPPED);
+    expect(IMPLIES_SHIPPED.test('Merged on `main`. Features after 0.2.0 are not yet published to npm; they are listed')).toBe(true);
+    // The dated statement is valid only while the refresh records 0.2.0 as unpublished.
+    expect(read(REFRESH)).toContain(UNPUBLISHED_STATUS);
+    expect(rootReadme).toContain(`npm serves ${CLI_NPM_PUBLISHED_VERSION}; 0.2.0 and the features listed under "Unreleased"`);
+    expect(rootReadme).toMatch(/0\.2\.0 and the features listed under "Unreleased" in the \[CHANGELOG\]\([^)]+\) are not published to npm/);
+  });
+});
