@@ -45,16 +45,35 @@ type Key = { name: string; start: number; end: number; indent: number; value: st
 type Insertion = { at: number; lines: string[] };
 
 // Plain keys may contain colons not followed by whitespace, as in GitLab job names like `test:unit`.
-const KEY_RE = /^[ ]*(?:"([^"]+)"|'([^']+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
+const KEY_RE = /^[ ]*(?:"([^"]+)"|'((?:[^']|'')+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
 // Plain keys starting with a YAML indicator (complex keys, anchors, aliases, tags, flow, directives).
 const UNSAFE_KEY_START = /^[?&*!|>%@`{}[\],]/;
-const MR_IF_RE = /\$CI_PIPELINE_SOURCE\s*==\s*\\?["']merge_request_event\\?["']/;
+// Keys the planner reads or edits. A quoted spelling of one of them is refused, never guessed at.
+const PLANNER_KEYS = new Set(['workflow', 'include', 'rules']);
+// A quoted (single or double) key, as a mapping key or as the first key of a list item.
+const QUOTED_KEY_RE = /^[ ]*(?:-[ ]+)*(?:'(?:[^']|'')*'|"(?:[^"\\]|\\.)*")[ ]*:(?:[ ]|$)/;
 // Anchors, aliases, tags (including !reference) and merge keys outside quoted strings.
 const NODE_PROPERTY_RE = /(^|[\s[{,])(?:&[\w-]|\*[\w-]|![\w!]|<<[ \t]*:)/;
 const BLOCK_SCALAR_RE = /(?:^[ ]*-|:)[ \t]+(?:[!&][^\s]*[ \t]+)*[|>][-+0-9]*[ \t]*(?:#.*)?$/;
 const indentOf = (line: string) => /^[ ]*/.exec(line)![0].length;
 const meaningful = (line: string) => line.trim() !== '' && !line.trim().startsWith('#');
-const stripComment = (value: string) => value.replace(/(^|[ \t]+)#.*$/, '').trim();
+/**
+ * Splits a line at its comment. A `#` starts a comment only at the start or after whitespace and outside
+ * quoted scalars; a quote opens a scalar only at the start or after whitespace or a flow indicator.
+ */
+function splitComment(text: string): { code: string; comment: boolean } {
+  let quote: string | undefined;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (quote === "'") { if (c === "'") { if (text[i + 1] === "'") i++; else quote = undefined; } continue; }
+    if (quote === '"') { if (c === '\\') i++; else if (c === '"') quote = undefined; continue; }
+    const previous = i ? text[i - 1]! : ' ';
+    if ((c === "'" || c === '"') && /[\s[{,]/.test(previous)) quote = c;
+    else if (c === '#' && /\s/.test(previous)) return { code: text.slice(0, i).trimEnd(), comment: true };
+  }
+  return { code: text.trimEnd(), comment: false };
+}
+const stripComment = (value: string) => splitComment(value).code.trim();
 const unquoted = (line: string) => line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, '""');
 const JOB_FILES = new Set([CI_FILES.gitlab, `/${CI_FILES.gitlab}`]);
 
@@ -89,7 +108,12 @@ function mappingKeys(lines: string[], from: number, to: number): Key[] | string 
     }
     const match = KEY_RE.exec(line);
     if (!match) return `line ${i + 1} is not a key this tool can read`;
-    const name = match[1] ?? match[2] ?? match[3]!;
+    // A double-quoted key with escapes (`"\x77orkflow"`, `"work\u0066low"`) could decode to any key; do not guess.
+    if (match[1]?.includes('\\')) return `line ${i + 1} writes a key with escape sequences, which init does not decode`;
+    const name = match[1] ?? match[2]?.replace(/''/g, "'") ?? match[3]!;
+    if ((match[1] ?? match[2]) !== undefined && PLANNER_KEYS.has(name)) {
+      return `line ${i + 1} writes the '${name}' key in quotes; init only edits it when it is written plainly`;
+    }
     if (match[3] && (UNSAFE_KEY_START.test(name) || name === '<<')) return `line ${i + 1} uses a YAML key form init does not edit`;
     if (keys.some((key) => key.name === name)) return `it repeats the key '${name}'`;
     const value = stripComment(match[4] ?? '');
@@ -122,10 +146,49 @@ function sequenceItems(lines: string[], from: number, to: number): { indent: num
 
 const hasNodeProperties = (lines: string[]) => lines.some((line) => meaningful(line) && NODE_PROPERTY_RE.test(unquoted(line)));
 
-/** An enabling merge request rule: `- if: <merge_request_event test>` without `when: never`. */
-const enablesMergeRequests = (item: string[]) =>
-  /^[ ]*-[ ]+if:/.test(item[0]!) && MR_IF_RE.test(item[0]!)
-  && !item.slice(1).some((line) => /^[ ]*when:[ \t]*['"]?never\b/.test(line));
+const RULE_FIELD_RE = /^([a-z_]+):(?:[ ]+(.*))?$/;
+const KNOWN_WHEN = new Set(['on_success', 'on_failure', 'always', 'never', 'manual', 'delayed']);
+// `never` drops the pipeline, `manual` and `delayed` do not start it on its own: only these enable it.
+const ENABLING_WHEN = new Set(['on_success', 'always']);
+const MR_EXPRESSION_RE = /^\$CI_PIPELINE_SOURCE[ ]*==[ ]*(["'])merge_request_event\1$/;
+
+/** The value of a single-line rule field without comments, or undefined when it is anything else. */
+function ruleValue(raw: string): string | undefined {
+  if (raw.startsWith("'")) return /^'((?:[^']|'')*)'$/.exec(raw)?.[1]!.replace(/''/g, "'");
+  if (raw.startsWith('"')) return /^"((?:[^"\\]|\\["\\])*)"$/.exec(raw)?.[1]!.replace(/\\(["\\])/g, '$1');
+  // Plain scalars only; indicators would start block scalars, flow nodes, anchors, aliases or tags.
+  if (!raw || /^[\s&*!|>%@`{}[\],#?:'"-]/.test(raw) || /:[ ]|:$/.test(raw)) return undefined;
+  return raw;
+}
+
+/**
+ * Classifies one `workflow: rules` entry. `enabling` is only an entry written exactly as
+ * `- if: $CI_PIPELINE_SOURCE == "merge_request_event"` (plain, '...' or "..."), optionally with
+ * `when: on_success` or `when: always`. `unclear` is any entry this reader cannot fully understand:
+ * inline comments, quoted or unknown keys, flow mappings, multi-line or empty values, unknown `when:`.
+ */
+function classifyRule(item: string[]): 'enabling' | 'other' | 'unclear' {
+  const head = /^([ ]*-[ ]+)(\S.*)$/.exec(item[0]!);
+  if (!head) return 'unclear';
+  const indent = head[1]!.length;
+  const fields = new Map<string, string>();
+  for (const [index, line] of [head[2]!, ...item.slice(1)].entries()) {
+    if (index > 0 && indentOf(line) !== indent) return 'unclear';
+    const { code, comment } = splitComment(line.trim());
+    if (comment) return 'unclear';
+    const field = RULE_FIELD_RE.exec(code);
+    if (!field || fields.has(field[1]!)) return 'unclear';
+    const value = ruleValue(field[2] ?? '');
+    if (value === undefined) return 'unclear';
+    fields.set(field[1]!, value);
+  }
+  const when = fields.get('when');
+  if (when !== undefined && !KNOWN_WHEN.has(when)) return 'unclear';
+  const condition = fields.get('if');
+  const enabling = condition !== undefined && MR_EXPRESSION_RE.test(condition.trim())
+    && [...fields.keys()].every((key) => key === 'if' || key === 'when') && (when === undefined || ENABLING_WHEN.has(when));
+  return enabling ? 'enabling' : 'other';
+}
 
 type WorkflowPlan = { kind: 'present' } | { kind: 'insert'; insertion: Insertion } | { kind: 'manual'; reason: string };
 
@@ -147,10 +210,14 @@ function planWorkflow(lines: string[], workflow: Key, tag: string): WorkflowPlan
   if (rules.value) return manual('has rules: that are not a plain block list');
   const list = sequenceItems(lines, rules.start + 1, rules.end);
   if (typeof list === 'string') return manual(`has rules: that init cannot read safely (${list})`);
-  if (list.items.some(enablesMergeRequests)) return { kind: 'present' };
-  // A rule that mentions merge requests but does not enable them is a deliberate choice; leave it to a person.
+  const kinds = list.items.map(classifyRule);
+  // GitLab uses the first matching rule, so only a first entry that enables merge requests proves they run.
+  if (kinds[0] === 'enabling') return { kind: 'present' };
+  const unclear = kinds.indexOf('unclear');
+  if (unclear >= 0) return manual(`has a rules: entry init cannot read safely (rule ${unclear + 1}: comments, quoted keys, multi-line or flow values, or an unknown when:)`);
+  // A rule that mentions merge requests but is not a plain first enabling rule is a deliberate choice; leave it to a person.
   if (list.items.some((item) => item.some((line) => line.includes('merge_request_event')))) {
-    return manual('already has a merge_request_event rule that does not create merge request pipelines');
+    return manual('already has a merge_request_event rule that is not a plain first rule creating merge request pipelines');
   }
   const itemIndent = ' '.repeat(list.indent);
   return { kind: 'insert', insertion: { at: rules.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`] } };
@@ -168,6 +235,7 @@ function planInclude(lines: string[], include: Key, tag: string): IncludePlan {
   const list = sequenceItems(lines, include.start + 1, include.end);
   if (typeof list === 'string') return manual(`is not a block list init can extend safely (${list})`);
   if (hasNodeProperties(lines.slice(include.start + 1, include.end))) return manual('uses anchors, aliases, tags or merge keys');
+  if (list.items.some((item) => item.some((line) => QUOTED_KEY_RE.test(line)))) return manual('uses quoted keys init does not edit');
   for (const item of list.items) {
     const rest = item[0]!.replace(/^[ ]*-[ ]*/, '');
     const extra = item.slice(1).filter(meaningful);

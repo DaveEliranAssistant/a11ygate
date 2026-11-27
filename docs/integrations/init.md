@@ -127,9 +127,17 @@ with the disclaimer. It skips the file when the rule and include are already
 there; `--force` never replaces this file. Init edits only a plain top-level block
 mapping it can read. For anything else, such as an indented or flow-style root,
 `---` document markers, tabs, anchors, aliases or `!reference` in `workflow:` or
-`include:`, a trailing block scalar (`|`, `>`), or a merge request rule with
-`when: never`, init leaves the file unchanged, prints this snippet, and exits
-with code 2. Then add the include and the rule (as the first `workflow: rules`
+`include:`, a trailing block scalar (`|`, `>`), a quoted or escaped spelling
+of a key init edits (`"workflow":`, `'include':`, `"\x77orkflow":`, `'rules':`,
+`'local':`), a double-quoted top-level key with escapes, or a `workflow: rules`
+entry it cannot read exactly (inline comments, quoted keys such as `'when':`,
+flow mappings, multi-line values, an unknown `when:`), init leaves the file
+unchanged, prints this snippet, and exits with code 2. It also refuses a
+`merge_request_event` rule that is not the plain first rule
+(`- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`, optionally with
+`when: on_success` or `when: always`), for example one with `when: never`,
+`manual` or `delayed`, an extra condition, or a rule before it, because GitLab
+uses the first matching rule. Then add the include and the rule (as the first `workflow: rules`
 entry) yourself. A symlinked root file is refused. The job runs on merge requests and publishes Code Quality
 and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md) and
 [GitLab CI in the pilot quickstart](../pilot/quickstart.md#gitlab-ci).

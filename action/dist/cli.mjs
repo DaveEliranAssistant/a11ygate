@@ -9839,14 +9839,37 @@ function gitlabRootFile() {
 ${EXPLAINER}
 ${GITLAB_ROOT_SNIPPET}`;
 }
-var KEY_RE = /^[ ]*(?:"([^"]+)"|'([^']+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
+var KEY_RE = /^[ ]*(?:"([^"]+)"|'((?:[^']|'')+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
 var UNSAFE_KEY_START = /^[?&*!|>%@`{}[\],]/;
-var MR_IF_RE = /\$CI_PIPELINE_SOURCE\s*==\s*\\?["']merge_request_event\\?["']/;
+var PLANNER_KEYS = /* @__PURE__ */ new Set(["workflow", "include", "rules"]);
+var QUOTED_KEY_RE = /^[ ]*(?:-[ ]+)*(?:'(?:[^']|'')*'|"(?:[^"\\]|\\.)*")[ ]*:(?:[ ]|$)/;
 var NODE_PROPERTY_RE = /(^|[\s[{,])(?:&[\w-]|\*[\w-]|![\w!]|<<[ \t]*:)/;
 var BLOCK_SCALAR_RE = /(?:^[ ]*-|:)[ \t]+(?:[!&][^\s]*[ \t]+)*[|>][-+0-9]*[ \t]*(?:#.*)?$/;
 var indentOf = (line) => /^[ ]*/.exec(line)[0].length;
 var meaningful = (line) => line.trim() !== "" && !line.trim().startsWith("#");
-var stripComment2 = (value) => value.replace(/(^|[ \t]+)#.*$/, "").trim();
+function splitComment(text) {
+  let quote;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote === "'") {
+      if (c === "'") {
+        if (text[i + 1] === "'") i++;
+        else quote = void 0;
+      }
+      continue;
+    }
+    if (quote === '"') {
+      if (c === "\\") i++;
+      else if (c === '"') quote = void 0;
+      continue;
+    }
+    const previous = i ? text[i - 1] : " ";
+    if ((c === "'" || c === '"') && /[\s[{,]/.test(previous)) quote = c;
+    else if (c === "#" && /\s/.test(previous)) return { code: text.slice(0, i).trimEnd(), comment: true };
+  }
+  return { code: text.trimEnd(), comment: false };
+}
+var stripComment2 = (value) => splitComment(value).code.trim();
 var unquoted = (line) => line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, '""');
 var JOB_FILES = /* @__PURE__ */ new Set([CI_FILES.gitlab, `/${CI_FILES.gitlab}`]);
 function scalar2(raw2) {
@@ -9873,7 +9896,11 @@ function mappingKeys(lines, from, to) {
     }
     const match = KEY_RE.exec(line);
     if (!match) return `line ${i + 1} is not a key this tool can read`;
-    const name = match[1] ?? match[2] ?? match[3];
+    if (match[1]?.includes("\\")) return `line ${i + 1} writes a key with escape sequences, which init does not decode`;
+    const name = match[1] ?? match[2]?.replace(/''/g, "'") ?? match[3];
+    if ((match[1] ?? match[2]) !== void 0 && PLANNER_KEYS.has(name)) {
+      return `line ${i + 1} writes the '${name}' key in quotes; init only edits it when it is written plainly`;
+    }
     if (match[3] && (UNSAFE_KEY_START.test(name) || name === "<<")) return `line ${i + 1} uses a YAML key form init does not edit`;
     if (keys.some((key) => key.name === name)) return `it repeats the key '${name}'`;
     const value = stripComment2(match[4] ?? "");
@@ -9901,7 +9928,37 @@ function sequenceItems(lines, from, to) {
   return { indent, items };
 }
 var hasNodeProperties = (lines) => lines.some((line) => meaningful(line) && NODE_PROPERTY_RE.test(unquoted(line)));
-var enablesMergeRequests = (item) => /^[ ]*-[ ]+if:/.test(item[0]) && MR_IF_RE.test(item[0]) && !item.slice(1).some((line) => /^[ ]*when:[ \t]*['"]?never\b/.test(line));
+var RULE_FIELD_RE = /^([a-z_]+):(?:[ ]+(.*))?$/;
+var KNOWN_WHEN = /* @__PURE__ */ new Set(["on_success", "on_failure", "always", "never", "manual", "delayed"]);
+var ENABLING_WHEN = /* @__PURE__ */ new Set(["on_success", "always"]);
+var MR_EXPRESSION_RE = /^\$CI_PIPELINE_SOURCE[ ]*==[ ]*(["'])merge_request_event\1$/;
+function ruleValue(raw2) {
+  if (raw2.startsWith("'")) return /^'((?:[^']|'')*)'$/.exec(raw2)?.[1].replace(/''/g, "'");
+  if (raw2.startsWith('"')) return /^"((?:[^"\\]|\\["\\])*)"$/.exec(raw2)?.[1].replace(/\\(["\\])/g, "$1");
+  if (!raw2 || /^[\s&*!|>%@`{}[\],#?:'"-]/.test(raw2) || /:[ ]|:$/.test(raw2)) return void 0;
+  return raw2;
+}
+function classifyRule(item) {
+  const head = /^([ ]*-[ ]+)(\S.*)$/.exec(item[0]);
+  if (!head) return "unclear";
+  const indent = head[1].length;
+  const fields = /* @__PURE__ */ new Map();
+  for (const [index, line] of [head[2], ...item.slice(1)].entries()) {
+    if (index > 0 && indentOf(line) !== indent) return "unclear";
+    const { code: code3, comment } = splitComment(line.trim());
+    if (comment) return "unclear";
+    const field = RULE_FIELD_RE.exec(code3);
+    if (!field || fields.has(field[1])) return "unclear";
+    const value = ruleValue(field[2] ?? "");
+    if (value === void 0) return "unclear";
+    fields.set(field[1], value);
+  }
+  const when = fields.get("when");
+  if (when !== void 0 && !KNOWN_WHEN.has(when)) return "unclear";
+  const condition = fields.get("if");
+  const enabling = condition !== void 0 && MR_EXPRESSION_RE.test(condition.trim()) && [...fields.keys()].every((key) => key === "if" || key === "when") && (when === void 0 || ENABLING_WHEN.has(when));
+  return enabling ? "enabling" : "other";
+}
 function planWorkflow(lines, workflow, tag) {
   const manual = (reason) => ({ kind: "manual", reason: `its workflow: block ${reason}` });
   if (workflow.value) return manual("is not a plain block mapping");
@@ -9919,9 +9976,12 @@ function planWorkflow(lines, workflow, tag) {
   if (rules2.value) return manual("has rules: that are not a plain block list");
   const list = sequenceItems(lines, rules2.start + 1, rules2.end);
   if (typeof list === "string") return manual(`has rules: that init cannot read safely (${list})`);
-  if (list.items.some(enablesMergeRequests)) return { kind: "present" };
+  const kinds = list.items.map(classifyRule);
+  if (kinds[0] === "enabling") return { kind: "present" };
+  const unclear = kinds.indexOf("unclear");
+  if (unclear >= 0) return manual(`has a rules: entry init cannot read safely (rule ${unclear + 1}: comments, quoted keys, multi-line or flow values, or an unknown when:)`);
   if (list.items.some((item) => item.some((line) => line.includes("merge_request_event")))) {
-    return manual("already has a merge_request_event rule that does not create merge request pipelines");
+    return manual("already has a merge_request_event rule that is not a plain first rule creating merge request pipelines");
   }
   const itemIndent = " ".repeat(list.indent);
   return { kind: "insert", insertion: { at: rules2.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`] } };
@@ -9936,6 +9996,7 @@ function planInclude(lines, include, tag) {
   const list = sequenceItems(lines, include.start + 1, include.end);
   if (typeof list === "string") return manual(`is not a block list init can extend safely (${list})`);
   if (hasNodeProperties(lines.slice(include.start + 1, include.end))) return manual("uses anchors, aliases, tags or merge keys");
+  if (list.items.some((item) => item.some((line) => QUOTED_KEY_RE.test(line)))) return manual("uses quoted keys init does not edit");
   for (const item of list.items) {
     const rest = item[0].replace(/^[ ]*-[ ]*/, "");
     const extra = item.slice(1).filter(meaningful);

@@ -302,6 +302,110 @@ describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
   });
 });
 
+// Fix round 2026-11-28 (review 2 of #91): quoted/escaped keys and comment-fooled rule detection.
+const ENABLING_WHEN = new Set([undefined, 'on_success', 'always']);
+type Rule = { if?: unknown; when?: unknown };
+/** The parsed root's first workflow rule creates merge request pipelines (GitLab uses the first match). */
+const firstRuleEnables = (root: Root) => {
+  const first = (root.workflow?.rules as Rule[] | undefined)?.[0];
+  return !!first && typeof first.if === 'string' && /^\$CI_PIPELINE_SOURCE\s*==\s*(["'])merge_request_event\1$/.test(first.if.trim())
+    && ENABLING_WHEN.has(first.when as string | undefined) && Object.keys(first).every((key) => key === 'if' || key === 'when');
+};
+/** Whenever init exits 0, the root parses (js-yaml rejects duplicate keys) and its own rules create MR pipelines. */
+function expectSafeOutcome(code: number, original: string, after: string) {
+  if (code !== 0) {
+    expect(code).toBe(2);
+    expect(after, 'file byte-identical on refusal').toBe(original);
+    return;
+  }
+  expect(() => load(after), 'result parses without duplicate keys').not.toThrow();
+  expect(firstRuleEnables(load(after)), 'root workflow.rules starts with an enabling MR rule').toBe(true);
+}
+
+describe('init --target gitlab refuses root layouts it cannot read exactly (A11Y-R72 fix round)', () => {
+  const refusals: [string, string][] = [
+    ['(a) a double-quoted "workflow" key', `"workflow":\n  rules:\n    - if: $CI_COMMIT_BRANCH\nbuild:\n  script: [make]\n`],
+    ['(b) a single-quoted \'workflow\' key', `'workflow':\n  rules:\n    - if: $CI_COMMIT_BRANCH\nbuild:\n  script: [make]\n`],
+    ['(c) an escaped "\\x77orkflow" key', `"\\x77orkflow":\n  rules:\n    - if: $CI_COMMIT_BRANCH\n`],
+    ['(c) an escaped "work\\u0066low" key', `"work\\u0066low":\n  name: Pipeline\n`],
+    ['(c) an escaped "wor\\U0000006Bflow" key', `"wor\\U0000006Bflow":\n  name: Pipeline\n`],
+    ['(c) an escaped "\\/" in the "workflow" key', `"\\/workflow":\n  name: Pipeline\n"work\\x66low":\n  name: Pipeline\n`],
+    ['(d) a double-quoted "include" key', `"include":\n  - template: Jobs/SAST.gitlab-ci.yml\nbuild:\n  script: [make]\n`],
+    ['(d) a single-quoted \'include\' key', `'include':\n  - local: '${JOBS}'\n`],
+    ['(d) an escaped "\\x69nclude" key', `"\\x69nclude":\n  - template: Jobs/SAST.gitlab-ci.yml\n`],
+    ['a quoted \'rules\' key inside workflow', `workflow:\n  'rules':\n    - if: $CI_COMMIT_BRANCH\n`],
+    ['a quoted local key in the include list', `include:\n  - 'local': '${JOBS}'\n`],
+    ['(e) a branch-only rule whose inline comment has the MR expression', `workflow:\n  rules:\n    - if: '$CI_COMMIT_BRANCH' # $CI_PIPELINE_SOURCE == "merge_request_event"\n`],
+    ['(e) an MR rule with a trailing comment', `workflow:\n  rules:\n    - if: '${MR}' # mr\n`],
+    ['(f) an MR rule with \'when\': never', `workflow:\n  rules:\n    - if: '${MR}'\n      'when': never\n    - if: $CI_COMMIT_BRANCH\n`],
+    ['(f) an MR rule with "when": never', `workflow:\n  rules:\n    - if: '${MR}'\n      "when": never\n    - if: $CI_COMMIT_BRANCH\n`],
+    ['an MR rule with when: manual', `workflow:\n  rules:\n    - if: '${MR}'\n      when: manual\n`],
+    ['an MR rule with when: delayed', `workflow:\n  rules:\n    - if: '${MR}'\n      when: delayed\n      start_in: 1 minute\n`],
+    ['an MR rule written as a flow mapping', `workflow:\n  rules:\n    - {if: '${MR}', when: never}\n`],
+    ['an MR rule with a multi-line value', `workflow:\n  rules:\n    - if: >-\n        ${MR}\n`],
+    ['an MR rule that is not the first rule', `workflow:\n  rules:\n    - when: never\n    - if: '${MR}'\n`],
+    ['an MR rule combined with another condition', `workflow:\n  rules:\n    - if: '${MR} && $FOO'\n`],
+    ['(g) a quoted if-expression with # around the MR text', `workflow:\n  rules:\n    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" #x'\n`],
+  ];
+  it.each(refusals)('refuses %s: exit 2, file byte-identical, snippet printed', async (_, original) => temporary(async (cwd) => {
+    expect(() => load(original), 'fixture is valid YAML').not.toThrow();
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code, result.out).toBe(2);
+    expect(await read(cwd, ROOT)).toBe(original);
+    expect(result.err).toContain(`Left ${ROOT} unchanged`);
+    expect(result.err).toContain(`include:\n  - local: '${JOBS}'\n\nworkflow:\n  rules:\n    - if: '${MR}'`);
+    expectSafeOutcome(result.code, original, await read(cwd, ROOT));
+  }));
+
+  it.each([
+    ['(g) a # inside a quoted branch condition', `workflow:\n  rules:\n    - if: '$CI_COMMIT_TITLE == "fix #1"'\n    - if: "$CI_COMMIT_TAG =~ / #release/"\n`, 'update'],
+    ['(g) a # inside a quoted MR rule followed by other rules', `include:\n  - local: '${JOBS}'\nworkflow:\n  rules:\n    - if: "$CI_PIPELINE_SOURCE == 'merge_request_event'"\n    - if: '$CI_COMMIT_TITLE == "wip #2"'\n`, 'unchanged'],
+    ['a quoted job name containing #', `"lint #1":\n  script: [npm run lint]\nbuild:\n  name: "a #b"\n  script: [make]\n`, 'update'],
+    ['an MR rule with when: always', `include: ${JOBS}\nworkflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n      when: always\n`, 'unchanged'],
+  ])('handles %s without a false positive', async (_, original, kind) => temporary(async (cwd) => {
+    expect(planGitlabRoot(original).kind).toBe(kind);
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code, result.err).toBe(0);
+    const after = await read(cwd, ROOT);
+    if (kind === 'unchanged') expect(after).toBe(original);
+    else expectInsertedOnly(original, after);
+    expectSafeOutcome(result.code, original, after);
+  }));
+
+  // Property-style check over the update/skip cases above and in the main suite: exit 0 => parses + enabling MR rule.
+  const corpus = [
+    'stages: [build, test]\n\nbuild:\n  stage: build\n  script:\n    - npm run build\n\ntest:unit:\n  stage: test\n  script: [npm test]\n',
+    'include:\n  - template: Security/SAST.gitlab-ci.yml\nlint:\n  script: [npm run lint]\n',
+    'include:\n- project: group/shared\n  file: /ci.yml\nlint:\n  script: [npm run lint]\n',
+    `include:\n  - local: '${JOBS}'\n\nworkflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n    - if: $CI_COMMIT_BRANCH == "main"\n\ndeploy:\n  script: [./deploy]\n`,
+    'workflow:\n  rules:\n    - if: \'$CI_PIPELINE_SOURCE == "merge_request_event"\'\n    - if: $CI_COMMIT_TAG\n',
+    'workflow:\n  name: Pipeline\n  rules:\n    - if: $CI_COMMIT_BRANCH == "main"\n    - if: $CI_COMMIT_TAG\n      when: always\n\nbuild:\n  script: [make]\n',
+    'workflow:\n  rules:\n  - if: $CI_COMMIT_BRANCH\n\nbuild:\n  script: [make]\n',
+    'workflow:\n  name: "Pipeline for $CI_COMMIT_REF_NAME"\n\nbuild:\n  script: [make]\n',
+    `include:\n  - project: group/shared\n    file: '/${JOBS}'\n  - remote: 'https://example.invalid/${JOBS}'\n  - template: ${JOBS}\n`,
+    `build:\n  script: [make]\n  rules:\n    - changes:\n        - ${JOBS}\n`,
+    `# TODO include ${JOBS}\nbuild:\n  script: [make]\n`,
+    `include:\n- local: "/${JOBS}"  # job\nworkflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'\n`,
+    `include: ${JOBS}\nworkflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'\n`,
+    `# ${AUTOMATED_TESTING_DISCLAIMER}\ninclude:\n  - template: Jobs/SAST.gitlab-ci.yml\nworkflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n`,
+    'notes:\n  text: |+\n    hello\n\nbuild:\n  script: [make]',
+    'build:\r\n  script: [make]\r\n',
+    '# pipeline\ntest:unit:\n  script: [npm test]\n"quoted job":\n  script: [true]\n',
+    ...refusals.map(([, text]) => text),
+  ];
+  it('never reports success for a root that would not parse or lacks an enabling MR rule', () => {
+    for (const original of corpus) {
+      const plan = planGitlabRoot(original);
+      if (plan.kind === 'manual') continue;
+      const after = plan.kind === 'update' ? plan.text : original;
+      expectSafeOutcome(0, original, after);
+      if (plan.kind === 'update') expect(load(after).include, original).toEqual(expect.arrayContaining([expect.anything()]));
+    }
+  });
+});
+
 describe('GitLab docs describe the root merge request rule (A11Y-R72)', () => {
   const section = (text: string, heading: string) => {
     const start = text.indexOf(heading);
