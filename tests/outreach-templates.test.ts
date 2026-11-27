@@ -58,12 +58,22 @@ const PLACEHOLDERS: Record<string, string[]> = {
   quote_attachment: ['quote.pdf'],
   payment_option: ['invoice on request'],
 };
-const longest = (name: string) => [...(PLACEHOLDERS[name] ?? [])].sort((a, b) => b.length - a.length)[0] as string;
+/** Own names only: a `Set` lookup, so inherited names such as `constructor` or `__proto__` are never "known". */
+const KNOWN_PLACEHOLDERS: ReadonlySet<string> = new Set(Object.keys(PLACEHOLDERS));
+const samplesFor = (name: string) => (KNOWN_PLACEHOLDERS.has(name) ? (PLACEHOLDERS[name] as string[]) : []);
+const longest = (name: string) => [...samplesFor(name)].sort((a, b) => b.length - a.length)[0] as string;
 
 const BANNED_CLAIMS =
   /\bcomplian(?:t|ce)\b|\bcertified\b|\bguarantee|\bconformant\b|\bconformance\b|lawsuit-proof|fix(?:es)? everything|100% accessible|accessibe|userway|audioeye|equalweb|level access|essential accessibility|max access|deque|siteimprove|monsido|silktide|allyable|recite me/i;
 
 const placeholdersIn = (text: string) => [...text.matchAll(/\{\{\s*([^}]*?)\s*}}/g)].map((m) => m[1] as string);
+/** Placeholder names in `text` that are not on the allowlist (empty = all good). */
+const unknownPlaceholders = (text: string) => placeholdersIn(text).filter((name) => !KNOWN_PLACEHOLDERS.has(name));
+/** Same check a template file gets: unknown names plus malformed braces. */
+const placeholderProblems = (text: string) => ({
+  unknown: unknownPlaceholders(text),
+  malformed: /\{\{|}}|\{[a-z_]+}/.test(text.replace(/\{\{[a-z_]+}}/g, '')),
+});
 const message = (text: string) => {
   const match = /<!-- message:start -->\n([\s\S]*?)\n<!-- message:end -->/.exec(text);
   return match?.[1];
@@ -157,10 +167,26 @@ describe('outreach kit files (A11Y-R77)', () => {
 
   it.each(FILES)('(a) %s uses only allowlisted placeholders, all well-formed', (rel) => {
     const text = read(rel);
-    const unknown = placeholdersIn(text).filter((name) => !(name in PLACEHOLDERS));
-    expect(unknown, rel).toEqual([]);
     // Single-brace or unclosed variants would slip past a renderer.
-    expect(text.replace(/\{\{[a-z_]+}}/g, '')).not.toMatch(/\{\{|}}|\{[a-z_]+}/);
+    expect(placeholderProblems(text), rel).toEqual({ unknown: [], malformed: false });
+  });
+
+  it('(a) inherited object names are not allowlisted placeholders (negative case)', () => {
+    const inherited = ['constructor', '__proto__', 'toString', 'hasOwnProperty'];
+    // An `in` check would accept these: they live on Object.prototype, not in the allowlist.
+    for (const name of inherited) expect(name in PLACEHOLDERS, name).toBe(true);
+    for (const name of inherited) {
+      expect(KNOWN_PLACEHOLDERS.has(name), name).toBe(false);
+      expect(unknownPlaceholders(`Hi {{${name}}},`), name).toEqual([name]);
+      expect(samplesFor(name), name).toEqual([]);
+    }
+    // A real template with these names planted fails the per-file check.
+    const rel = `${DIR}/first-touch-email.md`;
+    const text = read(rel);
+    expect(placeholderProblems(text).unknown).toEqual([]);
+    const planted = text.replace('Hi {{prospect_first_name}},', `Hi {{prospect_first_name}}, ${inherited.map((n) => `{{${n}}}`).join(' ')}`);
+    expect(planted).not.toBe(text);
+    expect(placeholderProblems(planted).unknown).toEqual(inherited);
   });
 
   it('(a) the README documents every allowlisted placeholder, and every one is used by a template', () => {
@@ -236,6 +262,29 @@ describe('outreach kit files (A11Y-R77)', () => {
     expect(text).toContain('](../kickoff-checklist.md)');
     expect(text).toContain('](../success-criteria.template.yml)');
     expect(text).toMatch(/draft that needs Eliran\/legal review/);
+  });
+
+  it('the pilot proposal: the customer revokes access, deletion follows the agreed schedule, wording is DRAFT for legal review', () => {
+    const text = read(`${DIR}/pilot-proposal.md`);
+    const body = message(text) as string;
+    expect(text.split('\n')[2]).toBe(BANNER);
+    expect(text).toContain('> **DRAFT: wording pending legal review.**');
+    expect(text.indexOf('DRAFT: wording pending legal review')).toBeLessThan(text.indexOf('<!-- message:start -->'));
+    expect(body).toContain('At the end you revoke the access you granted');
+    expect(body).toContain('you revoke the access you granted, and we delete any copies we hold on the agreed retention schedule');
+    expect(body).toContain('delete them at the end of the retention period agreed at kickoff, then confirm the deletion in writing');
+    // No promise that the operator revokes the customer's access, and no invented retention period.
+    expect(body).not.toMatch(/\bwe (?:will )?(?:remove|revoke) (?:the |your )?access\b|\baccess is (?:revoked|removed)\b/i);
+    expect(body).not.toMatch(/\b\d+\s*(?:days?|weeks?|months?|years?)\b/i);
+  });
+
+  it('no outreach file promises an evidence pack on every run (packs are made at pilot milestones)', () => {
+    for (const rel of FILES) {
+      expect(read(rel), rel).not.toMatch(/(?:each|every) (?:CI )?(?:run|scan|pull request)[^.]*evidence pack|evidence pack[^.]*(?:on|for|per|with|after) (?:each|every) (?:CI )?(?:run|build|scan|pull request)/i);
+    }
+    const email = message(read(`${DIR}/first-touch-email.md`)) as string;
+    expect(email).toContain('Each run keeps its scan report as a build artifact in your own CI.');
+    expect(email).toContain('At the pilot milestones (kickoff, mid-pilot and the decision date) I also make an evidence pack');
   });
 
   it('the README says never send automatically, Eliran only, and per-prospect copies outside the repo', () => {

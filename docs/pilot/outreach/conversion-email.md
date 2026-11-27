@@ -21,7 +21,7 @@ Why now: {{why_now}} (source: {{why_now_source}}).
 
 Continuing means the paid plan at USD {{price_usd_per_year}} per year. Nothing has been or will be billed automatically: it starts only if you reply with a written yes. Payment: {{payment_option}}.
 
-If you'd rather stop, that's fine too. Please revoke the pilot access (repository and CI) and I'll confirm in writing that we deleted any copies we hold.
+If you'd rather stop, that's fine too. Please revoke the pilot access you granted (repository and CI). We delete any copies we hold on the retention schedule agreed at kickoff and confirm it in writing.
 
 The results are automated testing only. They show what the scans found on the pages and states they covered, not that the site is accessible.
 
