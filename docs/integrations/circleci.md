@@ -35,6 +35,16 @@ Only set `url` to a local or explicitly authorized application. The config perfo
 
 The consuming project's lockfile must provide the A11yGate CLI (a revision containing `scan`, `--format`, `baseline create` and `evidence pack`, i.e. the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or a [source build](../pilot/quickstart.md#source-build-fallback) of `packages/cli`; npm serves only 0.1.0, which lacks them), plus `playwright` and `@axe-core/playwright`. Every A11yGate command uses `npx --no-install`, so nothing is fetched from the registry at scan time.
 
+The pilot tarball, installed as a development dependency, works with these commands as they are. A source build is not in `node_modules`, so `npx --no-install a11ygate` cannot find it until you vendor it into your repository and install it as a local development dependency, as in the [quickstart's CI step](../pilot/quickstart.md#6-wire-the-gate-into-ci-10-minutes), then commit the lockfile:
+
+```sh
+mkdir -p tools && cp -R /path/to/a11ygate/packages/cli tools/a11ygate
+npm install --save-dev ./tools/a11ygate playwright @axe-core/playwright
+npx --no-install a11ygate --help
+```
+
+To run a source build on your own machine without vendoring it, use `node /path/to/a11ygate/packages/cli/dist/cli.mjs` in place of `npx --no-install a11ygate`.
+
 ## What the job does
 
 | Step | Config | Reference |

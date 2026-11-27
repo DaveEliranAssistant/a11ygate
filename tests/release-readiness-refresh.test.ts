@@ -306,3 +306,75 @@ describe('packaged CLI README stays true across a publish (A11Y-R75 fix round)',
     expect(rootReadme).toMatch(/0\.2\.0 and the features listed under "Unreleased" in the \[CHANGELOG\]\([^)]+\) are not published to npm/);
   });
 });
+
+/** `npx --no-install a11ygate` only resolves a CLI installed in the consuming project's node_modules. */
+const NPX_NO_INSTALL = /\bnpx\s+--no-install\s+a11ygate\b/;
+/** A source build offered as an install path. */
+const OFFERS_SOURCE_BUILD = /#source-build-fallback\b|\bsource build\b/i;
+/**
+ * A command that actually runs a source build: its built file by an explicit path, or the
+ * quickstart's vendoring step that installs it into node_modules so `npx --no-install` resolves.
+ */
+const SOURCE_BUILD_RUNNABLE = [
+  /\bnode\s+(?:\/|<)[^\s`'"]*\/packages\/cli\/dist\/cli\.mjs\b/,
+  /\bnpm\s+install\s+--save-dev\s+\.\/tools\/a11ygate\b/,
+];
+
+/**
+ * A doc that offers the source build next to commands or templates that only use
+ * `npx --no-install a11ygate` leaves the source-build reader without a runnable command.
+ */
+function sourceBuildWithoutCommandProblem(rel: string, text: string): string | undefined {
+  if (!OFFERS_SOURCE_BUILD.test(text) || !NPX_NO_INSTALL.test(text)) return undefined;
+  if (SOURCE_BUILD_RUNNABLE.some((re) => re.test(text))) return undefined;
+  return `${rel}: offers a source build but only shows \`npx --no-install a11ygate\``;
+}
+
+describe('every doc that offers the source build gives it a runnable command (A11Y-R75 fix round)', () => {
+  it('no user-facing doc pairs the source build with `npx --no-install a11ygate` alone', () => {
+    const problems = userFacingFiles()
+      .filter((rel) => rel.endsWith('.md') && !rel.startsWith('docs/releases/') && !rel.endsWith('CHANGELOG.md'))
+      .map((rel) => sourceBuildWithoutCommandProblem(rel, read(rel)))
+      .filter((p): p is string => Boolean(p));
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+
+  it('the Bitbucket and CircleCI guides vendor the source build and name its node command', () => {
+    for (const rel of ['docs/integrations/bitbucket.md', 'docs/integrations/circleci.md']) {
+      const text = read(rel);
+      expect(text, rel).toContain('cp -R /path/to/a11ygate/packages/cli tools/a11ygate');
+      expect(text, rel).toMatch(/npm install --save-dev \.\/tools\/a11ygate playwright(?:@[\d.]+)? @axe-core\/playwright/);
+      expect(text, rel).toContain('node /path/to/a11ygate/packages/cli/dist/cli.mjs');
+      expect(text, rel).toContain('](../pilot/quickstart.md#6-wire-the-gate-into-ci-10-minutes)');
+    }
+  });
+
+  it('flags a planted source-build offer next to a template that only uses `npx --no-install a11ygate`', () => {
+    const planted = [
+      'The lockfile must provide the CLI, i.e. the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or a [source build](../pilot/quickstart.md#source-build-fallback). Every command uses `npx --no-install`.',
+      '',
+      '| Scan | `npx --no-install a11ygate scan "<url>" --format junit,sarif` |',
+    ].join('\n');
+    expect(sourceBuildWithoutCommandProblem('planted.md', planted)).toBe(
+      'planted.md: offers a source build but only shows `npx --no-install a11ygate`',
+    );
+    // A relative `node packages/cli/dist/cli.mjs` only works inside the a11ygate checkout itself.
+    expect(sourceBuildWithoutCommandProblem('planted.md', `${planted}\nOr \`cli: 'node packages/cli/dist/cli.mjs'\`.`)).toBeDefined();
+    expect(sourceBuildWithoutCommandProblem('ok.md', `${planted}\nRun \`node /path/to/a11ygate/packages/cli/dist/cli.mjs\`.`)).toBeUndefined();
+    expect(sourceBuildWithoutCommandProblem('ok.md', `${planted}\nnpm install --save-dev ./tools/a11ygate playwright`)).toBeUndefined();
+    expect(sourceBuildWithoutCommandProblem('ok.md', 'Install the pilot tarball.\n\nnpx --no-install a11ygate ci')).toBeUndefined();
+  });
+});
+
+describe('readiness refresh peer metadata (A11Y-R75 fix round)', () => {
+  it('every CLI peer the refresh calls optional has `optional: true` in peerDependenciesMeta', () => {
+    const pkg = JSON.parse(read('packages/cli/package.json')) as {
+      peerDependencies: Record<string, string>;
+      peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+    };
+    const peers = Object.keys(pkg.peerDependencies).sort();
+    expect(peers).toEqual(['@axe-core/playwright', 'accessibility-checker-engine', 'html_codesniffer', 'lighthouse', 'playwright', 'puppeteer-core']);
+    for (const peer of peers) expect(pkg.peerDependenciesMeta?.[peer]?.optional, peer).toBe(true);
+    expect(read(REFRESH)).toContain('each of the six, `puppeteer-core` included, has `"optional": true` in `peerDependenciesMeta`.');
+  });
+});

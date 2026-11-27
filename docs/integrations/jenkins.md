@@ -14,7 +14,7 @@ Sibling guide: [GitHub Action integration](github-action.md).
 2. The step is [`integrations/jenkins/vars/a11yGate.groovy`](../../integrations/jenkins/vars/a11yGate.groovy). A short library README is at [`integrations/jenkins/README.md`](../../integrations/jenkins/README.md).
 3. Load it in a Pipeline with `@Library('a11ygate') _` as in the examples below.
 
-npm serves only `@qe-atlas/a11ygate@0.1.0` (`latest`), which does not include `scan` or `--format`; 0.2.0 is not published and there is no npm `next` tag yet. Until a release is published, install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use the [source build](../pilot/quickstart.md#source-build-fallback) (`cli: 'node packages/cli/dist/cli.mjs'`).
+npm serves only `@qe-atlas/a11ygate@0.1.0` (`latest`), which does not include `scan` or `--format`; 0.2.0 is not published and there is no npm `next` tag yet. Until a release is published, install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use the [source build](../pilot/quickstart.md#source-build-fallback) built on the agent (`cli: 'node /path/to/a11ygate/packages/cli/dist/cli.mjs'`, or vendor it as in the [quickstart's CI step](../pilot/quickstart.md#6-wire-the-gate-into-ci-10-minutes) and set `cli: 'npx --no-install a11ygate'`).
 
 ### Plain `sh` step (no library)
 
@@ -138,7 +138,7 @@ The step is `a11yGate(url:, crawl:, failOn:, formats:, ...)`. See the header of 
 | `formats` | List or comma-separated: `junit`, `sarif`, `json`, `md`. Default: all four. Requires `--out-dir`. |
 | `baseline` | Optional fingerprint baseline path, created from saved scan evidence with `a11ygate baseline create`. |
 | `outDir` | Report directory. Default: `a11y-results`. |
-| `cli` | Command that runs the CLI. Default: `npx --yes @qe-atlas/a11ygate`. npm serves only 0.1.0, which lacks `scan`/`--format`; until 0.2.0 is published, install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) and set `cli: 'npx --no-install a11ygate'`, or use a source build. |
+| `cli` | Command that runs the CLI. Default: `npx --yes @qe-atlas/a11ygate`. npm serves only 0.1.0, which lacks `scan`/`--format`; until 0.2.0 is published, install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) and set `cli: 'npx --no-install a11ygate'`, or use a [source build](../pilot/quickstart.md#source-build-fallback) with `cli: 'node /path/to/a11ygate/packages/cli/dist/cli.mjs'`. |
 | `image` | Optional Docker image. When set, the step runs inside `docker.image(image).inside(...)`. |
 | `dockerArgs` | Optional string passed to `.inside(...)`. |
 
@@ -178,7 +178,7 @@ recordIssues(tools: [sarif(pattern: 'a11y-results/*.sarif')])
 | Exit 2 / "failed to run" | Node, the `cli` path, Playwright Chromium, and that the start URL is reachable and not disallowed by robots.txt. |
 | Exit 1 / UNSTABLE | Findings at or above `failOn`. Open the archived Markdown/HTML or JUnit report. This is not a certification result. |
 | Empty JUnit | Confirm `${outDir}/a11ygate-scan.junit.xml` (scan) or `a11ygate.junit.xml` (ci) was written; `allowEmptyResults` keeps the publisher from failing on a clean suite. |
-| `scan` / `--format` unknown | You are on `@qe-atlas/a11ygate@0.1.0` (`latest`, the only version on npm). Install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use the [source build](../pilot/quickstart.md#source-build-fallback) via `cli: 'node packages/cli/dist/cli.mjs'`. |
+| `scan` / `--format` unknown | You are on `@qe-atlas/a11ygate@0.1.0` (`latest`, the only version on npm). Install the [pilot tarball](../pilot/quickstart.md#1-install-the-tarball-you-received-5-minutes) or use the [source build](../pilot/quickstart.md#source-build-fallback) via `cli: 'node /path/to/a11ygate/packages/cli/dist/cli.mjs'`. |
 | SARIF not in Warnings NG | Install the Warnings NG plugin and call the [`record-issues.groovy`](../../examples/jenkins/record-issues.groovy) fragment. |
 | Docker image cannot see the workspace | Pass `dockerArgs` such as a workspace mount if your agent needs it; or run on a Node agent without `image`. |
 
