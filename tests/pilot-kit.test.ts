@@ -14,7 +14,8 @@ import schema from '@/schema/pilot-success.schema.json';
 const yaml = createRequire(import.meta.url)('js-yaml') as { load: (text: string) => unknown };
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const read = (rel: string) => readFileSync(path.join(repoRoot, rel), 'utf8');
-const pilotFiles = readdirSync(path.join(repoRoot, 'docs/pilot')).map((name) => `docs/pilot/${name}`).sort();
+// Files only: docs/pilot/outreach/ (A11Y-R77) is checked by tests/outreach-templates.test.ts.
+const pilotFiles = readdirSync(path.join(repoRoot, 'docs/pilot'), { withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => `docs/pilot/${entry.name}`).sort();
 const markdownFiles = pilotFiles.filter((rel) => rel.endsWith('.md'));
 const kitFiles = [...pilotFiles, 'schema/pilot-success.schema.json'];
 
