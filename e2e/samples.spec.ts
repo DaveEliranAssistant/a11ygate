@@ -16,14 +16,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium, expect, test } from '@playwright/test';
-import { readZip } from '../lib/evidence/zip';
 import { pdfInfo } from '../tests/pdf-info';
+import { evidencePackHostProblems, fileHostProblems, isScannedOk, readZipEntries, textHostProblems } from '../tests/sample-hosts';
 
 const repoRoot = path.resolve(__dirname, '..');
 const committed = path.join(repoRoot, 'docs/samples');
 const expectedDir = path.join(repoRoot, 'e2e/fixtures/samples');
 const DISCLAIMER = 'Automated testing only. Not a WCAG audit, certification or legal advice.';
-const SAMPLE_HOST = '127.0.0.1:4173';
 const SAMPLE_FILES = [
   'prospect-summary.pdf', 'pilot-results.pdf', 'quote-sample.pdf', 'evidence-pack-sample.zip', 'report.html',
   'screenshot-pr-gate.png', 'screenshot-report-summary.png', 'screenshot-trend.png',
@@ -56,79 +55,10 @@ function pageMarkingProblems(rawPage: string, pageIndex: number): string[] {
   return problems;
 }
 
-// --- (c) hosts -------------------------------------------------------------------------------------------
-// Reference-link hosts the CLI writes into every report (rule help, WCAG Understanding pages, SARIF schema,
-// the A11yGate site in the user agent / SARIF tool info). They may appear only as link targets, never as a
-// scanned page.
-const REFERENCE_HOSTS = new Set(['www.w3.org', 'dequeuniversity.com', 'a11ygate.vercel.app', 'json.schemastore.org']);
-// Contexts in which a reference URL is a link target/reference: HTML href, Markdown link target, the
-// user-agent "+url", or one of the CLI's reference JSON/SARIF keys.
-const REFERENCE_CONTEXT = /(?:href="|\]\(|; \+|\bguidance: |"(?:helpUrl|helpUri|\$schema|informationUri|wcagUrl|url)": ")$/;
-const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/([^/\s"'<>)\]`\\]+)/gi;
-
-/** Every URL host in `text` that is not the demo app and not an allowed reference link in a reference context. */
-function hostProblems(text: string): string[] {
-  const problems: string[] = [];
-  if (/localhost|\[::1\]|0\.0\.0\.0/i.test(text)) problems.push('mentions localhost / ::1 / 0.0.0.0');
-  for (const m of text.matchAll(URL_RE)) {
-    const host = m[1]!.toLowerCase();
-    if (host === SAMPLE_HOST) continue;
-    const before = text.slice(Math.max(0, m.index! - 40), m.index);
-    if (REFERENCE_HOSTS.has(host) && REFERENCE_CONTEXT.test(before)) continue;
-    problems.push(`${host} (after "${before.slice(-25)}")`);
-  }
-  return [...new Set(problems)];
-}
-
-/** Every scanned page / target URL in the evidence pack's structured outputs. */
-function scannedUrls(entries: { path: string; data: Buffer }[]): string[] {
-  const get = (name: string) => entries.find((e) => e.path === name)?.data.toString('utf8') ?? '';
-  const urls: string[] = [];
-  const scan = JSON.parse(get('scan/a11ygate-scan.json'));
-  if (scan.startUrl) urls.push(scan.startUrl);
-  for (const p of scan.pages ?? []) urls.push(p.url);
-  for (const f of scan.findings ?? []) urls.push(f.pageUrl ?? f.url);
-  const sarif = JSON.parse(get('scan/a11ygate-scan.sarif'));
-  for (const run of sarif.runs ?? []) {
-    for (const r of run.results ?? []) {
-      for (const l of r.locations ?? []) {
-        // SARIF artifact paths are a11ygate-pages/<host>-<port>/<path>; map back to the page's origin.
-        const uri: string | undefined = l.physicalLocation?.artifactLocation?.uri;
-        const local = uri?.match(/^a11ygate-pages\/([^/]+)-(\d+)\/(.*)$/);
-        urls.push(local ? `http://${local[1]}:${local[2]}/${local[3]}` : uri!);
-        for (const logical of l.logicalLocations ?? []) if (logical.kind === 'url') urls.push(logical.fullyQualifiedName);
-      }
-    }
-    for (const a of run.artifacts ?? []) urls.push(a.location?.uri);
-  }
-  const junit = get('scan/a11ygate-scan.junit.xml');
-  for (const m of junit.matchAll(/(?:name|classname|value)="([a-z][a-z0-9+.-]*:\/\/[^"]+)"/gi)) urls.push(m[1]!);
-  for (const name of ['scan/a11ygate-scan.md', 'report.md']) {
-    for (const line of get(name).split('\n')) if (/^\s*[-*|]/.test(line)) for (const m of line.matchAll(/(?<!\]\()\bhttps?:\/\/[^\s)|`]+/g)) urls.push(m[0]);
-  }
-  const manifest = JSON.parse(get('manifest.json'));
-  for (const value of JSON.stringify(manifest).match(/https?:\/\/[^"\\]+/g) ?? []) urls.push(value);
-  return urls.filter((u): u is string => typeof u === 'string' && u.length > 0);
-}
-
-const isScannedOk = (url: string) => {
-  try {
-    return new URL(url).host === SAMPLE_HOST;
-  } catch {
-    return false;
-  }
-};
-
-const readZipEntries = (zip: Buffer) => readZip(zip).map((e) => ({ path: e.path, data: Buffer.from(e.data) }));
-
-async function sampleTexts(dir: string): Promise<{ name: string; text: string }[]> {
+/** PDF text per sample PDF (other files are checked by name with fileHostProblems / evidencePackHostProblems). */
+async function pdfTexts(dir: string): Promise<{ name: string; text: string }[]> {
   const texts: { name: string; text: string }[] = [];
   for (const file of PDFS) texts.push({ name: file, text: (await pdfInfo(await readFile(path.join(dir, file)))).pages.join('\n') });
-  texts.push({ name: 'report.html', text: await readFile(path.join(dir, 'report.html'), 'utf8') });
-  texts.push({ name: 'screenshot-checks.json', text: await readFile(path.join(dir, 'screenshot-checks.json'), 'utf8') });
-  for (const entry of readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip')))) {
-    if (!/\.png$/i.test(entry.path)) texts.push({ name: `evidence-pack-sample.zip!/${entry.path}`, text: entry.data.toString('utf8') });
-  }
   return texts;
 }
 
@@ -145,20 +75,27 @@ test.describe('sample pack checkers (A11Y-R79)', () => {
     // Linux pdf.js splits ligatures; the check does not depend on spacing.
     expect(pageMarkingProblems(stored.replace('a fictional', 'a fi ctional').replace('certification', 'certi fi cation'), 0)).toEqual([]);
   });
-
+  // More host-check negative tests (planted non-local URLs, incl. an axe result url in engines/axe.json) run
+  // without Chromium in tests/sample-hosts.test.ts (npm test); the checker lives in tests/sample-hosts.ts.
   test('a scanned URL on another host fails, reference links only pass in link context', async () => {
-    expect(hostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toEqual([]);
-    expect(hostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toEqual([]);
-    expect(hostProblems('Site: https://example.com/')).toHaveLength(1);
-    expect(hostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
-    expect(hostProblems('"pageUrl": "https://www.w3.org/"')).toHaveLength(1);
-    expect(hostProblems('http://localhost:3000/')).not.toEqual([]);
+    expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toEqual([]);
+    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toEqual([]);
+    expect(textHostProblems('Site: https://example.com/')).toHaveLength(1);
+    expect(textHostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
+    expect(fileHostProblems('x.json', '{"pageUrl": "https://www.w3.org/"}')).toHaveLength(1);
+    expect(fileHostProblems('x.json', '{"url": "https://dequeuniversity.com/"}')).toHaveLength(1);
+    expect(textHostProblems('http://localhost:3000/')).not.toEqual([]);
     const entries = [
-      { path: 'scan/a11ygate-scan.json', data: Buffer.from(JSON.stringify({ pages: [{ url: `http://${SAMPLE_HOST}/` }, { url: 'https://dequeuniversity.com/' }], findings: [] })) },
+      { path: 'scan/a11ygate-scan.json', data: Buffer.from(JSON.stringify({ pages: [{ url: 'http://127.0.0.1:4173/' }, { url: 'https://dequeuniversity.com/' }], findings: [] })) },
       { path: 'scan/a11ygate-scan.sarif', data: Buffer.from(JSON.stringify({ runs: [{ results: [{ locations: [{ physicalLocation: { artifactLocation: { uri: 'https://example.com/a' } } }] }] }] })) },
       { path: 'manifest.json', data: Buffer.from('{}') },
     ];
-    expect(scannedUrls(entries).filter((u) => !isScannedOk(u))).toEqual(['https://dequeuniversity.com/', 'https://example.com/a']);
+    const problems = evidencePackHostProblems(entries);
+    expect(problems).toEqual(expect.arrayContaining([
+      'evidence-pack-sample.zip!/scan/a11ygate-scan.json $.pages[1].url: https://dequeuniversity.com/',
+      'evidence-pack-sample.zip!/scan/a11ygate-scan.sarif $.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri: https://example.com/a',
+      'evidence pack has no engines/axe.json',
+    ]));
   });
 });
 
@@ -281,19 +218,22 @@ test.describe('sample deliverables pack (A11Y-R79)', () => {
 
     test(`(c) ${which}: every scanned URL is on 127.0.0.1, other hosts only as reference links`, async () => {
       const dir = which === 'rebuilt' ? outDir : committed;
-      const texts = await sampleTexts(dir);
-      texts.push({ name: 'README.md', text: await readFile(path.join(committed, 'README.md'), 'utf8') });
-      for (const { name, text } of texts) expect(hostProblems(text), name).toEqual([]);
+      const texts = await pdfTexts(dir);
+      for (const { name, text } of texts) expect(textHostProblems(text), name).toEqual([]);
       // PDFs have no reference links at all: every URL in them is a scanned page on the demo app
       // (the prospect summary lists its site and pages; pilot results and quote have no URLs).
-      for (const { name, text } of texts.filter((t) => t.name.endsWith('.pdf'))) {
+      for (const { name, text } of texts) {
         const urls = text.match(/https?:\/\/\S+/g) ?? [];
         if (name === 'prospect-summary.pdf') expect(urls.length, name).toBeGreaterThan(4);
         expect(urls.filter((u) => !isScannedOk(u)), name).toEqual([]);
       }
-      const urls = scannedUrls(readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip'))));
-      expect(urls.length).toBeGreaterThan(4);
-      expect(urls.filter((u) => !isScannedOk(u))).toEqual([]);
+      for (const name of ['report.html', 'screenshot-checks.json']) {
+        expect(fileHostProblems(name, await readFile(path.join(dir, name))), name).toEqual([]);
+      }
+      expect(fileHostProblems('README.md', await readFile(path.join(committed, 'README.md'))), 'README.md').toEqual([]);
+      // Every zip entry (engines/axe.json included) + strict extraction of scanned URLs (axe result urls, pages,
+      // findings, SARIF, JUnit, manifest).
+      expect(evidencePackHostProblems(await readFile(path.join(dir, 'evidence-pack-sample.zip')))).toEqual([]);
     });
   }
 
