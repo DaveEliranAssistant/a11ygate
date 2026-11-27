@@ -124,15 +124,24 @@ inserts lines: the local include (a new entry in an existing `include:` list, or
 an `include:` block), the `merge_request_event` rule (as the first entry of an
 existing `workflow: rules` list, or the `workflow:` block above), and a comment
 with the disclaimer. It skips the file when the rule and include are already
-there; `--force` never replaces this file. Init edits only a plain top-level block
-mapping it can read. For anything else, such as an indented or flow-style root,
-`---` document markers, tabs, anchors, aliases or `!reference` in `workflow:` or
-`include:`, a trailing block scalar (`|`, `>`), a quoted or escaped spelling
-of a key init edits (`"workflow":`, `'include':`, `"\x77orkflow":`, `'rules':`,
-`'local':`), a double-quoted top-level key with escapes, or a `workflow: rules`
-entry it cannot read exactly (inline comments, quoted keys such as `'when':`,
-flow mappings, multi-line values, an unknown `when:`), init leaves the file
-unchanged, prints this snippet, and exits with code 2. It also refuses a
+there; `--force` never replaces this file. Init works from an allowlist: it edits
+the file only when it can read every line, and it re-reads its own result before
+writing (one `workflow:` and one `include:`, the local include present, the
+merge request rule first, every original line kept in order). For anything else,
+such as an indented or flow-style root, `---` or `...` document markers, tabs, a
+key repeated in any mapping (including a later `workflow: rules` entry or a flow
+mapping), a quoted value or flow collection that continues on the next line, a
+top-level value continued on the next line (a string `include:` must be one
+line), anchors, aliases or `!reference` in `workflow:` or `include:`, a block
+scalar (`|`, `>`, `|+`, `>-`, `|2`, also after `- ` or `- - `) inside
+`workflow:` or `include:` or in the last top-level key when init appends, a quoted
+or escaped spelling of a key init edits (`"workflow":`, `'include':`,
+`"\x77orkflow":`, `'rules':`, `'local':`), a double-quoted top-level key with
+escapes, or any `workflow: rules` entry (every entry is checked, not only the
+first) it cannot read exactly (comments after a value or inside the entry, quoted
+keys such as `'when':`, flow mappings, nested or multi-line values, an unknown
+`when:`), init leaves the file unchanged, prints this snippet, and exits with
+code 2. It also refuses a
 `merge_request_event` rule that is not the plain first rule
 (`- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`, optionally with
 `when: on_success` or `when: always`), for example one with `when: never`,

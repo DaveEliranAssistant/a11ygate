@@ -406,6 +406,120 @@ describe('init --target gitlab refuses root layouts it cannot read exactly (A11Y
   });
 });
 
+// Rerun of the 2026-11-28 fix round (judge 1 on 7339d7a): the planner is a strict allowlist with a self-check.
+const includesJobFile = (include: unknown) => {
+  const items = Array.isArray(include) ? include : [include];
+  return items.some((item) => item === JOBS || item === `/${JOBS}`
+    || (typeof item === 'object' && item !== null && Object.keys(item).length === 1 && [JOBS, `/${JOBS}`].includes((item as { local?: string }).local!)));
+};
+/**
+ * The invariant every root file must meet: EITHER exit 2 and the file byte-identical, OR exit 0 and the result
+ * parses with js-yaml (which rejects duplicate keys), keeps every other top-level key's parsed value, includes the
+ * local job file and starts its own workflow rules with the enabling merge request rule.
+ */
+async function expectInvariant(original: string) {
+  return temporary(async (cwd) => {
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    const after = await read(cwd, ROOT);
+    if (result.code !== 0) {
+      expect(result.code, result.out).toBe(2);
+      expect(after, 'file byte-identical on refusal').toBe(original);
+      expect(result.err).toContain(`Left ${ROOT} unchanged`);
+      expect(result.err).toContain(`include:\n  - local: '${JOBS}'\n\nworkflow:\n  rules:\n    - if: '${MR}'`);
+      return;
+    }
+    expect(() => load(after), 'result parses without duplicate keys').not.toThrow();
+    const parsed = load(after);
+    for (const [key, value] of Object.entries((load(original) ?? {}) as Root)) {
+      if (key !== 'include' && key !== 'workflow') expect(parsed[key], key).toEqual(value);
+    }
+    expect(includesJobFile(parsed.include), 'include lists the local job file').toBe(true);
+    expect(firstRuleEnables(parsed), 'first workflow rule is the enabling MR rule').toBe(true);
+  });
+}
+
+describe('init --target gitlab only edits root files its reader fully understands (A11Y-R72 fix round rerun)', () => {
+  it.each([
+    // Judge 1: an enabling first rule must not skip validation of later rules.
+    ['a later rule with duplicate when: keys after an enabling first rule', `workflow:\n  rules:\n    - if: '${MR}'\n    - if: $CI_COMMIT_BRANCH\n      when: always\n      when: never\n`],
+    // Judge 1: a plain scalar include continued on the next line is `.gitlab-ci.a11ygate.yml extra.yml`.
+    ['a multiline plain-scalar include', `include: ${JOBS}\n  extra.yml\nworkflow:\n  rules:\n    - if: '${MR}'\n`],
+    // Judge 1: a compact nested keep-chomping block scalar would absorb the appended blank line.
+    ['a compact nested - - |+ block scalar in the last job', 'build:\n  script:\n    - - |+\n      echo test\n'],
+  ])('refuses %s: exit 2, file byte-identical', async (_, original) => temporary(async (cwd) => {
+    await writeFile(path.join(cwd, ROOT), original);
+    const result = await init(cwd);
+    expect(result.code, result.out).toBe(2);
+    expect(await read(cwd, ROOT)).toBe(original);
+    expect(result.err).toContain(`include:\n  - local: '${JOBS}'\n\nworkflow:\n  rules:\n    - if: '${MR}'`);
+  }));
+
+  const corpus: [string, string, 'refuse' | 'edit' | 'either'][] = [
+    ['duplicate when: in a later rule', `workflow:\n  rules:\n    - if: '${MR}'\n    - if: $CI_COMMIT_BRANCH\n      when: always\n      when: never\n`, 'refuse'],
+    ['duplicate when: in a later indentless rule', `include: ${JOBS}\nworkflow:\n  rules:\n  - if: '${MR}'\n  - when: never\n    when: always\n`, 'refuse'],
+    ['a multiline include scalar', `include: ${JOBS}\n  extra.yml\n`, 'refuse'],
+    ['a multiline include list item', `include:\n  - local: ci/a.yml\n    b.yml\n`, 'refuse'],
+    ['a multiline plain if: value', 'workflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH ==\n        "main"\n', 'refuse'],
+    ['a multiline double-quoted script', 'build:\n  script:\n    - "echo\n      hi"\n', 'refuse'],
+    ['a compact nested - - |+ block scalar', 'build:\n  script:\n    - - |+\n      echo test\n', 'refuse'],
+    ['a - key: |+ block scalar in the last job', 'build:\n  - run: |+\n      x\n\n', 'refuse'],
+    ['a >- block scalar in the last job', 'build:\n  description: >-\n    hello\n', 'refuse'],
+    ['a |2 block scalar in the last job', 'build:\n  script:\n    - |2\n       indented\n', 'refuse'],
+    ['a tagged block scalar in the last job', 'build:\n  script: !!str |+\n    make\n\n', 'refuse'],
+    ['a block scalar in workflow: name', 'workflow:\n  name: |\n    Pipeline\n  rules:\n    - if: $CI_COMMIT_BRANCH\nbuild:\n  script: [make]\n', 'refuse'],
+    ['a |+ block scalar before the edited blocks', 'notes: |+\n  keep\n\ninclude:\n  - template: Jobs/SAST.gitlab-ci.yml\nworkflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n', 'edit'],
+    ['a |+ block scalar that is not the last key', 'notes: |+\n  keep\n\nbuild:\n  script: [make]\n', 'edit'],
+    ['a double-quoted "include" key', '"include":\n  - template: Jobs/SAST.gitlab-ci.yml\n', 'refuse'],
+    ['an escaped "\\u0069nclude" key', '"\\u0069nclude":\n  - template: Jobs/SAST.gitlab-ci.yml\n', 'refuse'],
+    ['an escaped "w\\x6Frkflow" key', '"w\\x6Frkflow":\n  name: Pipeline\n', 'refuse'],
+    ['a single-quoted \'workflow\' key', '\'workflow\':\n  name: Pipeline\n', 'refuse'],
+    ['a tagged !!str workflow key', '!!str workflow:\n  name: Pipeline\n', 'refuse'],
+    ['an explicit ? workflow key', '? workflow\n: {name: Pipeline}\n', 'refuse'],
+    ['a spaced include : key', 'include :\n  - template: Jobs/SAST.gitlab-ci.yml\n', 'edit'],
+    ['a quoted "when" key in a later rule', `include: ${JOBS}\nworkflow:\n  rules:\n    - if: '${MR}'\n    - if: $CI_COMMIT_BRANCH\n      "when": never\n`, 'refuse'],
+    ['comments after workflow keys', 'workflow: # main\n  rules: # list\n    - if: $CI_COMMIT_BRANCH\n', 'refuse'],
+    ['a comment line inside a rule entry', `workflow:\n  rules:\n    - if: '${MR}'\n      # when: never\n      when: always\n`, 'refuse'],
+    ['a column-0 comment between rule entries', 'workflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n# note\n    - if: $CI_COMMIT_TAG\nbuild:\n  script: [make]\n', 'edit'],
+    ['# inside quoted scripts', 'build:\n  script:\n    - echo "#not a comment"\n    - \'a # b\'\n', 'edit'],
+    ['# inside a quoted later rule', `include: ${JOBS}\nworkflow:\n  rules:\n    - if: '${MR}'\n    - if: '$CI_COMMIT_TITLE =~ /#wip/'\n`, 'either'],
+    ['anchors, aliases and merge keys in jobs', '.base: &base\n  image: node\nbuild:\n  <<: *base\n  script: [make]\n', 'edit'],
+    ['an anchored include list', 'include: &inc\n  - template: Jobs/SAST.gitlab-ci.yml\n', 'refuse'],
+    ['an alias in workflow rules', '.mr: &mr\n  if: $CI_COMMIT_BRANCH\nworkflow:\n  rules:\n    - *mr\n', 'refuse'],
+    ['flow collections in jobs', 'variables: {A: "1", B: \'2\'}\nbuild:\n  needs: [{job: a, artifacts: true}]\n  script: [make]\n', 'edit'],
+    ['a duplicate key in a flow mapping', 'variables: {A: 1, A: 2}\n', 'refuse'],
+    ['a duplicate key in a job', 'build:\n  script: [a]\n  script: [b]\n', 'refuse'],
+    ['a duplicate key in an include item', 'include:\n  - local: ci/a.yml\n    local: ci/b.yml\n', 'refuse'],
+    ['a flow-mapping include item', 'include:\n  - {local: ci/a.yml}\n', 'refuse'],
+    ['a --- document marker', '---\nbuild:\n  script: [make]\n', 'refuse'],
+    ['a ... document end marker', 'build:\n  script: [make]\n...\n', 'refuse'],
+    ['CRLF line endings with workflow rules', 'workflow:\r\n  rules:\r\n    - if: $CI_COMMIT_BRANCH\r\nbuild:\r\n  script: [make]\r\n', 'edit'],
+    ['trailing spaces', 'workflow:  \n  rules:   \n    - if: $CI_COMMIT_BRANCH   \nbuild:  \n  script: [make]  \n', 'edit'],
+    ['no final newline after a job', 'build:\n  script: [make]', 'edit'],
+    ['no final newline after workflow rules', 'workflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH', 'edit'],
+    ['a nested workflow key inside a job', 'build:\n  workflow: x\n  script: [make]\n', 'edit'],
+    ['a plain top-level value continued on the next line', 'stages: build\n  test\n', 'refuse'],
+    ['a first enabling rule with when: always', `workflow:\n  rules:\n    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n      when: always\n    - if: $CI_COMMIT_BRANCH\n`, 'edit'],
+    ['a rule with a nested variables: mapping', 'workflow:\n  rules:\n    - if: $CI_COMMIT_BRANCH\n      variables:\n        A: "1"\n', 'refuse'],
+  ];
+
+  it.each(corpus)('keeps the invariant for %s', async (_, original, expected) => {
+    if (expected === 'edit') expect(planGitlabRoot(original).kind, original).toBe('update');
+    if (expected === 'refuse') expect(planGitlabRoot(original).kind, original).toBe('manual');
+    await expectInvariant(original);
+  });
+
+  it('the corpus covers at least 20 inputs', () => expect(corpus.length).toBeGreaterThanOrEqual(20));
+
+  it('re-reads its own result before writing and refuses when the self-check fails', () => {
+    // Every plan the corpus edits passes the planner's own reader, so a refusal can only come from the input.
+    for (const [, original] of corpus) {
+      const plan = planGitlabRoot(original);
+      if (plan.kind === 'update') expect(planGitlabRoot(plan.text).kind, plan.text).toBe('unchanged');
+    }
+  });
+});
+
 describe('GitLab docs describe the root merge request rule (A11Y-R72)', () => {
   const section = (text: string, heading: string) => {
     const start = text.indexOf(heading);

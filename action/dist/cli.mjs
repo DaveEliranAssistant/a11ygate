@@ -2354,9 +2354,9 @@ function toJunit(report) {
     const failingItem = { ...item, findings: item.findings.filter((f) => f.baselineStatus !== "existing") };
     const type = escapeXml(item.name);
     const message = escapeXml(failureMessage(failingItem));
-    const body = escapeXml(failureBody(failingItem));
+    const body2 = escapeXml(failureBody(failingItem));
     return `    <testcase ${attrs}>
-      <failure message="${message}" type="${type}">${body}</failure>
+      <failure message="${message}" type="${type}">${body2}</failure>
     </testcase>`;
   });
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -3903,8 +3903,8 @@ function parseRobots(text, agent = ROBOTS_AGENT) {
 }
 function patternToRegExp(pattern) {
   const anchored = pattern.endsWith("$");
-  const body = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
-  return new RegExp("^" + body + (anchored ? "$" : ""));
+  const body2 = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  return new RegExp("^" + body2 + (anchored ? "$" : ""));
 }
 function isAllowedByRobots(robots, pathAndQuery) {
   if (!robots || robots.rules.length === 0) return true;
@@ -4834,11 +4834,11 @@ ${engines}
 }
 function topFixesSection(t, rules2) {
   const top = rules2.slice(0, TOP_FIXES_LIMIT);
-  const body = top.length === 0 ? `<p>${t.t("topFixes.empty")}</p>` : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc2(r.ruleId)}</strong></a> ${badge(t, r.impact)} \u2014 ${esc2(r.help)}<br><span class="muted">${t.t("topFixes.stats", { pages: t.plural("plural.page", r.pages.length), occurrences: t.plural("plural.occurrence", r.occurrences), newCount: r.newOccurrences ? t.t("topFixes.newCount", { n: r.newOccurrences }) : "", score: r.score, criteria: r.wcag.length ? t.t("topFixes.wcag", { numbers: esc2(r.wcag.map((c) => c.number).join(", ")) }) : t.t("topFixes.bestPractice") })}</span></li>`).join("")}</ol>`;
+  const body2 = top.length === 0 ? `<p>${t.t("topFixes.empty")}</p>` : `<ol class="top">${top.map((r, i) => `<li><a href="#${ruleAnchor(i)}"><strong>${esc2(r.ruleId)}</strong></a> ${badge(t, r.impact)} \u2014 ${esc2(r.help)}<br><span class="muted">${t.t("topFixes.stats", { pages: t.plural("plural.page", r.pages.length), occurrences: t.plural("plural.occurrence", r.occurrences), newCount: r.newOccurrences ? t.t("topFixes.newCount", { n: r.newOccurrences }) : "", score: r.score, criteria: r.wcag.length ? t.t("topFixes.wcag", { numbers: esc2(r.wcag.map((c) => c.number).join(", ")) }) : t.t("topFixes.bestPractice") })}</span></li>`).join("")}</ol>`;
   return `<section id="top-fixes" aria-labelledby="top-fixes-h">
 <h2 id="top-fixes-h">${t.t("topFixes.heading", { limit: TOP_FIXES_LIMIT })}</h2>
 <p class="muted">${t.t("topFixes.ordering")}</p>
-${body}
+${body2}
 </section>`;
 }
 function sharedComponentsSection(t, report) {
@@ -4873,7 +4873,7 @@ function en301549RefTable(report, t = htmlTranslator()) {
 function byWcagSection(t, report, rules2, options = {}) {
   const groups = groupByCriterion(report.findings);
   const anchor = new Map(rules2.map((r, i) => [r.ruleId, ruleAnchor(i)]));
-  const body = groups.length === 0 ? `<p>${t.t("wcag.none")}</p>` : groups.map((g) => {
+  const body2 = groups.length === 0 ? `<p>${t.t("wcag.none")}</p>` : groups.map((g) => {
     const perRule = /* @__PURE__ */ new Map();
     for (const f of g.findings) perRule.set(f.ruleId, [...perRule.get(f.ruleId) ?? [], f]);
     const items = [...perRule.entries()].sort((a, b) => rules2.findIndex((r) => r.ruleId === a[0]) - rules2.findIndex((r) => r.ruleId === b[0])).map(([ruleId, list]) => `<li>${t.t("wcag.ruleLine", { ruleId: `<a href="#${anchor.get(ruleId)}">${esc2(ruleId)}</a>`, occurrences: t.plural("plural.occurrence", list.length), pages: t.plural("plural.page", new Set(list.map((f) => f.pageUrl)).size) })}</li>`).join("");
@@ -4882,25 +4882,25 @@ function byWcagSection(t, report, rules2, options = {}) {
   return `<section id="by-wcag" aria-labelledby="by-wcag-h">
 <h2 id="by-wcag-h">${t.t("wcag.heading")}</h2>
 <p class="muted">${t.t("wcag.note")}</p>
-${options.en301549Ref ? en301549RefTable(report, t) + "\n" : ""}${body}
+${options.en301549Ref ? en301549RefTable(report, t) + "\n" : ""}${body2}
 </section>`;
 }
 function pageFinding(t, f) {
   return `<li>${f.baselineStatus ? `<span class="tag">${esc2(f.baselineStatus)}</span> ` : ""}<strong>${esc2(f.ruleId)}</strong> ${badge(t, f.impact)} \u2014 ${esc2(f.help)}<br>${t.t("page.selector", { selector: `<code>${esc2(f.selector)}</code>` })}${f.engines ? '<br><span class="muted">' + engineAttribution(t, f, esc2) + "</span>" : ""}</li>`;
 }
 function byPageSection(t, report) {
-  const body = report.pages.map((p) => {
+  const body2 = report.pages.map((p) => {
     const list = report.findings.filter((f) => [p.url, p.finalUrl, normalizeUrl(p.url)].includes(f.pageUrl)).sort((a, b) => impactRank(b.impact) - impactRank(a.impact) || a.ruleId.localeCompare(b.ruleId));
     const status = t.t("page.status", { status: p.status ?? t.t("page.noStatus"), scanStatus: esc2(p.scanStatus), error: p.error ? " \u2014 " + esc2(p.error) : "" });
     return `<section><h3><code>${esc2(p.url)}</code> (${p.findings})</h3><p class="muted">${status}${p.cache ? " \u2014 " + esc2(p.cache.note) : ""}</p>${list.length ? `<ul>${list.map((f) => pageFinding(t, f)).join("")}</ul>` : `<p>${t.t("page.none")}</p>`}</section>`;
   }).join("\n");
   return `<section id="by-page" aria-labelledby="by-page-h">
 <h2 id="by-page-h">${t.t("page.heading")}</h2>
-${body || `<p>${t.t("page.noPages")}</p>`}
+${body2 || `<p>${t.t("page.noPages")}</p>`}
 </section>`;
 }
 function howToFixSection(t, rules2) {
-  const body = rules2.length === 0 ? `<p>${t.t("fix.none")}</p>` : rules2.map((r, i) => {
+  const body2 = rules2.length === 0 ? `<p>${t.t("fix.none")}</p>` : rules2.map((r, i) => {
     const g = findingGuidance(asGuidanceInput(r));
     const links = [
       ...r.helpUrls.map((u) => `<li><a href="${safeHref2(u)}">${t.t("fix.engineHelp")}<span class="sr">${t.t("fix.engineHelpFor", { ruleId: esc2(r.ruleId) })}</span></a></li>`),
@@ -4920,7 +4920,7 @@ ${links.length ? `<p><strong>${t.t("fix.references")}</strong></p><ul>${links.jo
   return `<section id="how-to-fix" aria-labelledby="how-to-fix-h">
 <h2 id="how-to-fix-h">${t.t("fix.heading")}</h2>
 <p class="muted">${t.t("fix.noInventedText")}</p>
-${body}
+${body2}
 </section>`;
 }
 function limitsSection(t, report) {
@@ -6735,9 +6735,9 @@ function ref(text, key) {
 function pageOrder(pdf, node, seen = /* @__PURE__ */ new Set()) {
   if (seen.has(node)) return [];
   seen.add(node);
-  const body = objectBody(pdf, node);
-  if (!body) return [];
-  const dict = body.split(/\bstream\b/)[0] ?? "";
+  const body2 = objectBody(pdf, node);
+  if (!body2) return [];
+  const dict = body2.split(/\bstream\b/)[0] ?? "";
   if (/\/Type\s*\/Page\b(?!s)/.test(dict)) return [node];
   const kids = /\/Kids\s*\[([^\]]*)\]/.exec(dict);
   if (!kids) return [];
@@ -6880,7 +6880,7 @@ function createZip(entries2) {
     const name = Buffer.from(entry.path, "utf8");
     const raw2 = Buffer.from(entry.data);
     const store = shouldStore(entry.path);
-    const body = store ? raw2 : deflateRawSync(raw2, { level: 9 });
+    const body2 = store ? raw2 : deflateRawSync(raw2, { level: 9 });
     const method = store ? 0 : 8;
     const crc = crc32(raw2);
     const header = Buffer.alloc(30);
@@ -6891,11 +6891,11 @@ function createZip(entries2) {
     header.writeUInt16LE(DOS_TIME, 10);
     header.writeUInt16LE(DOS_DATE, 12);
     header.writeUInt32LE(crc, 14);
-    header.writeUInt32LE(body.length, 18);
+    header.writeUInt32LE(body2.length, 18);
     header.writeUInt32LE(raw2.length, 22);
     header.writeUInt16LE(name.length, 26);
     header.writeUInt16LE(0, 28);
-    local.push(header, name, body);
+    local.push(header, name, body2);
     const record = Buffer.alloc(46);
     record.writeUInt32LE(33639248, 0);
     record.writeUInt16LE(20, 4);
@@ -6905,13 +6905,13 @@ function createZip(entries2) {
     record.writeUInt16LE(DOS_TIME, 12);
     record.writeUInt16LE(DOS_DATE, 14);
     record.writeUInt32LE(crc, 16);
-    record.writeUInt32LE(body.length, 20);
+    record.writeUInt32LE(body2.length, 20);
     record.writeUInt32LE(raw2.length, 24);
     record.writeUInt16LE(name.length, 28);
     record.writeUInt32LE(0, 38);
     record.writeUInt32LE(offset, 42);
     central.push(record, name);
-    offset += header.length + name.length + body.length;
+    offset += header.length + name.length + body2.length;
     if (offset > MAX_ZIP_BYTES) throw new Error("Evidence pack exceeds the 4 GB ZIP limit.");
   }
   const centralBuffer = Buffer.concat(central);
@@ -6984,14 +6984,14 @@ function readZip(zip, limits = {}) {
     if (buf.readUInt32LE(localAt) !== 67324752) throw new ZipError(`Corrupt local header for ${label}.`);
     const dataAt = localAt + 30 + buf.readUInt16LE(localAt + 26) + buf.readUInt16LE(localAt + 28);
     need(dataAt, compressed, `data of ${label}`);
-    const body = buf.subarray(dataAt, dataAt + compressed);
+    const body2 = buf.subarray(dataAt, dataAt + compressed);
     let data;
     if (method === 0) {
       if (compressed !== declared) throw new ZipError(`Size mismatch for ${label}.`);
-      data = Buffer.from(body);
+      data = Buffer.from(body2);
     } else {
       try {
-        data = inflateRawSync(body, { maxOutputLength: Math.max(1, declared + 1) });
+        data = inflateRawSync(body2, { maxOutputLength: Math.max(1, declared + 1) });
       } catch {
         throw new ZipError(`Corrupt compressed data for ${label}.`);
       }
@@ -8614,7 +8614,7 @@ function evaluateCriteria(config2, latest, criteriaPath) {
   );
   return rows;
 }
-function document2(title, body, styles = "") {
+function document2(title, body2, styles = "") {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -8642,7 +8642,7 @@ ${styles}
 <p class="disclaimer">${AUTOMATED_TESTING_DISCLAIMER}</p>
 </header>
 <main>
-${body}
+${body2}
 </main>
 </body>
 </html>
@@ -9260,9 +9260,9 @@ function unfence(text) {
   return match ? match[1] : text;
 }
 function draftFromModelText(text, request) {
-  const body = parseJson(unfence(text));
-  if (!isRecord3(body)) throw new ProviderError("invalid-output", "model reply is not a JSON object", { rejection: "schema" });
-  const { replacement, rationale } = body;
+  const body2 = parseJson(unfence(text));
+  if (!isRecord3(body2)) throw new ProviderError("invalid-output", "model reply is not a JSON object", { rejection: "schema" });
+  const { replacement, rationale } = body2;
   if (!Array.isArray(replacement) || !replacement.every((line) => typeof line === "string") || typeof rationale !== "string") {
     throw new ProviderError("invalid-output", "model reply does not match the schema", { rejection: "schema" });
   }
@@ -9356,8 +9356,8 @@ function groqAdapter(options = {}) {
         await response.body?.cancel().catch(() => void 0);
         throw httpError("groq", response.status, retryAfterMs, false, false);
       }
-      const body = parseJson(await readCapped(response));
-      const choice = isRecord3(body) && Array.isArray(body.choices) ? body.choices[0] : null;
+      const body2 = parseJson(await readCapped(response));
+      const choice = isRecord3(body2) && Array.isArray(body2.choices) ? body2.choices[0] : null;
       const content = isRecord3(choice) && isRecord3(choice.message) ? choice.message.content : null;
       if (typeof content !== "string") throw new ProviderError("invalid-output", "groq: unexpected response shape", { rejection: "schema" });
       return draftFromModelText(content, request);
@@ -9370,16 +9370,16 @@ function maxOf(...values) {
 }
 var GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 var GEMINI_MODEL = /^[a-z0-9][a-z0-9.-]{0,63}$/;
-function geminiRetryDelay(body) {
-  const error = isRecord3(body) && isRecord3(body.error) ? body.error : null;
+function geminiRetryDelay(body2) {
+  const error = isRecord3(body2) && isRecord3(body2.error) ? body2.error : null;
   const details = error && Array.isArray(error.details) ? error.details : [];
   for (const detail of details) {
     if (isRecord3(detail) && typeof detail.retryDelay === "string") return parseDuration(detail.retryDelay);
   }
   return null;
 }
-function geminiErrorText(body) {
-  const error = isRecord3(body) && isRecord3(body.error) ? body.error : null;
+function geminiErrorText(body2) {
+  const error = isRecord3(body2) && isRecord3(body2.error) ? body2.error : null;
   return error ? `${String(error.status ?? "")} ${String(error.message ?? "")}` : "";
 }
 function geminiAdapter(options = {}) {
@@ -9412,15 +9412,15 @@ function geminiAdapter(options = {}) {
         })
       });
       if (!response.ok) {
-        const body2 = parseJson(await readCapped(response).catch(() => ""));
-        const text2 = geminiErrorText(body2);
-        const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"), now()) ?? geminiRetryDelay(body2);
+        const body3 = parseJson(await readCapped(response).catch(() => ""));
+        const text2 = geminiErrorText(body3);
+        const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"), now()) ?? geminiRetryDelay(body3);
         const quota = response.status === 429 && /quota/i.test(text2);
         const regionBlocked = /location is not supported|not available in your (country|region)/i.test(text2);
         throw httpError("gemini", response.status, retryAfterMs, quota, regionBlocked);
       }
-      const body = parseJson(await readCapped(response));
-      const candidate = isRecord3(body) && Array.isArray(body.candidates) ? body.candidates[0] : null;
+      const body2 = parseJson(await readCapped(response));
+      const candidate = isRecord3(body2) && Array.isArray(body2.candidates) ? body2.candidates[0] : null;
       const parts = isRecord3(candidate) && isRecord3(candidate.content) && Array.isArray(candidate.content.parts) ? candidate.content.parts : null;
       const text = parts?.map((part) => isRecord3(part) && typeof part.text === "string" ? part.text : "").join("") ?? null;
       if (!text) throw new ProviderError("invalid-output", "gemini: unexpected response shape", { rejection: "schema" });
@@ -9431,8 +9431,8 @@ function geminiAdapter(options = {}) {
 var CLOUDFLARE_BASE = "https://api.cloudflare.com/client/v4/accounts/";
 var CLOUDFLARE_ACCOUNT = /^[a-f0-9]{32}$/;
 var CLOUDFLARE_MODEL = /^@cf\/[a-z0-9-]+\/[a-z0-9._-]+$/i;
-function cloudflareErrors(body) {
-  const errors = isRecord3(body) && Array.isArray(body.errors) ? body.errors : [];
+function cloudflareErrors(body2) {
+  const errors = isRecord3(body2) && Array.isArray(body2.errors) ? body2.errors : [];
   const codes = [];
   let text = "";
   for (const error of errors) {
@@ -9475,15 +9475,15 @@ function cloudflareAdapter(options = {}) {
         })
       });
       if (!response.ok) {
-        const body2 = parseJson(await readCapped(response).catch(() => ""));
-        const { codes, text } = cloudflareErrors(body2);
+        const body3 = parseJson(await readCapped(response).catch(() => ""));
+        const { codes, text } = cloudflareErrors(body3);
         const quota = codes.includes(4006) || /neuron|daily free allocation/i.test(text);
         const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"), now()) ?? (quota ? untilNextUtcMidnight(now()) : null);
         const regionBlocked = /not available in your (country|region)|region/i.test(text) && response.status === 403;
         throw httpError("cloudflare", response.status, retryAfterMs, quota, regionBlocked);
       }
-      const body = parseJson(await readCapped(response));
-      const result = isRecord3(body) && isRecord3(body.result) ? body.result : null;
+      const body2 = parseJson(await readCapped(response));
+      const result = isRecord3(body2) && isRecord3(body2.result) ? body2.result : null;
       const content = result?.response;
       if (typeof content !== "string") throw new ProviderError("invalid-output", "cloudflare: unexpected response shape", { rejection: "schema" });
       return draftFromModelText(content, request);
@@ -9841,60 +9841,134 @@ ${GITLAB_ROOT_SNIPPET}`;
 }
 var KEY_RE = /^[ ]*(?:"([^"]+)"|'((?:[^']|'')+)'|((?:[^\s#'":-]|[-:](?=\S))(?:[^:#]|:(?=\S))*?))[ \t]*:(?:[ \t]+(.*))?$/;
 var UNSAFE_KEY_START = /^[?&*!|>%@`{}[\],]/;
-var PLANNER_KEYS = /* @__PURE__ */ new Set(["workflow", "include", "rules"]);
-var QUOTED_KEY_RE = /^[ ]*(?:-[ ]+)*(?:'(?:[^']|'')*'|"(?:[^"\\]|\\.)*")[ ]*:(?:[ ]|$)/;
+var PLANNER_KEYS = /* @__PURE__ */ new Set(["workflow", "include"]);
 var NODE_PROPERTY_RE = /(^|[\s[{,])(?:&[\w-]|\*[\w-]|![\w!]|<<[ \t]*:)/;
-var BLOCK_SCALAR_RE = /(?:^[ ]*-|:)[ \t]+(?:[!&][^\s]*[ \t]+)*[|>][-+0-9]*[ \t]*(?:#.*)?$/;
+var BLOCK_HEADER_RE = /(^|[ ])[|>][-+0-9]*$/;
+var ITEM_RE = /^-(?:[ ]+|$)/;
+var PLAIN_KEY_RE = /^([A-Za-z_][\w-]*)[ ]*:(?:[ ]+(.*))?$/;
 var indentOf = (line) => /^[ ]*/.exec(line)[0].length;
-var meaningful = (line) => line.trim() !== "" && !line.trim().startsWith("#");
-function splitComment(text) {
+var unquoted = (line) => line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, '""');
+var JOB_FILES = /* @__PURE__ */ new Set([CI_FILES.gitlab, `/${CI_FILES.gitlab}`]);
+function scanLine(text) {
   let quote;
+  const flow = [];
+  const endEntry = () => {
+    const top = flow[flow.length - 1];
+    const key = (/^(.*?):(?:[ ]|$)/.exec(top.entry.trim())?.[1] ?? top.entry).trim();
+    top.entry = "";
+    if (!top.map || !key) return true;
+    if (top.keys.has(key)) return false;
+    top.keys.add(key);
+    return true;
+  };
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    if (quote === "'") {
-      if (c === "'") {
-        if (text[i + 1] === "'") i++;
-        else quote = void 0;
-      }
-      continue;
-    }
-    if (quote === '"') {
-      if (c === "\\") i++;
-      else if (c === '"') quote = void 0;
+    const top = flow[flow.length - 1];
+    if (quote) {
+      if (top) top.entry += c;
+      if (quote === "'") {
+        if (c === "'") {
+          if (text[i + 1] === "'") {
+            i++;
+            if (top) top.entry += "'";
+          } else quote = void 0;
+        }
+      } else if (c === "\\") {
+        i++;
+        if (top) top.entry += text[i] ?? "";
+      } else if (c === '"') quote = void 0;
       continue;
     }
     const previous = i ? text[i - 1] : " ";
-    if ((c === "'" || c === '"') && /[\s[{,]/.test(previous)) quote = c;
-    else if (c === "#" && /\s/.test(previous)) return { code: text.slice(0, i).trimEnd(), comment: true };
+    if ((c === "'" || c === '"') && /[\s[{,]/.test(previous)) {
+      quote = c;
+      if (top) top.entry += c;
+    } else if (c === "#" && /\s/.test(previous)) {
+      if (flow.length) return "has a flow collection that continues on the next line";
+      return { code: text.slice(0, i).trimEnd(), comment: true };
+    } else if ((c === "[" || c === "{") && (flow.length || /\s/.test(previous))) flow.push({ map: c === "{", keys: /* @__PURE__ */ new Set(), entry: "" });
+    else if ((c === "]" || c === "}") && top) {
+      if (c === "}" !== top.map) return "has a flow collection init cannot read";
+      if (!endEntry()) return "repeats a key in a flow mapping";
+      flow.pop();
+    } else if (c === "," && top) {
+      if (!endEntry()) return "repeats a key in a flow mapping";
+    } else if (top) top.entry += c;
   }
+  if (quote) return "has a quoted value that continues on the next line";
+  if (flow.length) return "has a flow collection that continues on the next line";
   return { code: text.trimEnd(), comment: false };
 }
-var stripComment2 = (value) => splitComment(value).code.trim();
-var unquoted = (line) => line.replace(/'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/g, '""');
-var JOB_FILES = /* @__PURE__ */ new Set([CI_FILES.gitlab, `/${CI_FILES.gitlab}`]);
-function scalar2(raw2) {
-  const value = stripComment2(raw2);
+function scalar2(value) {
   const single = /^'((?:[^']|'')*)'$/.exec(value);
   if (single) return single[1].replace(/''/g, "'");
   const double = /^"([^"\\]*)"$/.exec(value);
   if (double) return double[1];
-  return /^[^\s'"&*!|>%@`{}[\],#?-][^#]*$/.test(value) ? value : void 0;
+  if (!value || /^[\s&*!|>%@`{}[\],#?:'"-]/.test(value) || /:[ ]|:$|[ ]#/.test(value)) return void 0;
+  return value;
 }
-function mappingKeys(lines, from, to) {
+function scanFile(text) {
+  const lines = text.split("\n");
+  const tokens = [];
+  const headers = [];
+  const comments = [];
+  const scopes = [];
+  let block = -1;
+  for (const [i, line] of lines.entries()) {
+    if (block >= 0) {
+      if (line.trim() === "" || indentOf(line) > block) continue;
+      block = -1;
+    }
+    if (line.trim() === "") continue;
+    if (line.trim().startsWith("#")) {
+      comments.push(i);
+      continue;
+    }
+    const scanned = scanLine(line);
+    if (typeof scanned === "string") return `line ${i + 1} ${scanned}`;
+    const indent = indentOf(line);
+    tokens.push({ line: i, indent, code: scanned.code.slice(indent), comment: scanned.comment });
+    while (scopes.length && scopes[scopes.length - 1].col > indent) scopes.pop();
+    let col = indent;
+    let rest = scanned.code.slice(indent);
+    for (let item = ITEM_RE.exec(rest); item; item = ITEM_RE.exec(rest)) {
+      col += item[0].length;
+      rest = rest.slice(item[0].length);
+      while (scopes.length && scopes[scopes.length - 1].col >= col) scopes.pop();
+    }
+    const key = rest ? KEY_RE.exec(rest) : null;
+    if (key) {
+      const name = key[1] ?? key[2]?.replace(/''/g, "'") ?? key[3];
+      if (scopes[scopes.length - 1]?.col !== col) scopes.push({ col, keys: /* @__PURE__ */ new Set() });
+      const scope = scopes[scopes.length - 1];
+      if (scope.keys.has(name)) return `it repeats the key '${name}' (line ${i + 1})`;
+      scope.keys.add(name);
+    }
+    if (BLOCK_HEADER_RE.test(scanned.code)) {
+      headers.push(i);
+      block = indent;
+    }
+  }
+  const keys = topLevelKeys(lines, tokens);
+  return typeof keys === "string" ? keys : { lines, tokens, headers, comments, keys };
+}
+function topLevelKeys(lines, tokens) {
   const keys = [];
-  let indent = -1;
-  for (let i = from; i < to; i++) {
-    const line = lines[i];
-    if (!meaningful(line)) continue;
-    const at = indentOf(line);
-    if (indent < 0) indent = at;
-    if (at > indent) continue;
-    if (at < indent) return `line ${i + 1} is indented less than the mapping it belongs to`;
-    if (/^[ ]*-([ ]|$)/.test(line)) {
-      if (keys.length && !keys[keys.length - 1].value) continue;
+  for (const token of tokens) {
+    const i = token.line;
+    const last = keys[keys.length - 1];
+    if (token.indent > 0) {
+      if (!last) return "its top-level mapping is indented";
+      if (last.value && !BLOCK_HEADER_RE.test(last.value) && !/^(?:[&!]\S*[ ]*)+$/.test(last.value)) {
+        return `line ${i + 1} continues the value of the top-level key '${last.name}' on a new line`;
+      }
+      continue;
+    }
+    if (ITEM_RE.test(token.code)) {
+      if (last && !last.value) continue;
       return `line ${i + 1} is a list item where init expects a key`;
     }
-    const match = KEY_RE.exec(line);
+    const match = KEY_RE.exec(lines[i]);
     if (!match) return `line ${i + 1} is not a key this tool can read`;
     if (match[1]?.includes("\\")) return `line ${i + 1} writes a key with escape sequences, which init does not decode`;
     const name = match[1] ?? match[2]?.replace(/''/g, "'") ?? match[3];
@@ -9903,150 +9977,190 @@ function mappingKeys(lines, from, to) {
     }
     if (match[3] && (UNSAFE_KEY_START.test(name) || name === "<<")) return `line ${i + 1} uses a YAML key form init does not edit`;
     if (keys.some((key) => key.name === name)) return `it repeats the key '${name}'`;
-    const value = stripComment2(match[4] ?? "");
-    if (/^['"]/.test(value) && scalar2(value) === void 0) return `line ${i + 1} has a quoted value init cannot read`;
-    if (/^[[{]/.test(value) && !/[\]}]$/.test(value)) return `line ${i + 1} has a multi-line flow value`;
-    keys.push({ name, start: i, end: to, indent, value });
+    keys.push({ name, start: i, end: lines.length, indent: 0, value: token.code.replace(KEY_RE, "$4").trim() });
   }
   for (const [i, key] of keys.entries()) if (keys[i + 1]) key.end = keys[i + 1].start;
   return keys;
 }
-function sequenceItems(lines, from, to) {
-  const first = lines.slice(from, to).find(meaningful);
-  if (!first || !/^[ ]*-([ ]|$)/.test(first)) return "it is not a block list";
-  const indent = indentOf(first);
-  const items = [];
-  for (let i = from; i < to; i++) {
-    const line = lines[i];
-    if (!meaningful(line)) continue;
-    if (indentOf(line) < indent) return `line ${i + 1} is indented less than its list`;
-    if (indentOf(line) === indent) {
-      if (!/^[ ]*-([ ]|$)/.test(line)) return `line ${i + 1} breaks the list`;
-      items.push([line]);
-    } else items[items.length - 1].push(line);
+function parseBody(source) {
+  const tokens = source.map((token) => ({ ...token }));
+  let pos = 0;
+  const fail = (token, why) => `line ${token.line + 1} ${why}`;
+  const deeper = (indent) => pos < tokens.length && tokens[pos].indent > indent;
+  function block(indent) {
+    return ITEM_RE.test(tokens[pos].code) ? seq(indent) : map(indent);
   }
-  return { indent, items };
+  function child(indent) {
+    const next = tokens[pos];
+    if (!next || next.indent < indent) return null;
+    if (next.indent === indent) return ITEM_RE.test(next.code) ? seq(indent) : null;
+    return block(next.indent);
+  }
+  function seq(indent) {
+    const items = [];
+    while (pos < tokens.length && tokens[pos].indent === indent && ITEM_RE.test(tokens[pos].code)) {
+      const token = tokens[pos];
+      const dash = ITEM_RE.exec(token.code)[0];
+      const rest = token.code.slice(dash.length);
+      let value;
+      if (!rest) {
+        pos++;
+        value = deeper(indent) ? block(tokens[pos].indent) : null;
+      } else if (ITEM_RE.test(rest)) return fail(token, "nests a list item on the same line");
+      else if (PLAIN_KEY_RE.test(rest)) {
+        tokens[pos] = { ...token, indent: indent + dash.length, code: rest };
+        value = map(indent + dash.length);
+      } else {
+        const text = scalar2(rest);
+        if (text === void 0) return fail(token, "has a list item init cannot read");
+        pos++;
+        if (deeper(indent)) return fail(tokens[pos], "continues a value on a new line");
+        value = { kind: "scalar", value: text };
+      }
+      if (typeof value === "string") return value;
+      items.push(value);
+    }
+    if (deeper(indent)) return fail(tokens[pos], "is indented more than its list");
+    return { kind: "seq", indent, items };
+  }
+  function map(indent) {
+    const entries2 = /* @__PURE__ */ new Map();
+    while (pos < tokens.length && tokens[pos].indent === indent && !ITEM_RE.test(tokens[pos].code)) {
+      const token = tokens[pos];
+      const match = PLAIN_KEY_RE.exec(token.code);
+      if (!match) return fail(token, "is not a plain key init can read (quoted keys, tags and other forms are not edited)");
+      if (entries2.has(match[1])) return fail(token, `repeats the key '${match[1]}'`);
+      pos++;
+      let value;
+      if (match[2] === void 0) value = child(indent);
+      else {
+        const text = scalar2(match[2]);
+        if (text === void 0) return fail(token, "has a value init cannot read");
+        if (deeper(indent)) return fail(tokens[pos], "continues a value on a new line");
+        value = { kind: "scalar", value: text };
+      }
+      if (typeof value === "string") return value;
+      entries2.set(match[1], { line: token.line, value });
+    }
+    if (deeper(indent)) return fail(tokens[pos], "is indented more than its mapping");
+    return { kind: "map", indent, entries: entries2 };
+  }
+  if (!tokens.length) return null;
+  const result = block(tokens[0].indent);
+  if (typeof result === "string") return result;
+  return pos === tokens.length ? result : fail(tokens[pos], "is not part of the block init reads");
 }
-var hasNodeProperties = (lines) => lines.some((line) => meaningful(line) && NODE_PROPERTY_RE.test(unquoted(line)));
-var RULE_FIELD_RE = /^([a-z_]+):(?:[ ]+(.*))?$/;
+function body(scan2, key, allowComments) {
+  const tokens = scan2.tokens.filter((token) => token.line > key.start && token.line < key.end);
+  if (key.value) return "has a value on the key line where init expects a block";
+  if (scan2.headers.some((line) => line > key.start && line < key.end)) return "holds a block scalar (| or >)";
+  if (tokens.some((token) => NODE_PROPERTY_RE.test(unquoted(token.code)))) return "uses anchors, aliases, tags or merge keys";
+  if (!allowComments && tokens.some((token) => token.comment)) return "has a comment after a value";
+  return parseBody(tokens);
+}
 var KNOWN_WHEN = /* @__PURE__ */ new Set(["on_success", "on_failure", "always", "never", "manual", "delayed"]);
 var ENABLING_WHEN = /* @__PURE__ */ new Set(["on_success", "always"]);
 var MR_EXPRESSION_RE = /^\$CI_PIPELINE_SOURCE[ ]*==[ ]*(["'])merge_request_event\1$/;
-function ruleValue(raw2) {
-  if (raw2.startsWith("'")) return /^'((?:[^']|'')*)'$/.exec(raw2)?.[1].replace(/''/g, "'");
-  if (raw2.startsWith('"')) return /^"((?:[^"\\]|\\["\\])*)"$/.exec(raw2)?.[1].replace(/\\(["\\])/g, "$1");
-  if (!raw2 || /^[\s&*!|>%@`{}[\],#?:'"-]/.test(raw2) || /:[ ]|:$/.test(raw2)) return void 0;
-  return raw2;
-}
-function classifyRule(item) {
-  const head = /^([ ]*-[ ]+)(\S.*)$/.exec(item[0]);
-  if (!head) return "unclear";
-  const indent = head[1].length;
-  const fields = /* @__PURE__ */ new Map();
-  for (const [index, line] of [head[2], ...item.slice(1)].entries()) {
-    if (index > 0 && indentOf(line) !== indent) return "unclear";
-    const { code: code3, comment } = splitComment(line.trim());
-    if (comment) return "unclear";
-    const field = RULE_FIELD_RE.exec(code3);
-    if (!field || fields.has(field[1])) return "unclear";
-    const value = ruleValue(field[2] ?? "");
-    if (value === void 0) return "unclear";
-    fields.set(field[1], value);
-  }
-  const when = fields.get("when");
-  if (when !== void 0 && !KNOWN_WHEN.has(when)) return "unclear";
-  const condition = fields.get("if");
-  const enabling = condition !== void 0 && MR_EXPRESSION_RE.test(condition.trim()) && [...fields.keys()].every((key) => key === "if" || key === "when") && (when === void 0 || ENABLING_WHEN.has(when));
-  return enabling ? "enabling" : "other";
-}
-function planWorkflow(lines, workflow, tag) {
+function planWorkflow(scan2, workflow, tag) {
   const manual = (reason) => ({ kind: "manual", reason: `its workflow: block ${reason}` });
-  if (workflow.value) return manual("is not a plain block mapping");
-  const body = lines.slice(workflow.start + 1, workflow.end);
-  if (hasNodeProperties(body)) return manual("uses anchors, aliases, tags or merge keys");
-  const keys = mappingKeys(lines, workflow.start + 1, workflow.end);
-  if (typeof keys === "string") return manual(`cannot be read safely (${keys})`);
-  if (!keys.length) return manual("is empty");
-  const childIndent = " ".repeat(keys[0].indent);
-  const rules2 = keys.find((key) => key.name === "rules");
+  const node = body(scan2, workflow, false);
+  if (typeof node === "string") return manual(`cannot be read safely (${node})`);
+  if (!node || node.kind !== "map") return manual(node ? "is not a block mapping" : "is empty");
+  const rules2 = node.entries.get("rules");
   if (!rules2) {
+    const childIndent = " ".repeat(node.indent);
     const ruleLines = GITLAB_WORKFLOW_BLOCK.split("\n").slice(1, -1).map((line) => `${childIndent}${line.slice(2)}`);
-    return { kind: "insert", insertion: { at: workflow.start + 1, lines: [`${childIndent}${tag}`, ...ruleLines] } };
+    return { kind: "insert", insertion: { at: workflow.start + 1, lines: [`${childIndent}${tag()}`, ...ruleLines] } };
   }
-  if (rules2.value) return manual("has rules: that are not a plain block list");
-  const list = sequenceItems(lines, rules2.start + 1, rules2.end);
-  if (typeof list === "string") return manual(`has rules: that init cannot read safely (${list})`);
-  const kinds = list.items.map(classifyRule);
-  if (kinds[0] === "enabling") return { kind: "present" };
-  const unclear = kinds.indexOf("unclear");
-  if (unclear >= 0) return manual(`has a rules: entry init cannot read safely (rule ${unclear + 1}: comments, quoted keys, multi-line or flow values, or an unknown when:)`);
-  if (list.items.some((item) => item.some((line) => line.includes("merge_request_event")))) {
-    return manual("already has a merge_request_event rule that is not a plain first rule creating merge request pipelines");
+  if (!rules2.value || rules2.value.kind !== "seq" || !rules2.value.items.length) return manual("has rules: that are not a non-empty block list");
+  const list = rules2.value;
+  const end = [...node.entries.values()].map((entry) => entry.line).filter((line) => line > rules2.line).concat(workflow.end).reduce((a, b) => Math.min(a, b));
+  const ruleTokens = scan2.tokens.filter((token) => token.line > rules2.line && token.line < end);
+  for (const line of scan2.comments.filter((c) => c > rules2.line && c < end)) {
+    if ((ruleTokens.find((token) => token.line > line)?.indent ?? 0) > list.indent) return manual(`has a comment inside a rules: entry (line ${line + 1})`);
   }
+  const mentions = [];
+  const enabling = [];
+  for (const [index, rule] of list.items.entries()) {
+    const fields = rule?.kind === "map" ? [...rule.entries] : void 0;
+    if (!fields || fields.some(([, entry]) => entry.value?.kind !== "scalar")) {
+      return manual(`has a rules: entry init cannot read exactly (rule ${index + 1}: only key: single-line value pairs are read)`);
+    }
+    const values = new Map(fields.map(([name, entry]) => [name, entry.value.value]));
+    const when = values.get("when");
+    if (when !== void 0 && !KNOWN_WHEN.has(when)) return manual(`has an unknown when: in rule ${index + 1}`);
+    if ([...values.values()].some((value) => value.includes("merge_request_event"))) mentions.push(index);
+    enabling.push(MR_EXPRESSION_RE.test(values.get("if")?.trim() ?? "") && [...values.keys()].every((name) => name === "if" || name === "when") && (when === void 0 || ENABLING_WHEN.has(when)));
+  }
+  if (enabling[0]) return { kind: "present" };
+  if (mentions.length) return manual("already has a merge_request_event rule that is not a plain first rule creating merge request pipelines");
   const itemIndent = " ".repeat(list.indent);
-  return { kind: "insert", insertion: { at: rules2.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`] } };
+  return { kind: "insert", insertion: { at: rules2.line + 1, lines: [`${itemIndent}${tag()}`, `${itemIndent}- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`] } };
 }
-function planInclude(lines, include, tag) {
+function planInclude(scan2, include, tag) {
   const manual = (reason) => ({ kind: "manual", reason: `its include: entry ${reason}` });
   if (include.value) {
     const file = scalar2(include.value);
     if (file !== void 0 && JOB_FILES.has(file)) return { kind: "present" };
     return manual("is not a block list init can extend safely");
   }
-  const list = sequenceItems(lines, include.start + 1, include.end);
-  if (typeof list === "string") return manual(`is not a block list init can extend safely (${list})`);
-  if (hasNodeProperties(lines.slice(include.start + 1, include.end))) return manual("uses anchors, aliases, tags or merge keys");
-  if (list.items.some((item) => item.some((line) => QUOTED_KEY_RE.test(line)))) return manual("uses quoted keys init does not edit");
-  for (const item of list.items) {
-    const rest = item[0].replace(/^[ ]*-[ ]*/, "");
-    const extra = item.slice(1).filter(meaningful);
-    const local = /^local:[ \t]+(.*)$/.exec(rest);
-    const file = scalar2(local ? local[1] : rest);
-    if (!extra.length && file !== void 0 && JOB_FILES.has(file)) return { kind: "present" };
-    if (item.some((line) => /(^|[\s{,])local:/.test(line)) && item.some((line) => line.includes(CI_FILES.gitlab))) {
+  const node = body(scan2, include, true);
+  if (typeof node === "string") return manual(`cannot be read safely (${node})`);
+  if (!node || node.kind !== "seq") return manual("is not a block list init can extend safely");
+  for (const item of node.items) {
+    if (item?.kind === "scalar" && JOB_FILES.has(item.value)) return { kind: "present" };
+    const local = item?.kind === "map" ? item.entries.get("local")?.value : void 0;
+    if (local?.kind === "scalar" && JOB_FILES.has(local.value)) {
+      if (item.kind === "map" && item.entries.size === 1) return { kind: "present" };
       return manual(`already includes ${CI_FILES.gitlab} in a form init cannot confirm`);
     }
   }
-  const itemIndent = " ".repeat(list.indent);
-  return { kind: "insert", insertion: { at: include.start + 1, lines: [`${itemIndent}${tag}`, `${itemIndent}${INCLUDE_ITEM}`] } };
+  const itemIndent = " ".repeat(node.indent);
+  return { kind: "insert", insertion: { at: include.start + 1, lines: [`${itemIndent}${tag()}`, `${itemIndent}${INCLUDE_ITEM}`] } };
 }
 function planGitlabRoot(original) {
-  const manual = (reason) => ({ kind: "manual", reason });
+  const plan = draftPlan(original);
+  if (plan.kind !== "update") return plan;
+  const problem = verifyResult(original, plan.text);
+  return problem ? { kind: "manual", reason: `init could not confirm its own edit (${problem})` } : plan;
+}
+function normalise(original) {
   const crlf = original.includes("\r\n");
-  if (crlf && /(^|[^\r])\n/.test(original)) return manual("it mixes line endings");
+  if (crlf && /(^|[^\r])\n/.test(original)) return { reason: "it mixes line endings" };
   const text = crlf ? original.replace(/\r\n/g, "\n") : original;
-  if (text.includes("\r")) return manual("it uses unsupported line endings");
-  if (text.startsWith("\uFEFF")) return manual("it starts with a byte order mark");
-  if (text.includes("	")) return manual("it contains tab characters");
-  if (/^(---|\.\.\.)([ ]|$)/m.test(text)) return manual("it uses YAML document markers");
-  const lines = text.split("\n");
-  const firstLine = lines.find(meaningful);
-  if (firstLine && indentOf(firstLine) > 0) return manual("its top-level mapping is indented");
-  const keys = mappingKeys(lines, 0, lines.length);
-  if (typeof keys === "string") return manual(keys);
+  if (text.includes("\r")) return { reason: "it uses unsupported line endings" };
+  if (text.startsWith("\uFEFF")) return { reason: "it starts with a byte order mark" };
+  if (text.includes("	")) return { reason: "it contains tab characters" };
+  if (/^(---|\.\.\.)([ ]|$)/m.test(text)) return { reason: "it uses YAML document markers" };
+  return text;
+}
+function draftPlan(original) {
+  const manual = (reason) => ({ kind: "manual", reason });
+  const text = normalise(original);
+  if (typeof text !== "string") return manual(text.reason);
+  const crlf = text !== original;
+  const scan2 = scanFile(text);
+  if (typeof scan2 === "string") return manual(scan2);
+  const { lines, keys } = scan2;
   const workflow = keys.find((key) => key.name === "workflow");
   const include = keys.find((key) => key.name === "include");
-  const tagged = { done: original.includes(AUTOMATED_TESTING_DISCLAIMER) };
+  let tagged = original.includes(AUTOMATED_TESTING_DISCLAIMER);
   const tag = () => {
-    const disclaimer = tagged.done ? "" : ` ${AUTOMATED_TESTING_DISCLAIMER}`;
-    tagged.done = true;
+    const disclaimer = tagged ? "" : ` ${AUTOMATED_TESTING_DISCLAIMER}`;
+    tagged = true;
     return `# Added by a11ygate init.${disclaimer}`;
   };
   const plans = [];
-  if (workflow) plans.push({ at: workflow.start, plan: () => planWorkflow(lines, workflow, tag()), label: "merge_request_event workflow rule" });
-  if (include) plans.push({ at: include.start, plan: () => planInclude(lines, include, tag()), label: "include" });
+  if (workflow) plans.push({ at: workflow.start, plan: () => planWorkflow(scan2, workflow, tag), label: "merge_request_event workflow rule" });
+  if (include) plans.push({ at: include.start, plan: () => planInclude(scan2, include, tag), label: "include" });
   plans.sort((a, b) => a.at - b.at);
   const insertions = [];
   const added = [];
   for (const entry of plans) {
-    const before = tagged.done;
-    const result = entry.plan();
-    if (result.kind === "manual") return manual(result.reason);
-    if (result.kind === "present") {
-      tagged.done = before;
-      continue;
-    }
-    insertions.push(result.insertion);
+    const result2 = entry.plan();
+    if (result2.kind === "manual") return manual(result2.reason);
+    if (result2.kind === "present") continue;
+    insertions.push(result2.insertion);
     added.push(entry.label);
   }
   const appended = [];
@@ -10060,19 +10174,34 @@ function planGitlabRoot(original) {
   }
   if (!insertions.length && !appended.length) return { kind: "unchanged" };
   const last = keys[keys.length - 1];
-  if (appended.length && last && lines.slice(last.start, last.end).some((line) => BLOCK_SCALAR_RE.test(line))) {
+  if (appended.length && scan2.headers.some((line) => !last || line >= last.start)) {
     return manual("its last top-level key holds a block scalar, so appending could change its value");
   }
   const out = [...lines];
   for (const insertion of [...insertions].sort((a, b) => b.at - a.at)) out.splice(insertion.at, 0, ...insertion.lines);
-  let body = out.join("\n");
+  let result = out.join("\n");
   if (appended.length) {
-    if (body && !body.endsWith("\n")) body += "\n";
-    body += `${body ? "\n" : ""}${tag()}
+    if (result && !result.endsWith("\n")) result += "\n";
+    result += `${result ? "\n" : ""}${tag()}
 ${EXPLAINER}
 ${appended.join("\n")}`;
   }
-  return { kind: "update", text: crlf ? body.replace(/\n/g, "\r\n") : body, added: added.sort((a, b) => a === "include" ? -1 : b === "include" ? 1 : 0) };
+  return { kind: "update", text: crlf ? result.replace(/\n/g, "\r\n") : result, added: added.sort((a, b) => a === "include" ? -1 : b === "include" ? 1 : 0) };
+}
+function verifyResult(original, result) {
+  const text = normalise(result);
+  if (typeof text !== "string") return text.reason;
+  const scan2 = scanFile(text);
+  if (typeof scan2 === "string") return scan2;
+  const named = (name) => scan2.keys.filter((key) => key.name === name);
+  if (named("workflow").length !== 1 || named("include").length !== 1) return "the result needs exactly one workflow: and one include:";
+  const noTag = () => "";
+  if (planInclude(scan2, named("include")[0], noTag).kind !== "present") return "the result does not include the job file";
+  if (planWorkflow(scan2, named("workflow")[0], noTag).kind !== "present") return "the result does not start workflow: rules with the merge request rule";
+  const before = original.split("\n");
+  let kept = 0;
+  for (const line of result.split("\n")) if (kept < before.length && line === before[kept]) kept++;
+  return kept === before.length ? void 0 : "the result does not keep every original line in order";
 }
 
 // packages/cli/src/init-pilot.ts
