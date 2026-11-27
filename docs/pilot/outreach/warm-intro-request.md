@@ -17,7 +17,7 @@ Would you be comfortable introducing me to {{prospect_first_name}} ({{prospect_r
 
 Why now: {{why_now}} (source: {{why_now_source}}).
 
-I'm building A11yGate, a CI gate with evidence, not an overlay widget. It runs automated accessibility checks on every pull request, keeps the existing findings as a baseline and fails the build only when something new and serious appears. I'm offering a free {{pilot_length_days}}-day pilot to a few teams and would like to ask {{prospect_first_name}} for 15 minutes.
+I'm building A11yGate, a CI gate with evidence, not an overlay widget. It runs automated accessibility checks on pull requests, keeps the existing findings as a baseline, and a new serious or critical finding fails the check, so existing debt doesn't block every build. I'm offering a free {{pilot_length_days}}-day pilot to a few teams and would like to ask {{prospect_first_name}} for 15 minutes.
 
 If it helps, here is a short blurb you can forward as it is (please keep the last line):
 

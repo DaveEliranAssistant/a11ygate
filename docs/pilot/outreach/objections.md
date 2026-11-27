@@ -53,7 +53,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 <!-- copy:start -->
 **"We already have hundreds of issues. Won't it just fail every build?"**
-No. The existing findings are recorded as a baseline. They stay listed as existing, and the gate fails only on new serious or critical ones, so the check can stay on while your team works the old ones down.
+No. The existing findings are recorded as a baseline. They stay listed as existing, and a new serious or critical finding (the default threshold) fails the gate; existing ones don't. Setup or scan errors, such as an unreadable baseline, also fail it. So the check can stay on while your team works the old ones down.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 <!-- copy:end -->
@@ -81,7 +81,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 <!-- copy:start -->
 **"What does it cost, and what happens after the pilot?"**
-The pilot is free for {{pilot_length_days}} days: no payment details, nothing billed automatically. After it, the paid plan is USD {{price_usd_per_year}} per year, and it starts only on your written yes. Otherwise the pilot ends and access is removed.
+The pilot is free for {{pilot_length_days}} days: no payment details, nothing billed automatically. After it, the paid plan is USD {{price_usd_per_year}} per year, and it starts only on your written yes. Otherwise the pilot ends: you revoke the access you granted (we can't do that for you), and we delete any copies we hold on the retention schedule agreed at kickoff.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 <!-- copy:end -->

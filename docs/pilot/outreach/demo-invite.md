@@ -18,7 +18,7 @@ Thanks for making time. Confirming {{demo_date}}: {{meeting_link}}.
 Why now, from our side: {{why_now}} (source: {{why_now_source}}).
 
 Plan for the call (about 25 minutes):
-- 10 minutes: a live demo on a local sample app. A naive accessibility check fails every build on existing debt; A11yGate records that debt as a baseline and fails only on one new regression, with an evidence pack.
+- 10 minutes: a live demo on a local sample app. A naive accessibility check fails every build on existing debt; A11yGate records that debt as a baseline, then fails on the one new regression the demo introduces, and we bundle that run into an evidence pack.
 - 10 minutes: your setup ({{ci_system}}, which pages or flows matter most, who would own the check).
 - 5 minutes: whether a free {{pilot_length_days}}-day pilot makes sense, and what success would look like.
 

@@ -15,7 +15,7 @@ Hi {{prospect_first_name}},
 
 A short follow-up. {{why_now}} (source: {{why_now_source}}).
 
-The part teams usually ask about: A11yGate doesn't fail every build on existing debt. It records today's findings as a baseline and only blocks new serious or critical ones, so the check can stay on. It is automated testing, so it complements manual and assistive-technology testing rather than replacing it.
+The part teams usually ask about: A11yGate doesn't fail every build on existing debt. It records today's findings as a baseline, and a new serious or critical finding (the default threshold) fails the check while the existing ones stay listed, so the check can stay on. Setup or scan errors fail it too, so they get noticed. It is automated testing, so it complements manual and assistive-technology testing rather than replacing it.
 
 If a 15-minute look is useful, here is a link to pick a time: {{meeting_link}}. The free {{pilot_length_days}}-day pilot has no payment details and nothing billed automatically.
 

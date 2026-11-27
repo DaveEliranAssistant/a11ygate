@@ -283,8 +283,25 @@ describe('outreach kit files (A11Y-R77)', () => {
       expect(read(rel), rel).not.toMatch(/(?:each|every) (?:CI )?(?:run|scan|pull request)[^.]*evidence pack|evidence pack[^.]*(?:on|for|per|with|after) (?:each|every) (?:CI )?(?:run|build|scan|pull request)/i);
     }
     const email = message(read(`${DIR}/first-touch-email.md`)) as string;
-    expect(email).toContain('Each run keeps its scan report as a build artifact in your own CI.');
+    expect(email).toContain('A new finding at or above your threshold (serious or critical by default) fails the check');
+    expect(email).toContain('so does a setup or scan error, such as an unreadable baseline');
+    expect(email).toContain('When a run produces a scan report, the CI job uploads it as a build artifact in your own CI, whether the check passed or failed.');
     expect(email).toContain('At the pilot milestones (kickoff, mid-pilot and the decision date) I also make an evidence pack');
+  });
+
+  it('no outreach file makes an unconditional CI or access claim (gate also fails on setup/scan errors; the customer revokes access)', () => {
+    for (const rel of FILES) {
+      const text = read(rel);
+      // "fails only on/when ..." hides that setup or scan errors fail the check too.
+      expect(text, rel).not.toMatch(/\b(?:fails?|blocks?)\b[^.]*\bonly (?:when|on|if)\b|\bonly (?:fails?|blocks?)\b/i);
+      // Reports are uploaded only when a run produces one.
+      expect(text, rel).not.toMatch(/\b(?:each|every) (?:CI )?(?:run|build|scan)\b[^.]*\b(?:keeps|uploads|produces|leaves)\b/i);
+      // The customer revokes the access they granted; we can't.
+      expect(text, rel).not.toMatch(/\baccess (?:is|will be|gets) (?:revoked|removed)\b|\bwe (?:will )?(?:remove|revoke) (?:the |your )?access\b|\brevoked at the end\b/i);
+    }
+    const objection = copyUnits(read(`${DIR}/objections.md`)).find((unit) => unit.includes('What does it cost'));
+    expect(objection).toContain('you revoke the access you granted');
+    expect(objection).toContain('we delete any copies we hold on the retention schedule agreed at kickoff');
   });
 
   it('the README says never send automatically, Eliran only, and per-prospect copies outside the repo', () => {

@@ -15,7 +15,7 @@ Hi {{prospect_first_name}},
 
 {{why_now}} (source: {{why_now_source}}).
 
-A11yGate is a CI gate with evidence, not an overlay widget: nothing is injected into your pages. It runs automated accessibility checks (axe-core) in {{ci_system}} on each pull request, records the findings you already have as a baseline, and fails the check only when a new serious or critical finding appears. Each run keeps its scan report as a build artifact in your own CI. At the pilot milestones (kickoff, mid-pilot and the decision date) I also make an evidence pack: the reports, a scope statement, what automated testing cannot cover, and a manifest with hashes.
+A11yGate is a CI gate with evidence, not an overlay widget: nothing is injected into your pages. It runs automated accessibility checks (axe-core) in {{ci_system}} on pull requests and records the findings you already have as a baseline. A new finding at or above your threshold (serious or critical by default) fails the check (Jenkins marks the build unstable); so does a setup or scan error, such as an unreadable baseline, so a red check is not always a new finding. When a run produces a scan report, the CI job uploads it as a build artifact in your own CI, whether the check passed or failed. At the pilot milestones (kickoff, mid-pilot and the decision date) I also make an evidence pack: the reports, a scope statement, what automated testing cannot cover, and a manifest with hashes.
 
 I'm running a free {{pilot_length_days}}-day pilot with a few teams: no payment details, nothing billed automatically. Would a 15-minute call to see if it fits be useful? A few times that work for me: {{demo_slots}}.
 
