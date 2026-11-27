@@ -24,6 +24,15 @@ export const MAX_WAITLIST_BYTES = 4_096;
 
 export const WAITLIST_SOURCE = 'landing';
 
+export const WAITLIST_VARIANT_ERROR = 'Choose a valid signup variant.';
+
+export const PILOT_REQUEST_SOURCE = 'pilot-request';
+
+export const PILOT_REQUEST_PENDING = 'Sending…';
+
+export const PILOT_REQUEST_SUCCESS =
+  'Thanks. Eliran reads every request personally; there is no automated follow-up.';
+
 export const PRIVACY_CONTACT = 'dave.eliran.assistant@gmail.com';
 
 // Heading and intro for the same waitlist form when it collects pilot requests (pricing flag on).

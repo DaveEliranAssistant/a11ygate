@@ -4,6 +4,7 @@ import { connection } from 'next/server';
 import { CheckoutButton } from '@/components/CheckoutButton';
 import { annualPrice, isPricingEnabled, getPilotRequestHref, pricing } from '@/lib/billing';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
+import { pilot } from '@/lib/pilot-offer';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -27,7 +28,7 @@ export default async function PricingPage() {
         <li>Track changes across scans using evidence packs and trend reports.</li>
       </ul>
 
-      <h2>{pricing.pilot.lengthDays}-day free pilot</h2>
+      <h2>{pilot.length} {pilot.price} pilot</h2>
       <p>Try the regression gate in your CI and review the evidence it produces.</p>
       <p><a href={getPilotRequestHref()}>Request a pilot</a></p>
 
