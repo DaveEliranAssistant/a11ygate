@@ -79,15 +79,15 @@ function pagePath(url) {
   const trimmed = url.trim();
   try {
     const parsed = new URL(trimmed);
-    let path23 = parsed.pathname || "/";
-    if (path23.length > 1 && path23.endsWith("/")) path23 = path23.slice(0, -1);
-    return path23 || "/";
+    let path24 = parsed.pathname || "/";
+    if (path24.length > 1 && path24.endsWith("/")) path24 = path24.slice(0, -1);
+    return path24 || "/";
   } catch {
     const withoutQuery = trimmed.split(/[?#]/)[0] ?? "";
     if (withoutQuery.length === 0) return "/";
-    let path23 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-    if (path23.length > 1 && path23.endsWith("/")) path23 = path23.slice(0, -1);
-    return path23;
+    let path24 = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+    if (path24.length > 1 && path24.endsWith("/")) path24 = path24.slice(0, -1);
+    return path24;
   }
 }
 function fingerprint(ruleId, selector, url) {
@@ -176,9 +176,9 @@ function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 function componentGroupKey(finding2) {
-  const path23 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
+  const path24 = (finding2.selectors ?? [finding2.selector]).map(normaliseSelector);
   const html = normalizedComponentHtml(finding2.html);
-  return JSON.stringify([finding2.ruleId, path23, html, !html || path23.every((p) => !p) ? finding2.pageUrl : ""]);
+  return JSON.stringify([finding2.ruleId, path24, html, !html || path24.every((p) => !p) ? finding2.pageUrl : ""]);
 }
 function groupSharedComponents(findings) {
   const buckets = /* @__PURE__ */ new Map();
@@ -209,8 +209,8 @@ function groupSharedComponents(findings) {
 }
 
 // packages/cli/src/run.ts
-import { mkdir as mkdir10, readFile as readFile10, realpath as realpath3, stat as stat6, lstat as lstat5, writeFile as writeFile11 } from "node:fs/promises";
-import path22 from "node:path";
+import { mkdir as mkdir11, readFile as readFile11, realpath as realpath3, stat as stat7, lstat as lstat6, writeFile as writeFile11 } from "node:fs/promises";
+import path23 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // lib/copy.ts
@@ -722,21 +722,21 @@ function isRecord(value) {
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "").trim();
 }
-function readImpact(value, path23) {
+function readImpact(value, path24) {
   if (value === null || isImpact(value)) return { ok: true, impact: value };
   return {
     ok: false,
-    error: `${path23} must be minor, moderate, serious, critical, or null`
+    error: `${path24} must be minor, moderate, serious, critical, or null`
   };
 }
-function readTarget(value, path23) {
+function readTarget(value, path24) {
   if (!Array.isArray(value) || value.length === 0) {
-    return `${path23}.target must be an array of strings`;
+    return `${path24}.target must be an array of strings`;
   }
   const flat = [];
   for (const part of value) {
     if (typeof part === "string") {
-      if (part.trim().length === 0) return `${path23}.target must be an array of strings`;
+      if (part.trim().length === 0) return `${path24}.target must be an array of strings`;
       flat.push(part);
       continue;
     }
@@ -744,52 +744,52 @@ function readTarget(value, path23) {
       flat.push(part.join(" "));
       continue;
     }
-    return `${path23}.target must be an array of strings`;
+    return `${path24}.target must be an array of strings`;
   }
   return flat;
 }
-function validateNode(value, path23) {
-  if (!isRecord(value)) return `${path23} must be an object`;
-  const target = readTarget(value.target, path23);
+function validateNode(value, path24) {
+  if (!isRecord(value)) return `${path24} must be an object`;
+  const target = readTarget(value.target, path24);
   if (typeof target === "string") return target;
-  if (typeof value.html !== "string") return `${path23}.html must be a string`;
+  if (typeof value.html !== "string") return `${path24}.html must be a string`;
   const node = {
     target,
     html: value.html
   };
   if (Object.prototype.hasOwnProperty.call(value, "impact")) {
-    const impact = readImpact(value.impact, `${path23}.impact`);
+    const impact = readImpact(value.impact, `${path24}.impact`);
     if (!impact.ok) return impact.error;
     node.impact = impact.impact;
   }
   return node;
 }
-function validateViolation(value, path23) {
-  if (!isRecord(value)) return `${path23} must be an object`;
+function validateViolation(value, path24) {
+  if (!isRecord(value)) return `${path24} must be an object`;
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
-    return `${path23}.id must be a non-empty string`;
+    return `${path24}.id must be a non-empty string`;
   }
   if (!Object.prototype.hasOwnProperty.call(value, "impact")) {
-    return `${path23}.impact is missing`;
+    return `${path24}.impact is missing`;
   }
-  const impact = readImpact(value.impact, `${path23}.impact`);
+  const impact = readImpact(value.impact, `${path24}.impact`);
   if (!impact.ok) return impact.error;
-  if (!Array.isArray(value.tags)) return `${path23}.tags must be an array of strings`;
+  if (!Array.isArray(value.tags)) return `${path24}.tags must be an array of strings`;
   if (!value.tags.every((tag) => typeof tag === "string")) {
-    return `${path23}.tags must be an array of strings`;
+    return `${path24}.tags must be an array of strings`;
   }
   if (typeof value.help !== "string" || value.help.trim().length === 0) {
-    return `${path23}.help must be a non-empty string`;
+    return `${path24}.help must be a non-empty string`;
   }
   if (typeof value.helpUrl !== "string" || value.helpUrl.trim().length === 0) {
-    return `${path23}.helpUrl must be a non-empty string`;
+    return `${path24}.helpUrl must be a non-empty string`;
   }
   if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
-    return `${path23}.nodes must contain at least one node`;
+    return `${path24}.nodes must contain at least one node`;
   }
   const nodes = [];
   for (let index = 0; index < value.nodes.length; index += 1) {
-    const node = validateNode(value.nodes[index], `${path23}.nodes[${index}]`);
+    const node = validateNode(value.nodes[index], `${path24}.nodes[${index}]`);
     if (typeof node === "string") return node;
     nodes.push(node);
   }
@@ -805,37 +805,37 @@ function validateViolation(value, path23) {
 function isSynthetic(value) {
   return typeof value._fixture === "string" && /synthetic/i.test(value._fixture);
 }
-function validateResult(value, path23) {
-  if (!isRecord(value)) return `${path23} must be an axe result object`;
+function validateResult(value, path24) {
+  if (!isRecord(value)) return `${path24} must be an axe result object`;
   if (typeof value.url !== "string" || value.url.trim().length === 0) {
-    return `${path23}.url must be a non-empty string`;
+    return `${path24}.url must be a non-empty string`;
   }
   if (!isIsoTimestamp(value.timestamp)) {
-    return `${path23}.timestamp must be an ISO date string`;
+    return `${path24}.timestamp must be an ISO date string`;
   }
   if (!isRecord(value.testEngine) || typeof value.testEngine.version !== "string" || value.testEngine.version.trim().length === 0) {
-    return `${path23}.testEngine.version must be a non-empty string`;
+    return `${path24}.testEngine.version must be a non-empty string`;
   }
-  if (!Array.isArray(value.violations)) return `${path23}.violations must be an array`;
+  if (!Array.isArray(value.violations)) return `${path24}.violations must be an array`;
   for (const key of ["toolOptions", "scanConfig", "testEnvironment"]) {
-    if (key in value && !isRecord(value[key])) return `${path23}.${key} must be an object`;
+    if (key in value && !isRecord(value[key])) return `${path24}.${key} must be an object`;
   }
-  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path23}.scanStatus must be complete or failed`;
-  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path23}.scanError must be a non-empty string`;
-  if (value.scanError && value.scanStatus !== "failed") return `${path23}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
-  if (value.scanStatus === "failed" && !value.scanError) return `${path23}.scanError is required for failed scans`;
+  if ("scanStatus" in value && value.scanStatus !== "complete" && value.scanStatus !== "failed") return `${path24}.scanStatus must be complete or failed`;
+  if ("scanError" in value && (typeof value.scanError !== "string" || !value.scanError.trim())) return `${path24}.scanError must be a non-empty string`;
+  if (value.scanError && value.scanStatus !== "failed") return `${path24}.scanError requires scanStatus failed; contradictory scan success is unsupported`;
+  if (value.scanStatus === "failed" && !value.scanError) return `${path24}.scanError is required for failed scans`;
   const incomplete = [];
   if ("incomplete" in value) {
-    if (!Array.isArray(value.incomplete)) return `${path23}.incomplete must be an array`;
+    if (!Array.isArray(value.incomplete)) return `${path24}.incomplete must be an array`;
     for (let i = 0; i < value.incomplete.length; i++) {
-      const item = validateViolation(value.incomplete[i], `${path23}.incomplete[${i}]`);
+      const item = validateViolation(value.incomplete[i], `${path24}.incomplete[${i}]`);
       if (typeof item === "string") return item;
       incomplete.push(item);
     }
   }
   const violations = [];
   for (let index = 0; index < value.violations.length; index += 1) {
-    const violation = validateViolation(value.violations[index], `${path23}.violations[${index}]`);
+    const violation = validateViolation(value.violations[index], `${path24}.violations[${index}]`);
     if (typeof violation === "string") return violation;
     violations.push(violation);
   }
@@ -925,9 +925,9 @@ function parseAxeDocuments(documents) {
   if (documents.length === 0) return { ok: false, error: "Choose at least one JSON file." };
   const results = [];
   let synthetic = false;
-  for (const document3 of documents) {
-    const parsed = parseAxeJson(document3.text);
-    if (!parsed.ok) return { ok: false, error: `${document3.name}: ${parsed.error}` };
+  for (const document4 of documents) {
+    const parsed = parseAxeJson(document4.text);
+    if (!parsed.ok) return { ok: false, error: `${document4.name}: ${parsed.error}` };
     results.push(...parsed.results);
     synthetic = synthetic || parsed.synthetic;
   }
@@ -936,7 +936,7 @@ function parseAxeDocuments(documents) {
 function findingsFromResults(results) {
   const byFingerprint = /* @__PURE__ */ new Map();
   for (const result of results) {
-    const path23 = pagePath(result.url);
+    const path24 = pagePath(result.url);
     for (const violation of result.violations) {
       for (const node of violation.nodes) {
         const selector = node.target.join(" ");
@@ -951,7 +951,7 @@ function findingsFromResults(results) {
           selector,
           html: node.html,
           url: result.url,
-          path: path23,
+          path: path24,
           engineVersion: result.testEngine.version,
           timestamp: result.timestamp
         };
@@ -2224,6 +2224,7 @@ Usage:
   a11ygate export tickets <scan.json|out-dir> --format csv|jira-csv|gh-md [--baseline <file>]
                        (see a11ygate export --help)
   a11ygate prospect <url|scan-dir> | --from <scan-dir> (see prospect --help)
+  a11ygate outreach kit --prospect <prospect.yml> (see outreach kit --help)
   a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
                        (see a11ygate pilot report --help)
   a11ygate estimate <url> [--max-pages <n>] [--out-dir <dir>] (see estimate --help)
@@ -2497,7 +2498,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
   const maxStates = typeof options.auto === "object" ? options.auto.maxStates ?? 20 : 20;
   let autoUsed = 0;
   let used = 0;
-  const run2 = async (name, steps, index, path23) => {
+  const run2 = async (name, steps, index, path24) => {
     let children = [];
     let visibleBefore = [];
     const label = new URL(url);
@@ -2527,8 +2528,8 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
         }
       };
       if (steps) for (const step of steps) await perform(page.locator(step.selector), step.action, step.key);
-      else if (path23) {
-        for (const control of path23) {
+      else if (path24) {
+        for (const control of path24) {
           visibleBefore = await revealedControls(page);
           await perform(page.locator(control.selector), "click");
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -2538,7 +2539,7 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
       record.result = await scan2(label.href);
       if (record.result) record.result.scanConfig = { ...record.result.scanConfig, readOnly: false, interactionState: name };
       record.scanStatus = "complete";
-      if (path23 && path23.length < depth) children = (await revealedControls(page, path23.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
+      if (path24 && path24.length < depth) children = (await revealedControls(page, path24.at(-1))).filter((c) => !visibleBefore.some((before) => before.selector === c.selector));
     } catch (error) {
       record.error = `Step ${stepNumber || 1}: ${error instanceof Error ? error.message.split("\n")[0] : "Interaction failed."}`;
     } finally {
@@ -2555,11 +2556,11 @@ async function scanInteractionStates(page, url, options, scan2, active, timeoutM
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     active(true);
     const roots = options.auto ? await revealedControls(page) : [];
-    const explore = async (path23) => {
-      if (autoUsed >= maxStates || used + path23.length > options.budget) return;
+    const explore = async (path24) => {
+      if (autoUsed >= maxStates || used + path24.length > options.budget) return;
       autoUsed++;
-      const children = await run2(path23.map((c) => c.name).join(">"), void 0, void 0, path23);
-      for (const child of children) await explore([...path23, child]);
+      const children = await run2(path24.map((c) => c.name).join(">"), void 0, void 0, path24);
+      for (const child of children) await explore([...path24, child]);
     };
     for (const root of roots) await explore([root]);
   }
@@ -3609,8 +3610,11 @@ function effectiveModelFixConfig(config2, env = process.env) {
 }
 
 // packages/cli/src/output-paths.ts
+import { execFile } from "node:child_process";
 import { lstat, realpath, stat } from "node:fs/promises";
 import path2 from "node:path";
+import { promisify } from "node:util";
+var exec = promisify(execFile);
 async function assertSafeOutputs(cwd, inputs, outputs) {
   const identify = async (file) => {
     const absolute = path2.resolve(cwd, file);
@@ -3629,6 +3633,43 @@ async function assertSafeOutputs(cwd, inputs, outputs) {
     }
     protectedPaths.push(id);
   }
+}
+async function lstatIfPresent(file) {
+  return lstat(file).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return void 0;
+  });
+}
+async function canonicalOutputDir(dir) {
+  if (await lstatIfPresent(dir)) {
+    const canonical2 = await realpath(dir);
+    if (!(await stat(canonical2)).isDirectory()) throw new Error("Output path must be a directory.");
+    return canonical2;
+  }
+  return path2.join(await canonicalOutputDir(path2.dirname(dir)), path2.basename(dir));
+}
+async function gitWorkTree(dir) {
+  for (; ; ) {
+    if (await lstatIfPresent(path2.join(dir, ".git"))) return dir;
+    const parent = path2.dirname(dir);
+    if (parent === dir) return void 0;
+    dir = parent;
+  }
+}
+async function privateOutputDir(dir, allowInRepo = false) {
+  const canonical2 = await canonicalOutputDir(dir);
+  const workTree = await gitWorkTree(canonical2);
+  const inRepo = !!(workTree || await gitWorkTree(dir));
+  if (inRepo && !allowInRepo) throw new Error("Output is inside a git work tree. Choose a path outside the repository.");
+  return { canonical: canonical2, inRepo, workTree };
+}
+async function assertUntrackedOutputs(root, files) {
+  const relative = files.map((file) => path2.relative(root, file));
+  if (relative.some((file) => file.split(path2.sep)[0].toLowerCase() === ".git")) {
+    throw new Error("Output cannot be written under Git metadata.");
+  }
+  const { stdout } = await exec("git", ["--literal-pathspecs", "ls-files", "--", ...relative], { cwd: root, timeout: 5e3, windowsHide: true });
+  if (stdout) throw new Error("Output would overwrite a tracked file. Choose a private output directory.");
 }
 
 // schema/a11ygate.projects.schema.json
@@ -3785,8 +3826,8 @@ var IncrementalCache = class {
 };
 
 // packages/cli/src/diff-routes.ts
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { execFile as execFile2 } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
 
 // lib/scan/sitemap.ts
 var MAX_XML_BYTES = 512 * 1024;
@@ -4081,7 +4122,7 @@ async function crawl(options) {
 }
 
 // packages/cli/src/diff-routes.ts
-var exec = promisify(execFile);
+var exec2 = promisify2(execFile2);
 function parseRoutes(value) {
   const errors = validateConfig({ routes: value });
   if (errors.length) throw new Error(`Invalid routes: ${errors[0]}`);
@@ -4091,7 +4132,7 @@ async function selectRoutes(ref2, routes, cwd) {
   if (!ref2 || ref2.startsWith("-") || /\s|\0/.test(ref2)) throw new Error('Invalid --changed-since ref: use a non-empty git ref that does not start with "-".');
   let files;
   try {
-    const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-renames", "--no-relative", "--name-only", "-z", `${ref2}...HEAD`, "--"], { cwd, maxBuffer: 8 * 1024 * 1024 });
+    const { stdout } = await exec2("git", ["diff", "--no-ext-diff", "--no-renames", "--no-relative", "--name-only", "-z", `${ref2}...HEAD`, "--"], { cwd, maxBuffer: 8 * 1024 * 1024 });
     files = stdout.split("\0").filter(Boolean);
   } catch {
     throw new Error("Could not resolve --changed-since ref or compute its merge base with HEAD. Fetch the ref and its history, then retry; nothing was scanned.");
@@ -6837,7 +6878,7 @@ function pdfFooterTemplate(lang = DEFAULT_REPORT_LANG) {
 var PDF_HEADER_TEMPLATE = "<span></span>";
 
 // packages/cli/src/evidence.ts
-import { execFile as execFile2 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { lstat as lstat2, mkdir as mkdir4, readdir as readdir2, readFile as readFile5, writeFile as writeFile5 } from "node:fs/promises";
 import path10 from "node:path";
 
@@ -6863,8 +6904,8 @@ function crc32(data) {
 var DOS_TIME = 0;
 var DOS_DATE = 0 << 9 | 1 << 5 | 1;
 var MAX_ZIP_BYTES = 4294967295 - 1;
-function shouldStore(path23) {
-  return /\.(png|jpe?g|webp|gif)$/i.test(path23);
+function shouldStore(path24) {
+  return /\.(png|jpe?g|webp|gif)$/i.test(path24);
 }
 function createZip(entries2) {
   const local = [];
@@ -7068,8 +7109,8 @@ var SECRET_PATTERNS = [
   ["authentication header or cookie", /(?:^|[\r\n])\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*\S+/i],
   ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/]
 ];
-function isTextPath(path23) {
-  return /\.(json|md|html|xml|sarif|txt)$/i.test(path23);
+function isTextPath(path24) {
+  return /\.(json|md|html|xml|sarif|txt)$/i.test(path24);
 }
 function findSecret(files, envValues) {
   for (const file of files) {
@@ -7218,8 +7259,8 @@ function buildEvidencePack(input) {
     ["scan/a11ygate-scan.sarif", () => toSarif(formatReport)],
     ["scan/a11ygate-scan.junit.xml", () => toJunit(formatReport)]
   ];
-  for (const [path23, make] of generated) {
-    if (!files.has(path23)) files.set(path23, { path: path23, data: Buffer.from(make(), "utf8"), source: "generated" });
+  for (const [path24, make] of generated) {
+    if (!files.has(path24)) files.set(path24, { path: path24, data: Buffer.from(make(), "utf8"), source: "generated" });
   }
   const engineFiles = [...files.keys()].flatMap((p) => /^engines\/([a-z]+)\.json$/.exec(p)?.[1] ?? []);
   const engines = engineManifest(report, engineFiles);
@@ -7317,7 +7358,7 @@ function parseEvidenceArgs(argv2) {
 }
 function git(cwd, args) {
   return new Promise((resolve) => {
-    execFile2("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile3("git", args, { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       resolve(error ? null : String(stdout ?? "").trim());
     });
   });
@@ -7336,7 +7377,7 @@ async function defaultGitCommitMeta(cwd, sha) {
 }
 function defaultGitHead(cwd) {
   return new Promise((resolve) => {
-    execFile2("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
+    execFile3("git", ["rev-parse", "--verify", "HEAD"], { cwd, timeout: 5e3, windowsHide: true }, (error, stdout) => {
       const sha = String(stdout ?? "").trim();
       resolve(!error && /^[0-9a-f]{40,64}$/i.test(sha) ? sha.toLowerCase() : null);
     });
@@ -7640,7 +7681,7 @@ import path13 from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/cli/src/review-manage.ts
-import { execFile as execFile3 } from "node:child_process";
+import { execFile as execFile4 } from "node:child_process";
 import { readFile as readFile6 } from "node:fs/promises";
 import path12 from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -7659,7 +7700,7 @@ Every change is written atomically (temp file + rename). Earlier decisions are k
 baseline's history[] with who (git user.name, else "unknown"), when and the action.`;
 function gitUserName(cwd) {
   return new Promise((resolve) => {
-    execFile3("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
+    execFile4("git", ["config", "user.name"], { cwd, timeout: 5e3 }, (error, stdout) => resolve(error ? "" : String(stdout).trim()));
   });
 }
 async function saveReviewBaseline(file, baseline, decisions, entries2, io = {}) {
@@ -8486,9 +8527,12 @@ Run a11ygate trend --help for usage.
   return 0;
 }
 
-// packages/cli/src/pilot.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import path15 from "node:path";
+// packages/cli/src/outreach.ts
+import { createHash as createHash6 } from "node:crypto";
+import { lstat as lstat5, mkdir as mkdir9, readFile as readFile9, stat as stat6 } from "node:fs/promises";
+import os from "node:os";
+import path18 from "node:path";
+import { parseArgs as parseArgs2 } from "node:util";
 
 // config/pricing.json
 var pricing_default = {
@@ -8502,6 +8546,735 @@ var pricing_default = {
   },
   currency: "USD"
 };
+
+// fixtures/demo-shop-current.json
+var demo_shop_current_default = [
+  {
+    _fixture: "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    url: "https://demo.shop/",
+    timestamp: "2026-10-15T09:00:00.000Z",
+    testEngine: { name: "axe-core", version: "4.10.2" },
+    violations: [
+      {
+        id: "image-alt",
+        impact: "serious",
+        tags: ["cat.text-alternatives", "wcag2a", "wcag111"],
+        help: "Images must have alternative text",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/image-alt",
+        nodes: [
+          {
+            target: ["#main:nth-child(5) > img.hero-photo:nth-child(2)"],
+            html: '<img class="hero-photo" src="/hero.jpg">'
+          }
+        ]
+      },
+      {
+        id: "link-name",
+        impact: "moderate",
+        tags: ["cat.name-role-value", "wcag2a", "wcag244", "wcag412"],
+        help: "Links must have discernible text",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/link-name",
+        nodes: [
+          {
+            target: ["a.footer-promo"],
+            html: '<a class="footer-promo" href="/sale"><img src="/sale.png"></a>'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    _fixture: "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    url: "https://demo.shop/products",
+    timestamp: "2026-10-15T09:00:05.000Z",
+    testEngine: { name: "axe-core", version: "4.10.2" },
+    violations: [
+      {
+        id: "button-name",
+        impact: "critical",
+        tags: ["cat.name-role-value", "wcag2a", "wcag412"],
+        help: "Buttons must have discernible text",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/button-name",
+        nodes: [
+          {
+            target: ["#ember9901 > button.add-to-cart"],
+            html: '<button class="add-to-cart" id="ember9901"></button>'
+          }
+        ]
+      },
+      {
+        id: "html-has-lang",
+        impact: "serious",
+        tags: ["cat.language", "wcag2a", "wcag311"],
+        help: "<html> element must have a lang attribute",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/html-has-lang",
+        nodes: [
+          {
+            target: ["html"],
+            html: "<html>"
+          }
+        ]
+      },
+      {
+        id: "color-contrast",
+        impact: "serious",
+        tags: ["cat.color", "wcag2aa", "wcag143"],
+        help: "Elements must have sufficient color contrast",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/color-contrast",
+        nodes: [
+          {
+            target: [".product-card .price-tag"],
+            html: '<span class="price-tag" style="color:#c8c4bd">\u20AC12</span>'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    _fixture: "SYNTHETIC Demo Shop fixture. Not a real axe-core scan.",
+    url: "https://demo.shop/cart",
+    timestamp: "2026-10-15T09:00:10.000Z",
+    testEngine: { name: "axe-core", version: "4.10.2" },
+    violations: [
+      {
+        id: "label",
+        impact: "serious",
+        tags: ["cat.forms", "wcag2a", "wcag332", "wcag131"],
+        help: "Form elements must have labels",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/label",
+        nodes: [
+          {
+            target: ["input.quantity"],
+            html: '<input class="quantity" type="number" value="1">'
+          }
+        ]
+      },
+      {
+        id: "region",
+        impact: "moderate",
+        tags: ["cat.keyboard", "best-practice"],
+        help: "All page content should be contained by landmarks",
+        helpUrl: "https://dequeuniversity.com/rules/axe/4.10/region",
+        nodes: [
+          {
+            target: ["body"],
+            html: "<body>"
+          }
+        ]
+      }
+    ]
+  }
+];
+
+// schema/outreach-prospect.schema.json
+var outreach_prospect_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  title: "A11yGate outreach prospect",
+  type: "object",
+  additionalProperties: false,
+  required: ["company", "contact_role", "ci_system", "stack", "why_now", "why_now_source", "warm_path"],
+  dependencies: {
+    authorized_by: ["authorization_note"],
+    authorization_note: ["authorized_by"]
+  },
+  properties: {
+    company: { type: "string", pattern: "\\S" },
+    contact_role: { type: "string", pattern: "\\S" },
+    ci_system: { enum: ["github", "gitlab", "azure-devops", "jenkins", "other"] },
+    stack: { type: "string", pattern: "\\S" },
+    why_now: { type: "string", pattern: "\\S" },
+    why_now_source: { type: "string", format: "uri", pattern: "^[Hh][Tt][Tt][Pp][Ss]?://[^/\\s?#][^\\s]*$" },
+    warm_path: { type: "string", pattern: "\\S" },
+    authorized_by: { type: "string", pattern: "\\S" },
+    authorization_note: { type: "string", pattern: "\\S" }
+  }
+};
+
+// packages/cli/src/init.ts
+import { constants } from "node:fs";
+import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
+import path16 from "node:path";
+import { createInterface as createInterface3 } from "node:readline/promises";
+
+// integrations/azure-devops/a11ygate.yml
+var a11ygate_default = "# A11yGate step template for Azure Pipelines.\n# Automated testing only. Not a WCAG audit, certification or legal advice.\n#\n# Reference a reviewed copy from a repository you own (see docs/integrations/azure-devops.md):\n#   steps:\n#     - template: integrations/azure-devops/a11ygate.yml@a11ygate\n#       parameters:\n#         url: 'http://127.0.0.1:3000'\n#\n# Scan only a local or explicitly authorized application. Start it in an earlier step.\n# Steps use `script:`, which runs bash on Linux/macOS and cmd.exe on Windows; every\n# command below is written to behave the same in both shells.\nparameters:\n  - name: url\n    type: string\n    default: 'http://127.0.0.1:3000'\n  - name: failOn\n    type: string\n    default: serious\n    values: [minor, moderate, serious, critical, none]\n  - name: crawl\n    type: number\n    default: 1\n  - name: outDir\n    type: string\n    default: a11y\n  - name: nodeVersion\n    type: string\n    default: '22.x'\n  - name: installCommand\n    type: string\n    default: 'npm ci'\n  - name: installBrowsers\n    type: boolean\n    default: true\n  - name: artifactName\n    type: string\n    default: a11ygate\n\nsteps:\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1\n  # The version is always passed explicitly; the task's own default (10.x) is never used.\n  - task: UseNode@1\n    displayName: 'A11yGate: use Node.js'\n    inputs:\n      versionSource: spec\n      version: '${{ parameters.nodeVersion }}'\n      checkLatest: false\n\n  - script: ${{ parameters.installCommand }}\n    displayName: 'A11yGate: install dependencies'\n\n  - ${{ if eq(parameters.installBrowsers, true) }}:\n      - script: npx --no-install playwright install --with-deps chromium\n        displayName: 'A11yGate: install Chromium'\n\n  # Exit 1 = findings at or above failOn; exit 2 = setup/scan error. Either fails this step and the job.\n  - script: npx --no-install a11ygate scan \"${{ parameters.url }}\" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --format junit,sarif --out-dir ${{ parameters.outDir }}\n    name: a11ygateScan\n    displayName: 'A11yGate: scan (fail-on ${{ parameters.failOn }})'\n\n  - script: npx --no-install a11ygate evidence pack --from ${{ parameters.outDir }} --out ${{ parameters.outDir }}/a11ygate-evidence.zip --commit $(Build.SourceVersion)\n    name: a11ygateEvidence\n    displayName: 'A11yGate: evidence pack'\n    condition: succeededOrFailed()\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2\n  - task: PublishTestResults@2\n    displayName: 'A11yGate: publish JUnit results'\n    condition: succeededOrFailed()\n    inputs:\n      testResultsFormat: JUnit\n      testResultsFiles: '${{ parameters.outDir }}/a11ygate-scan.junit.xml'\n      searchFolder: '$(System.DefaultWorkingDirectory)'\n      testRunTitle: A11yGate\n      failTaskOnFailedTests: false\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1\n  # HTML/Markdown/JSON reports, engine evidence, SARIF and the evidence pack zip.\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish reports and evidence pack'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}'\n      ArtifactName: '${{ parameters.artifactName }}'\n      publishLocation: Container\n\n  # The SARIF SAST Scans Tab extension (sariftools.scans) reads *.sarif from an artifact named CodeAnalysisLogs.\n  # https://marketplace.visualstudio.com/items?itemName=sariftools.scans\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish SARIF (CodeAnalysisLogs)'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}/a11ygate-scan.sarif'\n      ArtifactName: CodeAnalysisLogs\n      publishLocation: Container\n";
+
+// integrations/gitlab/a11ygate.gitlab-ci.yml
+var a11ygate_gitlab_ci_default = `# Include this file from a reviewed copy in your own repository.
+# Automated testing only. Not a WCAG audit, certification or legal advice.
+a11ygate:
+  stage: test
+  # Node + Chromium; keep the installed playwright version aligned with this tag.
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  variables:
+    # Start your authorized application in this job before scanning.
+    A11YGATE_URL: "http://127.0.0.1:3000"
+    A11YGATE_FAIL_ON: "serious"
+  before_script:
+    - npm ci
+  script:
+    - npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --format gitlab-codequality,junit --out-dir a11y
+  allow_failure: false
+  artifacts:
+    when: always
+    paths:
+      - a11y/
+    reports:
+      codequality: a11y/a11ygate-scan.gitlab-codequality.json
+      junit: a11y/a11ygate-scan.junit.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
+`;
+
+// packages/cli/src/ci-targets.ts
+var CI_FILES = {
+  github: ".github/workflows/a11ygate.yml",
+  jenkins: "Jenkinsfile",
+  gitlab: ".gitlab-ci.a11ygate.yml",
+  "azure-devops": "azure-pipelines.a11ygate.yml"
+};
+var CI_TARGETS = Object.keys(CI_FILES);
+
+// packages/cli/src/init-pilot.ts
+var lengthDays = pricing_default.pilot.lengthDays;
+var schemaUrl = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json";
+function pilotSuccessCriteria(target) {
+  const start = /* @__PURE__ */ new Date();
+  const decision = new Date(start);
+  decision.setUTCDate(decision.getUTCDate() + lengthDays - 1);
+  return `# yaml-language-server: $schema=${schemaUrl}
+# Fill in the customer, dates, and coverage targets at kickoff.
+# ${AUTOMATED_TESTING_DISCLAIMER}
+schemaVersion: 1
+pilot:
+  customer: "[[MISSING]]"
+  ciProvider: ${target}
+  startDate: "${start.toISOString().slice(0, 10)}"
+  lengthDays: ${lengthDays}
+  decisionDate: "${decision.toISOString().slice(0, 10)}"
+criteria:
+  gateRunsOnEveryPrToMain: true
+  targetBranch: main
+  baselineCreated: true
+  maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2: 0
+  pagesOrFlowsCovered:
+    min: 5
+  evidencePackProduced: true
+`;
+}
+var PILOT_KICKOFF = `# A11yGate pilot kickoff
+
+Use [docs/pilot/kickoff-checklist.md in the A11yGate repository](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/kickoff-checklist.md) and fill in \`success-criteria.yml\` at kickoff.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var openReview = {
+  github: "gh pr create",
+  gitlab: "glab mr create",
+  "azure-devops": "az repos pr create",
+  jenkins: "git push -u origin HEAD  # then open a pull request on your repository host"
+};
+function pilotNextSteps(target, url, crawl2, failOn) {
+  return `Pilot next steps (put the current A11yGate CLI on your PATH).
+1. a11ygate doctor
+2. a11ygate scan '${url}' --crawl ${Math.max(1, crawl2)} --fail-on ${failOn} --out-dir a11y-results
+3. a11ygate baseline create a11y-results --output .a11ygate-baseline.json
+   Review the baseline, wire it into the CI scan, then commit and push the setup on a branch.
+4. ${openReview[target]}
+5. a11ygate evidence pack --from a11y-results --out a11ygate-evidence.zip
+`;
+}
+
+// packages/cli/src/config.ts
+import { readFile as readFile8 } from "node:fs/promises";
+import path15 from "node:path";
+var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
+  Show effective settings and sources; credential values are redacted.
+a11ygate config validate [file]
+a11ygate config validate --projects <file>
+  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
+  With --projects, check against ${PROJECTS_SCHEMA_PATH}.
+  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
+  Editor autocomplete: add this first line to the file:
+  ${SCHEMA_COMMENT}
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+async function runConfig(argv2, io = {}) {
+  const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
+  const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(CONFIG_HELP);
+    return 0;
+  }
+  if (argv2[0] === "print") {
+    const command = ["scan", "ci", "doctor"].includes(argv2[1] ?? "") ? argv2[1] : "scan";
+    const flags = argv2.slice(command === argv2[1] ? 2 : 1);
+    try {
+      const config2 = loadEffectiveConfig(command, flags, io);
+      const invalid = () => new Error("Invalid options for config print; use scan/ci/doctor --help for supported arguments.");
+      if (command === "scan") {
+        const parsed = parseScanArgs(config2.values.url ? config2.argv : ["https://config-print.invalid/", ...config2.argv]);
+        if (!parsed.ok) throw invalid();
+        if (config2.values.url) config2.values.url = parsed.options.url;
+        config2.values.maxPages = parsed.options.maxPages;
+        if (parsed.options.sitemap) config2.values.sitemap = parsed.options.sitemap;
+        config2.values.formats = parsed.options.formats;
+      } else if (command === "ci") {
+        const parsed = parseArgs(config2.argv);
+        if (!parsed.ok) throw invalid();
+        config2.values.baseline = parsed.options.baseline;
+        config2.values.formats = parsed.options.formats;
+      } else if (!config2.argv.every((arg, i) => ["--strict", "--engines", "--model-fixes"].includes(arg) || ["--engines", "--model-fixes"].includes(config2.argv[i - 1] ?? ""))) throw invalid();
+      stdout(JSON.stringify({ command, config: printableConfig(config2, io.env), disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n");
+      return 0;
+    } catch (error) {
+      stderr(`${error.message}
+${debugDetail(error)}`);
+      return 2;
+    }
+  }
+  const projectsMode = argv2[0] === "validate" && argv2[1] === "--projects" && argv2.length === 3;
+  if (!projectsMode && (argv2[0] !== "validate" || argv2.length > 2 || argv2[1]?.startsWith("-"))) {
+    stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
+    return 2;
+  }
+  const file = (projectsMode ? argv2[2] : argv2[1]) ?? CONFIG_FILE;
+  const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
+  let text;
+  try {
+    text = await readFile8(path15.resolve(io.cwd ?? process.cwd(), file), "utf8");
+  } catch (error) {
+    stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
+`);
+    return 2;
+  }
+  const problems = projectsMode ? parseProjects(text).errors : configProblems(text);
+  if (problems.length) {
+    stderr(`${file} has ${problems.length} problem${problems.length === 1 ? "" : "s"}:
+${problems.map((p) => `  - ${p}`).join("\n")}
+Schema: ${schemaPath}
+`);
+    return 2;
+  }
+  stdout(`${file} is valid against ${schemaPath}.
+${projectsMode ? AUTOMATED_TESTING_DISCLAIMER + "\n" : ""}`);
+  return 0;
+}
+
+// packages/cli/src/init-templates.ts
+var JENKINS_TEMPLATE = "// Declarative example for A11yGate. This is the file the docs and CI tests include.\n// Load integrations/jenkins as a shared library (see docs/integrations/jenkins.md once published),\n// or copy vars/a11yGate.groovy into your own library.\n//\n// Agent: Node 20+ and, for `scan`, Playwright Chromium. Docker image alternative: image: 'node:22'.\n// Automated testing only. Not a WCAG audit, certification or legal advice.\n\n@Library('a11ygate') _\n\npipeline {\n  agent any\n  options {\n    timestamps()\n  }\n  parameters {\n    string(name: 'SITE_URL', defaultValue: 'http://127.0.0.1:4173/', description: 'Site you are authorized to test')\n    choice(name: 'FAIL_ON', choices: ['serious', 'critical', 'moderate', 'minor', 'none'], description: 'Minimum impact that makes the build UNSTABLE')\n  }\n  stages {\n    stage('Accessibility scan') {\n      steps {\n        a11yGate(\n          url: params.SITE_URL,\n          crawl: 10,\n          failOn: params.FAIL_ON,\n          formats: ['junit', 'sarif', 'json', 'md'],\n          cli: 'node packages/cli/dist/cli.mjs',\n          outDir: 'a11y-results'\n        )\n      }\n    }\n  }\n  post {\n    always {\n      echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'\n    }\n  }\n}\n";
+
+// packages/cli/src/init.ts
+var INIT_HELP = `a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [options]
+  --url <url>          Site you own or are authorized to test. Default: http://127.0.0.1:4173/
+  --crawl <n>          0 = start URL only; 1\u201320 = same-origin crawl. Default: 10.
+  --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
+  --baseline <input>  Opt in: run baseline create on a saved scan report or output directory.
+                      Writes .a11ygate-baseline.json; never starts a scan.
+  --pilot             Add pilot success criteria, kickoff checklist link, and next commands.
+  --yes               No prompts; use flags and defaults (works without a TTY).
+  --force             Replace existing regular starter files. Symlinks are refused.
+  -h, --help          Show this help.
+Without --yes, prompts require a TTY. Existing files are skipped unless --force.
+Generated config records setup choices; scan flags in the CI file apply them.
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var impacts = ["serious", "critical", "moderate", "minor", "none"];
+var defaultUrl = "http://127.0.0.1:4173/";
+var defaultScanOptions = { url: defaultUrl, crawl: 10, failOn: "serious" };
+var toolRef = "3fc98754c66dbe9947e3df8588281aa1258fb66e";
+function githubStarter(options) {
+  return `# Scan only a site you own or are authorized to test.
+# Start your local application before the scan step (including a readiness check).
+# ${AUTOMATED_TESTING_DISCLAIMER}
+name: A11yGate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    env:
+      A11YGATE_URL: ${JSON.stringify(options.url)}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Source build until scan ships in a published CLI release.
+      - uses: actions/checkout@v4
+        with:
+          repository: DaveEliranAssistant/a11ygate
+          ref: ${toolRef}
+          path: .a11ygate-tool
+          persist-credentials: false
+      - name: Install scanner
+        working-directory: .a11ygate-tool
+        run: |
+          npm ci
+          npm run cli:build
+          npx playwright install --with-deps chromium
+      # Add your application's install/build/start commands here for loopback scans.
+      - name: Scan authorized site
+        run: node .a11ygate-tool/packages/cli/dist/cli.mjs scan "$A11YGATE_URL"${options.crawl ? ` --crawl ${options.crawl}` : ""} --fail-on ${options.failOn}${options.baseline ? " --baseline .a11ygate-baseline.json" : ""} --format junit,sarif,json,md --out-dir a11y-results
+      - name: Archive reports
+        if: \${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11ygate-results
+          path: a11y-results/
+      # Fork PR tokens cannot upload SARIF. Code scanning availability depends on the repository.
+      - name: Upload SARIF
+        if: \${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: a11y-results/a11ygate-scan.sarif
+          category: a11ygate
+`;
+}
+function jenkinsStarter(options) {
+  const choices = [options.failOn, ...impacts.filter((impact) => impact !== options.failOn)];
+  return JENKINS_TEMPLATE.replace(defaultUrl, options.url).replace("['serious', 'critical', 'moderate', 'minor', 'none']", `[${choices.map((impact) => `'${impact}'`).join(", ")}]`).replace("crawl: 10,", `crawl: ${options.crawl || "false"},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ""}`);
+}
+function withBaseline(template, options) {
+  if (!options.baseline) return template;
+  return template.replace(/(a11ygate scan [^\n]+)( --format )/, "$1 --baseline .a11ygate-baseline.json$2");
+}
+function gitlabStarter(options) {
+  const job = a11ygate_gitlab_ci_default.replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`).replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`).replace(/(--crawl )\d+/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return withBaseline(job, options);
+}
+function azureStarter(options) {
+  const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
+# Azure Repos Git uses a build validation branch policy for PRs.
+# Start your authorized application before the scan step.
+trigger: none
+pr: [main]
+pool:
+  vmImage: ubuntu-latest
+
+`;
+  const pipeline = a11ygate_default.slice(a11ygate_default.indexOf("\nparameters:") + 1).replace(/(  - name: url\n    type: string\n    default: ).*/, (_, prefix) => prefix + JSON.stringify(options.url)).replace(/(  - name: failOn\n    type: string\n    default: ).*/, (_, prefix) => prefix + options.failOn).replace(/(  - name: crawl\n    type: number\n    default: ).*/, (_, prefix) => prefix + Math.max(1, options.crawl));
+  return header + withBaseline(pipeline, options);
+}
+var starters = {
+  github: githubStarter,
+  jenkins: jenkinsStarter,
+  gitlab: gitlabStarter,
+  "azure-devops": azureStarter
+};
+function renderCiStarter(target, options = defaultScanOptions) {
+  return starters[target](options);
+}
+function validate(options) {
+  if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(", ")}.`);
+  const url = new URL(options.url);
+  if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password || /[\s\x00-\x1f\x7f'"\\`$]/.test(options.url)) {
+    throw new Error("--url must be an HTTP(S) URL without credentials, whitespace, quotes, or shell interpolation; percent-encode special URL characters.");
+  }
+  if (!Number.isInteger(options.crawl) || options.crawl < 0 || options.crawl > 20) throw new Error("--crawl must be a whole number from 0 to 20.");
+  if (!impacts.includes(options.failOn)) throw new Error("--fail-on must be minor, moderate, serious, critical, or none.");
+}
+async function writeStarter(cwd, file, content, force, stdout) {
+  const root = await realpath2(cwd);
+  const parts = file.split("/");
+  let parent = root;
+  for (const part of parts.slice(0, -1)) {
+    parent = path16.join(parent, part);
+    await mkdir7(parent).catch((error) => {
+      if (error.code !== "EEXIST") throw error;
+    });
+    const info2 = await lstat4(parent);
+    if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
+  }
+  const destination = path16.join(parent, parts.at(-1));
+  const info = await lstat4(destination).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  if (info && !force) {
+    stdout(`Skipped existing ${file} (use --force to replace).
+`);
+    return false;
+  }
+  if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
+  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
+  try {
+    await writeFile8(destination, content, { encoding: "utf8", flag });
+  } catch (error) {
+    if (!force && error.code === "EEXIST") {
+      stdout(`Skipped existing ${file}.
+`);
+      return false;
+    }
+    throw error;
+  }
+  stdout(`Wrote ${file}
+`);
+  return true;
+}
+async function runInit(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(INIT_HELP);
+    return 0;
+  }
+  const options = { target: "github", ...defaultScanOptions, yes: false, force: false, pilot: false };
+  const supplied = /* @__PURE__ */ new Set();
+  try {
+    for (let i = 0; i < argv2.length; i++) {
+      const flag = argv2[i];
+      if (flag === "--yes") options.yes = true;
+      else if (flag === "--pilot") options.pilot = true;
+      else if (flag === "--force") options.force = true;
+      else if (["--target", "--url", "--crawl", "--fail-on", "--baseline"].includes(flag)) {
+        const value = argv2[++i];
+        if (!value || value.startsWith("-")) throw new Error(`${flag} needs a value.`);
+        supplied.add(flag);
+        if (flag === "--target") options.target = value;
+        if (flag === "--url") options.url = value;
+        if (flag === "--crawl") {
+          if (!/^\d+$/.test(value)) throw new Error("--crawl needs a whole number.");
+          options.crawl = Number(value);
+        }
+        if (flag === "--fail-on") options.failOn = value;
+        if (flag === "--baseline") options.baseline = value;
+      } else throw new Error(`Unknown init argument ${flag}. Run a11ygate init --help.`);
+    }
+    if (!options.yes) {
+      if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("Interactive init requires a TTY. Use --yes with flags for scripted setup.");
+      const prompt = createInterface3({ input: process.stdin, output: process.stdout });
+      try {
+        if (!supplied.has("--target")) options.target = (await prompt.question(`CI target (${CI_TARGETS.join("/")}) [github]: `)).trim() || options.target;
+        if (!supplied.has("--url")) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
+        if (!supplied.has("--crawl")) {
+          const answer = (await prompt.question("Crawl pages (0 = start URL only, maximum 20) [10]: ")).trim();
+          if (answer && !/^\d+$/.test(answer)) throw new Error("--crawl needs a whole number.");
+          options.crawl = answer ? Number(answer) : options.crawl;
+        }
+        if (!supplied.has("--fail-on")) options.failOn = (await prompt.question("Fail on (minor/moderate/serious/critical/none) [serious]: ")).trim() || options.failOn;
+        if (!supplied.has("--baseline")) {
+          const answer = (await prompt.question("Create fingerprint baseline from an existing scan report? (y/N): ")).trim();
+          if (/^y(es)?$/i.test(answer)) options.baseline = (await prompt.question("Scan JSON or output directory [a11ygate-scan.json]: ")).trim() || "a11ygate-scan.json";
+        }
+      } finally {
+        prompt.close();
+      }
+    }
+    validate(options);
+    const cwd = io.cwd ?? process.cwd();
+    if (options.baseline) {
+      const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+        return null;
+      });
+      if (existing) stdout("Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n");
+      else if (await runBaseline(["create", options.baseline, "--output", ".a11ygate-baseline.json"], io) !== 0) return 2;
+    }
+    const recordTarget = options.pilot || options.target === "gitlab" || options.target === "azure-devops";
+    const config2 = `${SCHEMA_COMMENT}
+# ${AUTOMATED_TESTING_DISCLAIMER}
+# Setup choices; scan uses the explicit flags in the generated CI file.
+${recordTarget ? `ciTarget: ${options.target}
+` : ""}engines: [axe]
+modelFixes: false
+url: ${JSON.stringify(options.url)}
+crawl: ${options.crawl}
+failOn: ${options.failOn}
+${options.baseline ? "baseline: .a11ygate-baseline.json\n" : ""}`;
+    await writeStarter(cwd, ".a11ygate.yml", config2, options.force, stdout);
+    await writeStarter(cwd, CI_FILES[options.target], renderCiStarter(options.target, options), options.force, stdout);
+    if (options.pilot) {
+      await writeStarter(cwd, "a11ygate-pilot/success-criteria.yml", pilotSuccessCriteria(options.target), options.force, stdout);
+      await writeStarter(cwd, "a11ygate-pilot/KICKOFF.md", PILOT_KICKOFF, options.force, stdout);
+    }
+    if (options.target === "gitlab") stdout(`Add this entry to your .gitlab-ci.yml include list:
+include:
+  - local: '${CI_FILES.gitlab}'
+`);
+    if (options.target === "azure-devops") stdout(`Register ${CI_FILES["azure-devops"]} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
+`);
+    if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
+    stdout("Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n");
+    if (options.target === "jenkins") stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
+    stdout(`${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}
+`);
+    return 2;
+  }
+}
+
+// docs/pilot/outreach/conversion-email.md
+var conversion_email_default = "# Outreach template: conversion email (pilot results and quote)\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** on or right after the decision date. Attach the files written by `a11ygate pilot report` (see [Close out a pilot](../README.md#close-out-a-pilot)): `pilot-results.pdf` as `{{pilot_results_attachment}}` and the draft `quote.pdf` as `{{quote_attachment}}`. Review the quote's legal and tax wording before sending (see the [owner runbook](../owner-runbook.md)). `{{payment_option}}` is the checkout link or \"invoice on request\".\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: {{prospect_company}} pilot results and next step\n\nHi {{prospect_first_name}},\n\nThe {{pilot_length_days}}-day pilot ended on {{decision_date}}. Attached:\n- Pilot results, compared with the success criteria we agreed: {{pilot_results_attachment}}\n- A quote for continuing: {{quote_attachment}}\n\nWhy now: {{why_now}} (source: {{why_now_source}}).\n\nContinuing means the paid plan at USD {{price_usd_per_year}} per year. Nothing has been or will be billed automatically: it starts only if you reply with a written yes. Payment: {{payment_option}}.\n\nIf you'd rather stop, that's fine too. Please revoke the pilot access you granted (repository and CI). We delete any copies we hold on the retention schedule agreed at kickoff and confirm it in writing.\n\nThe results are automated testing only. They show what the scans found on the pages and states they covered, not that the site is accessible.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/demo-invite.md
+var demo_invite_default = "# Outreach template: demo invite\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** the prospect said yes to a call. The demo follows the [10-minute demo script](../demo-script.md): a local fictional shop, no scan of the prospect's site. If they ask for a scan of their own site, that needs written permission from the site owner first (see the [kickoff checklist](../kickoff-checklist.md)).\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: A11yGate demo, {{demo_date}}\n\nHi {{prospect_first_name}},\n\nThanks for making time. Confirming {{demo_date}}: {{meeting_link}}.\n\nWhy now, from our side: {{why_now}} (source: {{why_now_source}}).\n\nPlan for the call (about 25 minutes):\n- 10 minutes: a live demo on a local sample app. A naive accessibility check fails every build on existing debt; A11yGate records that debt as a baseline, then fails on the one new regression the demo introduces, and we bundle that run into an evidence pack.\n- 10 minutes: your setup ({{ci_system}}, which pages or flows matter most, who would own the check).\n- 5 minutes: whether a free {{pilot_length_days}}-day pilot makes sense, and what success would look like.\n\nI won't scan your site before or during the call. It is automated testing only; it does not replace an audit.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/first-touch-email.md
+var first_touch_email_default = "# Outreach template: first-touch email (EN)\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**To:** the prospect, after a warm intro or when there is a clear public reason to write. Keep it short. `{{why_now}}` must be public and dated with its link in `{{why_now_source}}`; never write that their site \"fails\" anything unless you scanned it with their written permission (see the [owner runbook](../owner-runbook.md)).\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: Catching new accessibility regressions in {{prospect_company}}'s CI\n\nHi {{prospect_first_name}},\n\n{{why_now}} (source: {{why_now_source}}).\n\nA11yGate is a CI gate with evidence, not an overlay widget: nothing is injected into your pages. It runs automated accessibility checks (axe-core) in {{ci_system}} on pull requests and records the findings you already have as a baseline. A new finding at or above your threshold (serious or critical by default) fails the check (Jenkins marks the build unstable); so does a setup or scan error, such as an unreadable baseline, so a red check is not always a new finding. When a run produces a scan report, the CI job uploads it as a build artifact in your own CI, whether the check passed or failed. At the pilot milestones (kickoff, mid-pilot and the decision date) I also make an evidence pack: the reports, a scope statement, what automated testing cannot cover, and a manifest with hashes.\n\nI'm running a free {{pilot_length_days}}-day pilot with a few teams: no payment details, nothing billed automatically. Would a 15-minute call to see if it fits be useful? A few times that work for me: {{demo_slots}}.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/first-touch-linkedin.md
+var first_touch_linkedin_default = "# Outreach template: first-touch LinkedIn message (300 characters or fewer)\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**To:** the prospect, as a connection note or message. The message block below must stay at 300 characters or fewer when rendered with the longest sample values (checked by `tests/outreach-templates.test.ts`). Keep `{{why_now}}` to 50 characters or fewer and its link `{{why_now_source}}` to 45 characters or fewer (use a short link if needed).\n\n## Message (EN)\n\n<!-- message:start -->\nHi {{prospect_first_name}}, {{why_now}} ({{why_now_source}}). A11yGate gates new accessibility regressions in CI; not an overlay. Free {{pilot_length_days}}-day pilot. Chat? {{sender_name}}\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/follow-up-1.md
+var follow_up_1_default = "# Outreach template: follow-up 1\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** about 4 business days after the first touch, in the same thread, only if there was no reply. One follow-up adds context; it does not repeat the pitch. Use a different, still public and dated `{{why_now}}` if you have one, with its link in `{{why_now_source}}`.\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: Re: Catching new accessibility regressions in {{prospect_company}}'s CI\n\nHi {{prospect_first_name}},\n\nA short follow-up. {{why_now}} (source: {{why_now_source}}).\n\nThe part teams usually ask about: A11yGate doesn't fail every build on existing debt. It records today's findings as a baseline, and a new serious or critical finding (the default threshold) fails the check while the existing ones stay listed, so the check can stay on. Setup or scan errors fail it too, so they get noticed. It is automated testing, so it complements manual and assistive-technology testing rather than replacing it.\n\nIf a 15-minute look is useful, here is a link to pick a time: {{meeting_link}}. The free {{pilot_length_days}}-day pilot has no payment details and nothing billed automatically.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/follow-up-2.md
+var follow_up_2_default = "# Outreach template: follow-up 2 (last)\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** about a week after follow-up 1, only if there was still no reply. This is the last message in the sequence; after it, stop. Don't send a third follow-up.\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: Re: Catching new accessibility regressions in {{prospect_company}}'s CI\n\nHi {{prospect_first_name}},\n\nI'll close the loop here so I don't fill your inbox. {{why_now}} (source: {{why_now_source}}).\n\nIf accessibility checks in CI become a priority later, the free {{pilot_length_days}}-day pilot offer stands, and you can reply to this thread any time. If someone else on the team owns this, I'd be grateful for a pointer.\n\nThanks for your time,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/objections.md
+var objections_default = `# Outreach template: objections and honest answers
+
+> **DRAFT.** Eliran sends this himself. Review before sending.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+
+**Use:** copy one answer into a reply, or use it on a call. Each answer below is one copy unit that ends with the disclaimer: copy the whole unit, and include the disclaimer line in every reply, even when you paste only one answer or shorten it. Every answer comes from [what A11yGate does not do](../../what-a11ygate-does-not-do.md) and [known limits](../../known-limits.md); don't go beyond them. If a question isn't covered here, say you'll check and come back, rather than guessing. The same list, shorter, is in the [demo script](../demo-script.md#likely-objections-and-honest-answers).
+
+## Answers (EN)
+
+<!-- message:start -->
+<!-- copy:start -->
+**"Is this one of those overlay widgets?"**
+No. A11yGate is a CI gate with evidence, not an overlay widget. Nothing is injected into your pages and nothing changes for your visitors. It runs in your CI on your code, before release, and fails the check when a new serious or critical finding appears.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"If we use it, are we covered for the EAA / legally safe?"**
+No. Using A11yGate does not make a site meet any law or standard on its own, and it is not legal advice. A pass means no new finding at or above the threshold was detected on the scanned pages; it does not mean the pages are accessible. Whether the European Accessibility Act applies to you, and what it requires, is a question for a qualified lawyer. Details: https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/what-a11ygate-does-not-do.md
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Do you give us a certificate or a badge?"**
+No. A11yGate issues no certificates, badges or seals, and nobody at A11yGate reviews your site. Reports are evidence of what an automated run found on the pages it scanned, at that time.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Does it replace a manual audit?"**
+No. Automated rules detect only some WCAG failures. Alt text quality, headings and labels that make sense, focus order, helpful error messages and zoom need a person to judge them.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Do you test with screen readers?"**
+No. A11yGate does not drive NVDA, JAWS, VoiceOver or TalkBack, and does not involve disabled users. Pair it with manual and assistive-technology testing.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Will it find every problem on our site?"**
+No. A scan covers only the pages it loaded and the states it reached. Content behind interactions, or logins it was not given, is not checked. Authenticated scans have recorded gaps (no interactive MFA, for example). The full list: https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/known-limits.md
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"We already have hundreds of issues. Won't it just fail every build?"**
+No. The existing findings are recorded as a baseline. They stay listed as existing, and a new serious or critical finding (the default threshold) fails the gate; existing ones don't. Setup or scan errors, such as an unreadable baseline, also fail it. So the check can stay on while your team works the old ones down.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Will it write the code changes for us?"**
+Only in a limited way. Rule-based suggestions cover a few rules, and any text containing \`TODO(a11ygate)\` is a placeholder a person must replace. We never write alt text or labels for you.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Does it run in our CI?"**
+GitHub Actions, GitLab CI, Azure DevOps and Jenkins have starter templates. Some CI templates have not run on a real hosted runner yet; the CI matrix in the README says what was run where.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Will you scan our site before we agree?"**
+No. We scan only with written authorization from the site owner, naming the URLs, environments and dates.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"What does it cost, and what happens after the pilot?"**
+The pilot is free for {{pilot_length_days}} days: no payment details, nothing billed automatically. After it, the paid plan is USD {{price_usd_per_year}} per year, and it starts only on your written yes. Otherwise the pilot ends: you revoke the access you granted (we can't do that for you), and we delete any copies we hold on the retention schedule agreed at kickoff.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+
+<!-- copy:start -->
+**"Why should we look at this now?"**
+{{why_now}} (source: {{why_now_source}}). If the timing is wrong, the offer stands for later.
+
+Automated testing only. Not a WCAG audit, certification or legal advice.
+<!-- copy:end -->
+<!-- message:end -->
+
+## Answers (HE)
+
+[[HE: Eliran to write]] Hebrew answers written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.
+`;
+
+// docs/pilot/outreach/pilot-proposal.md
+var pilot_proposal_default = "# Outreach template: pilot proposal\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** after the post-demo recap, when the prospect wants to go ahead. The scope comes from the [kickoff checklist](../kickoff-checklist.md) and the [success criteria template](../success-criteria.template.yml). The [pilot terms](../pilot-terms.template.md) are a **draft that needs Eliran/legal review**; don't attach them until a reviewed copy exists. Price and length come from [`config/pricing.json`](../../../config/pricing.json) through `{{price_usd_per_year}}` and `{{pilot_length_days}}`; never type the numbers by hand.\n\n> **DRAFT: wording pending legal review.** The access, data and price lines below follow the [kickoff checklist](../kickoff-checklist.md) and the draft [pilot terms](../pilot-terms.template.md). The default retention period is an Eliran/legal decision (still open in the kickoff checklist and terms); don't add a number here.\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: A11yGate pilot proposal for {{prospect_company}}\n\nHi {{prospect_first_name}},\n\nAs discussed, here is the proposal for a free pilot. Why now: {{why_now}} (source: {{why_now_source}}).\n\nScope (from our kickoff checklist: {{kickoff_checklist_link}}):\n{{proposed_scope}}\n- CI: {{ci_system}}. The gate runs inside your CI on pull requests; your admin decides whether it becomes a required check.\n- Before any scan: written authorization from the site owner naming the URLs, environments and dates.\n- Access: the least needed (read access and permission to open pull requests), granted by you. Secrets stay in your CI. At the end you revoke the access you granted and remove any pilot-only tokens; we can't do that for you.\n- Data: scan outputs stay in your CI by default. We keep copies (scan output, evidence packs) only if you agree, and delete them at the end of the retention period agreed at kickoff, then confirm the deletion in writing.\n\nDates: {{pilot_length_days}} days, from {{pilot_start_date}} to the decision date {{decision_date}}, with a 30-minute check-in each week.\n\nSuccess criteria: {{success_criteria_link}}. On the decision date you get the pilot results and an evidence pack, compared with these criteria.\n\nPrice: the pilot is free. No payment details are collected and nothing is billed automatically. After the pilot, it converts to the paid plan at USD {{price_usd_per_year}} per year only if you say yes in writing. If you don't, the pilot simply ends: you revoke the access you granted, and we delete any copies we hold on the agreed retention schedule.\n\nWhat it is not: automated testing only. It does not replace a manual audit or assistive-technology testing, it is not legal advice, and it issues no certificate.\n\nIf this works, reply with a yes for the pilot (not for the paid plan) and two kickoff times that suit you.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/post-demo-recap.md
+var post_demo_recap_default = "# Outreach template: post-demo recap\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**When:** the same day as the demo. Write `{{observed_summary}}` only from what was shown in the call (the demo fixture, or a scan of their site made with written permission). Fill `{{success_criteria_link}}` with a link to their copy of the [success criteria template](../success-criteria.template.yml), filled in from the call.\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: Recap: A11yGate demo and a proposed pilot for {{prospect_company}}\n\nHi {{prospect_first_name}},\n\nThanks for the time today. A short recap.\n\nWhat we saw:\n{{observed_summary}}\n\nWhy now: {{why_now}} (source: {{why_now_source}}).\n\nProposed pilot scope:\n{{proposed_scope}}\n- CI: {{ci_system}}; the gate runs on pull requests and becomes a required check if your admin agrees.\n- Length: {{pilot_length_days}} days, free, from {{pilot_start_date}} to {{decision_date}}.\n\nSuccess criteria (draft, for us to agree on): {{success_criteria_link}}\n\nWhat the pilot is not: it is automated testing only. It does not replace a manual audit or testing with assistive technology, and it is not legal advice.\n\nIf this looks right, I'll send the pilot proposal and we can book the kickoff.\n\nBest,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// docs/pilot/outreach/warm-intro-request.md
+var warm_intro_request_default = "# Outreach template: warm intro request\n\n> **DRAFT.** Eliran sends this himself. Review before sending.\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n\n**To:** a mutual contact who knows the prospect. **Goal:** ask for a short intro, not a sale. Send it only if the mutual contact would actually vouch for the conversation. Fill `{{why_now}}` only with something public and dated, and put its link in `{{why_now_source}}`; if there is no such source, delete the sentence.\n\n## Message (EN)\n\n<!-- message:start -->\nSubject: Quick intro to {{prospect_first_name}} at {{prospect_company}}?\n\nHi {{contact_first_name}},\n\nWould you be comfortable introducing me to {{prospect_first_name}} ({{prospect_role}} at {{prospect_company}})?\n\nWhy now: {{why_now}} (source: {{why_now_source}}).\n\nI'm building A11yGate, a CI gate with evidence, not an overlay widget. It runs automated accessibility checks on pull requests, keeps the existing findings as a baseline, and a new serious or critical finding fails the check, so existing debt doesn't block every build. I'm offering a free {{pilot_length_days}}-day pilot to a few teams and would like to ask {{prospect_first_name}} for 15 minutes.\n\nIf it helps, here is a short blurb you can forward as it is (please keep the last line):\n\n<!-- copy:start -->\n> {{sender_name}} runs A11yGate, an automated accessibility gate for CI. Free {{pilot_length_days}}-day pilot, no payment details, nothing billed automatically.\n>\n> Automated testing only. Not a WCAG audit, certification or legal advice.\n<!-- copy:end -->\n\nNo worries at all if it's not a fit.\n\nThanks,\n{{sender_name}}\n\nAutomated testing only. Not a WCAG audit, certification or legal advice.\n<!-- message:end -->\n\n## Message (HE)\n\n[[HE: Eliran to write]] Hebrew version written by Eliran, not machine-translated. The disclaimer line stays in English, word for word.\n";
+
+// packages/cli/src/outreach-templates.ts
+var outreachTemplates = {
+  "conversion-email.md": conversion_email_default,
+  "demo-invite.md": demo_invite_default,
+  "first-touch-email.md": first_touch_email_default,
+  "first-touch-linkedin.md": first_touch_linkedin_default,
+  "follow-up-1.md": follow_up_1_default,
+  "follow-up-2.md": follow_up_2_default,
+  "objections.md": objections_default,
+  "pilot-proposal.md": pilot_proposal_default,
+  "post-demo-recap.md": post_demo_recap_default,
+  "warm-intro-request.md": warm_intro_request_default
+};
+
+// packages/cli/src/prospect.ts
+import { createHash as createHash5 } from "node:crypto";
+import { mkdir as mkdir8, stat as stat5 } from "node:fs/promises";
+import path17 from "node:path";
+
+// config/own-hosts.json
+var own_hosts_default = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "a11ygate.vercel.app",
+  "qe-atlas.vercel.app"
+];
 
 // lib/billing-env.mjs
 function formatAnnualPrice(config2) {
@@ -8528,6 +9301,491 @@ function getCheckoutUrl(env = process.env, warn = console.warn) {
 // lib/billing.ts
 var pricing = pricing_default;
 var annualPrice = formatAnnualPrice(pricing);
+
+// lib/scan/prospect-report.ts
+function prospectHtml(report, options) {
+  const title = options.company ? `Accessibility scan summary for ${options.company}` : "Accessibility scan summary";
+  const { pagesScanned, pagesFailed, pagesNotAuthenticated, skippedLinks } = report.counts;
+  const scanned = report.pages.filter((page) => page.scanStatus === "complete");
+  const engines = (report.engines?.used ?? ["axe"]).map((engine) => engine === "axe" ? `axe-core ${report.axeVersion ?? "(version unrecorded)"}` : `${engine} (version unrecorded)`);
+  const rules2 = topFixes(report.findings);
+  const issues = rules2.map((rule) => {
+    const sample = rule.findings[0];
+    return `<section>
+<h3><code>${esc2(rule.ruleId)}</code> <span class="impact ${rule.impact ?? "unknown"}">${rule.impact ?? "Unknown impact"}</span></h3>
+<p>WCAG reference: ${rule.wcag.map((c) => esc2(c.number)).join(", ") || "None mapped"}. ${rule.occurrences} occurrence(s) on ${rule.pages.length} page(s).</p>
+<p>Sample selector: <code>${esc2(sample.selector)}</code></p>
+<p>${esc2(findingGuidance(sample).remediation)}</p>
+</section>`;
+  }).join("\n");
+  const offer = options.offer ? `<section><h2>Pilot offer</h2><p>${esc2(pricing.plan)} costs ${esc2(annualPrice)}/yr (${esc2(pricing.currency)}). Start with a ${pricing.pilot.lengthDays}-day free pilot.</p></section>` : "";
+  const authorization = options.authorization ? `<p>Authorized by: ${esc2(options.authorization.authorizedBy)}<br>Authorization note: ${esc2(options.authorization.authorizationNote)}</p>` : "";
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>${esc2(title)}</title>
+<style>
+${REPORT_V2_STYLE}
+footer{margin-top:1.5rem;overflow-wrap:anywhere}
+@media print{section>section,footer{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+<h1>${esc2(title)}</h1>
+<p>Site: <code>${esc2(report.startUrl)}</code></p>
+<p class="disclaimer">${AUTOMATED_TESTING_DISCLAIMER}</p>
+</header>
+<main>
+<section>
+<h2>Scan scope</h2>
+<p>Scan date: ${esc2(report.scannedAt)}. Engines: ${esc2(engines.join(", ") || "No engine completed")}. A11yGate CLI ${esc2(report.version)}.</p>
+<p>${pagesScanned} page(s) scanned (cap ${report.options.maxPages}), ${pagesFailed} failed, ${pagesNotAuthenticated ?? 0} unauthenticated, ${skippedLinks} link(s) skipped. ${esc2(report.options.robots)}</p>
+${scanned.length ? `<ul>${scanned.map((page) => `<li><code>${esc2(page.finalUrl)}</code></li>`).join("")}</ul>` : ""}
+</section>
+<section>
+<h2>Top issues</h2>
+${issues || "<p>The scan recorded no findings in the pages it analyzed.</p>"}
+${issues ? "<p>For missing alternative text, labels or accessible names, leave a TODO for someone who knows the content to write and verify the wording.</p>" : ""}
+</section>
+<section>
+<h2>What this means in CI</h2>
+<p>This scan recorded ${report.findings.length} finding(s) across ${pagesScanned} scanned page(s). On comparable coverage, a fingerprint baseline would record these existing findings. A pull request gate scanning the same pages could fail a change that adds a finding at or above the configured impact threshold, including another occurrence of a rule already listed here. Re-scan after fixes to reduce the baseline.</p>
+</section>
+<section>
+<h2>What automated testing can't cover</h2>
+<p>Review key flows with a keyboard and screen reader. Check focus order, whether text alternatives and labels make sense in context, and states and pages outside this scan.</p>
+</section>
+${offer}
+</main>
+<footer>
+${authorization}
+<p>${AUTOMATED_TESTING_DISCLAIMER}</p>
+</footer>
+</body>
+</html>
+`;
+}
+
+// packages/cli/src/prospect.ts
+var HELP = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--company <name>] [--out-dir <dir>] [--offer]
+       a11ygate prospect --from <scan-dir|scan.json> [--company <name>] [--out-dir <dir>] [--offer]
+
+Write a prospect summary (HTML and PDF) and manifest to prospect-out by default.
+URL mode scans one page by default. Sites outside the own-host allowlist require
+both --authorized-by <name> and --authorization-note <text> before scanning.
+--outreach-data saves the scan JSON alongside its approval manifest for offline kit
+generation. URL mode only. Keep the resulting private data outside repositories.
+--from reads saved scan data offline. PDF output requires Playwright Chromium.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var valueFlags = /* @__PURE__ */ new Set(["--from", "--company", "--max-pages", "--out-dir", "--authorized-by", "--authorization-note"]);
+function isOwnProspectHost(url) {
+  const normalized = normalizeUrl(url);
+  return normalized !== null && own_hosts_default.includes(new URL(normalized).hostname.replace(/^\[|\]$/g, ""));
+}
+function parseProspectArgs(argv2) {
+  let target;
+  let offer = false;
+  let outreachData = false;
+  const values = /* @__PURE__ */ new Map();
+  for (let i = 0; i < argv2.length; i++) {
+    const token = argv2[i];
+    if (token === "--offer") {
+      offer = true;
+    } else if (token === "--outreach-data") {
+      outreachData = true;
+    } else if (token.startsWith("-")) {
+      const eq = token.indexOf("=");
+      const flag = eq < 0 ? token : token.slice(0, eq);
+      if (!valueFlags.has(flag)) throw new Error(`Unknown prospect option ${token}.`);
+      if (values.has(flag)) throw new Error(`Pass ${flag} once.`);
+      const value = eq < 0 ? argv2[++i]?.trim() : token.slice(eq + 1).trim();
+      if (!value || eq < 0 && value.startsWith("--")) throw new Error(`${flag} needs a value.`);
+      values.set(flag, value);
+    } else {
+      if (target) throw new Error("Pass one URL or saved scan.");
+      target = token;
+    }
+  }
+  const from = values.get("--from");
+  if (Boolean(from) === Boolean(target)) throw new Error("Pass one URL or saved scan.");
+  const url = from ? null : normalizeUrl(target);
+  if (!url && target && /^[a-z][a-z\d+.-]*:\/\//i.test(target)) {
+    throw new Error("Pass an HTTP(S) URL without credentials or a local saved scan path.");
+  }
+  if (outreachData && (!url || !values.has("--out-dir"))) {
+    throw new Error("--outreach-data requires URL mode and an explicit --out-dir.");
+  }
+  const max = values.get("--max-pages");
+  const maxPages = max === void 0 ? 1 : Number(max);
+  if (max !== void 0 && (!/^\d+$/.test(max) || maxPages < 1 || maxPages > MAX_CRAWL_PAGES)) {
+    throw new Error(`--max-pages must be from 1 to ${MAX_CRAWL_PAGES}.`);
+  }
+  if (!url && max !== void 0) throw new Error("--max-pages applies to URL scans only.");
+  const authorizedBy = values.get("--authorized-by");
+  const authorizationNote = values.get("--authorization-note");
+  if (Boolean(authorizedBy) !== Boolean(authorizationNote)) {
+    throw new Error("Provide both --authorized-by and --authorization-note.");
+  }
+  if (url && !isOwnProspectHost(url) && !authorizedBy) {
+    throw new Error("This host requires both --authorized-by and --authorization-note.");
+  }
+  return {
+    input: from ?? target,
+    url,
+    maxPages,
+    company: values.get("--company"),
+    outDir: values.get("--out-dir") ?? "prospect-out",
+    offer,
+    outreachData,
+    authorization: authorizedBy && authorizationNote ? { authorizedBy, authorizationNote } : void 0
+  };
+}
+async function scanProspectUrl(url, maxPages, io) {
+  let report;
+  const code3 = await runScan([url, "--crawl", String(maxPages), "--fail-on", "none"], {
+    ...io,
+    readOnly: true,
+    stdout: () => {
+    },
+    onReport: (value) => {
+      report = value;
+    }
+  });
+  if (code3 === 2 || !report) throw new Error("The prospect scan could not complete.");
+  return report;
+}
+async function runProspect(argv2, io = {}) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  const cwd = io.cwd ?? process.cwd();
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(HELP);
+    return 0;
+  }
+  try {
+    const options = parseProspectArgs(argv2);
+    const requested = path17.resolve(cwd, options.outDir);
+    const output = options.outreachData ? (await privateOutputDir(requested)).canonical : requested;
+    const htmlPath = path17.join(output, "prospect-summary.html");
+    const pdfPath = path17.join(output, "prospect-summary.pdf");
+    const manifestPath = path17.join(output, "prospect-manifest.json");
+    const outputs = [htmlPath, pdfPath, manifestPath];
+    const scanPath2 = path17.join(output, "a11ygate-scan.json");
+    if (options.outreachData) outputs.push(scanPath2);
+    let source;
+    if (!options.url) {
+      const input = path17.resolve(cwd, options.input);
+      source = (await stat5(input)).isDirectory() ? path17.join(input, "a11ygate-scan.json") : input;
+    }
+    await assertSafeOutputs(cwd, source ? [source] : [], outputs);
+    const report = options.url ? await scanProspectUrl(options.url, options.maxPages, io) : await readScanInput(options.input, cwd);
+    const html = prospectHtml(report, options);
+    const pdf = await printProspectPdf(html, report.scannedAt);
+    const scanData = options.outreachData ? Buffer.from(JSON.stringify({ ...report, disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n") : void 0;
+    const manifest = {
+      schemaVersion: 1,
+      source: options.url ? "url" : "saved-scan",
+      startUrl: report.startUrl,
+      scannedAt: report.scannedAt,
+      company: options.company ?? null,
+      offer: options.offer,
+      authorizedBy: options.authorization?.authorizedBy ?? null,
+      authorizationNote: options.authorization?.authorizationNote ?? null,
+      files: ["prospect-summary.html", "prospect-summary.pdf", ...scanData ? ["a11ygate-scan.json"] : []],
+      ...scanData ? { scanSha256: createHash5("sha256").update(scanData).digest("hex") } : {},
+      disclaimer: AUTOMATED_TESTING_DISCLAIMER
+    };
+    await mkdir8(output, { recursive: true, ...options.outreachData ? { mode: 448 } : {} });
+    await writeBinaryAtomic(htmlPath, Buffer.from(html));
+    await writeBinaryAtomic(pdfPath, pdf);
+    if (scanData) await writeBinaryAtomic(scanPath2, scanData);
+    await writeBinaryAtomic(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
+    stdout(`Wrote prospect-summary.html, prospect-summary.pdf and prospect-manifest.json${scanData ? " with a11ygate-scan.json" : ""} to ${options.outDir}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Prospect report failed: ${error instanceof Error ? error.message : String(error)}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 2;
+  }
+}
+
+// packages/cli/src/outreach.ts
+var HELP2 = `Usage: a11ygate outreach kit --prospect <prospect.yml> [--scan-dir <prospect-out>] [--out-dir <dir>] [--allow-in-repo]
+
+Render outreach drafts, a one-pager (HTML and PDF), sample results and a manifest offline.
+Default output: ~/a11ygate-prospects/<company-slug>/. Use --allow-in-repo to
+write inside a git work tree with an ignore file. Requires Playwright Chromium.
+--scan-dir reads the local scan JSON and approval manifest from a prospect run.
+
+${AUTOMATED_TESTING_DISCLAIMER}
+`;
+var ciNames = {
+  github: "GitHub Actions",
+  gitlab: "GitLab CI",
+  "azure-devops": "Azure DevOps",
+  jenkins: "Jenkins",
+  other: "your CI system"
+};
+var sha2562 = (bytes) => createHash6("sha256").update(bytes).digest("hex");
+var hasText = (value) => typeof value === "string" && !!value.trim();
+function parseProspect(text) {
+  const parsed = parseConfigYaml(text);
+  if (!parsed.ok) throw new Error(parsed.errors.join(" "));
+  const errors = validateConfig(parsed.value, outreach_prospect_schema_default);
+  if (!parsed.value || errors.length) throw new Error(errors.join(" ") || "Expected a prospect mapping.");
+  const prospect = parsed.value;
+  if (Boolean(prospect.authorized_by) !== Boolean(prospect.authorization_note)) {
+    throw new Error("Provide both authorized_by and authorization_note in the prospect profile.");
+  }
+  if (!normalizeUrl(prospect.why_now_source)) throw new Error("why_now_source must be an HTTP(S) URL without credentials.");
+  return prospect;
+}
+function markdownText(value) {
+  return esc2(value.replace(/[\r\n]+/g, " ")).replace(/[\\`*_[\]~]/g, "\\$&");
+}
+function renderDrafts(prospect, offer) {
+  const values = {
+    prospect_company: markdownText(prospect.company),
+    prospect_role: markdownText(prospect.contact_role),
+    prospect_first_name: "[Add first name]",
+    contact_first_name: "[Add intro contact]",
+    sender_name: "Eliran",
+    why_now: markdownText(prospect.why_now),
+    why_now_source: esc2(prospect.why_now_source),
+    price_usd_per_year: String(offer.priceUsdPerYear),
+    pilot_length_days: String(offer.pilot.lengthDays),
+    ci_system: ciNames[prospect.ci_system],
+    demo_slots: "[Add demo times]",
+    demo_date: "[Add agreed demo time]",
+    meeting_link: "[Add meeting link]",
+    observed_summary: "[Summarize what was shown on the call]",
+    proposed_scope: "[Add agreed pages, flows and environments]",
+    pilot_start_date: "[Add pilot start date]",
+    decision_date: "[Add decision date]",
+    kickoff_checklist_link: "[Add kickoff checklist link]",
+    success_criteria_link: "[Add success criteria link]",
+    pilot_results_attachment: "pilot-results.pdf",
+    quote_attachment: "quote.pdf",
+    payment_option: "invoice on request"
+  };
+  return Object.fromEntries(Object.entries(outreachTemplates).map(([name, template]) => {
+    const linked = template.replace(/\]\((\.\.\/[^)]+)\)/g, (_, relative) => `](https://github.com/DaveEliranAssistant/a11ygate/blob/main/${path18.posix.normalize("docs/pilot/outreach/" + relative)})`);
+    let draft = linked.replace(/\{\{([a-z_]+)}}/g, (_, key) => {
+      if (!Object.hasOwn(values, key)) throw new Error(`Unknown outreach placeholder ${key}.`);
+      return values[key];
+    });
+    if (name === "warm-intro-request.md") {
+      draft = draft.replace("## Message (EN)", () => `**Private warm-path note:** ${markdownText(prospect.warm_path)}
+
+## Message (EN)`);
+    }
+    return [name, draft];
+  }));
+}
+function document2(title, body) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>${esc2(title)}</title>
+<style>
+body{font:1rem/1.5 system-ui,sans-serif;color:#18232e;max-width:48rem;margin:2rem auto;padding:0 1.25rem;overflow-wrap:anywhere}
+h1,h2{line-height:1.2} h2{margin-top:1.4em}
+pre{background:#f1f4f7;padding:1rem;white-space:pre-wrap;tab-size:2}
+footer{margin-top:2rem;border-top:1px solid #acb8c3;padding-top:.6rem}
+@media print{body{font-size:10.5pt;margin:0;padding:0}pre{font-size:8pt}h2{break-after:avoid}}
+</style>
+</head>
+<body>
+<main>
+<h1>${esc2(title)}</h1>
+${body}
+</main>
+<footer>${AUTOMATED_TESTING_DISCLAIMER}</footer>
+</body>
+</html>
+`;
+}
+function onePager(prospect, offer) {
+  const ci = prospect.ci_system;
+  const starter = ci === "other" ? '<p>See the <a href="https://github.com/DaveEliranAssistant/a11ygate/tree/main/docs/integrations">integration guides</a> for CI setup.</p>' : `<p>Review the starter and configure it for your authorized environment.</p>
+<pre><code>${esc2(renderCiStarter(ci)).replaceAll("{", "&#123;")}</code></pre>`;
+  const pilot = offer.pilot.priceUsd === 0 ? `free ${offer.pilot.lengthDays}-day pilot` : `${offer.pilot.lengthDays}-day pilot at ${offer.currency} ${offer.pilot.priceUsd}`;
+  return document2(`A11yGate for ${prospect.company}`, `<p>A11yGate is a CI gate with evidence. It records existing automated accessibility findings as a baseline, flags new findings at your chosen threshold, and keeps reports in CI.</p>
+<p>Prepared for ${esc2(prospect.contact_role)} \xB7 ${esc2(prospect.stack)}</p>
+<h2>Pilot offer</h2>
+<p>Start with a ${esc2(pilot)}. At the decision date, review the results against the agreed success criteria. The paid plan costs ${esc2(offer.currency)} ${offer.priceUsdPerYear} per year and starts only with your written approval. There is no automatic billing.</p>
+<h2>Why now</h2>
+<p>${esc2(prospect.why_now)} <a href="${esc2(prospect.why_now_source)}">${esc2(prospect.why_now_source)}</a></p>
+<h2>CI starter for ${esc2(ciNames[ci])}</h2>
+${starter}`);
+}
+function sampleResults(report) {
+  const heading2 = report ? `${report.startUrl} \xB7 ${report.scannedAt}` : "Sample from our demo app, not your site";
+  const issues = report ? topFixes(report.findings).map((issue) => `<li><code>${esc2(issue.ruleId)}</code> \xB7 ${esc2(issue.impact ?? "Unknown impact")} \xB7 ${issue.occurrences} occurrence(s)</li>`) : demo_shop_current_default.flatMap((result) => result.violations).map((issue) => `<li><code>${esc2(issue.id)}</code> \xB7 ${esc2(issue.impact)} \xB7 ${esc2(issue.help)}</li>`);
+  return document2("Top accessibility issues", `<p>${esc2(heading2)}</p>
+${report ? "" : "<p>These synthetic Demo Shop fixture results illustrate what the gate can report.</p>"}
+${issues.length ? `<ul>
+${issues.join("\n")}
+</ul>` : "<p>The scan recorded no findings on the pages it analyzed.</p>"}`);
+}
+async function readEvidence(dir) {
+  const manifestPath = path18.join(dir, "prospect-manifest.json");
+  const scanPath2 = path18.join(dir, "a11ygate-scan.json");
+  const manifest = await readJsonInput(dir, manifestPath, (value) => {
+    const record = value;
+    if (record?.schemaVersion !== 1 || !hasText(record.startUrl) || !normalizeUrl(record.startUrl) || !hasText(record.scannedAt) || !["url", "saved-scan"].includes(String(record.source))) {
+      throw new Error("Expected a manifest from a11ygate prospect.");
+    }
+    return record;
+  }, 64 * 1024);
+  const authorizedBy = hasText(manifest.authorizedBy) ? manifest.authorizedBy : null;
+  const authorizationNote = hasText(manifest.authorizationNote) ? manifest.authorizationNote : null;
+  const approved = !!authorizedBy && !!authorizationNote;
+  const requireApproval = (url) => {
+    if (!isOwnProspectHost(url) && !approved) {
+      throw new Error("The prospect manifest needs both authorizedBy and authorizationNote for a non-own host.");
+    }
+  };
+  requireApproval(String(manifest.startUrl));
+  if (manifest.source !== "url" && !isOwnProspectHost(String(manifest.startUrl))) {
+    throw new Error("For a non-own host, use the manifest from the approved prospect URL run.");
+  }
+  if ((await stat6(scanPath2)).size > MAX_INPUT_JSON_BYTES) throw new Error("The scan JSON exceeds the input size limit.");
+  const scanBytes = await readFile9(scanPath2);
+  const scanHash = sha2562(scanBytes);
+  if (manifest.scanSha256 !== void 0 && manifest.scanSha256 !== scanHash) {
+    throw new Error("The scan JSON does not match the digest in the prospect manifest.");
+  }
+  let report;
+  try {
+    report = parseScanReport(JSON.parse(scanBytes.toString("utf8").replace(/^\uFEFF/, "")));
+  } catch {
+    throw new Error("Expected a valid a11ygate-scan.json alongside the prospect manifest.");
+  }
+  if (report.startUrl !== manifest.startUrl || report.scannedAt !== manifest.scannedAt) {
+    throw new Error("The scan URL and timestamp must match the prospect manifest.");
+  }
+  const origin = new URL(report.startUrl).origin;
+  for (const url of [...report.pages.filter((page) => page.scanStatus === "complete").flatMap((page) => [page.url, page.finalUrl]), ...report.findings.map((finding2) => finding2.pageUrl)]) {
+    if (!normalizeUrl(url) || new URL(url).origin !== origin) {
+      throw new Error("The scan includes URLs outside the prospect manifest\u2019s origin.");
+    }
+  }
+  return {
+    report,
+    authorizedBy: approved ? authorizedBy : null,
+    authorizationNote: approved ? authorizationNote : null,
+    manifestHash: sha2562(JSON.stringify(manifest)),
+    scanHash,
+    inputs: [manifestPath, scanPath2]
+  };
+}
+async function runOutreach(argv2, io = {}, offer = pricing_default) {
+  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
+  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
+  const cwd = io.cwd ?? process.cwd();
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    stdout(HELP2);
+    return 0;
+  }
+  if (argv2[0] !== "kit") {
+    stderr(HELP2);
+    return 2;
+  }
+  try {
+    const { values } = parseArgs2({
+      args: argv2.slice(1),
+      options: {
+        prospect: { type: "string" },
+        "scan-dir": { type: "string" },
+        "out-dir": { type: "string" },
+        "allow-in-repo": { type: "boolean" }
+      }
+    });
+    if (!hasText(values.prospect)) throw new Error("--prospect needs a file.");
+    for (const flag of ["scan-dir", "out-dir"]) {
+      if (values[flag] !== void 0 && !hasText(values[flag])) throw new Error(`--${flag} needs a directory.`);
+    }
+    const profilePath = path18.resolve(cwd, values.prospect);
+    if ((await stat6(profilePath)).size > 64 * 1024) throw new Error("The prospect profile exceeds the input size limit.");
+    const profile = await readFile9(profilePath);
+    const prospect = parseProspect(profile.toString("utf8"));
+    const slug = prospect.company.normalize("NFKD").replace(new RegExp("\\p{M}", "gu"), "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80).replace(/^-+|-+$/g, "") || `prospect-${sha2562(prospect.company).slice(0, 12)}`;
+    const requested = path18.resolve(cwd, values["out-dir"] ?? path18.join(os.homedir(), "a11ygate-prospects", slug));
+    const { canonical: output, inRepo, workTree } = await privateOutputDir(requested, values["allow-in-repo"]);
+    const evidence = values["scan-dir"] ? await readEvidence(path18.resolve(cwd, values["scan-dir"])) : void 0;
+    const files = {
+      ...renderDrafts(prospect, offer),
+      "one-pager.html": onePager(prospect, offer),
+      "sample-results.html": sampleResults(evidence?.report)
+    };
+    const ignorePath = path18.join(output, ".gitignore");
+    const writeIgnore = inRepo || values["allow-in-repo"];
+    const outputs = [...Object.keys(files), "manifest.json", "one-pager.pdf", ...writeIgnore ? [".gitignore"] : []];
+    const outputPaths = outputs.map((name) => path18.join(output, name));
+    if (workTree) await assertUntrackedOutputs(workTree, outputPaths);
+    await assertSafeOutputs(cwd, [profilePath, ...evidence?.inputs ?? []], outputPaths);
+    for (const name of outputs) {
+      const info = await lstat5(path18.join(output, name)).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+      if (info && !info.isFile()) throw new Error(`Output ${name} must be a regular file.`);
+    }
+    const previousIgnore = writeIgnore ? await readFile9(ignorePath, "utf8").catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return "";
+    }) : "";
+    const commit = await defaultGitHead(cwd);
+    const inputs = {
+      prospectSha256: sha2562(profile),
+      ...evidence ? { prospectManifestSha256: evidence.manifestHash, scanSha256: evidence.scanHash } : { demoSha256: sha2562(JSON.stringify(demo_shop_current_default)) }
+    };
+    files["one-pager.pdf"] = await printProspectPdf(String(files["one-pager.html"]), evidence?.report.scannedAt ?? "1970-01-01");
+    files["manifest.json"] = JSON.stringify({
+      schemaVersion: 1,
+      inputsHash: sha2562(JSON.stringify({ inputs, config: offer })),
+      inputs,
+      config: offer,
+      commit,
+      realSiteData: !!evidence,
+      authorizedBy: evidence?.authorizedBy ?? null,
+      authorizationNote: evidence?.authorizationNote ?? null,
+      files: outputs.filter((name) => name !== ".gitignore"),
+      disclaimer: AUTOMATED_TESTING_DISCLAIMER
+    }, null, 2) + "\n";
+    await mkdir9(output, { recursive: true, mode: 448 });
+    if (writeIgnore && !previousIgnore.trimEnd().endsWith("\n*") && previousIgnore.trimEnd() !== "*") {
+      await writeBinaryAtomic(ignorePath, Buffer.from(`${previousIgnore ? previousIgnore.trimEnd() + "\n" : ""}*
+`));
+    }
+    for (const [name, bytes] of Object.entries(files)) await writeBinaryAtomic(path18.join(output, name), Buffer.from(bytes));
+    stdout(`Wrote outreach kit to ${output}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 0;
+  } catch (error) {
+    stderr(`Outreach kit failed: ${error instanceof Error ? error.message : String(error)}
+${AUTOMATED_TESTING_DISCLAIMER}
+`);
+    return 2;
+  }
+}
+
+// packages/cli/src/pilot.ts
+import { readFile as readFile10 } from "node:fs/promises";
+import path19 from "node:path";
 
 // lib/scan/pilot-report.ts
 function isIsoDay(value) {
@@ -8573,11 +9831,11 @@ function evaluateCriteria(config2, latest, criteriaPath) {
   const coverage = measuredCount >= requiredPages.min && !missingRoutes.length ? unverifiedFlows.length ? null : true : hasPageEvidence ? false : null;
   const coverageDetail = `${pages.size} distinct completed pages and ${flows.size} completed interaction states; target ${requiredPages.min}.` + (missingRoutes.length ? ` Paths absent from completed scans: ${missingRoutes.join(", ")}.` : "") + (unverifiedFlows.length ? ` Named flows without a recorded match: ${unverifiedFlows.join(", ")}.` : "");
   const rows = [];
-  const add = (label, selected, result, detail, path23) => rows.push({
+  const add = (label, selected, result, detail, path24) => rows.push({
     label,
     result: selected ? result : null,
     detail: selected ? detail : "Target was not selected at kickoff.",
-    path: selected ? path23 : criteriaPath
+    path: selected ? path24 : criteriaPath
   });
   const fullGate = gate && matchesWindow(gate, pilot.startDate);
   add(
@@ -8614,7 +9872,7 @@ function evaluateCriteria(config2, latest, criteriaPath) {
   );
   return rows;
 }
-function document2(title, body, styles = "") {
+function document3(title, body, styles = "") {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -8677,7 +9935,7 @@ function pilotResultsHtml(kickoff, latest, packs, config2, criteriaPath, custome
       gate.required ? "Yes" : "No"
     ]] : [];
   });
-  return document2(`Pilot results for ${customer}`, `<section>
+  return document3(`Pilot results for ${customer}`, `<section>
 <h2>Kickoff and latest scans</h2>
 <p>Kickoff evidence <code>${esc2(scanPath(kickoff))}</code><br>Latest evidence <code>${esc2(scanPath(latest))}</code></p>
 ${table("Recorded findings by impact", ["Impact", "Kickoff", "Latest"], [
@@ -8736,7 +9994,7 @@ ${table("Pilot targets and observations", ["Criterion", "Result", "Observation",
 </section>`);
 }
 function quoteHtml(customer, date, checkout, config2 = pricing) {
-  return document2(`${config2.plan} renewal quote`, `<p class="draft"><strong>${quoteDraftBanner}</strong></p>
+  return document3(`${config2.plan} renewal quote`, `<p class="draft"><strong>${quoteDraftBanner}</strong></p>
 <dl>
 <dt>Customer</dt><dd>${esc2(customer)}</dd>
 <dt>Buyer details</dt><dd>[[MISSING: PO/legal entity]]</dd>
@@ -8904,7 +10162,7 @@ var pilot_evidence_schema_default = {
 };
 
 // packages/cli/src/pilot.ts
-var HELP = `Usage: a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
+var HELP3 = `Usage: a11ygate pilot report --kickoff <evidence.zip> --latest <evidence.zip> --criteria <file.yml>
                             [--packs <dir>] [--customer <name>] [--out-dir <dir>]
 
 Write pilot-results.html/.pdf and a draft quote.html/.pdf locally.
@@ -8914,7 +10172,7 @@ Write pilot-results.html/.pdf and a draft quote.html/.pdf locally.
 
 ${AUTOMATED_TESTING_DISCLAIMER}
 `;
-function parseArgs2(argv2) {
+function parseArgs3(argv2) {
   const values = /* @__PURE__ */ new Map();
   const allowed = ["--kickoff", "--latest", "--criteria", "--packs", "--customer", "--out-dir"];
   for (let i = 0; i < argv2.length; i++) {
@@ -8929,7 +10187,7 @@ function parseArgs2(argv2) {
   }
   for (const flag of ["--kickoff", "--latest", "--criteria"]) {
     if (!values.has(flag)) throw new Error(`Pass ${flag}.
-${HELP.split("\n")[0]}`);
+${HELP3.split("\n")[0]}`);
   }
   return {
     kickoff: values.get("--kickoff"),
@@ -8985,15 +10243,15 @@ async function runPilot(argv2, io) {
 `);
   const cwd = io.cwd ?? process.cwd();
   if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(HELP);
+    stdout(HELP3);
     return 0;
   }
   try {
     if (argv2[0] !== "report") throw new Error("Use a11ygate pilot report. See a11ygate pilot report --help.");
-    const options = parseArgs2(argv2.slice(1));
-    const criteria = parseCriteria(await readFile8(path15.resolve(cwd, options.criteria), "utf8"), options.criteria);
+    const options = parseArgs3(argv2.slice(1));
+    const criteria = parseCriteria(await readFile10(path19.resolve(cwd, options.criteria), "utf8"), options.criteria);
     const loadEndpoint = async (source) => {
-      const files = await readPackZip(path15.resolve(cwd, source));
+      const files = await readPackZip(path19.resolve(cwd, source));
       const pack = parsePilotPack(source, files, warn);
       if (typeof pack === "string") throw new Error(pack);
       return pack;
@@ -9004,17 +10262,17 @@ async function runPilot(argv2, io) {
     if (options.packs) {
       const dir = options.packs;
       const loaded = await loadPacks(
-        path15.resolve(cwd, dir),
+        path19.resolve(cwd, dir),
         warn,
-        (name, files) => parsePilotPack(path15.join(dir, name), files, warn),
+        (name, files) => parsePilotPack(path19.join(dir, name), files, warn),
         PILOT_EVIDENCE_PATH
       );
-      for (const pack of loaded) packs.set(path15.resolve(cwd, pack.source), pack);
+      for (const pack of loaded) packs.set(path19.resolve(cwd, pack.source), pack);
     }
-    for (const pack of [kickoff, latest]) packs.set(path15.resolve(cwd, pack.source), pack);
-    const output = path15.resolve(cwd, options.outDir);
+    for (const pack of [kickoff, latest]) packs.set(path19.resolve(cwd, pack.source), pack);
+    const output = path19.resolve(cwd, options.outDir);
     const names = ["pilot-results.html", "quote.html", "pilot-results.pdf", "quote.pdf"];
-    const [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath] = names.map((name) => path15.join(output, name));
+    const [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath] = names.map((name) => path19.join(output, name));
     await assertSafeOutputs(cwd, [options.criteria, ...packs.keys()], [resultsHtmlPath, quoteHtmlPath, resultsPdfPath, quotePdfPath]);
     const customer = options.customer ?? criteria.pilot.customer;
     const stamp = (io.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
@@ -9049,7 +10307,7 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync as readFileSync3 } from "node:fs";
 import { createRequire as createRequire4 } from "node:module";
-import path16 from "node:path";
+import path20 from "node:path";
 
 // lib/modelfix/types.ts
 var MODEL_ELIGIBLE_RULES = /* @__PURE__ */ new Set([
@@ -9205,8 +10463,8 @@ var SYSTEM_PROMPT = [
   "For color-contrast change only colour values, and only when the snippet contains them.",
   '"rationale" is one short plain-text sentence.'
 ].join("\n");
-function fileKind(path23) {
-  const match = /\.([a-z0-9]+)$/i.exec(path23);
+function fileKind(path24) {
+  const match = /\.([a-z0-9]+)$/i.exec(path24);
   return match ? match[1].toLowerCase() : "unknown";
 }
 function buildPrompt(request) {
@@ -9517,8 +10775,8 @@ function addAttribute(lines, name, value) {
   }
   return null;
 }
-function reviewComment(path23, indent, text) {
-  return /\.(jsx|tsx)$/i.test(path23) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
+function reviewComment(path24, indent, text) {
+  return /\.(jsx|tsx)$/i.test(path24) ? `${indent}{/* ${text} */}` : `${indent}<!-- ${text} -->`;
 }
 function stubDraft(request) {
   const base = {
@@ -9567,15 +10825,6 @@ function adaptersForEnv(env = {}) {
   return listed.includes("stub") ? [...BUILTIN_ADAPTERS, stubAdapter("stub")] : BUILTIN_ADAPTERS;
 }
 
-// packages/cli/src/ci-targets.ts
-var CI_FILES = {
-  github: ".github/workflows/a11ygate.yml",
-  jenkins: "Jenkinsfile",
-  gitlab: ".gitlab-ci.a11ygate.yml",
-  "azure-devops": "azure-pipelines.a11ygate.yml"
-};
-var CI_TARGETS = Object.keys(CI_FILES);
-
 // packages/cli/src/doctor.ts
 var GUIDE = "https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/integrations/github-action.md#";
 var sections = { auth: "doctor-config", config: "doctor-config", checkout: "doctor-checkout", permissions: "doctor-permissions", "pr-creation": "doctor-pr-creation", browser: "doctor-browser", node: "doctor-node", engines: "doctor-engines", provider: "doctor-provider" };
@@ -9584,7 +10833,7 @@ var yes = (value) => /^(on|true|1|yes)$/i.test(value ?? "");
 async function doctorChecks(options = {}, io = {}) {
   const env = io.env ?? process.env;
   const cwd = io.cwd ?? env.GITHUB_WORKSPACE ?? process.cwd();
-  const require3 = createRequire4(path16.join(cwd, "package.json"));
+  const require3 = createRequire4(path20.join(cwd, "package.json"));
   const hasPackage = io.hasPackage ?? ((name) => {
     try {
       require3.resolve(name);
@@ -9596,7 +10845,7 @@ async function doctorChecks(options = {}, io = {}) {
   let config2 = io.repoConfig;
   if (config2 === void 0) {
     try {
-      config2 = readFileSync3(path16.join(cwd, ".a11ygate.yml"), "utf8");
+      config2 = readFileSync3(path20.join(cwd, ".a11ygate.yml"), "utf8");
     } catch {
       config2 = null;
     }
@@ -9624,7 +10873,7 @@ async function doctorChecks(options = {}, io = {}) {
     const file = CI_FILES[target];
     let present2 = false;
     try {
-      present2 = lstatSync(path16.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
+      present2 = lstatSync(path20.join(cwd, file), { throwIfNoEntry: false })?.isFile() ?? false;
     } catch {
     }
     findings.push({
@@ -9777,422 +11026,6 @@ async function runDoctor(argv2, io = {}) {
   const findings = await doctorChecks({ engines, modelFixes }, io);
   stdout(formatDoctor(findings));
   return strict && findings.some((f) => f.status === "fail") ? 1 : 0;
-}
-
-// packages/cli/src/init.ts
-import { constants } from "node:fs";
-import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
-import path18 from "node:path";
-import { createInterface as createInterface3 } from "node:readline/promises";
-
-// integrations/azure-devops/a11ygate.yml
-var a11ygate_default = "# A11yGate step template for Azure Pipelines.\n# Automated testing only. Not a WCAG audit, certification or legal advice.\n#\n# Reference a reviewed copy from a repository you own (see docs/integrations/azure-devops.md):\n#   steps:\n#     - template: integrations/azure-devops/a11ygate.yml@a11ygate\n#       parameters:\n#         url: 'http://127.0.0.1:3000'\n#\n# Scan only a local or explicitly authorized application. Start it in an earlier step.\n# Steps use `script:`, which runs bash on Linux/macOS and cmd.exe on Windows; every\n# command below is written to behave the same in both shells.\nparameters:\n  - name: url\n    type: string\n    default: 'http://127.0.0.1:3000'\n  - name: failOn\n    type: string\n    default: serious\n    values: [minor, moderate, serious, critical, none]\n  - name: crawl\n    type: number\n    default: 1\n  - name: outDir\n    type: string\n    default: a11y\n  - name: nodeVersion\n    type: string\n    default: '22.x'\n  - name: installCommand\n    type: string\n    default: 'npm ci'\n  - name: installBrowsers\n    type: boolean\n    default: true\n  - name: artifactName\n    type: string\n    default: a11ygate\n\nsteps:\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/use-node-v1\n  # The version is always passed explicitly; the task's own default (10.x) is never used.\n  - task: UseNode@1\n    displayName: 'A11yGate: use Node.js'\n    inputs:\n      versionSource: spec\n      version: '${{ parameters.nodeVersion }}'\n      checkLatest: false\n\n  - script: ${{ parameters.installCommand }}\n    displayName: 'A11yGate: install dependencies'\n\n  - ${{ if eq(parameters.installBrowsers, true) }}:\n      - script: npx --no-install playwright install --with-deps chromium\n        displayName: 'A11yGate: install Chromium'\n\n  # Exit 1 = findings at or above failOn; exit 2 = setup/scan error. Either fails this step and the job.\n  - script: npx --no-install a11ygate scan \"${{ parameters.url }}\" --crawl ${{ parameters.crawl }} --fail-on ${{ parameters.failOn }} --format junit,sarif --out-dir ${{ parameters.outDir }}\n    name: a11ygateScan\n    displayName: 'A11yGate: scan (fail-on ${{ parameters.failOn }})'\n\n  - script: npx --no-install a11ygate evidence pack --from ${{ parameters.outDir }} --out ${{ parameters.outDir }}/a11ygate-evidence.zip --commit $(Build.SourceVersion)\n    name: a11ygateEvidence\n    displayName: 'A11yGate: evidence pack'\n    condition: succeededOrFailed()\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-test-results-v2\n  - task: PublishTestResults@2\n    displayName: 'A11yGate: publish JUnit results'\n    condition: succeededOrFailed()\n    inputs:\n      testResultsFormat: JUnit\n      testResultsFiles: '${{ parameters.outDir }}/a11ygate-scan.junit.xml'\n      searchFolder: '$(System.DefaultWorkingDirectory)'\n      testRunTitle: A11yGate\n      failTaskOnFailedTests: false\n\n  # https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-build-artifacts-v1\n  # HTML/Markdown/JSON reports, engine evidence, SARIF and the evidence pack zip.\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish reports and evidence pack'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}'\n      ArtifactName: '${{ parameters.artifactName }}'\n      publishLocation: Container\n\n  # The SARIF SAST Scans Tab extension (sariftools.scans) reads *.sarif from an artifact named CodeAnalysisLogs.\n  # https://marketplace.visualstudio.com/items?itemName=sariftools.scans\n  - task: PublishBuildArtifacts@1\n    displayName: 'A11yGate: publish SARIF (CodeAnalysisLogs)'\n    condition: succeededOrFailed()\n    inputs:\n      PathtoPublish: '${{ parameters.outDir }}/a11ygate-scan.sarif'\n      ArtifactName: CodeAnalysisLogs\n      publishLocation: Container\n";
-
-// integrations/gitlab/a11ygate.gitlab-ci.yml
-var a11ygate_gitlab_ci_default = `# Include this file from a reviewed copy in your own repository.
-# Automated testing only. Not a WCAG audit, certification or legal advice.
-a11ygate:
-  stage: test
-  # Node + Chromium; keep the installed playwright version aligned with this tag.
-  image: mcr.microsoft.com/playwright:v1.64.1-noble
-  variables:
-    # Start your authorized application in this job before scanning.
-    A11YGATE_URL: "http://127.0.0.1:3000"
-    A11YGATE_FAIL_ON: "serious"
-  before_script:
-    - npm ci
-  script:
-    - npx --no-install a11ygate scan "$A11YGATE_URL" --crawl 1 --fail-on "$A11YGATE_FAIL_ON" --format gitlab-codequality,junit --out-dir a11y
-  allow_failure: false
-  artifacts:
-    when: always
-    paths:
-      - a11y/
-    reports:
-      codequality: a11y/a11ygate-scan.gitlab-codequality.json
-      junit: a11y/a11ygate-scan.junit.xml
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - when: never
-`;
-
-// packages/cli/src/init-pilot.ts
-var lengthDays = pricing_default.pilot.lengthDays;
-var schemaUrl = "https://raw.githubusercontent.com/DaveEliranAssistant/a11ygate/main/schema/pilot-success.schema.json";
-function pilotSuccessCriteria(target) {
-  const start = /* @__PURE__ */ new Date();
-  const decision = new Date(start);
-  decision.setUTCDate(decision.getUTCDate() + lengthDays - 1);
-  return `# yaml-language-server: $schema=${schemaUrl}
-# Fill in the customer, dates, and coverage targets at kickoff.
-# ${AUTOMATED_TESTING_DISCLAIMER}
-schemaVersion: 1
-pilot:
-  customer: "[[MISSING]]"
-  ciProvider: ${target}
-  startDate: "${start.toISOString().slice(0, 10)}"
-  lengthDays: ${lengthDays}
-  decisionDate: "${decision.toISOString().slice(0, 10)}"
-criteria:
-  gateRunsOnEveryPrToMain: true
-  targetBranch: main
-  baselineCreated: true
-  maxUnreviewedNewSeriousOrCriticalMergedAfterWeek2: 0
-  pagesOrFlowsCovered:
-    min: 5
-  evidencePackProduced: true
-`;
-}
-var PILOT_KICKOFF = `# A11yGate pilot kickoff
-
-Use [docs/pilot/kickoff-checklist.md in the A11yGate repository](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/kickoff-checklist.md) and fill in \`success-criteria.yml\` at kickoff.
-
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-var openReview = {
-  github: "gh pr create",
-  gitlab: "glab mr create",
-  "azure-devops": "az repos pr create",
-  jenkins: "git push -u origin HEAD  # then open a pull request on your repository host"
-};
-function pilotNextSteps(target, url, crawl2, failOn) {
-  return `Pilot next steps (put the current A11yGate CLI on your PATH).
-1. a11ygate doctor
-2. a11ygate scan '${url}' --crawl ${Math.max(1, crawl2)} --fail-on ${failOn} --out-dir a11y-results
-3. a11ygate baseline create a11y-results --output .a11ygate-baseline.json
-   Review the baseline, wire it into the CI scan, then commit and push the setup on a branch.
-4. ${openReview[target]}
-5. a11ygate evidence pack --from a11y-results --out a11ygate-evidence.zip
-`;
-}
-
-// packages/cli/src/config.ts
-import { readFile as readFile9 } from "node:fs/promises";
-import path17 from "node:path";
-var CONFIG_HELP = `a11ygate config print [scan|ci|doctor] [flags]
-  Show effective settings and sources; credential values are redacted.
-a11ygate config validate [file]
-a11ygate config validate --projects <file>
-  Check .a11ygate.yml (or <file>) against ${SCHEMA_PATH}.
-  With --projects, check against ${PROJECTS_SCHEMA_PATH}.
-  Exit 0 when valid, 2 with plain-English errors otherwise. Never runs a scan.
-  Editor autocomplete: add this first line to the file:
-  ${SCHEMA_COMMENT}
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-async function runConfig(argv2, io = {}) {
-  const stdout = io.stdout ?? ((text2) => process.stdout.write(text2));
-  const stderr = io.stderr ?? ((text2) => process.stderr.write(text2));
-  if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(CONFIG_HELP);
-    return 0;
-  }
-  if (argv2[0] === "print") {
-    const command = ["scan", "ci", "doctor"].includes(argv2[1] ?? "") ? argv2[1] : "scan";
-    const flags = argv2.slice(command === argv2[1] ? 2 : 1);
-    try {
-      const config2 = loadEffectiveConfig(command, flags, io);
-      const invalid = () => new Error("Invalid options for config print; use scan/ci/doctor --help for supported arguments.");
-      if (command === "scan") {
-        const parsed = parseScanArgs(config2.values.url ? config2.argv : ["https://config-print.invalid/", ...config2.argv]);
-        if (!parsed.ok) throw invalid();
-        if (config2.values.url) config2.values.url = parsed.options.url;
-        config2.values.maxPages = parsed.options.maxPages;
-        if (parsed.options.sitemap) config2.values.sitemap = parsed.options.sitemap;
-        config2.values.formats = parsed.options.formats;
-      } else if (command === "ci") {
-        const parsed = parseArgs(config2.argv);
-        if (!parsed.ok) throw invalid();
-        config2.values.baseline = parsed.options.baseline;
-        config2.values.formats = parsed.options.formats;
-      } else if (!config2.argv.every((arg, i) => ["--strict", "--engines", "--model-fixes"].includes(arg) || ["--engines", "--model-fixes"].includes(config2.argv[i - 1] ?? ""))) throw invalid();
-      stdout(JSON.stringify({ command, config: printableConfig(config2, io.env), disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + "\n");
-      return 0;
-    } catch (error) {
-      stderr(`${error.message}
-${debugDetail(error)}`);
-      return 2;
-    }
-  }
-  const projectsMode = argv2[0] === "validate" && argv2[1] === "--projects" && argv2.length === 3;
-  if (!projectsMode && (argv2[0] !== "validate" || argv2.length > 2 || argv2[1]?.startsWith("-"))) {
-    stderr("Usage: a11ygate config validate [file]. Run a11ygate config --help.\n");
-    return 2;
-  }
-  const file = (projectsMode ? argv2[2] : argv2[1]) ?? CONFIG_FILE;
-  const schemaPath = projectsMode ? PROJECTS_SCHEMA_PATH : SCHEMA_PATH;
-  let text;
-  try {
-    text = await readFile9(path17.resolve(io.cwd ?? process.cwd(), file), "utf8");
-  } catch (error) {
-    stderr(`${file}: ${error.code === "ENOENT" ? "file not found" : "could not read the file"}.
-`);
-    return 2;
-  }
-  const problems = projectsMode ? parseProjects(text).errors : configProblems(text);
-  if (problems.length) {
-    stderr(`${file} has ${problems.length} problem${problems.length === 1 ? "" : "s"}:
-${problems.map((p) => `  - ${p}`).join("\n")}
-Schema: ${schemaPath}
-`);
-    return 2;
-  }
-  stdout(`${file} is valid against ${schemaPath}.
-${projectsMode ? AUTOMATED_TESTING_DISCLAIMER + "\n" : ""}`);
-  return 0;
-}
-
-// packages/cli/src/init-templates.ts
-var JENKINS_TEMPLATE = "// Declarative example for A11yGate. This is the file the docs and CI tests include.\n// Load integrations/jenkins as a shared library (see docs/integrations/jenkins.md once published),\n// or copy vars/a11yGate.groovy into your own library.\n//\n// Agent: Node 20+ and, for `scan`, Playwright Chromium. Docker image alternative: image: 'node:22'.\n// Automated testing only. Not a WCAG audit, certification or legal advice.\n\n@Library('a11ygate') _\n\npipeline {\n  agent any\n  options {\n    timestamps()\n  }\n  parameters {\n    string(name: 'SITE_URL', defaultValue: 'http://127.0.0.1:4173/', description: 'Site you are authorized to test')\n    choice(name: 'FAIL_ON', choices: ['serious', 'critical', 'moderate', 'minor', 'none'], description: 'Minimum impact that makes the build UNSTABLE')\n  }\n  stages {\n    stage('Accessibility scan') {\n      steps {\n        a11yGate(\n          url: params.SITE_URL,\n          crawl: 10,\n          failOn: params.FAIL_ON,\n          formats: ['junit', 'sarif', 'json', 'md'],\n          cli: 'node packages/cli/dist/cli.mjs',\n          outDir: 'a11y-results'\n        )\n      }\n    }\n  }\n  post {\n    always {\n      echo 'Automated testing only. Not a WCAG audit, certification or legal advice.'\n    }\n  }\n}\n";
-
-// packages/cli/src/init.ts
-var INIT_HELP = `a11ygate init [--yes] [--target github|jenkins|gitlab|azure-devops] [options]
-  --url <url>          Site you own or are authorized to test. Default: http://127.0.0.1:4173/
-  --crawl <n>          0 = start URL only; 1\u201320 = same-origin crawl. Default: 10.
-  --fail-on <impact>   minor, moderate, serious, critical, or none. Default: serious.
-  --baseline <input>  Opt in: run baseline create on a saved scan report or output directory.
-                      Writes .a11ygate-baseline.json; never starts a scan.
-  --pilot             Add pilot success criteria, kickoff checklist link, and next commands.
-  --yes               No prompts; use flags and defaults (works without a TTY).
-  --force             Replace existing regular starter files. Symlinks are refused.
-  -h, --help          Show this help.
-Without --yes, prompts require a TTY. Existing files are skipped unless --force.
-Generated config records setup choices; scan flags in the CI file apply them.
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-var impacts = ["serious", "critical", "moderate", "minor", "none"];
-var defaultUrl = "http://127.0.0.1:4173/";
-var toolRef = "3fc98754c66dbe9947e3df8588281aa1258fb66e";
-function githubStarter(options) {
-  return `# Scan only a site you own or are authorized to test.
-# Start your local application before the scan step (including a readiness check).
-# ${AUTOMATED_TESTING_DISCLAIMER}
-name: A11yGate
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-  security-events: write
-
-jobs:
-  a11y:
-    runs-on: ubuntu-latest
-    env:
-      A11YGATE_URL: ${JSON.stringify(options.url)}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: \${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # Source build until scan ships in a published CLI release.
-      - uses: actions/checkout@v4
-        with:
-          repository: DaveEliranAssistant/a11ygate
-          ref: ${toolRef}
-          path: .a11ygate-tool
-          persist-credentials: false
-      - name: Install scanner
-        working-directory: .a11ygate-tool
-        run: |
-          npm ci
-          npm run cli:build
-          npx playwright install --with-deps chromium
-      # Add your application's install/build/start commands here for loopback scans.
-      - name: Scan authorized site
-        run: node .a11ygate-tool/packages/cli/dist/cli.mjs scan "$A11YGATE_URL"${options.crawl ? ` --crawl ${options.crawl}` : ""} --fail-on ${options.failOn}${options.baseline ? " --baseline .a11ygate-baseline.json" : ""} --format junit,sarif,json,md --out-dir a11y-results
-      - name: Archive reports
-        if: \${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: a11ygate-results
-          path: a11y-results/
-      # Fork PR tokens cannot upload SARIF. Code scanning availability depends on the repository.
-      - name: Upload SARIF
-        if: \${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: a11y-results/a11ygate-scan.sarif
-          category: a11ygate
-`;
-}
-function jenkinsStarter(options) {
-  const choices = [options.failOn, ...impacts.filter((impact) => impact !== options.failOn)];
-  return JENKINS_TEMPLATE.replace(defaultUrl, options.url).replace("['serious', 'critical', 'moderate', 'minor', 'none']", `[${choices.map((impact) => `'${impact}'`).join(", ")}]`).replace("crawl: 10,", `crawl: ${options.crawl || "false"},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ""}`);
-}
-function withBaseline(template, options) {
-  if (!options.baseline) return template;
-  return template.replace(/(a11ygate scan [^\n]+)( --format )/, "$1 --baseline .a11ygate-baseline.json$2");
-}
-function gitlabStarter(options) {
-  const job = a11ygate_gitlab_ci_default.replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`).replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`).replace(/(--crawl )\d+/, (_, prefix) => prefix + Math.max(1, options.crawl));
-  return withBaseline(job, options);
-}
-function azureStarter(options) {
-  const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
-# Azure Repos Git uses a build validation branch policy for PRs.
-# Start your authorized application before the scan step.
-trigger: none
-pr: [main]
-pool:
-  vmImage: ubuntu-latest
-
-`;
-  const pipeline = a11ygate_default.slice(a11ygate_default.indexOf("\nparameters:") + 1).replace(/(  - name: url\n    type: string\n    default: ).*/, (_, prefix) => prefix + JSON.stringify(options.url)).replace(/(  - name: failOn\n    type: string\n    default: ).*/, (_, prefix) => prefix + options.failOn).replace(/(  - name: crawl\n    type: number\n    default: ).*/, (_, prefix) => prefix + Math.max(1, options.crawl));
-  return header + withBaseline(pipeline, options);
-}
-var starters = {
-  github: githubStarter,
-  jenkins: jenkinsStarter,
-  gitlab: gitlabStarter,
-  "azure-devops": azureStarter
-};
-function validate(options) {
-  if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(", ")}.`);
-  const url = new URL(options.url);
-  if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password || /[\s\x00-\x1f\x7f'"\\`$]/.test(options.url)) {
-    throw new Error("--url must be an HTTP(S) URL without credentials, whitespace, quotes, or shell interpolation; percent-encode special URL characters.");
-  }
-  if (!Number.isInteger(options.crawl) || options.crawl < 0 || options.crawl > 20) throw new Error("--crawl must be a whole number from 0 to 20.");
-  if (!impacts.includes(options.failOn)) throw new Error("--fail-on must be minor, moderate, serious, critical, or none.");
-}
-async function writeStarter(cwd, file, content, force, stdout) {
-  const root = await realpath2(cwd);
-  const parts = file.split("/");
-  let parent = root;
-  for (const part of parts.slice(0, -1)) {
-    parent = path18.join(parent, part);
-    await mkdir7(parent).catch((error) => {
-      if (error.code !== "EEXIST") throw error;
-    });
-    const info2 = await lstat4(parent);
-    if (info2.isSymbolicLink() || !info2.isDirectory()) throw new Error(`${file}: parent must be a real directory.`);
-  }
-  const destination = path18.join(parent, parts.at(-1));
-  const info = await lstat4(destination).catch((error) => {
-    if (error.code !== "ENOENT") throw error;
-    return null;
-  });
-  if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  if (info && !force) {
-    stdout(`Skipped existing ${file} (use --force to replace).
-`);
-    return false;
-  }
-  if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
-  try {
-    await writeFile8(destination, content, { encoding: "utf8", flag });
-  } catch (error) {
-    if (!force && error.code === "EEXIST") {
-      stdout(`Skipped existing ${file}.
-`);
-      return false;
-    }
-    throw error;
-  }
-  stdout(`Wrote ${file}
-`);
-  return true;
-}
-async function runInit(argv2, io = {}) {
-  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
-  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(INIT_HELP);
-    return 0;
-  }
-  const options = { target: "github", url: defaultUrl, crawl: 10, failOn: "serious", yes: false, force: false, pilot: false };
-  const supplied = /* @__PURE__ */ new Set();
-  try {
-    for (let i = 0; i < argv2.length; i++) {
-      const flag = argv2[i];
-      if (flag === "--yes") options.yes = true;
-      else if (flag === "--pilot") options.pilot = true;
-      else if (flag === "--force") options.force = true;
-      else if (["--target", "--url", "--crawl", "--fail-on", "--baseline"].includes(flag)) {
-        const value = argv2[++i];
-        if (!value || value.startsWith("-")) throw new Error(`${flag} needs a value.`);
-        supplied.add(flag);
-        if (flag === "--target") options.target = value;
-        if (flag === "--url") options.url = value;
-        if (flag === "--crawl") {
-          if (!/^\d+$/.test(value)) throw new Error("--crawl needs a whole number.");
-          options.crawl = Number(value);
-        }
-        if (flag === "--fail-on") options.failOn = value;
-        if (flag === "--baseline") options.baseline = value;
-      } else throw new Error(`Unknown init argument ${flag}. Run a11ygate init --help.`);
-    }
-    if (!options.yes) {
-      if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("Interactive init requires a TTY. Use --yes with flags for scripted setup.");
-      const prompt = createInterface3({ input: process.stdin, output: process.stdout });
-      try {
-        if (!supplied.has("--target")) options.target = (await prompt.question(`CI target (${CI_TARGETS.join("/")}) [github]: `)).trim() || options.target;
-        if (!supplied.has("--url")) options.url = (await prompt.question(`URL you are authorized to test [${defaultUrl}]: `)).trim() || options.url;
-        if (!supplied.has("--crawl")) {
-          const answer = (await prompt.question("Crawl pages (0 = start URL only, maximum 20) [10]: ")).trim();
-          if (answer && !/^\d+$/.test(answer)) throw new Error("--crawl needs a whole number.");
-          options.crawl = answer ? Number(answer) : options.crawl;
-        }
-        if (!supplied.has("--fail-on")) options.failOn = (await prompt.question("Fail on (minor/moderate/serious/critical/none) [serious]: ")).trim() || options.failOn;
-        if (!supplied.has("--baseline")) {
-          const answer = (await prompt.question("Create fingerprint baseline from an existing scan report? (y/N): ")).trim();
-          if (/^y(es)?$/i.test(answer)) options.baseline = (await prompt.question("Scan JSON or output directory [a11ygate-scan.json]: ")).trim() || "a11ygate-scan.json";
-        }
-      } finally {
-        prompt.close();
-      }
-    }
-    validate(options);
-    const cwd = io.cwd ?? process.cwd();
-    if (options.baseline) {
-      const existing = await lstat4(path18.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
-        if (error.code !== "ENOENT") throw error;
-        return null;
-      });
-      if (existing) stdout("Skipped existing .a11ygate-baseline.json (baseline creation never replaces evidence).\n");
-      else if (await runBaseline(["create", options.baseline, "--output", ".a11ygate-baseline.json"], io) !== 0) return 2;
-    }
-    const recordTarget = options.pilot || options.target === "gitlab" || options.target === "azure-devops";
-    const config2 = `${SCHEMA_COMMENT}
-# ${AUTOMATED_TESTING_DISCLAIMER}
-# Setup choices; scan uses the explicit flags in the generated CI file.
-${recordTarget ? `ciTarget: ${options.target}
-` : ""}engines: [axe]
-modelFixes: false
-url: ${JSON.stringify(options.url)}
-crawl: ${options.crawl}
-failOn: ${options.failOn}
-${options.baseline ? "baseline: .a11ygate-baseline.json\n" : ""}`;
-    await writeStarter(cwd, ".a11ygate.yml", config2, options.force, stdout);
-    await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
-    if (options.pilot) {
-      await writeStarter(cwd, "a11ygate-pilot/success-criteria.yml", pilotSuccessCriteria(options.target), options.force, stdout);
-      await writeStarter(cwd, "a11ygate-pilot/KICKOFF.md", PILOT_KICKOFF, options.force, stdout);
-    }
-    if (options.target === "gitlab") stdout(`Add this entry to your .gitlab-ci.yml include list:
-include:
-  - local: '${CI_FILES.gitlab}'
-`);
-    if (options.target === "azure-devops") stdout(`Register ${CI_FILES["azure-devops"]} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
-`);
-    if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
-    stdout("Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n");
-    if (options.target === "jenkins") stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
-    stdout(`${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}
-`);
-    return 2;
-  }
 }
 
 // lib/export-baseline.ts
@@ -10356,223 +11189,9 @@ function inferProjectName(results) {
   return "Imported scan";
 }
 
-// packages/cli/src/prospect.ts
-import { mkdir as mkdir8, stat as stat5 } from "node:fs/promises";
-import path19 from "node:path";
-
-// config/own-hosts.json
-var own_hosts_default = [
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "a11ygate.vercel.app",
-  "qe-atlas.vercel.app"
-];
-
-// lib/scan/prospect-report.ts
-function prospectHtml(report, options) {
-  const title = options.company ? `Accessibility scan summary for ${options.company}` : "Accessibility scan summary";
-  const { pagesScanned, pagesFailed, pagesNotAuthenticated, skippedLinks } = report.counts;
-  const scanned = report.pages.filter((page) => page.scanStatus === "complete");
-  const engines = (report.engines?.used ?? ["axe"]).map((engine) => engine === "axe" ? `axe-core ${report.axeVersion ?? "(version unrecorded)"}` : `${engine} (version unrecorded)`);
-  const rules2 = topFixes(report.findings);
-  const issues = rules2.map((rule) => {
-    const sample = rule.findings[0];
-    return `<section>
-<h3><code>${esc2(rule.ruleId)}</code> <span class="impact ${rule.impact ?? "unknown"}">${rule.impact ?? "Unknown impact"}</span></h3>
-<p>WCAG reference: ${rule.wcag.map((c) => esc2(c.number)).join(", ") || "None mapped"}. ${rule.occurrences} occurrence(s) on ${rule.pages.length} page(s).</p>
-<p>Sample selector: <code>${esc2(sample.selector)}</code></p>
-<p>${esc2(findingGuidance(sample).remediation)}</p>
-</section>`;
-  }).join("\n");
-  const offer = options.offer ? `<section><h2>Pilot offer</h2><p>${esc2(pricing.plan)} costs ${esc2(annualPrice)}/yr (${esc2(pricing.currency)}). Start with a ${pricing.pilot.lengthDays}-day free pilot.</p></section>` : "";
-  const authorization = options.authorization ? `<p>Authorized by: ${esc2(options.authorization.authorizedBy)}<br>Authorization note: ${esc2(options.authorization.authorizationNote)}</p>` : "";
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>${esc2(title)}</title>
-<style>
-${REPORT_V2_STYLE}
-footer{margin-top:1.5rem;overflow-wrap:anywhere}
-@media print{section>section,footer{break-inside:avoid}}
-</style>
-</head>
-<body>
-<header>
-<h1>${esc2(title)}</h1>
-<p>Site: <code>${esc2(report.startUrl)}</code></p>
-<p class="disclaimer">${AUTOMATED_TESTING_DISCLAIMER}</p>
-</header>
-<main>
-<section>
-<h2>Scan scope</h2>
-<p>Scan date: ${esc2(report.scannedAt)}. Engines: ${esc2(engines.join(", ") || "No engine completed")}. A11yGate CLI ${esc2(report.version)}.</p>
-<p>${pagesScanned} page(s) scanned (cap ${report.options.maxPages}), ${pagesFailed} failed, ${pagesNotAuthenticated ?? 0} unauthenticated, ${skippedLinks} link(s) skipped. ${esc2(report.options.robots)}</p>
-${scanned.length ? `<ul>${scanned.map((page) => `<li><code>${esc2(page.finalUrl)}</code></li>`).join("")}</ul>` : ""}
-</section>
-<section>
-<h2>Top issues</h2>
-${issues || "<p>The scan recorded no findings in the pages it analyzed.</p>"}
-${issues ? "<p>For missing alternative text, labels or accessible names, leave a TODO for someone who knows the content to write and verify the wording.</p>" : ""}
-</section>
-<section>
-<h2>What this means in CI</h2>
-<p>This scan recorded ${report.findings.length} finding(s) across ${pagesScanned} scanned page(s). On comparable coverage, a fingerprint baseline would record these existing findings. A pull request gate scanning the same pages could fail a change that adds a finding at or above the configured impact threshold, including another occurrence of a rule already listed here. Re-scan after fixes to reduce the baseline.</p>
-</section>
-<section>
-<h2>What automated testing can't cover</h2>
-<p>Review key flows with a keyboard and screen reader. Check focus order, whether text alternatives and labels make sense in context, and states and pages outside this scan.</p>
-</section>
-${offer}
-</main>
-<footer>
-${authorization}
-<p>${AUTOMATED_TESTING_DISCLAIMER}</p>
-</footer>
-</body>
-</html>
-`;
-}
-
-// packages/cli/src/prospect.ts
-var HELP2 = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--company <name>] [--out-dir <dir>] [--offer]
-       a11ygate prospect --from <scan-dir|scan.json> [--company <name>] [--out-dir <dir>] [--offer]
-
-Write a prospect summary (HTML and PDF) and manifest to prospect-out by default.
-URL mode scans one page by default. Sites outside the own-host allowlist require
-both --authorized-by <name> and --authorization-note <text> before scanning.
---from reads saved scan data offline. PDF output requires Playwright Chromium.
-
-${AUTOMATED_TESTING_DISCLAIMER}
-`;
-var valueFlags = /* @__PURE__ */ new Set(["--from", "--company", "--max-pages", "--out-dir", "--authorized-by", "--authorization-note"]);
-function isOwnProspectHost(url) {
-  const normalized = normalizeUrl(url);
-  return normalized !== null && own_hosts_default.includes(new URL(normalized).hostname.replace(/^\[|\]$/g, ""));
-}
-function parseProspectArgs(argv2) {
-  let target;
-  let offer = false;
-  const values = /* @__PURE__ */ new Map();
-  for (let i = 0; i < argv2.length; i++) {
-    const token = argv2[i];
-    if (token === "--offer") {
-      offer = true;
-    } else if (token.startsWith("-")) {
-      const eq = token.indexOf("=");
-      const flag = eq < 0 ? token : token.slice(0, eq);
-      if (!valueFlags.has(flag)) throw new Error(`Unknown prospect option ${token}.`);
-      if (values.has(flag)) throw new Error(`Pass ${flag} once.`);
-      const value = eq < 0 ? argv2[++i]?.trim() : token.slice(eq + 1).trim();
-      if (!value || eq < 0 && value.startsWith("--")) throw new Error(`${flag} needs a value.`);
-      values.set(flag, value);
-    } else {
-      if (target) throw new Error("Pass one URL or saved scan.");
-      target = token;
-    }
-  }
-  const from = values.get("--from");
-  if (Boolean(from) === Boolean(target)) throw new Error("Pass one URL or saved scan.");
-  const url = from ? null : normalizeUrl(target);
-  if (!url && target && /^[a-z][a-z\d+.-]*:\/\//i.test(target)) {
-    throw new Error("Pass an HTTP(S) URL without credentials or a local saved scan path.");
-  }
-  const max = values.get("--max-pages");
-  const maxPages = max === void 0 ? 1 : Number(max);
-  if (max !== void 0 && (!/^\d+$/.test(max) || maxPages < 1 || maxPages > MAX_CRAWL_PAGES)) {
-    throw new Error(`--max-pages must be from 1 to ${MAX_CRAWL_PAGES}.`);
-  }
-  if (!url && max !== void 0) throw new Error("--max-pages applies to URL scans only.");
-  const authorizedBy = values.get("--authorized-by");
-  const authorizationNote = values.get("--authorization-note");
-  if (Boolean(authorizedBy) !== Boolean(authorizationNote)) {
-    throw new Error("Provide both --authorized-by and --authorization-note.");
-  }
-  if (url && !isOwnProspectHost(url) && !authorizedBy) {
-    throw new Error("This host requires both --authorized-by and --authorization-note.");
-  }
-  return {
-    input: from ?? target,
-    url,
-    maxPages,
-    company: values.get("--company"),
-    outDir: values.get("--out-dir") ?? "prospect-out",
-    offer,
-    authorization: authorizedBy && authorizationNote ? { authorizedBy, authorizationNote } : void 0
-  };
-}
-async function scanProspectUrl(url, maxPages, io) {
-  let report;
-  const code3 = await runScan([url, "--crawl", String(maxPages), "--fail-on", "none"], {
-    ...io,
-    readOnly: true,
-    stdout: () => {
-    },
-    onReport: (value) => {
-      report = value;
-    }
-  });
-  if (code3 === 2 || !report) throw new Error("The prospect scan could not complete.");
-  return report;
-}
-async function runProspect(argv2, io = {}) {
-  const stdout = io.stdout ?? ((s) => process.stdout.write(s));
-  const stderr = io.stderr ?? ((s) => process.stderr.write(s));
-  const cwd = io.cwd ?? process.cwd();
-  if (argv2.includes("--help") || argv2.includes("-h")) {
-    stdout(HELP2);
-    return 0;
-  }
-  try {
-    const options = parseProspectArgs(argv2);
-    const output = path19.resolve(cwd, options.outDir);
-    const htmlPath = path19.join(output, "prospect-summary.html");
-    const pdfPath = path19.join(output, "prospect-summary.pdf");
-    const manifestPath = path19.join(output, "prospect-manifest.json");
-    const outputs = [htmlPath, pdfPath, manifestPath];
-    let source;
-    if (!options.url) {
-      const input = path19.resolve(cwd, options.input);
-      source = (await stat5(input)).isDirectory() ? path19.join(input, "a11ygate-scan.json") : input;
-    }
-    await assertSafeOutputs(cwd, source ? [source] : [], outputs);
-    const report = options.url ? await scanProspectUrl(options.url, options.maxPages, io) : await readScanInput(options.input, cwd);
-    const html = prospectHtml(report, options);
-    const pdf = await printProspectPdf(html, report.scannedAt);
-    const manifest = {
-      schemaVersion: 1,
-      source: options.url ? "url" : "saved-scan",
-      startUrl: report.startUrl,
-      scannedAt: report.scannedAt,
-      company: options.company ?? null,
-      offer: options.offer,
-      authorizedBy: options.authorization?.authorizedBy ?? null,
-      authorizationNote: options.authorization?.authorizationNote ?? null,
-      files: ["prospect-summary.html", "prospect-summary.pdf"],
-      disclaimer: AUTOMATED_TESTING_DISCLAIMER
-    };
-    await mkdir8(output, { recursive: true });
-    await writeBinaryAtomic(htmlPath, Buffer.from(html));
-    await writeBinaryAtomic(pdfPath, pdf);
-    await writeBinaryAtomic(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
-    stdout(`Wrote prospect-summary.html, prospect-summary.pdf and prospect-manifest.json to ${options.outDir}
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 0;
-  } catch (error) {
-    stderr(`Prospect report failed: ${error instanceof Error ? error.message : String(error)}
-${AUTOMATED_TESTING_DISCLAIMER}
-`);
-    return 2;
-  }
-}
-
 // packages/cli/src/estimate.ts
-import { mkdir as mkdir9, writeFile as writeFile9 } from "node:fs/promises";
-import path20 from "node:path";
+import { mkdir as mkdir10, writeFile as writeFile9 } from "node:fs/promises";
+import path21 from "node:path";
 
 // docs/perf/chromium-bench-axe-500.json
 var chromium_bench_axe_500_default = {
@@ -11057,9 +11676,9 @@ ${DISCLAIMER2}
         options.engines = value;
       } else throw new Error(`Unknown estimate option: ${flag}`);
     }
-    const dir = path20.resolve(io.cwd ?? process.cwd(), outDir);
-    await mkdir9(dir, { recursive: true });
-    const outputs = ["estimate.json", "estimate.md"].map((name) => path20.join(dir, name));
+    const dir = path21.resolve(io.cwd ?? process.cwd(), outDir);
+    await mkdir10(dir, { recursive: true });
+    const outputs = ["estimate.json", "estimate.md"].map((name) => path21.join(dir, name));
     await assertSafeOutputs(dir, [], outputs);
     const report = await estimateSite(options);
     await writeFile9(outputs[0], JSON.stringify(report, null, 2) + "\n");
@@ -11077,7 +11696,7 @@ ${DISCLAIMER2}
 
 // packages/cli/src/export.ts
 import { writeFile as writeFile10 } from "node:fs/promises";
-import path21 from "node:path";
+import path22 from "node:path";
 
 // lib/export-csv.ts
 function csvField(value) {
@@ -11331,9 +11950,9 @@ async function runExport(argv2, io = {}) {
       stdout(text);
       return 0;
     }
-    const inputs = [args.input, path21.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
+    const inputs = [args.input, path22.join(args.input, "a11ygate-scan.json"), ...args.baseline ? [args.baseline] : []];
     await assertSafeOutputs(cwd, inputs, [args.output]);
-    await writeFile10(path21.resolve(cwd, args.output), text, "utf8");
+    await writeFile10(path22.resolve(cwd, args.output), text, "utf8");
     const count = buildTickets(report, now).length;
     stdout(`Wrote ${count} ticket${count === 1 ? "" : "s"} (${args.format}) to ${args.output}
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -11348,20 +11967,20 @@ ${debugDetail(error)}`);
 
 // packages/cli/src/run.ts
 function resolveInput(cwd, file) {
-  return path22.resolve(cwd, file);
+  return path23.resolve(cwd, file);
 }
 async function readDocuments(files, cwd) {
   const documents = [];
   for (const file of files) {
     const absolute = resolveInput(cwd, file);
     try {
-      const info = await stat6(absolute);
+      const info = await stat7(absolute);
       if (!info.isFile()) return { ok: false, error: `${file}: not a file.` };
       if (info.size === 0) return { ok: false, error: `${file}: The file is empty.` };
       if (info.size > MAX_AXE_JSON_BYTES) {
         return { ok: false, error: `${file}: ${axeJsonTooLargeMessage()}` };
       }
-      documents.push({ name: file, text: await readFile10(absolute, "utf8") });
+      documents.push({ name: file, text: await readFile11(absolute, "utf8") });
     } catch (error) {
       const code3 = error.code;
       if (code3 === "ENOENT") return { ok: false, error: `${file}: file not found.` };
@@ -11377,14 +11996,14 @@ function writeFailure(file, error) {
   return `${file}: could not write the file.`;
 }
 async function readVersion() {
-  const here = path22.dirname(fileURLToPath(import.meta.url));
+  const here = path23.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path22.join(here, "..", "package.json"),
-    path22.join(here, "..", "..", "packages", "cli", "package.json")
+    path23.join(here, "..", "package.json"),
+    path23.join(here, "..", "..", "packages", "cli", "package.json")
   ];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile10(candidate, "utf8"));
+      const parsed = JSON.parse(await readFile11(candidate, "utf8"));
       if (parsed.name === "@qe-atlas/a11ygate" && parsed.version) return parsed.version;
     } catch {
     }
@@ -11461,6 +12080,7 @@ async function run(argv2, io = {}) {
   if (argv2[0] === "export") return runExport(argv2.slice(1), io);
   if (argv2[0] === "scan") return runScan(argv2.slice(1), { ...io, version: await readVersion() });
   if (argv2[0] === "evidence") return runEvidence(argv2.slice(1), { ...io, version: await readVersion() });
+  if (argv2[0] === "outreach") return runOutreach(argv2.slice(1), io);
   if (argv2[0] === "pilot") return runPilot(argv2.slice(1), io);
   if (argv2[0] === "trend") return runTrend(argv2.slice(1), io);
   if (argv2[0] === "ci" && argv2.some((arg) => arg === "--projects" || arg.startsWith("--projects="))) {
@@ -11504,18 +12124,18 @@ ${debugDetail(error)}`);
     const identify = async (file) => {
       const absolute = resolveInput(cwd, file);
       const canonical2 = await realpath3(absolute).catch(async () => {
-        if ((await lstat5(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
-        return path22.join(await realpath3(path22.dirname(absolute)).catch(() => path22.dirname(absolute)), path22.basename(absolute));
+        if ((await lstat6(absolute).catch(() => null))?.isSymbolicLink()) throw new Error("Dangling symlinks are not safe output/input paths.");
+        return path23.join(await realpath3(path23.dirname(absolute)).catch(() => path23.dirname(absolute)), path23.basename(absolute));
       });
-      const info = await stat6(absolute).catch(() => null);
+      const info = await stat7(absolute).catch(() => null);
       return { canonical: canonical2, inode: info ? `${info.dev}:${info.ino}` : null };
     };
     const inputs = await Promise.all([...options.current, ...options.baseline, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const baselineProtectedInputs = await Promise.all([...options.current, ...options.manualEvidence ? [options.manualEvidence] : []].map(identify));
     const outDirFiles = options.outDir ? [.../* @__PURE__ */ new Set([
-      path22.join(options.outDir, formatFileName("ci", "json")),
-      path22.join(options.outDir, formatFileName("ci", "md")),
-      ...options.formats.map((format) => path22.join(options.outDir, formatFileName("ci", format)))
+      path23.join(options.outDir, formatFileName("ci", "json")),
+      path23.join(options.outDir, formatFileName("ci", "md")),
+      ...options.formats.map((format) => path23.join(options.outDir, formatFileName("ci", format)))
     ])] : [];
     const outputs = [options.markdown, options.json === "-" ? void 0 : options.json, options.updateBaseline, options.updateBaseline ? options.updateBaseline + ".review.json" : void 0, ...outDirFiles].filter((x) => !!x);
     const seen = [];
@@ -11650,9 +12270,9 @@ ${debugDetail(error)}`);
     if (options.formats.includes("sarif")) files.set(formatFileName("ci", "sarif"), toSarif(formatReport));
     try {
       const dir = resolveInput(cwd, options.outDir);
-      await mkdir10(dir, { recursive: true });
+      await mkdir11(dir, { recursive: true });
       for (const [name, content] of files) {
-        await writeFile11(path22.join(dir, name), content, "utf8");
+        await writeFile11(path23.join(dir, name), content, "utf8");
       }
     } catch (error) {
       stderr(`${writeFailure(options.outDir, error)}

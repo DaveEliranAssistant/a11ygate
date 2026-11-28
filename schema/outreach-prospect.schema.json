@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "A11yGate outreach prospect",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["company", "contact_role", "ci_system", "stack", "why_now", "why_now_source", "warm_path"],
+  "dependencies": {
+    "authorized_by": ["authorization_note"],
+    "authorization_note": ["authorized_by"]
+  },
+  "properties": {
+    "company": { "type": "string", "pattern": "\\S" },
+    "contact_role": { "type": "string", "pattern": "\\S" },
+    "ci_system": { "enum": ["github", "gitlab", "azure-devops", "jenkins", "other"] },
+    "stack": { "type": "string", "pattern": "\\S" },
+    "why_now": { "type": "string", "pattern": "\\S" },
+    "why_now_source": { "type": "string", "format": "uri", "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/\\s?#][^\\s]*$" },
+    "warm_path": { "type": "string", "pattern": "\\S" },
+    "authorized_by": { "type": "string", "pattern": "\\S" },
+    "authorization_note": { "type": "string", "pattern": "\\S" }
+  }
+}

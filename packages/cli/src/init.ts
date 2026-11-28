@@ -30,10 +30,11 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 type Options = { target: string; url: string; crawl: number; failOn: string; baseline?: string; yes: boolean; force: boolean; pilot: boolean };
 const impacts = ['serious', 'critical', 'moderate', 'minor', 'none'];
 const defaultUrl = 'http://127.0.0.1:4173/';
+const defaultScanOptions = { url: defaultUrl, crawl: 10, failOn: 'serious' };
 // Source build with scan support; published 0.1.0 lacks scan. Review this ref when upgrading.
 const toolRef = '3fc98754c66dbe9947e3df8588281aa1258fb66e';
 
-export function githubStarter(options: Options): string {
+export function githubStarter(options: StarterOptions): string {
   return `# Scan only a site you own or are authorized to test.
 # Start your local application before the scan step (including a readiness check).
 # ${AUTOMATED_TESTING_DISCLAIMER}
@@ -92,7 +93,7 @@ jobs:
 `;
 }
 
-export function jenkinsStarter(options: Options): string {
+export function jenkinsStarter(options: StarterOptions): string {
   // URL is validated below, including quotes that the shared library wraps in shell quotes.
   const choices = [options.failOn, ...impacts.filter((impact) => impact !== options.failOn)];
   return JENKINS_TEMPLATE
@@ -101,12 +102,12 @@ export function jenkinsStarter(options: Options): string {
     .replace('crawl: 10,', `crawl: ${options.crawl || 'false'},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ''}`);
 }
 
-function withBaseline(template: string, options: Options): string {
+function withBaseline(template: string, options: StarterOptions): string {
   if (!options.baseline) return template;
   return template.replace(/(a11ygate scan [^\n]+)( --format )/, '$1 --baseline .a11ygate-baseline.json$2');
 }
 
-function gitlabStarter(options: Options): string {
+function gitlabStarter(options: StarterOptions): string {
   const job = gitlabTemplate
     .replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`)
     .replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`)
@@ -114,7 +115,7 @@ function gitlabStarter(options: Options): string {
   return withBaseline(job, options);
 }
 
-function azureStarter(options: Options): string {
+function azureStarter(options: StarterOptions): string {
   const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
 # Azure Repos Git uses a build validation branch policy for PRs.
 # Start your authorized application before the scan step.
@@ -131,12 +132,18 @@ pool:
   return header + withBaseline(pipeline, options);
 }
 
-const starters: Record<CiTarget, (options: Options) => string> = {
+type StarterOptions = Pick<Options, 'url' | 'crawl' | 'failOn' | 'baseline'>;
+
+const starters: Record<CiTarget, (options: StarterOptions) => string> = {
   github: githubStarter,
   jenkins: jenkinsStarter,
   gitlab: gitlabStarter,
   'azure-devops': azureStarter,
 };
+
+export function renderCiStarter(target: CiTarget, options: StarterOptions = defaultScanOptions): string {
+  return starters[target](options);
+}
 
 function validate(options: Options): asserts options is Options & { target: CiTarget } {
   if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(', ')}.`);
@@ -179,7 +186,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (argv.includes('--help') || argv.includes('-h')) { stdout(INIT_HELP); return 0; }
-  const options: Options = { target: 'github', url: defaultUrl, crawl: 10, failOn: 'serious', yes: false, force: false, pilot: false };
+  const options: Options = { target: 'github', ...defaultScanOptions, yes: false, force: false, pilot: false };
   const supplied = new Set<string>();
   try {
     for (let i = 0; i < argv.length; i++) {
@@ -227,7 +234,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     const recordTarget = options.pilot || options.target === 'gitlab' || options.target === 'azure-devops';
     const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\n${recordTarget ? `ciTarget: ${options.target}\n` : ''}engines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
-    await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
+    await writeStarter(cwd, CI_FILES[options.target], renderCiStarter(options.target, options), options.force, stdout);
     if (options.pilot) {
       await writeStarter(cwd, 'a11ygate-pilot/success-criteria.yml', pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, 'a11ygate-pilot/KICKOFF.md', PILOT_KICKOFF, options.force, stdout);
