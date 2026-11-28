@@ -12,6 +12,8 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const REFRESH = 'docs/releases/0.2.0-readiness-refresh-2026-11.md';
 const read = (rel: string) => readFileSync(path.join(repoRoot, rel), 'utf8');
 const UNPUBLISHED_STATUS = '**Status: 0.2.0 is NOT published.** npm `latest` is `@qe-atlas/a11ygate@0.1.0`, and there is no npm `next` tag.';
+/** The `main` commit the refresh inventories (fix round 2026-11-28: origin/main merged into this PR). */
+const SNAPSHOT = '4940bb4';
 const SIGN_OFF_SENTENCE =
   'The 2026-11-14 §6 sign-off does not cover these commits. A new §6 gate and `npm login` + publish are Eliran-only.';
 
@@ -164,16 +166,23 @@ describe('readiness refresh content (A11Y-R75)', () => {
     expect(refresh).not.toMatch(/\bcomplian(?:t|ce)\b|\bcertified\b|\bguarantee|\bconformant\b/i);
   });
 
-  it('lists each merged task R22-R74 once, without R34 or the unmerged R72', () => {
-    expect(rows).toHaveLength(53);
+  it('lists each merged task R22-R80 once, without R34, the unmerged R72 and R79, or R75 itself', () => {
+    expect(rows).toHaveLength(57);
     expect(new Set(rows.map((row) => row.sha)).size).toBe(rows.length);
     expect(new Set(rows.map((row) => row.pr)).size).toBe(rows.length);
     const tasks = rows.map((row) => row.task).filter((task) => task !== 'none');
-    const expected = [22, ...Array.from({ length: 74 - 23 + 1 }, (_, i) => 23 + i)]
-      .filter((n) => n !== 34 && n !== 72)
+    const expected = [22, ...Array.from({ length: 80 - 23 + 1 }, (_, i) => 23 + i)]
+      .filter((n) => ![34, 72, 75, 79].includes(n))
       .map((n) => `A11Y-R${n}`);
     expect(tasks).toEqual(expected);
     expect(refresh).toMatch(/\*\*A11Y-R72\*\*[^\n]*\*\*not merged\*\*/);
+    expect(refresh).toContain('- **A11Y-R79** is not on `main` (draft, #98).');
+  });
+
+  it(`names the snapshot commit ${SNAPSHOT} and lists it`, () => {
+    expect(refresh).toContain(`git log --first-parent --format='%h %cs %s' a215b6f..${SNAPSHOT}\` (57 commits;`);
+    expect(refresh).toContain(`against \`main\` \`${SNAPSHOT}\` (A11Y-R78, #99), the snapshot commit`);
+    expect(rows.map((row) => row.sha)).toContain(SNAPSHOT);
   });
 
   it('keeps every package version unchanged', () => {
@@ -190,6 +199,22 @@ describe('readiness refresh content (A11Y-R75)', () => {
       expect(() => git(['merge-base', '--is-ancestor', sha, 'HEAD']), sha).not.toThrow();
       expect(git(['log', '-1', '--format=%s', sha]), sha).toMatch(new RegExp(`\\(#${pr}\\)$`));
     }
+  });
+
+  // Same shallow-clone caveat: a215b6f and the snapshot are only in a full clone.
+  it.skipIf(isShallow())(`the table is exactly \`git log --first-parent a215b6f..${SNAPSHOT}\``, () => {
+    const listed = git(['log', '--first-parent', '--format=%h', '--abbrev=7', `a215b6f..${SNAPSHOT}`]).split('\n');
+    expect(listed).toHaveLength(57);
+    expect([...rows.map((row) => row.sha)].sort()).toEqual([...listed].sort());
+  });
+
+  it.skipIf(isShallow())(`the 2026-11-28 pack sizes match the files committed at ${SNAPSHOT}`, () => {
+    const size = (rel: string) => Number(git(['cat-file', '-s', `${SNAPSHOT}:${rel}`])).toLocaleString('en-US');
+    const lastColumn = (pkgPath: string) => refresh.match(new RegExp(`^\\| \`package/${pkgPath.replace('.', '\\.')}\` \\|.*\\| ([\\d,]+) B[^|]*\\|$`, 'm'))?.[1];
+    expect(lastColumn('dist/cli.mjs')).toBe(size('packages/cli/dist/cli.mjs'));
+    expect(lastColumn('CHANGELOG.md')).toBe(size('packages/cli/CHANGELOG.md'));
+    expect(lastColumn('LICENSE')).toBe(size('packages/cli/LICENSE'));
+    expect(refresh).toContain(`the one at \`${SNAPSHOT}\` is ${size('packages/cli/README.md')} B`);
   });
 });
 
@@ -461,5 +486,47 @@ describe('packaged CLI README has no publication-status labels (A11Y-R75 fix rou
     for (const rel of PACKAGED_FILES.filter((f) => f !== PACKAGED_README && !f.endsWith('LICENSE'))) {
       expect(read(rel), rel).not.toMatch(/unreleased source build|not yet released|source[-\s]build only/i);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Fix round 2026-11-28, rerun after judge 1: the same publication-status labels must not appear
+// in any user-facing markdown doc (docs/trend-report.md said "Unreleased source build.").
+// Legitimate: references to the CHANGELOG's "Unreleased" heading, the historical
+// `unreleased-source-build` releaseStatus value, dated release records and CHANGELOGs.
+
+function docLabelProblems(rel: string, text: string): string[] {
+  const cleaned = text.replace(/"Unreleased"|#unreleased\b|unreleased-source-build/gi, '');
+  return publicationStatusLabelProblems(rel, cleaned);
+}
+
+function labelCheckedDocs(): string[] {
+  return userFacingFiles().filter((rel) => rel.endsWith('.md') && !rel.startsWith('docs/releases/') && !/CHANGELOG\.md$/.test(rel));
+}
+
+describe('user-facing docs have no publication-status labels (A11Y-R75 fix round 2026-11-28 rerun)', () => {
+  it('covers docs/trend-report.md, the packaged README and every other user-facing markdown doc', () => {
+    expect(labelCheckedDocs()).toEqual(expect.arrayContaining(['docs/trend-report.md', 'docs/CI_EVIDENCE_POLICY.md', PACKAGED_README, 'README.md']));
+    const problems = labelCheckedDocs().flatMap((rel) => docLabelProblems(rel, read(rel)));
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+
+  it('docs/trend-report.md states the version requirement instead of a release status', () => {
+    expect(read('docs/trend-report.md').split('\n')[2]).toMatch(/^Needs 0\.2\.0 or later\. `a11ygate trend <dir>`/);
+  });
+
+  it('fails on planted labels in the real docs and passes legitimate references', () => {
+    const trend = read('docs/trend-report.md');
+    expect(docLabelProblems('docs/trend-report.md', trend.replace('Needs 0.2.0 or later.', 'Unreleased source build.'))).toHaveLength(1);
+    expect(docLabelProblems('docs/CI_EVIDENCE_POLICY.md', `# Accessibility regression evidence (unreleased source build)\n${read('docs/CI_EVIDENCE_POLICY.md')}`)).toHaveLength(1);
+    for (const line of ['Not yet released.', 'Source build only.', '## Trend report (source build)']) {
+      expect(docLabelProblems('planted.md', `ok\n${line}\n`), line).toEqual([`planted.md:2: ${line}`]);
+    }
+    const legit = [
+      'npm serves 0.1.0; 0.2.0 and the features listed under "Unreleased" in the [CHANGELOG](packages/cli/CHANGELOG.md#unreleased) are not published to npm.',
+      '`releaseStatus` is `"released"` (it was `"unreleased-source-build"` before).',
+      'Needs 0.2.0 or later. `a11ygate trend <dir>` reads every evidence pack.',
+    ];
+    for (const line of legit) expect(docLabelProblems('legit.md', line), line).toEqual([]);
   });
 });

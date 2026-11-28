@@ -1,6 +1,6 @@
 # Trend report (`a11ygate trend`)
 
-Unreleased source build. `a11ygate trend <dir>` reads every evidence pack in `<dir>` and writes a history of automated findings across runs:
+Needs 0.2.0 or later. `a11ygate trend <dir>` reads every evidence pack in `<dir>` and writes a history of automated findings across runs:
 
 - `a11ygate-trend.json`: machine-readable (`kind: "trend-report"`, `schemaVersion: 1`).
 - `a11ygate-trend.html`: one self-contained page with an inline SVG chart, a table with the same numbers, no scripts and no external resources (`Content-Security-Policy: default-src 'none'`).
