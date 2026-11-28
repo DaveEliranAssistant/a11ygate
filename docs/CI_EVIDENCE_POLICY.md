@@ -1,4 +1,4 @@
-# Accessibility regression evidence (unreleased source build)
+# Accessibility regression evidence
 
 This increment is not in published `@qe-atlas/a11ygate@0.1.0` or Action `v1.0.1`. Review the pinned source builds; no package/tag release or main merge is implied. The browser, CLI and bundled CLI reuse the existing parser, fingerprinting and diff engine through `compareScans`. Native JSON is v2; shared qe-result v1 is unchanged.
 

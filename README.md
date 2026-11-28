@@ -40,7 +40,7 @@ Next, point `--current` at your own axe JSON. One way to produce it is a Playwri
 
 ## Features
 
-Merged on `main`. Features after 0.2.0 are not yet published to npm; they are listed under "Unreleased" in the [CHANGELOG](packages/cli/CHANGELOG.md#unreleased), with [upgrade notes](packages/cli/CHANGELOG.md#upgrade-notes). Everything beyond the axe-only gate and scan is opt-in. Recorded gaps for each feature are in [known limits](docs/known-limits.md); the [docs index](docs/README.md) lists every guide.
+Merged on `main`. npm serves 0.1.0; 0.2.0 and the features listed under "Unreleased" in the [CHANGELOG](packages/cli/CHANGELOG.md#unreleased) are not published to npm (see the [upgrade notes](packages/cli/CHANGELOG.md#upgrade-notes)). Everything beyond the axe-only gate and scan is opt-in. Recorded gaps for each feature are in [known limits](docs/known-limits.md); the [docs index](docs/README.md) lists every guide.
 
 - **Regression gate** for axe-core JSON (`a11ygate ci`, the default command): fails only on new findings at or above the threshold; JSON, Markdown, JUnit, SARIF and GitLab Code Quality output.
 - **Live-site scan** (`a11ygate scan <url>`): headless Chromium with axe-core by default, HTML report v2, crawler budgets, sitemap, include/exclude globs and robots.txt ([CLI reference](packages/cli/README.md#live-site-scan-a11ygate-scan)). Opt-in engines: HTML_CodeSniffer, IBM Equal Access, Lighthouse ([engines](docs/engines.md)).
