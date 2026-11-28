@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 import pricing from '../config/pricing.json';
 import { PILOT_REQUEST_HREF } from '../lib/billing';
-import { AUTOMATED_TESTING_DISCLAIMER, SITE_URL } from '../lib/copy';
+import { AUTOMATED_TESTING_DISCLAIMER, SAMPLE_DELIVERABLES_URL, SITE_URL } from '../lib/copy';
 import { expectNoSeriousViolations } from './support';
 
 const testCheckout = 'https://checkout.example.test/subscribe?plan=yearly';
@@ -60,6 +60,8 @@ for (const mode of ['invoice', 'checkout'] as const) {
       await expect(main.getByRole('heading', { name: `3-week free pilot` })).toBeVisible();
       await expect(main.getByText(AUTOMATED_TESTING_DISCLAIMER, { exact: false })).toBeVisible();
       expect(await response!.text()).not.toContain('[[OWNER: tax/invoice wording]]');
+      // A11Y-R79: link to the sample deliverables pack (docs/samples on GitHub main).
+      await expect(main.getByRole('link', { name: 'See sample deliverables', exact: true })).toHaveAttribute('href', SAMPLE_DELIVERABLES_URL);
 
       if (mode === 'checkout') {
         const checkout = main.getByRole('link', { name: `Subscribe — ${price}/year`, exact: true });

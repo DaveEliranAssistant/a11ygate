@@ -26,7 +26,8 @@
     "prebuild": "npm run licenses:check",
     "pretest": "npm run licenses:check",
     "bench": "node scripts/bench-chromium.mjs",
-    "go-live:preflight": "node scripts/go-live-preflight.mjs"
+    "go-live:preflight": "node scripts/go-live-preflight.mjs",
+    "samples": "node scripts/build-samples.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

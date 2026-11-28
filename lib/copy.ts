@@ -14,6 +14,9 @@ export const PRIVACY_NOTE = 'Privacy: scans stay in your browser.';
 
 export const SITE_URL = 'https://a11ygate.vercel.app';
 
+/** A11Y-R79: sample deliverables pack built from the demo app (docs/samples), on GitHub main. */
+export const SAMPLE_DELIVERABLES_URL = 'https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/samples/README.md';
+
 export const SITE_DESCRIPTION =
   'Turn axe-core JSON from Playwright into an accessibility regression gate and an EU Accessibility Act evidence report. Runs in your browser.';
 
