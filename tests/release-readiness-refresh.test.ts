@@ -378,3 +378,88 @@ describe('readiness refresh peer metadata (A11Y-R75 fix round)', () => {
     expect(read(REFRESH)).toContain('each of the six, `puppeteer-core` included, has `"optional": true` in `peerDependenciesMeta`.');
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Fix round 2026-11-28: the packaged README labelled `scan`, `evidence` and `trend` "Unreleased
+// source build", which turns false once 0.2.0 is published. Per-command labels must use wording
+// that stays true before and after a publish ("Needs 0.2.0 or later."). Install-path
+// instructions that mention a source build stay allowed.
+
+/** Publication-status labels: true only until a version ships. */
+const PUBLICATION_STATUS_LABELS: RegExp[] = [
+  /\bunreleased\b/i,
+  /\bnot\s+yet\s+released\b/i,
+  /\bsource[-\s]build\s+only\b/i,
+  /\bonly\s+(?:in|available\s+in|ships\s+in)\s+(?:a|the)\s+source\s+build\b/i,
+  /^#{1,6}\s.*\(source build\)\s*$/i,
+];
+
+function publicationStatusLabelProblems(rel: string, text: string): string[] {
+  const problems: string[] = [];
+  text.split('\n').forEach((line, index) => {
+    if (PUBLICATION_STATUS_LABELS.some((re) => re.test(line))) problems.push(`${rel}:${index + 1}: ${line.trim()}`);
+  });
+  return problems;
+}
+
+/** Files in the npm tarball (packages/cli/package.json "files") that are prose a reader sees as current status. */
+const PACKAGED_FILES: string[] = JSON.parse(read('packages/cli/package.json')).files.map((f: string) => `packages/cli/${f}`);
+
+describe('packaged CLI README has no publication-status labels (A11Y-R75 fix round 2026-11-28)', () => {
+  const packaged = read(PACKAGED_README);
+
+  it('the real packaged README has no "unreleased" / "not yet released" / "source build only" label', () => {
+    const problems = publicationStatusLabelProblems(PACKAGED_README, packaged);
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+
+  it('labels scan, evidence, trend and init with "Needs 0.2.0 or later."', () => {
+    for (const heading of ['## Live-site scan (`a11ygate scan`)', '## Evidence pack (`a11ygate evidence pack`)', '## Trend report (`a11ygate trend`)', '## Starter CI setup (`a11ygate init`)']) {
+      const start = packaged.indexOf(heading);
+      expect(start, heading).toBeGreaterThanOrEqual(0);
+      const next = packaged.indexOf('\n## ', start + heading.length);
+      expect(packaged.slice(start, next === -1 ? undefined : next), heading).toContain('Needs 0.2.0 or later.');
+    }
+  });
+
+  it('flags planted publication-status labels (case-insensitive)', () => {
+    const planted = [
+      'Unreleased source build: published `0.1.0` does not include `scan`.',
+      'Unreleased source build. Bundles one scan\'s local outputs into a single zip.',
+      'unreleased source build. Builds a history from a directory of evidence packs.',
+      'This command is UNRELEASED.',
+      'Not yet released: `a11ygate trend`.',
+      'Source build only. Builds a history.',
+      'Source-build only.',
+      'This command is only available in a source build.',
+      '## Starter CI setup (source build)',
+    ];
+    for (const line of planted) {
+      expect(publicationStatusLabelProblems('planted.md', `ok\n${line}\n`), line).toEqual([`planted.md:2: ${line}`]);
+      // Planted into the real packaged README text, the check fails too.
+      expect(publicationStatusLabelProblems(PACKAGED_README, `${packaged}\n${line}\n`).length, line).toBe(1);
+    }
+  });
+
+  it('keeps the legitimate version requirement and the source-build install instruction passing', () => {
+    const legit = [
+      '`--format`, `--out-dir` and every subcommand other than `ci` need 0.2.0 or later.',
+      'Needs 0.2.0 or later. It loads real pages in headless Chromium.',
+      'If you use a [source build](https://github.com/DaveEliranAssistant/a11ygate/blob/main/docs/pilot/quickstart.md#source-build-fallback), it is not installed into `node_modules`, so run its built file with Node.',
+      'node <path-to-checkout>/packages/cli/dist/cli.mjs ci --current axe.json',
+      '## Starter CI setup (`a11ygate init`)',
+    ];
+    for (const line of legit) expect(publicationStatusLabelProblems('legit.md', line), line).toEqual([]);
+    expect(packaged).toContain('need 0.2.0 or later');
+    expect(packaged).toContain('run its built file with Node');
+  });
+
+  it('no other packaged file carries the "Unreleased source build" label', () => {
+    expect(PACKAGED_FILES).toContain(PACKAGED_README);
+    // CHANGELOG.md keeps its Keep-a-Changelog "## [Unreleased]" heading and historical entries;
+    // it is checked only for the per-command label, not for the word "Unreleased".
+    for (const rel of PACKAGED_FILES.filter((f) => f !== PACKAGED_README && !f.endsWith('LICENSE'))) {
+      expect(read(rel), rel).not.toMatch(/unreleased source build|not yet released|source[-\s]build only/i);
+    }
+  });
+});

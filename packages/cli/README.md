@@ -111,7 +111,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 For tested localhost apps, see the [Next.js, Vite + React, Angular and Storybook recipes](../../docs/recipes/README.md). The source CLI supports `scan <loopback-url> --start "npm start" --wait-on <loopback-url>`: start a trusted command, wait for HTTP 2xx, then stop its process group after scanning (POSIX). `--timeout-ms` bounds readiness and each page. Use `--storybook <loopback-index.json-url>` to scan every story iframe; it cannot be combined with crawl budgets, sitemaps or filters.
 
-Unreleased source build: published `0.1.0` does not include `scan`. It loads real pages in headless Chromium and runs axe-core with the WCAG 2.0/2.1/2.2 A and AA tags plus `best-practice`.
+Needs 0.2.0 or later. It loads real pages in headless Chromium and runs axe-core with the WCAG 2.0/2.1/2.2 A and AA tags plus `best-practice`.
 
 ```bash
 npm install --save-dev playwright @axe-core/playwright && npx playwright install chromium
@@ -180,7 +180,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Evidence pack (`a11ygate evidence pack`)
 
-Unreleased source build. Bundles one scan's local outputs into a single zip. It reads only files already written by `a11ygate scan --out-dir`; it does not scan, crawl or use the network.
+Needs 0.2.0 or later. Bundles one scan's local outputs into a single zip. It reads only files already written by `a11ygate scan --out-dir`; it does not scan, crawl or use the network.
 
 ```bash
 node packages/cli/dist/cli.mjs evidence pack --from a11y-scan --out a11y-evidence.zip --commit "$(git rev-parse HEAD)"
@@ -200,7 +200,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Trend report (`a11ygate trend`)
 
-Unreleased source build. Builds a history from a directory of evidence packs, for example one pack per monthly scan. It reads only `manifest.json` and `scan/a11ygate-scan.json` from each pack; it does not scan, crawl or use the network.
+Needs 0.2.0 or later. Builds a history from a directory of evidence packs, for example one pack per monthly scan. It reads only `manifest.json` and `scan/a11ygate-scan.json` from each pack; it does not scan, crawl or use the network.
 
 ```bash
 node packages/cli/dist/cli.mjs trend a11y-evidence/ --out-dir a11y-trend
@@ -284,14 +284,14 @@ for read-only probes, unknown results, supported config and setup instructions.
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
-## Starter CI setup (source build)
+## Starter CI setup (`a11ygate init`)
 
 Run `a11ygate init` for prompts or `a11ygate init --yes --target github` for a
 non-interactive starter. Other targets are `jenkins`, `gitlab`, and `azure-devops`.
 Add `--pilot` for success criteria, a kickoff checklist link, and setup commands.
 Existing files are skipped; `--force` replaces regular starter files. See the
 [init guide](../../docs/integrations/init.md) for flags, baseline opt-in, and local
-application startup prerequisites. Published 0.1.0 does not include this command.
+application startup prerequisites. Needs 0.2.0 or later.
 
 ### GitLab Code Quality
 
