@@ -409,3 +409,46 @@ describe('init --target gitlab refuses a symlinked root or starter before writin
     await expect(lstat(path.join(cwd, '.a11ygate-baseline.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   }));
 });
+
+// Fix round 2026-11-28 part 2 (Codex judge RERUN): --force must keep main's behaviour for read-only starters. The
+// temp+rename replace only needs directory permission, so without the writability check these were silently replaced.
+// Root ignores file modes, so these checks cannot fail as root.
+const asRoot = process.getuid?.() === 0;
+describe.skipIf(asRoot)('init --force refuses a read-only existing starter like main (EACCES, nothing written; skipped as root: root bypasses file modes)', () => {
+  const READ_ONLY = '# read-only customer file\n';
+  async function tmpFiles(dir: string, prefix = ''): Promise<string[]> {
+    const found: string[] = [];
+    for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
+      const rel = path.join(prefix, entry.name);
+      if (entry.isDirectory()) found.push(...await tmpFiles(dir, rel));
+      else if (/\.a11ygate-[0-9a-f]+\.tmp$/.test(entry.name)) found.push(rel);
+    }
+    return found;
+  }
+  const cases: [string, string][] = [];
+  for (const [target, ci] of [['github', '.github/workflows/a11ygate.yml'], ['jenkins', 'Jenkinsfile'], ['gitlab', JOBS], ['azure-devops', 'azure-pipelines.a11ygate.yml']]) {
+    cases.push([target, '.a11ygate.yml'], [target, ci]);
+  }
+
+  it.each(cases)('%s: read-only %s with --force exits 2 and keeps bytes and mode', async (target, file) => temporary(async (cwd) => {
+    const full = path.join(cwd, file);
+    await mkdir(path.dirname(full), { recursive: true });
+    await writeFile(full, READ_ONLY);
+    await chmod(full, 0o444);
+    const before = await stat(full);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const c = capture(cwd);
+    expect(await run(['init', '--yes', '--target', target, '--force'], c.io)).toBe(2);
+    expect(c.err()).toContain('Could not initialize A11yGate: EACCES: permission denied, open');
+    expect(c.err()).toContain(file);
+    expect(c.out()).not.toContain(`Wrote ${file}`);
+    expect(await readFile(full, 'utf8')).toBe(READ_ONLY);
+    const after = await stat(full);
+    expect(after.mode & 0o777).toBe(0o444);
+    expect(after.ino).toBe(before.ino);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(await tmpFiles(cwd)).toEqual([]);
+    // A GitLab run that fails here never gets as far as creating the root file.
+    if (target === 'gitlab') await expect(lstat(path.join(cwd, ROOT))).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
+});

@@ -8693,7 +8693,7 @@ var outreach_prospect_schema_default = {
 // packages/cli/src/init.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
 import { constants } from "node:fs";
-import { chmod, lstat as lstat4, mkdir as mkdir7, realpath as realpath2, rename as rename2, unlink as unlink3, writeFile as writeFile8 } from "node:fs/promises";
+import { chmod, lstat as lstat4, mkdir as mkdir7, open, realpath as realpath2, rename as rename2, unlink as unlink3, writeFile as writeFile8 } from "node:fs/promises";
 import path16 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
@@ -9034,6 +9034,7 @@ async function writeStarter(cwd, file, content, force, stdout) {
   if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   const exclusive = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
   if (info) {
+    await (await open(destination, constants.O_WRONLY | constants.O_NOFOLLOW)).close();
     const temporary = path16.join(parent, `.${parts.at(-1)}.a11ygate-${randomBytes3(6).toString("hex")}.tmp`);
     try {
       await writeFile8(temporary, content, { encoding: "utf8", flag: exclusive, mode: info.mode & 511 });

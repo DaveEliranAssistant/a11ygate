@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, realpath, rename, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
@@ -177,6 +177,9 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   if (info) {
     // --force never writes through the existing file: a hard link (another name for the same inode, such as a
     // customer's root .gitlab-ci.yml) keeps its bytes. Write a fresh file beside it, then rename it over the name.
+    // Keep main's permission check: open the existing file for writing (no O_TRUNC, nothing written) so a read-only
+    // starter still fails with EACCES before any temporary file exists; rename alone only checks the directory.
+    await (await open(destination, constants.O_WRONLY | constants.O_NOFOLLOW)).close();
     const temporary = path.join(parent, `.${parts.at(-1)!}.a11ygate-${randomBytes(6).toString('hex')}.tmp`);
     try {
       await writeFile(temporary, content, { encoding: 'utf8', flag: exclusive, mode: info.mode & 0o777 });
