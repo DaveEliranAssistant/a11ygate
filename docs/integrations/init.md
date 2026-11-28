@@ -39,7 +39,7 @@ special URL characters. The Jenkins shared library wraps URLs in shell quotes.
 | --- | --- |
 | GitHub (`--target github`) | `.a11ygate.yml`, `.github/workflows/a11ygate.yml` |
 | Jenkins (`--target jenkins`) | `.a11ygate.yml`, `Jenkinsfile` |
-| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml`, and the root `.gitlab-ci.yml` (created, or extended with the include and `merge_request_event` rule) |
+| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml`, and the root `.gitlab-ci.yml` (created only when absent; an existing one is left unchanged, see below) |
 | Azure DevOps (`--target azure-devops`) | `.a11ygate.yml`, `azure-pipelines.a11ygate.yml` |
 | Any target, with `--baseline <saved-scan>` | Also `.a11ygate-baseline.json` |
 
@@ -101,9 +101,9 @@ and execution errors to FAILURE.
 
 ## Finish GitLab or Azure DevOps setup
 
-For GitLab, init writes the job to `.gitlab-ci.a11ygate.yml` and puts a
-`merge_request_event` rule directly in the root `.gitlab-ci.yml`, next to a local
-include of the job file. GitLab does not use rules from `include:` files to decide
+For GitLab, init writes the job to `.gitlab-ci.a11ygate.yml`. When the root
+`.gitlab-ci.yml` is absent, init creates it with a `merge_request_event` rule
+directly in its own `workflow: rules`, next to a local include of the job file. GitLab does not use rules from `include:` files to decide
 whether to create a merge request pipeline, so an `include:` entry alone is not
 enough. Without a root file, init writes:
 
@@ -118,37 +118,19 @@ workflow:
     - if: '$CI_COMMIT_TAG'
 ```
 
-The branch and tag rules keep your branch and tag pipelines running. With an
-existing root file, init keeps every job, key and byte already there and only
-inserts lines: the local include (a new entry in an existing `include:` list, or
-an `include:` block), the `merge_request_event` rule (as the first entry of an
-existing `workflow: rules` list, or the `workflow:` block above), and a comment
-with the disclaimer. It skips the file when the rule and include are already
-there; `--force` never replaces this file. Init works from an allowlist: it edits
-the file only when it can read every line, and it re-reads its own result before
-writing (one `workflow:` and one `include:`, the local include present, the
-merge request rule first, every original line kept in order). For anything else,
-such as an indented or flow-style root, `---` or `...` document markers, tabs, a
-key repeated in any mapping (including a later `workflow: rules` entry or a flow
-mapping), a quoted value or flow collection that continues on the next line, a
-top-level value continued on the next line (a string `include:` must be one
-line), anchors, aliases or `!reference` in `workflow:` or `include:`, a block
-scalar (`|`, `>`, `|+`, `>-`, `|2`, also after `- ` or `- - `) inside
-`workflow:` or `include:` or in the last top-level key when init appends, a quoted
-or escaped spelling of a key init edits (`"workflow":`, `'include':`,
-`"\x77orkflow":`, `'rules':`, `'local':`), a double-quoted top-level key with
-escapes, or any `workflow: rules` entry (every entry is checked, not only the
-first) it cannot read exactly (comments after a value or inside the entry, quoted
-keys such as `'when':`, flow mappings, nested or multi-line values, an unknown
-`when:`), init leaves the file unchanged, prints this snippet, and exits with
-code 2. It also refuses a
-`merge_request_event` rule that is not the plain first rule
-(`- if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`, optionally with
-`when: on_success` or `when: always`), for example one with `when: never`,
-`manual` or `delayed`, an extra condition, or a rule before it, because GitLab
-uses the first matching rule. Then add the include and the rule (as the first `workflow: rules`
-entry) yourself. A symlinked root file is refused. The job runs on merge requests and publishes Code Quality
-and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md) and
+The branch and tag rules keep your branch and tag pipelines running.
+
+If a root `.gitlab-ci.yml` already exists (a file, a symlink or a directory), init
+leaves it unchanged and does not edit it, even with `--force`. It still writes the
+other starter files as usual (including `--pilot` files), then prints the snippet
+above to stderr and exits with code 2. Paste the snippet into your root file
+yourself: add the `local` entry to your `include:` list, and make the
+`merge_request_event` rule the first entry of your `workflow: rules` (keep your own
+rules below it; GitLab uses the first matching rule). You do not need to re-run
+init afterwards. A re-run on a repository where init already created the root file
+also exits with code 2, because that file now exists. The job runs on merge
+requests and publishes Code Quality and JUnit reports. See the
+[GitLab guide](../../integrations/gitlab/README.md) and
 [GitLab CI in the pilot quickstart](../pilot/quickstart.md#gitlab-ci).
 
 For Azure DevOps, register `azure-pipelines.a11ygate.yml` as a standalone

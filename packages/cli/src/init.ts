@@ -1,12 +1,12 @@
 import { constants } from 'node:fs';
-import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import azureTemplate from '../../../integrations/azure-devops/a11ygate.yml?raw';
 import gitlabTemplate from '../../../integrations/gitlab/a11ygate.gitlab-ci.yml?raw';
 import { CI_FILES, CI_TARGETS, type CiTarget } from './ci-targets';
-import { GITLAB_ROOT_FILE, GITLAB_ROOT_SNIPPET, gitlabRootFile, planGitlabRoot, type GitlabRootPlan } from './init-gitlab';
+import { GITLAB_ROOT_FILE, GITLAB_ROOT_TEMPLATE, gitlabRootLeftUnchanged } from './init-gitlab';
 import { PILOT_KICKOFF, pilotNextSteps, pilotSuccessCriteria } from './init-pilot';
 import { runBaseline } from './baseline';
 import { SCHEMA_COMMENT } from './config';
@@ -31,10 +31,11 @@ ${AUTOMATED_TESTING_DISCLAIMER}
 type Options = { target: string; url: string; crawl: number; failOn: string; baseline?: string; yes: boolean; force: boolean; pilot: boolean };
 const impacts = ['serious', 'critical', 'moderate', 'minor', 'none'];
 const defaultUrl = 'http://127.0.0.1:4173/';
+const defaultScanOptions = { url: defaultUrl, crawl: 10, failOn: 'serious' };
 // Source build with scan support; published 0.1.0 lacks scan. Review this ref when upgrading.
 const toolRef = '3fc98754c66dbe9947e3df8588281aa1258fb66e';
 
-export function githubStarter(options: Options): string {
+export function githubStarter(options: StarterOptions): string {
   return `# Scan only a site you own or are authorized to test.
 # Start your local application before the scan step (including a readiness check).
 # ${AUTOMATED_TESTING_DISCLAIMER}
@@ -93,7 +94,7 @@ jobs:
 `;
 }
 
-export function jenkinsStarter(options: Options): string {
+export function jenkinsStarter(options: StarterOptions): string {
   // URL is validated below, including quotes that the shared library wraps in shell quotes.
   const choices = [options.failOn, ...impacts.filter((impact) => impact !== options.failOn)];
   return JENKINS_TEMPLATE
@@ -102,12 +103,12 @@ export function jenkinsStarter(options: Options): string {
     .replace('crawl: 10,', `crawl: ${options.crawl || 'false'},${options.baseline ? "\n          baseline: '.a11ygate-baseline.json'," : ''}`);
 }
 
-function withBaseline(template: string, options: Options): string {
+function withBaseline(template: string, options: StarterOptions): string {
   if (!options.baseline) return template;
   return template.replace(/(a11ygate scan [^\n]+)( --format )/, '$1 --baseline .a11ygate-baseline.json$2');
 }
 
-function gitlabStarter(options: Options): string {
+function gitlabStarter(options: StarterOptions): string {
   const job = gitlabTemplate
     .replace(/^    A11YGATE_URL: .*$/m, () => `    A11YGATE_URL: ${JSON.stringify(options.url)}`)
     .replace(/^    A11YGATE_FAIL_ON: .*$/m, `    A11YGATE_FAIL_ON: "${options.failOn}"`)
@@ -115,7 +116,7 @@ function gitlabStarter(options: Options): string {
   return withBaseline(job, options);
 }
 
-function azureStarter(options: Options): string {
+function azureStarter(options: StarterOptions): string {
   const header = `# ${AUTOMATED_TESTING_DISCLAIMER}
 # Azure Repos Git uses a build validation branch policy for PRs.
 # Start your authorized application before the scan step.
@@ -132,12 +133,18 @@ pool:
   return header + withBaseline(pipeline, options);
 }
 
-const starters: Record<CiTarget, (options: Options) => string> = {
+type StarterOptions = Pick<Options, 'url' | 'crawl' | 'failOn' | 'baseline'>;
+
+const starters: Record<CiTarget, (options: StarterOptions) => string> = {
   github: githubStarter,
   jenkins: jenkinsStarter,
   gitlab: gitlabStarter,
   'azure-devops': azureStarter,
 };
+
+export function renderCiStarter(target: CiTarget, options: StarterOptions = defaultScanOptions): string {
+  return starters[target](options);
+}
 
 function validate(options: Options): asserts options is Options & { target: CiTarget } {
   if (!CI_TARGETS.includes(options.target)) throw new Error(`--target must be one of ${CI_TARGETS.join(', ')}.`);
@@ -176,30 +183,19 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   return true;
 }
 
-/** Reads the customer's root .gitlab-ci.yml before anything is written. Refuses symlinks, even with --force. */
-async function planRoot(cwd: string): Promise<GitlabRootPlan | { kind: 'create' }> {
+/**
+ * Creates the root .gitlab-ci.yml only when nothing exists at that path. Anything already there (file, symlink,
+ * dangling symlink, directory) is never read or written, even with --force. Returns false when it was left alone.
+ */
+async function createGitlabRoot(cwd: string, stdout: (text: string) => void): Promise<boolean> {
   const destination = path.join(await realpath(cwd), GITLAB_ROOT_FILE);
-  const info = await lstat(destination).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
-  if (!info) return { kind: 'create' };
-  if (!info.isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
-  return planGitlabRoot(await readFile(destination, { encoding: 'utf8', flag: constants.O_RDONLY | constants.O_NOFOLLOW }));
-}
-
-/** Never replaces the customer's root pipeline, even with --force: it only adds the missing rule/include. */
-async function applyRoot(cwd: string, plan: GitlabRootPlan | { kind: 'create' }, stdout: (text: string) => void, stderr: (text: string) => void): Promise<boolean> {
-  if (plan.kind === 'create') { await writeStarter(cwd, GITLAB_ROOT_FILE, gitlabRootFile(), false, stdout); return true; }
-  if (plan.kind === 'unchanged') {
-    stdout(`Skipped existing ${GITLAB_ROOT_FILE} (it already has a merge_request_event workflow rule and includes ${CI_FILES.gitlab}).\n`);
-    return true;
+  try {
+    await writeFile(destination, GITLAB_ROOT_TEMPLATE, { encoding: 'utf8', flag: constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
   }
-  if (plan.kind === 'manual') {
-    stderr(`Left ${GITLAB_ROOT_FILE} unchanged: ${plan.reason}. GitLab needs a merge_request_event rule in the root file itself; add the include and the rule yourself, for example:\n${GITLAB_ROOT_SNIPPET}`);
-    return false;
-  }
-  const destination = path.join(await realpath(cwd), GITLAB_ROOT_FILE);
-  if (!(await lstat(destination)).isFile()) throw new Error(`${GITLAB_ROOT_FILE}: refusing to edit a symlink or non-regular file.`);
-  await writeFile(destination, plan.text, { encoding: 'utf8', flag: constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW });
-  stdout(`Updated ${GITLAB_ROOT_FILE}: added the ${plan.added.join(' and the ')}; existing jobs and keys kept.\n`);
+  stdout(`Wrote ${GITLAB_ROOT_FILE}\n`);
   return true;
 }
 
@@ -207,7 +203,7 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
   const stdout = io.stdout ?? ((s: string) => process.stdout.write(s));
   const stderr = io.stderr ?? ((s: string) => process.stderr.write(s));
   if (argv.includes('--help') || argv.includes('-h')) { stdout(INIT_HELP); return 0; }
-  const options: Options = { target: 'github', url: defaultUrl, crawl: 10, failOn: 'serious', yes: false, force: false, pilot: false };
+  const options: Options = { target: 'github', ...defaultScanOptions, yes: false, force: false, pilot: false };
   const supplied = new Set<string>();
   try {
     for (let i = 0; i < argv.length; i++) {
@@ -246,7 +242,6 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
-    const rootPlan = options.target === 'gitlab' ? await planRoot(cwd) : undefined;
     // Baselines deliberately retain baseline create's exclusive-create rule, even with --force.
     if (options.baseline) {
       const existing = await lstat(path.join(cwd, '.a11ygate-baseline.json')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
@@ -256,19 +251,20 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     const recordTarget = options.pilot || options.target === 'gitlab' || options.target === 'azure-devops';
     const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\n${recordTarget ? `ciTarget: ${options.target}\n` : ''}engines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
-    await writeStarter(cwd, CI_FILES[options.target], starters[options.target](options), options.force, stdout);
-    const rootMerged = rootPlan ? await applyRoot(cwd, rootPlan, stdout, stderr) : true;
+    await writeStarter(cwd, CI_FILES[options.target], renderCiStarter(options.target, options), options.force, stdout);
+    const rootCreated = options.target === 'gitlab' ? await createGitlabRoot(cwd, stdout) : true;
     if (options.pilot) {
       await writeStarter(cwd, 'a11ygate-pilot/success-criteria.yml', pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, 'a11ygate-pilot/KICKOFF.md', PILOT_KICKOFF, options.force, stdout);
     }
-    if (options.target === 'gitlab' && rootMerged) stdout(`Open a test merge request and check that its pipeline runs the A11yGate job.\n`);
+    if (options.target === 'gitlab' && rootCreated) stdout('Open a test merge request and check that its pipeline runs the A11yGate job.\n');
     if (options.target === 'azure-devops') stdout(`Register ${CI_FILES['azure-devops']} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.\n`);
     if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
     stdout('Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n');
     if (options.target === 'jenkins') stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}\n`);
-    return rootMerged ? 0 : 2;
+    if (!rootCreated) { stderr(gitlabRootLeftUnchanged()); return 2; }
+    return 0;
   } catch (error) {
     stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;

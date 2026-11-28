@@ -240,7 +240,7 @@ Add your application's install/build/start commands where the workflow comment s
 
 ### GitLab CI
 
-`init --target gitlab` generates the job from the reviewed integration template, with your URL, crawl scope and baseline filled in, and puts the merge request rule in your root `.gitlab-ci.yml`:
+`init --target gitlab` generates the job from the reviewed integration template, with your URL, crawl scope and baseline filled in, and, when your repository has no root `.gitlab-ci.yml` yet, creates one with the merge request rule:
 
 ```sh
 a11ygate init --yes --target gitlab --url http://127.0.0.1:4173/ --crawl 10 --fail-on serious --baseline a11y
@@ -256,7 +256,7 @@ Review the starter before committing. Start your local app before scanning; only
 Automated testing only. Not a WCAG audit, certification or legal advice.
 ```
 
-GitLab needs a rule that matches merge request pipelines **directly in the root `.gitlab-ci.yml`**. The rule inside the included job does not count ([GitLab: merge request pipelines](https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/): "Rules defined in `include:` … do not satisfy this requirement"), so an `include:` entry alone is not enough. `init` therefore writes the include and the `merge_request_event` rule into the root file itself. The job steps stay only in `.gitlab-ci.a11ygate.yml`:
+GitLab needs a rule that matches merge request pipelines **directly in the root `.gitlab-ci.yml`**. The rule inside the included job does not count ([GitLab: merge request pipelines](https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/): "Rules defined in `include:` … do not satisfy this requirement"), so an `include:` entry alone is not enough. When there is no root file, `init` therefore creates it with the include and the `merge_request_event` rule. The job steps stay only in `.gitlab-ci.a11ygate.yml`:
 
 ```yaml
 include:
@@ -271,7 +271,7 @@ workflow:
 
 The branch and tag rules keep the branch and tag pipelines GitLab runs without a `workflow:` block. On a branch with an open merge request, both a branch pipeline and a merge request pipeline can run. To run only the merge request pipeline there, add `- if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'` with `when: never` directly after the `merge_request_event` rule, and review the effect on your other jobs first.
 
-If you already have a root `.gitlab-ci.yml`, `init` keeps all of your jobs, keys and existing lines and only inserts what is missing: the local include (as a new entry in an existing `include:` list), the `merge_request_event` rule (as the first entry of an existing `workflow: rules` list, or the `workflow:` block above when there is none), and a comment with the disclaimer. It prints `Updated .gitlab-ci.yml: ...`. If the file already has a `merge_request_event` workflow rule and the include, init skips it, even with `--force`; init never replaces this file. If the layout is one init cannot extend safely (for example `include:` as a single string of another file, an indented or flow-style root, anchors or `!reference` in `workflow:`, a trailing `|` or `>` block scalar, a quoted or escaped `workflow`/`include` key, a `workflow: rules` entry with inline comments or quoted keys, or a merge request rule that is not the plain first rule, such as one with `when: never`), init leaves the file unchanged, prints the snippet to add by hand, and exits with code 2. In that case add the `merge_request_event` rule as the first entry of your `workflow: rules` and the include yourself. A symlinked `.gitlab-ci.yml` is refused.
+If you already have a root `.gitlab-ci.yml`, `init` leaves it unchanged and does not edit it, even with `--force`. It still writes `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml` and any `--pilot` files, then prints the snippet above to stderr (starting with `Left existing .gitlab-ci.yml unchanged`) and exits with code 2. Paste it in yourself: add the `local` entry to your `include:` list and make the `merge_request_event` rule the first entry of your `workflow: rules`, keeping your own rules below it. You do not need to re-run `init`.
 
 Open a test merge request and check that an `a11ygate` job appears in its pipeline. The generated `.gitlab-ci.a11ygate.yml` sets `A11YGATE_URL: "http://127.0.0.1:4173/"` (the same URL as the baseline) and has this scan line:
 
