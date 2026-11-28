@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import ownHosts from '@/config/own-hosts.json';
@@ -6,7 +7,7 @@ import { prospectHtml } from '@/lib/scan/prospect-report';
 import type { ScanReport } from '@/lib/scan/report';
 import { MAX_CRAWL_PAGES, normalizeUrl } from '@/lib/scan/url';
 import { readScanInput } from './baseline';
-import { assertSafeOutputs } from './output-paths';
+import { assertSafeOutputs, privateOutputDir } from './output-paths';
 import { printProspectPdf, writeBinaryAtomic } from './report-pdf';
 import { runScan, type ScanIo } from './scan';
 
@@ -16,6 +17,8 @@ const HELP = `Usage: a11ygate prospect <url|scan-dir> [--max-pages <1-20>] [--co
 Write a prospect summary (HTML and PDF) and manifest to prospect-out by default.
 URL mode scans one page by default. Sites outside the own-host allowlist require
 both --authorized-by <name> and --authorization-note <text> before scanning.
+--outreach-data saves the scan JSON alongside its approval manifest for offline kit
+generation. URL mode only. Keep the resulting private data outside repositories.
 --from reads saved scan data offline. PDF output requires Playwright Chromium.
 
 ${AUTOMATED_TESTING_DISCLAIMER}
@@ -31,11 +34,14 @@ export function isOwnProspectHost(url: string): boolean {
 function parseProspectArgs(argv: readonly string[]) {
   let target: string | undefined;
   let offer = false;
+  let outreachData = false;
   const values = new Map<string, string>();
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]!;
     if (token === '--offer') {
       offer = true;
+    } else if (token === '--outreach-data') {
+      outreachData = true;
     } else if (token.startsWith('-')) {
       const eq = token.indexOf('=');
       const flag = eq < 0 ? token : token.slice(0, eq);
@@ -54,6 +60,9 @@ function parseProspectArgs(argv: readonly string[]) {
   const url = from ? null : normalizeUrl(target!);
   if (!url && target && /^[a-z][a-z\d+.-]*:\/\//i.test(target)) {
     throw new Error('Pass an HTTP(S) URL without credentials or a local saved scan path.');
+  }
+  if (outreachData && (!url || !values.has('--out-dir'))) {
+    throw new Error('--outreach-data requires URL mode and an explicit --out-dir.');
   }
   const max = values.get('--max-pages');
   const maxPages = max === undefined ? 1 : Number(max);
@@ -76,6 +85,7 @@ function parseProspectArgs(argv: readonly string[]) {
     company: values.get('--company'),
     outDir: values.get('--out-dir') ?? 'prospect-out',
     offer,
+    outreachData,
     authorization: authorizedBy && authorizationNote ? { authorizedBy, authorizationNote } : undefined,
   };
 }
@@ -96,11 +106,14 @@ export async function runProspect(argv: readonly string[], io: ScanIo = {}): Pro
   if (argv.includes('--help') || argv.includes('-h')) { stdout(HELP); return 0; }
   try {
     const options = parseProspectArgs(argv);
-    const output = path.resolve(cwd, options.outDir);
+    const requested = path.resolve(cwd, options.outDir);
+    const output = options.outreachData ? (await privateOutputDir(requested)).canonical : requested;
     const htmlPath = path.join(output, 'prospect-summary.html');
     const pdfPath = path.join(output, 'prospect-summary.pdf');
     const manifestPath = path.join(output, 'prospect-manifest.json');
     const outputs = [htmlPath, pdfPath, manifestPath];
+    const scanPath = path.join(output, 'a11ygate-scan.json');
+    if (options.outreachData) outputs.push(scanPath);
     let source: string | undefined;
     if (!options.url) {
       const input = path.resolve(cwd, options.input);
@@ -112,6 +125,9 @@ export async function runProspect(argv: readonly string[], io: ScanIo = {}): Pro
       : await readScanInput(options.input, cwd);
     const html = prospectHtml(report, options);
     const pdf = await printProspectPdf(html, report.scannedAt);
+    const scanData = options.outreachData
+      ? Buffer.from(JSON.stringify({ ...report, disclaimer: AUTOMATED_TESTING_DISCLAIMER }, null, 2) + '\n')
+      : undefined;
     const manifest = {
       schemaVersion: 1,
       source: options.url ? 'url' : 'saved-scan',
@@ -121,14 +137,16 @@ export async function runProspect(argv: readonly string[], io: ScanIo = {}): Pro
       offer: options.offer,
       authorizedBy: options.authorization?.authorizedBy ?? null,
       authorizationNote: options.authorization?.authorizationNote ?? null,
-      files: ['prospect-summary.html', 'prospect-summary.pdf'],
+      files: ['prospect-summary.html', 'prospect-summary.pdf', ...(scanData ? ['a11ygate-scan.json'] : [])],
+      ...(scanData ? { scanSha256: createHash('sha256').update(scanData).digest('hex') } : {}),
       disclaimer: AUTOMATED_TESTING_DISCLAIMER,
     };
-    await mkdir(output, { recursive: true });
+    await mkdir(output, { recursive: true, ...(options.outreachData ? { mode: 0o700 } : {}) });
     await writeBinaryAtomic(htmlPath, Buffer.from(html));
     await writeBinaryAtomic(pdfPath, pdf);
+    if (scanData) await writeBinaryAtomic(scanPath, scanData);
     await writeBinaryAtomic(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + '\n'));
-    stdout(`Wrote prospect-summary.html, prospect-summary.pdf and prospect-manifest.json to ${options.outDir}\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
+    stdout(`Wrote prospect-summary.html, prospect-summary.pdf and prospect-manifest.json${scanData ? ' with a11ygate-scan.json' : ''} to ${options.outDir}\n${AUTOMATED_TESTING_DISCLAIMER}\n`);
     return 0;
   } catch (error) {
     stderr(`Prospect report failed: ${error instanceof Error ? error.message : String(error)}\n${AUTOMATED_TESTING_DISCLAIMER}\n`);

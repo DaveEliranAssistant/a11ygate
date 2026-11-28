@@ -10,6 +10,7 @@ Customer-ready material for the free 21-day pilot of A11yGate ($0, no payment de
 | [Kickoff checklist](kickoff-checklist.md) | Owner and customer checkboxes: least-privilege access, target URLs, written scan authorization from the site owner, authenticated pages, environments, contacts, weekly check-in, data retention and deletion, access revocation. |
 | [Success criteria template](success-criteria.template.yml) | Machine-checkable pilot targets, validated by [`schema/pilot-success.schema.json`](../../schema/pilot-success.schema.json). |
 | [Pilot terms draft](pilot-terms.template.md) | **Draft only: needs Eliran/legal review before use.** Never send it as final. |
+| [Outreach kit](outreach/README.md) | **Drafts only: Eliran sends every message himself.** Warm intro, first touch, follow-ups, demo invite, recap, pilot proposal, conversion email and honest answers to objections, with placeholders for price and pilot length. |
 
 See the [sample deliverables](../samples/README.md) (built from our demo app, marked SAMPLE) for what a pilot produces.
 
