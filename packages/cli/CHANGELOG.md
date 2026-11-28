@@ -8,6 +8,8 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## [Unreleased]
 
+- **A11Y-R78:** `a11ygate outreach kit` renders private prospect drafts, an HTML/PDF one-pager and sample results offline. `a11ygate prospect --outreach-data` opts into saving scan data with its approval manifest for kit generation.
+
 ### Pilot funnel (A11Y-R63 to A11Y-R70)
 
 Everything needed to take one lead from a prospect scan to a pilot and a quote. The package version is unchanged (**0.2.0**) and nothing is published. Public price and pilot UI stay off until the owner turns on `A11YGATE_PRICING_ENABLED`. Owner decisions still open are listed as checkboxes in the [owner runbook](../../docs/pilot/owner-runbook.md).
