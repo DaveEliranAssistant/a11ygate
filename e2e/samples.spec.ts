@@ -80,9 +80,15 @@ test.describe('sample pack checkers (A11Y-R79)', () => {
   test('a scanned URL on another host fails, reference links only pass in link context', async () => {
     // Fix round 2026-11-28: a reference link passes only in the exact generator markup (rule-help list item), not
     // as any href to a reference host.
-    expect(textHostProblems('<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>')).toEqual([]);
+    // Rerun after judge 1: only inside the generator's reference SECTION (how-to-fix References list, Markdown finding
+    // line below "## Findings by"); the same markup on its own is not a reference.
+    const item = '<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>';
+    expect(textHostProblems(item)).toHaveLength(1);
+    expect(textHostProblems(`<section id="how-to-fix" aria-labelledby="how-to-fix-h">\n<section id="fix-1">\n<p><strong>References:</strong></p><ul>${item}</ul>\n</section>\n</section>`)).toEqual([]);
     expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toHaveLength(1);
-    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)')).toEqual([]);
+    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)')).toHaveLength(1);
+    expect(textHostProblems('\n## Findings by severity\n\n- [new] **label** (critical) on `http://127.0.0.1:4173/` — `#email` — x — [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)\n')).toEqual([]);
+    expect(fileHostProblems('x.json', '{"startUrl": "127.1:4173/"}')).not.toEqual([]);
     expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toHaveLength(1);
     expect(textHostProblems('Site: https://example.com/')).toHaveLength(1);
     expect(textHostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);

@@ -13,6 +13,10 @@ const dir = path.join(__dirname, '..', 'docs', 'samples');
 const LOCAL = `http://${SAMPLE_HOST}/`;
 const PLANTED = 'https://dequeuniversity.com/';
 
+const RULE_HELP_ITEM = '<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>';
+/** RULE_HELP_ITEM-style markup wrapped in the real report-html-v2 how-to-fix → References list structure. */
+const inReferences = (items: string) =>
+  `<section id="how-to-fix" aria-labelledby="how-to-fix-h">\n<section id="fix-1">\n<p><strong>References:</strong></p><ul>${items}</ul>\n</section>\n</section>`;
 const packEntries = async () => readZipEntries(await readFile(path.join(dir, 'evidence-pack-sample.zip')));
 const text = (e: Entry) => Buffer.from(e.data).toString('utf8');
 const withEntry = (entries: Entry[], name: string, edit: (s: string) => string): Entry[] => entries.map((e) => {
@@ -156,9 +160,14 @@ describe('sample pack host check (A11Y-R79 c)', () => {
   it('text samples allow reference hosts only in link context', () => {
     // Fix round 2026-11-28: a reference link passes only in the exact generator markup (rule-help list item), not
     // as any href to a reference host.
-    expect(textHostProblems('<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>')).toEqual([]);
+    // Fix round 2026-11-28 rerun (judge 1): only inside the generator's reference SECTION (how-to-fix References list,
+    // Markdown finding line), so the bare item / a bare "[rule guidance]" link no longer pass on their own.
+    expect(textHostProblems(RULE_HELP_ITEM)).toHaveLength(1);
+    expect(textHostProblems(inReferences(RULE_HELP_ITEM))).toEqual([]);
     expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toHaveLength(1);
-    expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)`)).toEqual([]);
+    expect(textHostProblems(inReferences('<li><a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a></li>'))).not.toEqual([]);
+    expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)`)).toHaveLength(1);
+    expect(textHostProblems(`\n## Findings by severity\n\n- [new] **label** (critical) on \`${LOCAL}\` — \`#email\` — x — [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)\n`)).toEqual([]);
     expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://www.w3.org/WAI/x)`)).toHaveLength(1);
     expect(textHostProblems('Site: https://example.com/')).toHaveLength(1);
     expect(textHostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
@@ -247,7 +256,9 @@ describe('sample pack host check (A11Y-R79 c)', () => {
     expect(sarif.$schema).toBeTruthy();
     expect(jsonHostProblems({ $schema: sarif.$schema, informationUri: sarif.runs[0].tool.driver.informationUri, helpUri: sarif.runs[0].tool.driver.rules[0].helpUri })).toEqual([]);
     expect(jsonHostProblems({ userAgent: 'Mozilla/5.0 (compatible; A11yGate/0.2.0; +https://a11ygate.vercel.app) read-only accessibility scan' })).toEqual([]);
-    expect(textHostProblems('UA: Mozilla/5.0 (compatible; A11yGate/0.2.0; +https://a11ygate.vercel.app) read-only accessibility scan')).toEqual([]);
+    // The UA string is a reference only in its known field (JSON userAgent); no text sample carries it, so in text it
+    // is not a reference context any more (rerun after judge 1).
+    expect(textHostProblems('UA: Mozilla/5.0 (compatible; A11yGate/0.2.0; +https://a11ygate.vercel.app) read-only accessibility scan')).toHaveLength(1);
     const html = await readFile(path.join(dir, 'report.html'), 'utf8');
     expect(html).toMatch(/<a href="https:\/\/dequeuniversity\.com\/rules\/axe\/[^"]+">Engine rule help<span class="sr"> for /);
     expect(html).toContain('<li><a href="https://www.w3.org/WAI/WCAG22/Understanding/');
@@ -257,5 +268,98 @@ describe('sample pack host check (A11Y-R79 c)', () => {
       expect(text(entry), name).toMatch(/dequeuniversity\.com/);
       expect(fileHostProblems(name, entry.data), name).toEqual([]);
     }
+  });
+
+  // Fix round 2026-11-28, rerun after Codex judge 1: positive structural check of scanned fields, and reference markup
+  // only inside the reference section.
+  const SCHEMELESS = ['127.1:4173/', '0177.0.0.1:4173/', '2130706433:4173/', '0x7f.1:4173/', '127.0.0.1:4173/', ''];
+  const START = `Start URL: <code>${LOCAL}</code>`;
+
+  it('FAILS on a scheme-less numeric Start URL in report.html and in the evidence ZIP report', async () => {
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    expect(html).toContain(START);
+    const entries = await packEntries();
+    for (const target of SCHEMELESS) {
+      const planted = html.replace(START, `Start URL: <code>${target}</code>`);
+      const problems = fileHostProblems('report.html', planted);
+      expect(problems.some((p) => p.includes('Start URL is not')), `${target}: ${problems.join(' | ')}`).toBe(true);
+      // The evidence pack's report.html lists the Start URL in its scope <ul>; the scan HTML has the report-v2 header.
+      for (const name of ['report.html', 'scan/a11ygate-scan.html']) {
+        const zipped = withEntry(entries, name, (s) => s.replace(`Start URL: <code>${LOCAL}</code>`, `Start URL: <code>${target}</code>`));
+        const zp = evidencePackHostProblems(createZip(zipped));
+        expect(zp.some((p) => p.includes(`${name}: Start URL is not`)), `${name} ${target}: ${zp.join(' | ')}`).toBe(true);
+      }
+    }
+  }, 30_000);
+
+  it('FAILS on a scheme-less numeric startUrl in the screenshot metadata JSON (and in any JSON string)', async () => {
+    const sidecar = JSON.parse(await readFile(path.join(dir, 'screenshot-checks.json'), 'utf8'));
+    for (const target of SCHEMELESS) {
+      const problems = fileHostProblems('screenshot-checks.json', JSON.stringify({ ...sidecar, startUrl: target }));
+      expect(problems, target).toContain(`screenshot-checks.json $.startUrl: ${target}`);
+    }
+    // Under a non-scanned key the generic token check still sees scheme-less numeric hosts.
+    for (const target of ['127.1:4173/', '0177.0.0.1:4173/', '2130706433:4173/', '0x7f.1:4173/']) {
+      expect(jsonHostProblems({ note: `scanned ${target}` }), target).not.toEqual([]);
+      expect(textHostProblems(`Site: ${target}`), target).not.toEqual([]);
+    }
+    // Times, ratios and EN 301 549 clauses are not hosts.
+    expect(textHostProblems('2026-11-26T09:00:00.000Z, 4.5:1 text, EN 301 549 9.4.1.2, 12:54 IST')).toEqual([]);
+  });
+
+  it('FAILS when a missing / empty / non-literal scanned field is in JSON or a field is missing in HTML', async () => {
+    for (const key of ['url', 'startUrl', 'pageUrl', 'finalUrl', 'origin']) {
+      expect(jsonHostProblems({ [key]: '' }), key).toEqual([`$.${key}: `]);
+      expect(jsonHostProblems({ [key]: 'see report' }), key).toHaveLength(1);
+    }
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    expect(fileHostProblems('report.html', html.replace(START, ''))).toContain('report.html: no Start URL field found');
+  });
+
+  it('FAILS when the real rule-help markup is moved out of the References section (Start URL, header, title)', async () => {
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    const item = html.match(/<li><a href="https:\/\/dequeuniversity\.com\/rules\/axe\/[^"]+">Engine rule help<span class="sr"> for [a-z-]+<\/span><\/a><\/li>/)![0];
+    const w3c = html.match(/<li><a href="https:\/\/www\.w3\.org\/WAI\/[^"]+">W3C Understanding [^<]+<\/a><\/li>/)![0];
+    const entries = await packEntries();
+    for (const moved of [item, w3c, `<ul>${item}</ul>`, `<p><strong>References:</strong></p><ul>${item}</ul>`]) {
+      const planted = html.replace(START, `Start URL: ${moved}`);
+      expect(planted).not.toBe(html);
+      const problems = fileHostProblems('report.html', planted);
+      expect(problems.some((p) => p.includes('Start URL is not')), moved).toBe(true);
+      expect(problems.some((p) => /dequeuniversity|w3\.org/.test(p) && !p.includes('Start URL is not')), `${moved}: ${problems.join(' | ')}`).toBe(true);
+      // Inside the evidence ZIP: the report-v2 scan HTML (has a References section) and the evidence report.html.
+      for (const name of ['scan/a11ygate-scan.html', 'report.html']) {
+        const zipped = withEntry(entries, name, (s) => s.replace(`Start URL: <code>${LOCAL}</code>`, `Start URL: ${moved}`));
+        const zp = evidencePackHostProblems(createZip(zipped)).filter((p) => p.includes(`${name}:`));
+        expect(zp.some((p) => /dequeuniversity|w3\.org/.test(p) && !p.includes('Start URL is not')), `${name} ${moved}`).toBe(true);
+      }
+    }
+    // Elsewhere outside the section: header, summary, an extra fake how-to-fix section.
+    for (const planted of [
+      html.replace('<h1>A11yGate accessibility scan report</h1>', `<h1>A11yGate accessibility scan report</h1><ul>${item}</ul>`),
+      html.replace('<section id="by-page"', `<ul>${item}</ul><section id="by-page"`),
+      html.replace('<header>', `<header>${inReferences(item)}`),
+    ]) {
+      expect(planted).not.toBe(html);
+      expect(fileHostProblems('report.html', planted), planted.slice(0, 0)).not.toEqual([]);
+    }
+    // Non-reference markup inside the References list fails too (no "any href" inside the section).
+    expect(fileHostProblems('report.html', html.replace('<p><strong>References:</strong></p><ul>', '<p><strong>References:</strong></p><ul><li><a href="https://dequeuniversity.com/">scanned site</a></li>'))).not.toEqual([]);
+  }, 30_000);
+
+  it('Markdown / JUnit reference links pass only in their sections', async () => {
+    const entries = await packEntries();
+    const md = text(entries.find((e) => e.path === 'scan/a11ygate-scan.md')!);
+    const guidance = md.match(/\[rule guidance\]\(https:\/\/dequeuniversity\.com\/[^)]+\)/)![0];
+    expect(textHostProblems(md.replace('**Verdict:', `${guidance} **Verdict:`))).not.toEqual([]);
+    // A complete finding line (with its guidance link) above the first "## Findings by" heading is outside the section.
+    const findingLine = md.match(/^- \[[a-z]+\] \*\*[a-z-]+\*\* .*\[rule guidance\]\(.*\)$/m)![0];
+    expect(textHostProblems(md)).toEqual([]);
+    expect(textHostProblems(md.replace('**Verdict:', `${findingLine}\n\n**Verdict:`))).not.toEqual([]);
+    expect(fileHostProblems('a11ygate-scan.md', md.replace(/^(# A11yGate site scan — ).*$/m, '$1127.1:4173/'))).not.toEqual([]);
+    const junit = text(entries.find((e) => e.path === 'scan/a11ygate-scan.junit.xml')!);
+    const line = junit.match(/\n {2}guidance: https:\/\/dequeuniversity\.com\/[^<\n]+/)![0];
+    expect(textHostProblems(junit.replace('</properties>', `</properties>${line}`))).not.toEqual([]);
+    expect(fileHostProblems('x.junit.xml', junit.replace(/classname="http:\/\/127\.0\.0\.1:4173\//, 'classname="127.1:4173/'))).not.toEqual([]);
   });
 });

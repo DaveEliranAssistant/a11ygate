@@ -5,10 +5,14 @@
 // an explicitly listed reference field/context, which may point only at that field's reference host(s).
 //  - JSON entries are walked structurally; a URL is a reference only if its key is in REFERENCE_FIELDS (by key
 //    name, not "any field named url") and its host is allowed for that key. Everything else must be the demo app.
-//  - Text entries (HTML, Markdown, JUnit XML, PDF text, README) allow a reference URL only inside one of the exact
-//    reference constructs the generators emit (REFERENCE_TEXT_CONTEXTS: the report's rule-help / W3C Understanding
-//    list items, Markdown "[rule guidance](...)", JUnit "  guidance: ...", the user agent "; +https://a11ygate...").
-//    The host alone never makes a URL a reference: an href to dequeuniversity.com anywhere else is a problem.
+//  - Text entries (HTML, Markdown, JUnit XML, PDF text, README) allow a reference URL only inside the reference
+//    SECTIONS the generators emit (referenceSpans: the report's how-to-fix "References:" lists, Markdown
+//    "[rule guidance](...)" at the end of finding lines, JUnit "  guidance: ..." in <failure> bodies). The host or the
+//    markup alone never makes a URL a reference: the same link anywhere else is a problem.
+//  - Scanned fields are checked POSITIVELY by position (scannedFieldProblems: report/evidence HTML "Start URL",
+//    "Origin", <title>, page headings/cells and URL-like <code>; Markdown header, Start URL, page rows and finding
+//    lines; JUnit classname/startUrl/failure lines; JSON keys in SCANNED_KEYS): each value must be exactly
+//    http://127.0.0.1:4173[/...]. Scheme-less (127.1:4173/), empty or missing values are problems.
 //  - IP literals other than the literal 127.0.0.1 (bracketed IPv6, IPv4-mapped IPv6, decimal/hex/octal/short IPv4,
 //    percent-encoded or userinfo authorities) are problems; a token the checker cannot classify is a problem (fail
 //    closed), never a skip.
@@ -28,33 +32,74 @@ export const REFERENCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 const AXE_HELP = String.raw`https://dequeuniversity\.com/rules/axe/\d+\.\d+/[a-z0-9-]+\?application=[a-z0-9-]+`;
 const W3C_UNDERSTANDING = String.raw`https://www\.w3\.org/WAI/WCAG2\d/Understanding/[a-z0-9-]+\.html`;
+/** One reference list item exactly as report-html-v2 howToFixSection emits it (group 1 or 2 = the reference URL). */
+const HTML_REFERENCE_ITEM = new RegExp(
+  String.raw`<li><a href="(${AXE_HELP})">Engine rule help<span class="sr"> for [a-z0-9-]+</span></a></li>|<li><a href="(${W3C_UNDERSTANDING})">W3C Understanding \d+\.\d+\.\d+ [^<]+</a></li>`,
+  'y',
+);
+const HOW_TO_FIX_OPEN = '<section id="how-to-fix" aria-labelledby="how-to-fix-h">';
+const REFERENCES_OPEN = '<p><strong>References:</strong></p><ul>';
+/** Index just after the </section> that closes the <section> opened at `start` (nesting-aware), or -1. */
+function sectionEnd(text: string, start: number): number {
+  const tags = /<section\b[^>]*>|<\/section>/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m = tags.exec(text); m; m = tags.exec(text)) {
+    depth += m[0] === '</section>' ? -1 : 1;
+    if (depth === 0) return m.index + m[0].length;
+  }
+  return -1;
+}
 /**
- * The only places a text sample may contain a reference link: the exact markup the generators emit (derived from the
- * real report.html / scan HTML / Markdown / JUnit output). Capture group 1 is the reference URL; it must also be the
- * whole URL token at that position. Anything else (Start URL, page headings, <code>, any other href) is scanned data.
+ * Reference links of a text sample, found by WHERE they are only (never by host). The only reference sections are the
+ * ones the generators emit (derived from the real report.html / scan HTML / Markdown / JUnit output):
+ *  - HTML: the single <section id="how-to-fix"> of report-html-v2; inside it, each "References:" list, whose items
+ *    must all be exact rule-help / W3C Understanding items. The same markup anywhere else (Start URL, header, summary,
+ *    title, another section) is not a reference.
+ *  - Markdown: "[rule guidance](helpUrl)" at the end of a finding line ("- [new] **rule** (impact) on `url` — ...")
+ *    below the first "## Findings by" heading.
+ *  - JUnit: the last line "  guidance: <helpUrl>" of a <failure> body.
+ * The user agent's "+https://a11ygate.vercel.app" is a reference only in the JSON `userAgent` field (REFERENCE_FIELDS);
+ * no text sample carries it. Returns start offset → URL, plus structural problems (fail closed).
  */
-export const REFERENCE_TEXT_CONTEXTS: readonly { name: string; re: RegExp }[] = [
-  // report-html-v2 howToFixSection / report.ts pageFinding: rule help link with a screen-reader rule suffix.
-  { name: 'html rule help', re: new RegExp(String.raw`<a href="(${AXE_HELP})">(?:Engine rule help|Rule guidance)<span class="sr"> for [a-z0-9-]+</span></a>`, 'g') },
-  // report-html-v2 howToFixSection: W3C Understanding document for a mapped WCAG criterion.
-  { name: 'html W3C Understanding', re: new RegExp(String.raw`<li><a href="(${W3C_UNDERSTANDING})">W3C Understanding \d+\.\d+\.\d+ [^<]+</a></li>`, 'g') },
-  // scan Markdown finding line: "— [rule guidance](helpUrl)".
-  { name: 'markdown rule guidance', re: new RegExp(String.raw`\[rule guidance\]\((${AXE_HELP})\)`, 'g') },
-  // export-junit failureBody: a line "  guidance: <helpUrl>".
-  { name: 'junit guidance', re: new RegExp(String.raw`(?:^|\n)  guidance: (${AXE_HELP})(?=</failure>|\n|$)`, 'g') },
-  // packages/cli/src/scan.ts user agent: "(compatible; A11yGate/<version>; +https://a11ygate.vercel.app)".
-  { name: 'user agent', re: /\(compatible; A11yGate\/\d+\.\d+\.\d+[0-9A-Za-z.-]*; \+(https:\/\/a11ygate\.vercel\.app)\)/g },
-];
-/** Start offsets → URL of every reference link in an (already decoded) text, found by context only. */
-function referenceSpans(text: string): Map<number, string> {
+function referenceSpans(text: string): { spans: Map<number, string>; problems: string[] } {
   const spans = new Map<number, string>();
-  for (const { re } of REFERENCE_TEXT_CONTEXTS) {
-    for (const m of text.matchAll(re)) {
-      const url = m[1]!;
-      spans.set(m.index! + m[0].lastIndexOf(url), url);
+  const problems: string[] = [];
+  const open = text.indexOf(HOW_TO_FIX_OPEN);
+  if (open !== -1) {
+    if (text.indexOf(HOW_TO_FIX_OPEN, open + 1) !== -1) problems.push('more than one how-to-fix section');
+    const end = sectionEnd(text, open);
+    if (end === -1) problems.push('unterminated how-to-fix section');
+    const section = end === -1 ? '' : text.slice(open, end);
+    for (let i = section.indexOf(REFERENCES_OPEN); i !== -1; i = section.indexOf(REFERENCES_OPEN, i + 1)) {
+      let at = i + REFERENCES_OPEN.length;
+      const close = section.indexOf('</ul>', at);
+      if (close === -1) {
+        problems.push('unterminated References list');
+        break;
+      }
+      for (;;) {
+        HTML_REFERENCE_ITEM.lastIndex = at;
+        const m = HTML_REFERENCE_ITEM.exec(section);
+        if (!m || m.index + m[0].length > close) break;
+        const url = (m[1] ?? m[2])!;
+        spans.set(open + m.index + m[0].indexOf(url), url);
+        at = m.index + m[0].length;
+      }
+      if (at !== close) problems.push(`unexpected markup in a References list: ${JSON.stringify(section.slice(at, Math.min(close, at + 80)))}`);
     }
   }
-  return spans;
+  const findings = text.indexOf('\n## Findings by');
+  if (findings !== -1) {
+    const line = new RegExp(String.raw`^- \[[a-z]+\] \*\*[a-z0-9-]+\*\* \([a-z]+\) on \`[^\`\n]+\` — [^\n]* — \[rule guidance\]\((${AXE_HELP})\)$`, 'gm');
+    line.lastIndex = findings;
+    for (let m = line.exec(text); m; m = line.exec(text)) spans.set(m.index + m[0].lastIndexOf(m[1]!), m[1]!);
+  }
+  for (const m of text.matchAll(/<failure\b[^>]*>([^<]*)<\/failure>/g)) {
+    const g = m[1]!.match(new RegExp(String.raw`\n  guidance: (${AXE_HELP})$`));
+    if (g) spans.set(m.index! + m[0].indexOf('>') + 1 + g.index! + g[0].indexOf(g[1]!), g[1]!);
+  }
+  return { spans, problems };
 }
 /** IP literals that are not the literal 127.0.0.1: bracketed IPv6 (incl. IPv4-mapped) anywhere, and hex IPv4 forms. */
 const IP_LITERAL = /\[[0-9a-f]*:[0-9a-f:.]*(?:%[0-9a-z%._~-]*)?\]|(?<![\w.])0x[0-9a-f]+(?:\.(?:0x[0-9a-f]+|\d+)){0,3}(?=[:/])/gi;
@@ -86,7 +131,10 @@ const URL_TOKEN = new RegExp(
 );
 const URL_REST = /[^\s"'<>)\]`\\]*/y;
 const TLDS = 'com|org|net|io|dev|app|co|uk|de|fr|il|eu|us|gov|edu|info|biz|ai|me|ly|xyz|site|tech|online|cloud|page|example|test|invalid|local|internal';
-const BARE_HOST = new RegExp(`(?<![\\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![\\w-])(?::\\d+)?|(?<![\\w.])\\d{1,3}(?:\\.\\d{1,3}){3}(?=[:/-]\\w)(?::\\d+)?`, 'gi');
+// Scheme-less numeric hosts with a port in any IPv4 spelling (127.1:4173, 0177.0.0.1:4173, 2130706433:4173,
+// 0x7f.1:4173): dotted, hex or >= 5 digits, so times (09:00) and ratios (4.5:1) are not hosts.
+const NUMERIC_HOST_PORT = String.raw`(?<![\w.:/@-])(?:0x[0-9a-f]+(?:\.(?:0x[0-9a-f]+|\d+)){0,3}|\d+(?:\.(?:0x[0-9a-f]+|\d+)){1,3}|\d{5,}):\d{2,5}(?![\w.:])`;
+const BARE_HOST = new RegExp(`(?<![\\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![\\w-])(?::\\d+)?|(?<![\\w.])\\d{1,3}(?:\\.\\d{1,3}){3}(?=[:/-]\\w)(?::\\d+)?|${NUMERIC_HOST_PORT}`, 'gi');
 
 type UrlToken = { raw: string; host: string; index: number; bare: boolean };
 
@@ -138,7 +186,8 @@ export function textHostProblems(input: string): string[] {
   const problems: string[] = [];
   if (LOOPBACK_ALIASES.test(text)) problems.push('mentions localhost / ::1 / 0.0.0.0');
   problems.push(...ipLiteralProblems(text));
-  const references = referenceSpans(text);
+  const { spans: references, problems: sectionProblems } = referenceSpans(text);
+  problems.push(...sectionProblems);
   for (const t of urlTokens(text)) {
     const before = text.slice(Math.max(0, t.index - 40), t.index);
     if (t.bare ? bareOk(t.host) : isScannedOk(t.raw)) continue;
@@ -149,6 +198,11 @@ export function textHostProblems(input: string): string[] {
   return [...new Set(problems)];
 }
 
+/** JSON keys whose string value is a scanned page / target URL (screenshot metadata, scan JSON, axe results,
+ * manifest scope): the value must be exactly http://127.0.0.1:4173[/...]. (`target` is not here: in axe results it is
+ * a selector list; any host-like string under it still fails the generic token check.) */
+export const SCANNED_KEYS: ReadonlySet<string> = new Set(['url', 'startUrl', 'pageUrl', 'finalUrl', 'origin', 'page', 'targetUrl', 'scannedUrl', 'siteUrl']);
+
 /** Problems in a parsed JSON sample: every URL outside a REFERENCE_FIELDS key must be the demo app. */
 export function jsonHostProblems(value: unknown): string[] {
   const problems: string[] = [];
@@ -156,6 +210,8 @@ export function jsonHostProblems(value: unknown): string[] {
     if (LOOPBACK_ALIASES.test(decodeForHostCheck(text))) problems.push(`${path}: mentions localhost / ::1 / 0.0.0.0`);
     for (const p of ipLiteralProblems(decodeForHostCheck(text))) problems.push(`${path}: ${p}`);
     const allowed = key !== undefined && Object.hasOwn(REFERENCE_FIELDS, key) ? REFERENCE_FIELDS[key]! : undefined;
+    // Positive check: a scanned field must BE the literal demo origin (not merely "contain no bad host").
+    if (key !== undefined && SCANNED_KEYS.has(key) && !isScannedOk(text)) problems.push(`${path}: ${text}`);
     for (const t of urlTokens(decodeForHostCheck(text))) {
       if (t.bare ? bareOk(t.host) : allowed ? allowed.includes(t.host) && /^https:\/\//.test(t.raw) : isScannedOk(t.raw)) continue;
       problems.push(`${path}: ${t.raw}`);
@@ -175,6 +231,68 @@ export function jsonHostProblems(value: unknown): string[] {
   return [...new Set(problems)];
 }
 
+const value = (raw: string) => decodeForHostCheck(raw).replace(/&amp;/g, '&');
+const fieldOk = (raw: string) => isScannedOk(value(raw));
+/** A <code> / backtick span that looks like a host or URL (selectors like `li:nth-child(1)` or `#email` do not). */
+const HOSTISH = /\/\/|@|:\d|\d\.\d|^[a-z][a-z0-9+.-]*:[\\/]|\.(?:com|org|net|io|dev|app)\b/i;
+type FieldSpec = { label: string; re: RegExp; required?: boolean };
+const HTML_FIELDS: FieldSpec[] = [
+  // "Start URL:" / "Origin:" labels (report-html-v2 header, evidence report scope list): the WHOLE field content
+  // up to </p> / </li> must be <code>literal-origin</code>; anything else (a link, a moved reference item) fails.
+  { label: 'Start URL', re: /Start URL:([\s\S]*?)(?=<\/p>|<\/li>|$)/g, required: true },
+  { label: 'Origin', re: /Origin:([\s\S]*?)(?=<\/p>|<\/li>|$)/g },
+  { label: 'title', re: /<title>[^<]*? — ([^<]*)<\/title>/g, required: true },
+  { label: 'page heading', re: /<h3><code>([^<]*)<\/code> \(\d+\)<\/h3>/g },
+  { label: 'page cell', re: /<tr><td><code>([^<]*)<\/code><\/td><td>\d{3}<\/td>/g },
+];
+const MD_FIELDS: FieldSpec[] = [
+  { label: 'Start URL', re: /^- Start URL: (.*)$/gm },
+  { label: 'Origin', re: /^- Origin: (.*)$/gm },
+  { label: 'heading', re: /^# A11yGate [^\n]*? — (.*)$/gm, required: true },
+  { label: 'page row', re: /^\| ([^|\n]*?) \| \d{3} \|/gm },
+  { label: 'finding page', re: / on `([^`\n]*)` — /g },
+];
+const JUNIT_FIELDS: FieldSpec[] = [
+  { label: 'startUrl property', re: /<property name="startUrl" value="([^"]*)"\/>/g, required: true },
+  { label: 'testcase classname', re: /<testcase classname="([^"]*)"/g, required: true },
+  { label: 'failure page', re: /^- (\S+) — /gm },
+];
+
+/**
+ * Positive structural check of the scanned/target fields of a known text sample, by position. Every field value must
+ * be exactly http://127.0.0.1:4173[/...]; a required field that is missing is a problem, not a skip.
+ */
+export function scannedFieldProblems(name: string, input: string): string[] {
+  const base = name.replace(/^.*[/!]/, '');
+  const problems: string[] = [];
+  const run = (specs: FieldSpec[], unwrap: (content: string) => string | undefined) => {
+    for (const { label, re, required } of specs) {
+      let seen = 0;
+      for (const m of input.matchAll(re)) {
+        seen++;
+        const content = m[1]!;
+        const inner = label === 'Start URL' || label === 'Origin' ? unwrap(content) : content;
+        if (inner === undefined || !fieldOk(inner)) problems.push(`${label} is not ${SAMPLE_HOST}: ${JSON.stringify(content.slice(0, 160))}`);
+      }
+      if (required && seen === 0) problems.push(`no ${label} field found`);
+    }
+  };
+  if (/^(?:report|a11ygate-scan)\.html$/.test(base)) {
+    run(HTML_FIELDS, (c) => c.match(/^ <code>([^<]*)<\/code>$/)?.[1]);
+    for (const m of input.matchAll(/<code>([^<]*)<\/code>/g)) {
+      if (HOSTISH.test(value(m[1]!)) && !fieldOk(m[1]!)) problems.push(`URL-like <code> is not ${SAMPLE_HOST}: ${JSON.stringify(m[1])}`);
+    }
+  } else if (/^(?:report|a11ygate-scan)\.md$/.test(base)) {
+    run(MD_FIELDS, (c) => c.match(/^`([^`]*)`$/)?.[1]);
+    for (const m of input.matchAll(/`([^`\n]+)`/g)) {
+      if (HOSTISH.test(m[1]!) && !fieldOk(m[1]!)) problems.push(`URL-like code span is not ${SAMPLE_HOST}: ${JSON.stringify(m[1])}`);
+    }
+  } else if (/\.junit\.xml$/.test(base)) {
+    run(JUNIT_FIELDS, (c) => c);
+  }
+  return [...new Set(problems)];
+}
+
 /** Host problems of one named sample file / zip entry. JSON is checked structurally; everything else as text. */
 export function fileHostProblems(name: string, data: Uint8Array | string): string[] {
   const text = typeof data === 'string' ? data : Buffer.from(data).toString(/\.png$/i.test(name) ? 'latin1' : 'utf8');
@@ -187,7 +305,7 @@ export function fileHostProblems(name: string, data: Uint8Array | string): strin
     }
     return jsonHostProblems(parsed).map((p) => `${name} ${p}`);
   }
-  return textHostProblems(text).map((p) => `${name}: ${p}`);
+  return [...textHostProblems(text), ...scannedFieldProblems(name, text)].map((p) => `${name}: ${p}`);
 }
 
 export type Entry = { path: string; data: Uint8Array };
