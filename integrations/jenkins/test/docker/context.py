@@ -3,8 +3,9 @@
 The context is never the owner's working tree wholesale (no .git, .env, npm config,
 host node_modules, or credentials). `npm run cli:build` bundles JSON that lives
 outside packages/ and lib/ (config schemas, the locale catalog, the pricing and
-own-host allowlist config used by `a11ygate prospect`, and Chromium benchmark data
-used by `a11ygate estimate`), so those are listed here too. config/ holds only
+own-host allowlist config used by `a11ygate prospect`, Chromium benchmark data
+used by `a11ygate estimate`, and the outreach templates plus demo-shop fixture used
+by `a11ygate outreach`), so those are listed here too. config/ holds only
 committed, non-secret JSON; .env* and .npmrc are ignored everywhere.
 """
 import pathlib
@@ -27,9 +28,10 @@ PATHS = [
     'integrations/azure-devops/a11ygate.yml',
     'integrations/jenkins/vars',
     'integrations/jenkins/test/docker',
+    'fixtures/demo-shop-current.json',
 ]
 # Glob patterns, relative to the repository root, for data files bundled by the CLI build.
-GLOBS = ['docs/perf/chromium-bench-*.json']
+GLOBS = ['docs/perf/chromium-bench-*.json', 'docs/pilot/outreach/*.md']
 IGNORE = shutil.ignore_patterns('node_modules', 'dist', '.gradle', 'build', '.env*', '.npmrc', '__pycache__')
 
 
