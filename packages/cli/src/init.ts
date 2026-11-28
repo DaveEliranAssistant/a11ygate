@@ -1,11 +1,13 @@
+import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import azureTemplate from '../../../integrations/azure-devops/a11ygate.yml?raw';
 import gitlabTemplate from '../../../integrations/gitlab/a11ygate.gitlab-ci.yml?raw';
 import { CI_FILES, CI_TARGETS, type CiTarget } from './ci-targets';
+import { GITLAB_ROOT_FILE, GITLAB_ROOT_SNIPPET, GITLAB_ROOT_TEMPLATE, gitlabRootLeftUnchanged } from './init-gitlab';
 import { PILOT_KICKOFF, pilotNextSteps, pilotSuccessCriteria } from './init-pilot';
 import { runBaseline } from './baseline';
 import { SCHEMA_COMMENT } from './config';
@@ -171,14 +173,75 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   if (info && !force) { stdout(`Skipped existing ${file} (use --force to replace).\n`); return false; }
   if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
-  try {
-    await writeFile(destination, content, { encoding: 'utf8', flag });
-  } catch (error) {
-    if (!force && (error as NodeJS.ErrnoException).code === 'EEXIST') { stdout(`Skipped existing ${file}.\n`); return false; }
-    throw error;
+  const exclusive = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+  if (info) {
+    // --force never writes through the existing file: a hard link (another name for the same inode, such as a
+    // customer's root .gitlab-ci.yml) keeps its bytes. Write a fresh file beside it, then rename it over the name.
+    // Keep main's permission check: open the existing file for writing (no O_TRUNC, nothing written) so a read-only
+    // starter still fails with EACCES before any temporary file exists; rename alone only checks the directory.
+    await (await open(destination, constants.O_WRONLY | constants.O_NOFOLLOW)).close();
+    const temporary = path.join(parent, `.${parts.at(-1)!}.a11ygate-${randomBytes(6).toString('hex')}.tmp`);
+    try {
+      await writeFile(temporary, content, { encoding: 'utf8', flag: exclusive, mode: info.mode & 0o777 });
+      await chmod(temporary, info.mode & 0o777);
+      await rename(temporary, destination);
+    } catch (error) {
+      await unlink(temporary).catch(() => undefined);
+      throw error;
+    }
+  } else {
+    try {
+      await writeFile(destination, content, { encoding: 'utf8', flag: exclusive });
+    } catch (error) {
+      if (!force && (error as NodeJS.ErrnoException).code === 'EEXIST') { stdout(`Skipped existing ${file}.\n`); return false; }
+      throw error;
+    }
   }
   stdout(`Wrote ${file}\n`);
+  return true;
+}
+
+/**
+ * Refuses before anything is written when the root .gitlab-ci.yml or the GitLab starter is a symlink (live or
+ * dangling, pointing anywhere), with or without --force. lstat only: the link is never followed.
+ */
+async function refuseGitlabSymlinks(cwd: string) {
+  const root = await realpath(cwd);
+  for (const file of [GITLAB_ROOT_FILE, CI_FILES.gitlab]) {
+    const info = await lstat(path.join(root, file)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+    if (info?.isSymbolicLink()) {
+      const snippet = file === GITLAB_ROOT_FILE ? ` Then make sure the root ${GITLAB_ROOT_FILE} contains:\n${GITLAB_ROOT_SNIPPET}` : '';
+      throw new Error(`${file} is a symlink; refusing to write anything (also with --force). Replace ${file} with a regular file (or remove it) and re-run init.${snippet}`);
+    }
+  }
+}
+
+/** Refuses before anything is written when a starter path is another name (hard link) for the existing root .gitlab-ci.yml. */
+async function refuseGitlabRootAliases(cwd: string, files: readonly string[]) {
+  const root = await realpath(cwd);
+  const existing = await lstat(path.join(root, GITLAB_ROOT_FILE)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+  if (!existing) return;
+  for (const file of files) {
+    const info = await lstat(path.join(root, file)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; return null; });
+    if (info && info.dev === existing.dev && info.ino === existing.ino) {
+      throw new Error(`${file} is a hard link to the existing ${GITLAB_ROOT_FILE}; refusing to write anything so ${GITLAB_ROOT_FILE} stays unchanged. Remove the link (or rename the file) and re-run init.`);
+    }
+  }
+}
+
+/**
+ * Creates the root .gitlab-ci.yml only when nothing exists at that path. Anything already there (file, symlink,
+ * dangling symlink, directory) is never read or written, even with --force. Returns false when it was left alone.
+ */
+async function createGitlabRoot(cwd: string, stdout: (text: string) => void): Promise<boolean> {
+  const destination = path.join(await realpath(cwd), GITLAB_ROOT_FILE);
+  try {
+    await writeFile(destination, GITLAB_ROOT_TEMPLATE, { encoding: 'utf8', flag: constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
+  }
+  stdout(`Wrote ${GITLAB_ROOT_FILE}\n`);
   return true;
 }
 
@@ -225,6 +288,11 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const starterFiles = ['.a11ygate.yml', CI_FILES[options.target], ...(options.pilot ? ['a11ygate-pilot/success-criteria.yml', 'a11ygate-pilot/KICKOFF.md'] : [])];
+    if (options.target === 'gitlab') {
+      await refuseGitlabSymlinks(cwd);
+      await refuseGitlabRootAliases(cwd, starterFiles);
+    }
     // Baselines deliberately retain baseline create's exclusive-create rule, even with --force.
     if (options.baseline) {
       const existing = await lstat(path.join(cwd, '.a11ygate-baseline.json')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
@@ -235,16 +303,18 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     const config = `${SCHEMA_COMMENT}\n# ${AUTOMATED_TESTING_DISCLAIMER}\n# Setup choices; scan uses the explicit flags in the generated CI file.\n${recordTarget ? `ciTarget: ${options.target}\n` : ''}engines: [axe]\nmodelFixes: false\nurl: ${JSON.stringify(options.url)}\ncrawl: ${options.crawl}\nfailOn: ${options.failOn}\n${options.baseline ? 'baseline: .a11ygate-baseline.json\n' : ''}`;
     await writeStarter(cwd, '.a11ygate.yml', config, options.force, stdout);
     await writeStarter(cwd, CI_FILES[options.target], renderCiStarter(options.target, options), options.force, stdout);
+    const rootCreated = options.target === 'gitlab' ? await createGitlabRoot(cwd, stdout) : true;
     if (options.pilot) {
       await writeStarter(cwd, 'a11ygate-pilot/success-criteria.yml', pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, 'a11ygate-pilot/KICKOFF.md', PILOT_KICKOFF, options.force, stdout);
     }
-    if (options.target === 'gitlab') stdout(`Add this entry to your .gitlab-ci.yml include list:\ninclude:\n  - local: '${CI_FILES.gitlab}'\n`);
+    if (options.target === 'gitlab' && rootCreated) stdout('Open a test merge request and check that its pipeline runs the A11yGate job.\n');
     if (options.target === 'azure-devops') stdout(`Register ${CI_FILES['azure-devops']} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.\n`);
     if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
     stdout('Review the starter before committing. Start your local app before scanning; only scan authorized sites.\n');
     if (options.target === 'jenkins') stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}\n`);
+    if (!rootCreated) { stderr(gitlabRootLeftUnchanged()); return 2; }
     return 0;
   } catch (error) {
     stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}\n`);

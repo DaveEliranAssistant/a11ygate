@@ -39,7 +39,7 @@ special URL characters. The Jenkins shared library wraps URLs in shell quotes.
 | --- | --- |
 | GitHub (`--target github`) | `.a11ygate.yml`, `.github/workflows/a11ygate.yml` |
 | Jenkins (`--target jenkins`) | `.a11ygate.yml`, `Jenkinsfile` |
-| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml` |
+| GitLab (`--target gitlab`) | `.a11ygate.yml`, `.gitlab-ci.a11ygate.yml`, and the root `.gitlab-ci.yml` (created only when absent; an existing one is left unchanged, see below) |
 | Azure DevOps (`--target azure-devops`) | `.a11ygate.yml`, `azure-pipelines.a11ygate.yml` |
 | Any target, with `--baseline <saved-scan>` | Also `.a11ygate-baseline.json` |
 
@@ -50,6 +50,8 @@ record `ciTarget`. When this key is present, `a11ygate doctor` checks that the
 corresponding file exists. You can set the key in an existing config.
 Existing files are skipped individually and init exits successfully. `--force`
 replaces regular starter files; it refuses symlink destinations and parents.
+It writes a new file and renames it over the old name, so it never writes through
+a hard link: another name for the same file keeps its contents.
 It never replaces a fingerprint baseline, even with `--force`.
 
 ### Config schema and validation
@@ -101,9 +103,44 @@ and execution errors to FAILURE.
 
 ## Finish GitLab or Azure DevOps setup
 
-For GitLab, add the generated local include entry to your project's
-`.gitlab-ci.yml`. The starter runs on merge requests and publishes Code Quality
-and JUnit reports. See the [GitLab guide](../../integrations/gitlab/README.md).
+For GitLab, init writes the job to `.gitlab-ci.a11ygate.yml`. When the root
+`.gitlab-ci.yml` is absent, init creates it with a `merge_request_event` rule
+directly in its own `workflow: rules`, next to a local include of the job file. GitLab does not use rules from `include:` files to decide
+whether to create a merge request pipeline, so an `include:` entry alone is not
+enough. Without a root file, init writes:
+
+```yaml
+include:
+  - local: '.gitlab-ci.a11ygate.yml'
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+```
+
+The branch and tag rules keep your branch and tag pipelines running.
+
+If the root `.gitlab-ci.yml` or `.gitlab-ci.a11ygate.yml` is a symlink (live or
+dangling, pointing anywhere), init refuses before writing anything, also with
+`--force`: it names the symlinked path, asks you to replace it with a regular file,
+and exits with code 2.
+
+If a root `.gitlab-ci.yml` already exists (a regular file or a directory), init
+leaves it unchanged and does not edit it, even with `--force`. (If a starter path is
+a hard link to that root file, init refuses before writing anything and exits with
+code 2.) Otherwise it still writes the
+other starter files as usual (including `--pilot` files), then prints the snippet
+above to stderr and exits with code 2. Paste the snippet into your root file
+yourself: add the `local` entry to your `include:` list, and make the
+`merge_request_event` rule the first entry of your `workflow: rules` (keep your own
+rules below it; GitLab uses the first matching rule). You do not need to re-run
+init afterwards. A re-run on a repository where init already created the root file
+also exits with code 2, because that file now exists. The job runs on merge
+requests and publishes Code Quality and JUnit reports. See the
+[GitLab guide](../../integrations/gitlab/README.md) and
+[GitLab CI in the pilot quickstart](../pilot/quickstart.md#gitlab-ci).
 
 For Azure DevOps, register `azure-pipelines.a11ygate.yml` as a standalone
 pipeline. It disables push triggers and targets PRs to `main` for supported

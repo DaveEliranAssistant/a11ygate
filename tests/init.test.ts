@@ -104,7 +104,8 @@ describe('a11ygate init', () => {
       await unlink(path.join(cwd, file));
       expect(await doctor()).toMatchObject({ status: 'fail', message: expect.stringContaining(file) });
       await writeFile(path.join(cwd, criteriaPath), '# confirmed pilot criteria');
-      expect(await run(args, io)).toBe(0);
+      // A11Y-R72: the first GitLab run created the root .gitlab-ci.yml, so a re-run leaves it alone and exits 2.
+      expect(await run(args, io)).toBe(target === 'gitlab' ? 2 : 0);
       expect(await read(cwd, criteriaPath)).toBe('# confirmed pilot criteria');
     }));
 
@@ -125,11 +126,13 @@ describe('a11ygate init', () => {
     ['azure-devops', 'azure-pipelines.a11ygate.yml'],
   ] as const) {
     it(`writes and preserves the ${target} starter and passes the baseline to the scan`, async () => temporary(async (cwd) => {
-      const { io, out } = capture(cwd);
+      const { io, out, err } = capture(cwd);
+      // A11Y-R72: an existing root .gitlab-ci.yml is never edited; GitLab init exits 2 and prints the snippet.
+      const code = target === 'gitlab' ? 2 : 0;
       const args = ['init', '--yes', '--target', target, '--url', 'http://127.0.0.1:9999/path?q=a%27b&x=1#fragment', '--crawl', '0', '--fail-on', 'critical'];
       await writeFile(path.join(cwd, '.gitlab-ci.yml'), '# project pipeline');
       await writeFile(path.join(cwd, 'scan.json'), JSON.stringify(report()));
-      expect(await run([...args, '--baseline', 'scan.json'], io)).toBe(0);
+      expect(await run([...args, '--baseline', 'scan.json'], io)).toBe(code);
       const ci = await read(cwd, file);
       expect(ci).toContain('http://127.0.0.1:9999/path?q=a%27b&x=1#fragment');
       expect(ci).toContain('critical');
@@ -138,7 +141,8 @@ describe('a11ygate init', () => {
       expect(await read(cwd, '.a11ygate.yml')).toContain(`ciTarget: ${target}`);
       if (target === 'gitlab') {
         expect(ci).toContain('--crawl 1');
-        expect(out()).toContain("include:\n  - local: '.gitlab-ci.a11ygate.yml'");
+        expect(err()).toContain(`include:\n  - local: '.gitlab-ci.a11ygate.yml'\n\nworkflow:\n  rules:\n    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'`);
+        expect(out()).not.toContain('Add this entry');
       } else {
         const parsed = yaml.load(ci) as { trigger: string; pr: string[]; parameters: { name: string; default: unknown }[]; steps: Record<string, unknown>[] };
         const template = yaml.load(await readFile('integrations/azure-devops/a11ygate.yml', 'utf8')) as typeof parsed;
@@ -152,9 +156,9 @@ describe('a11ygate init', () => {
           : step));
       }
       await writeFile(path.join(cwd, file), '# project starter');
-      expect(await run(args, io)).toBe(0);
+      expect(await run(args, io)).toBe(code);
       expect(await read(cwd, file)).toBe('# project starter');
-      expect(await run([...args, '--force'], io)).toBe(0);
+      expect(await run([...args, '--force'], io)).toBe(code);
       expect(await read(cwd, file)).toContain(AUTOMATED_TESTING_DISCLAIMER);
       expect(await read(cwd, '.gitlab-ci.yml')).toBe('# project pipeline');
     }));

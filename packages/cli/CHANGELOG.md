@@ -10,6 +10,10 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 - **A11Y-R78:** `a11ygate outreach kit` renders private prospect drafts, an HTML/PDF one-pager and sample results offline. `a11ygate prospect --outreach-data` opts into saving scan data with its approval manifest for kit generation.
 
+### GitLab merge request rule (A11Y-R72)
+
+- **A11Y-R72:** `init --target gitlab` creates the root `.gitlab-ci.yml` when it does not exist, with a local include of `.gitlab-ci.a11ygate.yml` and a `workflow: rules` entry for `merge_request_event` (plus branch and tag rules, so those pipelines keep running). GitLab does not use rules from `include:` files to create merge request pipelines, so an include alone is not enough. If the root `.gitlab-ci.yml` or `.gitlab-ci.a11ygate.yml` is a symlink (live or dangling), init refuses before writing anything (exit 2, also with `--force`). When a root `.gitlab-ci.yml` already exists (regular file or directory), init never reads or edits it, even with `--force`: it still writes the other starter files, prints the include and rule snippet to paste in yourself, and exits with code 2. The old "add this include entry" hint is gone. If a starter path is a hard link to the existing root file, init refuses before writing anything (exit 2). For every target, `--force` now replaces a starter file by writing a new file and renaming it over the old name, so it never writes through a hard link; a read-only existing starter is still refused with EACCES (exit 2, file unchanged), as before. GitHub, Jenkins and Azure DevOps init output is unchanged. GitLab docs (quickstart, init guide, GitLab guide, owner runbook) describe the same flow.
+
 ### Pilot funnel (A11Y-R63 to A11Y-R70)
 
 Everything needed to take one lead from a prospect scan to a pilot and a quote. The package version is unchanged (**0.2.0**) and nothing is published. Public price and pilot UI stay off until the owner turns on `A11YGATE_PRICING_ENABLED`. Owner decisions still open are listed as checkboxes in the [owner runbook](../../docs/pilot/owner-runbook.md).

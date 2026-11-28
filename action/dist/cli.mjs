@@ -8691,8 +8691,9 @@ var outreach_prospect_schema_default = {
 };
 
 // packages/cli/src/init.ts
+import { randomBytes as randomBytes3 } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
+import { chmod, lstat as lstat4, mkdir as mkdir7, open, realpath as realpath2, rename as rename2, unlink as unlink3, writeFile as writeFile8 } from "node:fs/promises";
 import path16 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
@@ -8735,6 +8736,28 @@ var CI_FILES = {
   "azure-devops": "azure-pipelines.a11ygate.yml"
 };
 var CI_TARGETS = Object.keys(CI_FILES);
+
+// packages/cli/src/init-gitlab.ts
+var GITLAB_ROOT_FILE = ".gitlab-ci.yml";
+var GITLAB_ROOT_SNIPPET = `include:
+  - local: '${CI_FILES.gitlab}'
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+`;
+var GITLAB_ROOT_TEMPLATE = `# ${AUTOMATED_TESTING_DISCLAIMER}
+# Root pipeline written by a11ygate init. The A11yGate job lives in ${CI_FILES.gitlab}.
+# GitLab creates merge request pipelines only when the root .gitlab-ci.yml has a
+# matching rule; rules inside included files do not count. The branch and tag rules
+# keep branch and tag pipelines running. See integrations/gitlab/README.md.
+${GITLAB_ROOT_SNIPPET}`;
+function gitlabRootLeftUnchanged() {
+  return `Left existing ${GITLAB_ROOT_FILE} unchanged (init never edits it). GitLab creates merge request pipelines only when the root ${GITLAB_ROOT_FILE} itself has a merge_request_event rule; an include alone is not enough. The other starter files were written as usual. Add this to ${GITLAB_ROOT_FILE} yourself (merge it into an existing include: list or workflow: rules), then open a test merge request:
+${GITLAB_ROOT_SNIPPET}`;
+}
 
 // packages/cli/src/init-pilot.ts
 var lengthDays = pricing_default.pilot.lengthDays;
@@ -9009,18 +9032,74 @@ async function writeStarter(cwd, file, content, force, stdout) {
     return false;
   }
   if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
-  try {
-    await writeFile8(destination, content, { encoding: "utf8", flag });
-  } catch (error) {
-    if (!force && error.code === "EEXIST") {
-      stdout(`Skipped existing ${file}.
-`);
-      return false;
+  const exclusive = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+  if (info) {
+    await (await open(destination, constants.O_WRONLY | constants.O_NOFOLLOW)).close();
+    const temporary = path16.join(parent, `.${parts.at(-1)}.a11ygate-${randomBytes3(6).toString("hex")}.tmp`);
+    try {
+      await writeFile8(temporary, content, { encoding: "utf8", flag: exclusive, mode: info.mode & 511 });
+      await chmod(temporary, info.mode & 511);
+      await rename2(temporary, destination);
+    } catch (error) {
+      await unlink3(temporary).catch(() => void 0);
+      throw error;
     }
-    throw error;
+  } else {
+    try {
+      await writeFile8(destination, content, { encoding: "utf8", flag: exclusive });
+    } catch (error) {
+      if (!force && error.code === "EEXIST") {
+        stdout(`Skipped existing ${file}.
+`);
+        return false;
+      }
+      throw error;
+    }
   }
   stdout(`Wrote ${file}
+`);
+  return true;
+}
+async function refuseGitlabSymlinks(cwd) {
+  const root = await realpath2(cwd);
+  for (const file of [GITLAB_ROOT_FILE, CI_FILES.gitlab]) {
+    const info = await lstat4(path16.join(root, file)).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return null;
+    });
+    if (info?.isSymbolicLink()) {
+      const snippet = file === GITLAB_ROOT_FILE ? ` Then make sure the root ${GITLAB_ROOT_FILE} contains:
+${GITLAB_ROOT_SNIPPET}` : "";
+      throw new Error(`${file} is a symlink; refusing to write anything (also with --force). Replace ${file} with a regular file (or remove it) and re-run init.${snippet}`);
+    }
+  }
+}
+async function refuseGitlabRootAliases(cwd, files) {
+  const root = await realpath2(cwd);
+  const existing = await lstat4(path16.join(root, GITLAB_ROOT_FILE)).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  if (!existing) return;
+  for (const file of files) {
+    const info = await lstat4(path16.join(root, file)).catch((error) => {
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+      return null;
+    });
+    if (info && info.dev === existing.dev && info.ino === existing.ino) {
+      throw new Error(`${file} is a hard link to the existing ${GITLAB_ROOT_FILE}; refusing to write anything so ${GITLAB_ROOT_FILE} stays unchanged. Remove the link (or rename the file) and re-run init.`);
+    }
+  }
+}
+async function createGitlabRoot(cwd, stdout) {
+  const destination = path16.join(await realpath2(cwd), GITLAB_ROOT_FILE);
+  try {
+    await writeFile8(destination, GITLAB_ROOT_TEMPLATE, { encoding: "utf8", flag: constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW });
+  } catch (error) {
+    if (error.code === "EEXIST") return false;
+    throw error;
+  }
+  stdout(`Wrote ${GITLAB_ROOT_FILE}
 `);
   return true;
 }
@@ -9075,6 +9154,11 @@ async function runInit(argv2, io = {}) {
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const starterFiles = [".a11ygate.yml", CI_FILES[options.target], ...options.pilot ? ["a11ygate-pilot/success-criteria.yml", "a11ygate-pilot/KICKOFF.md"] : []];
+    if (options.target === "gitlab") {
+      await refuseGitlabSymlinks(cwd);
+      await refuseGitlabRootAliases(cwd, starterFiles);
+    }
     if (options.baseline) {
       const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
@@ -9096,14 +9180,12 @@ failOn: ${options.failOn}
 ${options.baseline ? "baseline: .a11ygate-baseline.json\n" : ""}`;
     await writeStarter(cwd, ".a11ygate.yml", config2, options.force, stdout);
     await writeStarter(cwd, CI_FILES[options.target], renderCiStarter(options.target, options), options.force, stdout);
+    const rootCreated = options.target === "gitlab" ? await createGitlabRoot(cwd, stdout) : true;
     if (options.pilot) {
       await writeStarter(cwd, "a11ygate-pilot/success-criteria.yml", pilotSuccessCriteria(options.target), options.force, stdout);
       await writeStarter(cwd, "a11ygate-pilot/KICKOFF.md", PILOT_KICKOFF, options.force, stdout);
     }
-    if (options.target === "gitlab") stdout(`Add this entry to your .gitlab-ci.yml include list:
-include:
-  - local: '${CI_FILES.gitlab}'
-`);
+    if (options.target === "gitlab" && rootCreated) stdout("Open a test merge request and check that its pipeline runs the A11yGate job.\n");
     if (options.target === "azure-devops") stdout(`Register ${CI_FILES["azure-devops"]} in Azure Pipelines. For Azure Repos Git, configure a build validation policy on the target branch.
 `);
     if (options.pilot) stdout(pilotNextSteps(options.target, options.url, options.crawl, options.failOn));
@@ -9111,6 +9193,10 @@ include:
     if (options.target === "jenkins") stdout("Configure the 'a11ygate' shared library and provision Node 20+, the source CLI at packages/cli/dist/cli.mjs, and Playwright Chromium on the agent. See docs/integrations/jenkins.md.\n");
     stdout(`${AUTOMATED_TESTING_DISCLAIMER}
 `);
+    if (!rootCreated) {
+      stderr(gitlabRootLeftUnchanged());
+      return 2;
+    }
     return 0;
   } catch (error) {
     stderr(`Could not initialize A11yGate: ${error instanceof Error ? error.message : String(error)}

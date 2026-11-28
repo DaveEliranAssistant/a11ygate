@@ -25,7 +25,7 @@ Pilot requests and the public offer (A11Y-R64):
 
 CI starters (A11Y-R65): no separate decision.
 
-- [ ] For each GitLab pilot, confirm the customer adds the `merge_request_event` workflow rule to their root `.gitlab-ci.yml` (see [GitLab CI in the quickstart](quickstart.md#gitlab-ci)); without it the gate job does not run on merge requests.
+- [ ] For each GitLab pilot, confirm the customer's root `.gitlab-ci.yml` has the `merge_request_event` workflow rule and the include. `init --target gitlab` creates the root file with both only when it does not exist; if the customer already had one, init left it unchanged, printed a snippet and exited with code 2, and the customer pastes the snippet in by hand (see [GitLab CI in the quickstart](quickstart.md#gitlab-ci)). Without the rule the gate job does not run on merge requests.
 
 Pilot terms (A11Y-R66):
 

@@ -1,0 +1,6 @@
+Wrote .a11ygate.yml
+Wrote .gitlab-ci.a11ygate.yml
+Wrote .gitlab-ci.yml
+Open a test merge request and check that its pipeline runs the A11yGate job.
+Review the starter before committing. Start your local app before scanning; only scan authorized sites.
+Automated testing only. Not a WCAG audit, certification or legal advice.
