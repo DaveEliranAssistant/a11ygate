@@ -1,0 +1,35 @@
+name: Local server process cleanup
+
+on:
+  pull_request:
+    paths:
+      - 'packages/cli/**'
+      - 'tests/local-server*.test.ts'
+      - '.github/workflows/start-cleanup.yml'
+      - 'package-lock.json'
+      - 'vitest.config.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-tree:
+    name: Process tree (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Test cleanup without a browser
+        run: npx vitest run tests/local-server-cleanup.test.ts tests/local-server-tree.test.ts

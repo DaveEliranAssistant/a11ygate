@@ -4202,29 +4202,51 @@ async function redactedScreenshot(page, selectors = []) {
 import { createHash as createHash3 } from "node:crypto";
 
 // packages/cli/src/local-server.ts
-import { spawn } from "node:child_process";
+import { execFile as execFile2, spawn } from "node:child_process";
 async function withLocalServer(options, cwd, env, work) {
   const child = options.start ? spawn(options.start, { cwd, env, shell: true, detached: process.platform !== "win32", stdio: "ignore" }) : void 0;
   let failure;
   child?.once("error", (error) => {
     failure = error;
   });
-  const kill = (signal) => {
+  const killGroup = (signal) => {
     if (!child?.pid) return;
     try {
-      if (process.platform === "win32") child.kill(signal);
-      else process.kill(-child.pid, signal);
+      process.kill(-child.pid, signal);
     } catch (error) {
       if (error.code !== "ESRCH") throw error;
     }
   };
-  const interrupt = () => {
-    kill("SIGKILL");
-    process.exit(130);
+  let cleanupPromise;
+  const cleanup = () => cleanupPromise ??= (async () => {
+    if (!child?.pid) return;
+    if (process.platform === "win32") {
+      await new Promise((resolve, reject) => {
+        execFile2("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, (error) => {
+          if (error && error.code !== 128) reject(error);
+          else resolve();
+        });
+      });
+    } else {
+      killGroup("SIGTERM");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      killGroup("SIGKILL");
+    }
+    if (child.exitCode === null && child.signalCode === null) {
+      await new Promise((resolve) => child.once("exit", () => resolve()));
+    }
+  })();
+  const interrupt = (code3) => {
+    void cleanup().then(() => process.exit(code3), () => {
+      process.stderr.write("Failed to stop the local server process tree.\n");
+      process.exit(1);
+    });
   };
+  const onInterrupt = () => interrupt(130);
+  const onTerminate = () => interrupt(143);
   if (child) {
-    process.once("SIGINT", interrupt);
-    process.once("SIGTERM", interrupt);
+    process.on("SIGINT", onInterrupt);
+    process.on("SIGTERM", onTerminate);
   }
   try {
     if (options.waitOn) {
@@ -4248,12 +4270,12 @@ async function withLocalServer(options, cwd, env, work) {
     return await work();
   } finally {
     if (child) {
-      kill("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      kill("SIGKILL");
-      if (child.pid && child.exitCode === null && child.signalCode === null) await new Promise((resolve) => child.once("exit", () => resolve()));
-      process.removeListener("SIGINT", interrupt);
-      process.removeListener("SIGTERM", interrupt);
+      try {
+        await cleanup();
+      } finally {
+        process.removeListener("SIGINT", onInterrupt);
+        process.removeListener("SIGTERM", onTerminate);
+      }
     }
   }
 }

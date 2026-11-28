@@ -109,7 +109,7 @@ Automated testing only. Not a WCAG audit, certification or legal advice.
 
 ## Live-site scan (`a11ygate scan`)
 
-For tested localhost apps, see the [Next.js, Vite + React, Angular and Storybook recipes](../../docs/recipes/README.md). The source CLI supports `scan <loopback-url> --start "npm start" --wait-on <loopback-url>`: start a trusted command, wait for HTTP 2xx, then stop its process group after scanning (POSIX). `--timeout-ms` bounds readiness and each page. Use `--storybook <loopback-index.json-url>` to scan every story iframe; it cannot be combined with crawl budgets, sitemaps or filters.
+For tested localhost apps, see the [Next.js, Vite + React, Angular and Storybook recipes](../../docs/recipes/README.md). The source CLI supports `scan <loopback-url> --start "npm start" --wait-on <loopback-url>`: start a trusted command, wait for HTTP 2xx, then stop the entire started process tree after success, failure, readiness timeout, or SIGINT/Ctrl+C/SIGTERM. Windows uses `taskkill /T /F`; macOS/Linux terminate the owned process group, then force-kill it after a short grace period. Signal exits wait for cleanup (130 for SIGINT, 143 for SIGTERM). `--timeout-ms` bounds readiness and each page. Use `--storybook <loopback-index.json-url>` to scan every story iframe; it cannot be combined with crawl budgets, sitemaps or filters.
 
 Needs 0.2.0 or later. It loads real pages in headless Chromium and runs axe-core with the WCAG 2.0/2.1/2.2 A and AA tags plus `best-practice`.
 
