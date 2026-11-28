@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
@@ -172,15 +173,42 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   if (info?.isSymbolicLink()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
   if (info && !force) { stdout(`Skipped existing ${file} (use --force to replace).\n`); return false; }
   if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
-  try {
-    await writeFile(destination, content, { encoding: 'utf8', flag });
-  } catch (error) {
-    if (!force && (error as NodeJS.ErrnoException).code === 'EEXIST') { stdout(`Skipped existing ${file}.\n`); return false; }
-    throw error;
+  const exclusive = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+  if (info) {
+    // --force never writes through the existing file: a hard link (another name for the same inode, such as a
+    // customer's root .gitlab-ci.yml) keeps its bytes. Write a fresh file beside it, then rename it over the name.
+    const temporary = path.join(parent, `.${parts.at(-1)!}.a11ygate-${randomBytes(6).toString('hex')}.tmp`);
+    try {
+      await writeFile(temporary, content, { encoding: 'utf8', flag: exclusive, mode: info.mode & 0o777 });
+      await chmod(temporary, info.mode & 0o777);
+      await rename(temporary, destination);
+    } catch (error) {
+      await unlink(temporary).catch(() => undefined);
+      throw error;
+    }
+  } else {
+    try {
+      await writeFile(destination, content, { encoding: 'utf8', flag: exclusive });
+    } catch (error) {
+      if (!force && (error as NodeJS.ErrnoException).code === 'EEXIST') { stdout(`Skipped existing ${file}.\n`); return false; }
+      throw error;
+    }
   }
   stdout(`Wrote ${file}\n`);
   return true;
+}
+
+/** Refuses before anything is written when a starter path is another name (hard link) for the existing root .gitlab-ci.yml. */
+async function refuseGitlabRootAliases(cwd: string, files: readonly string[]) {
+  const root = await realpath(cwd);
+  const existing = await lstat(path.join(root, GITLAB_ROOT_FILE)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+  if (!existing) return;
+  for (const file of files) {
+    const info = await lstat(path.join(root, file)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; return null; });
+    if (info && info.dev === existing.dev && info.ino === existing.ino) {
+      throw new Error(`${file} is a hard link to the existing ${GITLAB_ROOT_FILE}; refusing to write anything so ${GITLAB_ROOT_FILE} stays unchanged. Remove the link (or rename the file) and re-run init.`);
+    }
+  }
 }
 
 /**
@@ -242,6 +270,8 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const starterFiles = ['.a11ygate.yml', CI_FILES[options.target], ...(options.pilot ? ['a11ygate-pilot/success-criteria.yml', 'a11ygate-pilot/KICKOFF.md'] : [])];
+    if (options.target === 'gitlab') await refuseGitlabRootAliases(cwd, starterFiles);
     // Baselines deliberately retain baseline create's exclusive-create rule, even with --force.
     if (options.baseline) {
       const existing = await lstat(path.join(cwd, '.a11ygate-baseline.json')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });

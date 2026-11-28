@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -176,6 +176,76 @@ describe('init --target gitlab never writes an existing root .gitlab-ci.yml (A11
     await expect(lstat(path.join(cwd, ROOT))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(await read(cwd, file)).toContain(AUTOMATED_TESTING_DISCLAIMER);
     expect(c.out()).not.toContain(ROOT);
+  }));
+});
+
+describe('init never writes through a hard link (A11Y-R72, judge 1 of 2026-11-28 day round)', () => {
+  const CUSTOMER = 'stages: [test]\ntest:unit:\n  script: [npm test]\n';
+
+  it.each([
+    ['the job file', JOBS, [] as string[]],
+    ['.a11ygate.yml', '.a11ygate.yml', [] as string[]],
+    ['a pilot file', 'a11ygate-pilot/KICKOFF.md', ['--pilot']],
+    ['a pilot file', 'a11ygate-pilot/success-criteria.yml', ['--pilot']],
+  ])('refuses when %s (%s) is a hard link to the existing root, with and without --force', async (_, alias, extra) => temporary(async (cwd) => {
+    const root = path.join(cwd, ROOT);
+    await writeFile(root, CUSTOMER);
+    await mkdir(path.join(cwd, 'a11ygate-pilot'), { recursive: true });
+    await link(root, path.join(cwd, alias));
+    const before = { hash: await sha(root), mtime: (await stat(root)).mtimeMs };
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    for (const flags of [['--force'], []]) {
+      const { code, out, err } = await init(cwd, ...extra, ...flags);
+      expect(code).toBe(2);
+      expect(await readFile(root, 'utf8')).toBe(CUSTOMER);
+      expect(await sha(root)).toBe(before.hash);
+      expect((await stat(root)).mtimeMs).toBe(before.mtime);
+      expect(await read(cwd, alias)).toBe(CUSTOMER);
+      expect(err).toContain(`${alias} is a hard link to the existing ${ROOT}`);
+      // Nothing was written, so nothing claims it was.
+      expect(out).not.toContain('Wrote ');
+      expect(err).not.toContain('The other starter files were written');
+    }
+  }));
+
+  it('--force replaces a hard-linked starter by rename, so the other name keeps its bytes (gitlab root absent)', async () => temporary(async (cwd) => {
+    const other = path.join(cwd, 'other.yml');
+    await writeFile(other, CUSTOMER);
+    await link(other, path.join(cwd, JOBS));
+    const { code } = await init(cwd, '--force');
+    expect(code).toBe(0);
+    expect(await readFile(other, 'utf8')).toBe(CUSTOMER);
+    expect(load(await read(cwd, JOBS))).toHaveProperty('a11ygate');
+    expect((await stat(path.join(cwd, JOBS))).nlink).toBe(1);
+  }));
+
+  it.each([
+    ['github', '.github/workflows/a11ygate.yml'],
+    ['jenkins', 'Jenkinsfile'],
+    ['azure-devops', 'azure-pipelines.a11ygate.yml'],
+  ])('%s --force leaves the other name of a hard-linked starter or config untouched', async (target, file) => temporary(async (cwd) => {
+    await mkdir(path.join(cwd, path.dirname(file)), { recursive: true });
+    for (const name of [file, '.a11ygate.yml']) {
+      const other = path.join(cwd, `other-${path.basename(name)}`);
+      await writeFile(other, CUSTOMER);
+      await link(other, path.join(cwd, name));
+    }
+    const c = capture(cwd);
+    expect(await run(['init', '--yes', '--target', target, '--force'], c.io)).toBe(0);
+    for (const name of [file, '.a11ygate.yml']) {
+      expect(await readFile(path.join(cwd, `other-${path.basename(name)}`), 'utf8')).toBe(CUSTOMER);
+      expect(await read(cwd, name)).toContain(AUTOMATED_TESTING_DISCLAIMER);
+    }
+    expect(c.out()).toContain(`Wrote ${file}\n`);
+  }));
+
+  it('--force keeps the replaced file mode and leaves no temporary file behind', async () => temporary(async (cwd) => {
+    const c = capture(cwd);
+    expect(await run(['init', '--yes', '--target', 'github'], c.io)).toBe(0);
+    await chmod(path.join(cwd, '.a11ygate.yml'), 0o640);
+    expect(await run(['init', '--yes', '--target', 'github', '--force'], capture(cwd).io)).toBe(0);
+    expect((await stat(path.join(cwd, '.a11ygate.yml'))).mode & 0o777).toBe(0o640);
+    expect((await readdir(cwd)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   }));
 });
 

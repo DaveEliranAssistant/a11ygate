@@ -50,6 +50,8 @@ record `ciTarget`. When this key is present, `a11ygate doctor` checks that the
 corresponding file exists. You can set the key in an existing config.
 Existing files are skipped individually and init exits successfully. `--force`
 replaces regular starter files; it refuses symlink destinations and parents.
+It writes a new file and renames it over the old name, so it never writes through
+a hard link: another name for the same file keeps its contents.
 It never replaces a fingerprint baseline, even with `--force`.
 
 ### Config schema and validation
@@ -121,7 +123,9 @@ workflow:
 The branch and tag rules keep your branch and tag pipelines running.
 
 If a root `.gitlab-ci.yml` already exists (a file, a symlink or a directory), init
-leaves it unchanged and does not edit it, even with `--force`. It still writes the
+leaves it unchanged and does not edit it, even with `--force`. (If a starter path is
+a hard link to that root file, init refuses before writing anything and exits with
+code 2.) Otherwise it still writes the
 other starter files as usual (including `--pilot` files), then prints the snippet
 above to stderr and exits with code 2. Paste the snippet into your root file
 yourself: add the `local` entry to your `include:` list, and make the

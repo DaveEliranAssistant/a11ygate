@@ -8691,8 +8691,9 @@ var outreach_prospect_schema_default = {
 };
 
 // packages/cli/src/init.ts
+import { randomBytes as randomBytes3 } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat as lstat4, mkdir as mkdir7, realpath as realpath2, writeFile as writeFile8 } from "node:fs/promises";
+import { chmod, lstat as lstat4, mkdir as mkdir7, realpath as realpath2, rename as rename2, unlink as unlink3, writeFile as writeFile8 } from "node:fs/promises";
 import path16 from "node:path";
 import { createInterface as createInterface3 } from "node:readline/promises";
 
@@ -9031,20 +9032,49 @@ async function writeStarter(cwd, file, content, force, stdout) {
     return false;
   }
   if (info && !info.isFile()) throw new Error(`${file}: refusing to replace a symlink or non-regular file.`);
-  const flag = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | (force ? constants.O_TRUNC : constants.O_EXCL);
-  try {
-    await writeFile8(destination, content, { encoding: "utf8", flag });
-  } catch (error) {
-    if (!force && error.code === "EEXIST") {
-      stdout(`Skipped existing ${file}.
-`);
-      return false;
+  const exclusive = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+  if (info) {
+    const temporary = path16.join(parent, `.${parts.at(-1)}.a11ygate-${randomBytes3(6).toString("hex")}.tmp`);
+    try {
+      await writeFile8(temporary, content, { encoding: "utf8", flag: exclusive, mode: info.mode & 511 });
+      await chmod(temporary, info.mode & 511);
+      await rename2(temporary, destination);
+    } catch (error) {
+      await unlink3(temporary).catch(() => void 0);
+      throw error;
     }
-    throw error;
+  } else {
+    try {
+      await writeFile8(destination, content, { encoding: "utf8", flag: exclusive });
+    } catch (error) {
+      if (!force && error.code === "EEXIST") {
+        stdout(`Skipped existing ${file}.
+`);
+        return false;
+      }
+      throw error;
+    }
   }
   stdout(`Wrote ${file}
 `);
   return true;
+}
+async function refuseGitlabRootAliases(cwd, files) {
+  const root = await realpath2(cwd);
+  const existing = await lstat4(path16.join(root, GITLAB_ROOT_FILE)).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  if (!existing) return;
+  for (const file of files) {
+    const info = await lstat4(path16.join(root, file)).catch((error) => {
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+      return null;
+    });
+    if (info && info.dev === existing.dev && info.ino === existing.ino) {
+      throw new Error(`${file} is a hard link to the existing ${GITLAB_ROOT_FILE}; refusing to write anything so ${GITLAB_ROOT_FILE} stays unchanged. Remove the link (or rename the file) and re-run init.`);
+    }
+  }
 }
 async function createGitlabRoot(cwd, stdout) {
   const destination = path16.join(await realpath2(cwd), GITLAB_ROOT_FILE);
@@ -9109,6 +9139,8 @@ async function runInit(argv2, io = {}) {
     }
     validate(options);
     const cwd = io.cwd ?? process.cwd();
+    const starterFiles = [".a11ygate.yml", CI_FILES[options.target], ...options.pilot ? ["a11ygate-pilot/success-criteria.yml", "a11ygate-pilot/KICKOFF.md"] : []];
+    if (options.target === "gitlab") await refuseGitlabRootAliases(cwd, starterFiles);
     if (options.baseline) {
       const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;
