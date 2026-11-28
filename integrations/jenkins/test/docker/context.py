@@ -4,9 +4,9 @@ The context is never the owner's working tree wholesale (no .git, .env, npm conf
 host node_modules, or credentials). `npm run cli:build` bundles JSON that lives
 outside packages/ and lib/ (config schemas, the locale catalog, the pricing and
 own-host allowlist config used by `a11ygate prospect`, Chromium benchmark data
-used by `a11ygate estimate`, and the outreach templates plus demo-shop fixture used
-by `a11ygate outreach`), so those are listed here too. config/ holds only
-committed, non-secret JSON; .env* and .npmrc are ignored everywhere.
+used by `a11ygate estimate`, and the ten outreach templates plus demo-shop fixture
+used by `a11ygate outreach`, listed file by file), so those are listed here too.
+config/ holds only committed, non-secret JSON; .env* and .npmrc are ignored everywhere.
 """
 import pathlib
 import shutil
@@ -28,10 +28,20 @@ PATHS = [
     'integrations/azure-devops/a11ygate.yml',
     'integrations/jenkins/vars',
     'integrations/jenkins/test/docker',
+    'docs/pilot/outreach/conversion-email.md',
+    'docs/pilot/outreach/demo-invite.md',
+    'docs/pilot/outreach/first-touch-email.md',
+    'docs/pilot/outreach/first-touch-linkedin.md',
+    'docs/pilot/outreach/follow-up-1.md',
+    'docs/pilot/outreach/follow-up-2.md',
+    'docs/pilot/outreach/objections.md',
+    'docs/pilot/outreach/pilot-proposal.md',
+    'docs/pilot/outreach/post-demo-recap.md',
+    'docs/pilot/outreach/warm-intro-request.md',
     'fixtures/demo-shop-current.json',
 ]
 # Glob patterns, relative to the repository root, for data files bundled by the CLI build.
-GLOBS = ['docs/perf/chromium-bench-*.json', 'docs/pilot/outreach/*.md']
+GLOBS = ['docs/perf/chromium-bench-*.json']
 IGNORE = shutil.ignore_patterns('node_modules', 'dist', '.gradle', 'build', '.env*', '.npmrc', '__pycache__')
 
 
