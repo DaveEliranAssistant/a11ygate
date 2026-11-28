@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createZip } from '../lib/evidence/zip';
 import {
-  evidencePackHostProblems, fileHostProblems, isScannedOk, jsonHostProblems, readZipEntries, SAMPLE_HOST, scannedUrls, textHostProblems,
+  evidencePackHostProblems, fileHostProblems, isScannedOk, jsonHostProblems, readZipEntries, SAMPLE_HOST, scannedUrls, textHostProblems, urlTokens,
   type Entry,
 } from './sample-hosts';
 
@@ -123,7 +123,7 @@ describe('sample pack host check (A11Y-R79 c)', () => {
       expect(problems.some((p) => p.includes('engines/axe.json $[0].url')), alias).toBe(true);
       expect(problems.some((p) => p.startsWith('scanned URL not on') && p.includes(alias)), alias).toBe(true);
     }
-  });
+  }, 30_000);
 
   it('isScannedOk checks the literal raw string before URL normalisation', () => {
     expect(isScannedOk(LOCAL)).toBe(true);
@@ -154,12 +154,108 @@ describe('sample pack host check (A11Y-R79 c)', () => {
   });
 
   it('text samples allow reference hosts only in link context', () => {
-    expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toEqual([]);
-    expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://www.w3.org/WAI/x)`)).toEqual([]);
+    // Fix round 2026-11-28: a reference link passes only in the exact generator markup (rule-help list item), not
+    // as any href to a reference host.
+    expect(textHostProblems('<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>')).toEqual([]);
+    expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toHaveLength(1);
+    expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)`)).toEqual([]);
+    expect(textHostProblems(`Site: ${LOCAL} [rule guidance](https://www.w3.org/WAI/x)`)).toHaveLength(1);
     expect(textHostProblems('Site: https://example.com/')).toHaveLength(1);
     expect(textHostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
     expect(textHostProblems('"url": "https://dequeuniversity.com/"')).toHaveLength(1);
     expect(textHostProblems('"pageUrl": "https://www.w3.org/"')).toHaveLength(1);
     expect(textHostProblems('http://localhost:3000/')).not.toEqual([]);
+  });
+
+  // Fix round 2026-11-28 (Codex review 27.11 #2): bracketed IPv6 / other IP literals, and reference-by-context only.
+  const IPV6_TARGETS = ['http://[2001:db8::1]/', '//[2001:db8::1]/', 'http://[2001:db8::1]:4173/', 'https://[::ffff:7f00:1]/', 'http://[::ffff:127.0.0.1]:4173/', 'http://[::1]:4173/'];
+  const OTHER_IP_TARGETS = ['//example.com/', 'http://127.1:4173/', 'http://2130706433:4173/', 'http://0x7f.0.0.1:4173/', 'http://0x7f000001:4173/', 'http://0177.0.0.1:4173/', 'http://%31%32%37.0.0.1:4173/', 'http://127.0.0.1:4173@evil.example/'];
+
+  it('FAILS on a bracketed IPv6 (or other non-literal IP) Start URL in report.html and in the evidence ZIP copy', async () => {
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    const entries = await packEntries();
+    for (const target of [...IPV6_TARGETS, ...OTHER_IP_TARGETS]) {
+      const planted = html.replace(`Start URL: <code>${LOCAL}`, `Start URL: <code>${target}`);
+      expect(planted, target).not.toBe(html);
+      const problems = fileHostProblems('report.html', planted);
+      expect(problems.some((p) => p.includes(target.replace(/\/$/, ''))), `${target}: ${problems.join(' | ')}`).toBe(true);
+      const zipped = withEntry(entries, 'report.html', (s) => s.replace(`Start URL: <code>${LOCAL}`, `Start URL: <code>${target}`));
+      expect(evidencePackHostProblems(createZip(zipped)).some((p) => p.includes('report.html')), target).toBe(true);
+    }
+  }, 30_000);
+
+  it('FAILS on a bracketed IPv6 (or other non-literal IP) startUrl in the screenshot metadata JSON', async () => {
+    const sidecar = JSON.parse(await readFile(path.join(dir, 'screenshot-checks.json'), 'utf8'));
+    expect(fileHostProblems('screenshot-checks.json', JSON.stringify({ ...sidecar, startUrl: LOCAL }))).toEqual([]);
+    for (const target of [...IPV6_TARGETS, ...OTHER_IP_TARGETS]) {
+      const problems = fileHostProblems('screenshot-checks.json', JSON.stringify({ ...sidecar, startUrl: target }));
+      expect(problems.some((p) => p.includes('$.startUrl')), `${target}: ${problems.join(' | ')}`).toBe(true);
+      expect(isScannedOk(target), target).toBe(false);
+    }
+    // In scanned fields of the evidence pack too (strict extraction).
+    const entries = await packEntries();
+    const scan = JSON.parse(text(entries.find((e) => e.path === 'scan/a11ygate-scan.json')!));
+    scan.startUrl = 'http://[2001:db8::1]/';
+    const planted = entries.map((e) => (e.path === 'scan/a11ygate-scan.json' ? { path: e.path, data: Buffer.from(JSON.stringify(scan)) } : e));
+    expect(evidencePackHostProblems(planted)).toContain('scanned URL not on 127.0.0.1:4173: http://[2001:db8::1]/');
+  });
+
+  it('urlTokens captures bracketed authorities (no silent skip)', () => {
+    for (const target of IPV6_TARGETS) {
+      const tokens = urlTokens(`Start URL: <code>${target}</code>`);
+      expect(tokens.map((t) => t.host), target).toEqual([target.replace(/^(?:https?:)?\/\//, '').replace(/\/$/, '')]);
+    }
+    expect(textHostProblems('Site: [2001:db8::1]:4173/')).not.toEqual([]);
+  });
+
+  it('FAILS when the report Start URL is a link to a reference host ("scanned site") — host alone is not a reference', async () => {
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    const startUrl = `Start URL: <code>${LOCAL}</code>`;
+    expect(html).toContain(startUrl);
+    for (const link of [
+      '<a href="https://dequeuniversity.com/">scanned site</a>',
+      '<a href="https://www.w3.org/">scanned site</a>',
+      '<a href="https://a11ygate.vercel.app/">scanned site</a>',
+      '<a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">scanned site</a>',
+    ]) {
+      const planted = html.replace(startUrl, `Start URL: ${link}`);
+      expect(fileHostProblems('report.html', planted).length, link).toBeGreaterThan(0);
+      const zipped = withEntry(await packEntries(), 'report.html', (s) => s.replace(startUrl, `Start URL: ${link}`));
+      expect(evidencePackHostProblems(createZip(zipped)).some((p) => p.includes('report.html')), link).toBe(true);
+    }
+    // Same in the scan HTML / Markdown copies inside the pack.
+    const md = withEntry(await packEntries(), 'scan/a11ygate-scan.md', (s) => s.replace(`\`${LOCAL}\``, '[scanned site](https://dequeuniversity.com/)'));
+    expect(evidencePackHostProblems(md).some((p) => p.includes('scan/a11ygate-scan.md'))).toBe(true);
+  }, 30_000);
+
+  it('FAILS when a JSON scanned field (url / startUrl / pageUrl) is a reference host', () => {
+    for (const key of ['url', 'startUrl', 'pageUrl', 'target', 'finalUrl', 'origin']) {
+      for (const host of ['https://dequeuniversity.com/', 'https://www.w3.org/', 'https://a11ygate.vercel.app/', 'https://json.schemastore.org/']) {
+        expect(jsonHostProblems({ [key]: host }), `${key}=${host}`).toEqual([`$.${key}: ${host}`]);
+      }
+    }
+    expect(jsonHostProblems({ manifest: { scope: { startUrl: 'https://www.w3.org/' } } })).toHaveLength(1);
+  });
+
+  it('positive control: the real reference contexts still pass', async () => {
+    const entries = await packEntries();
+    const axe = JSON.parse(text(entries.find((e) => e.path === 'engines/axe.json')!));
+    const helpUrl: string = axe.flatMap((r: { findings?: { helpUrl?: string }[] }) => r.findings ?? []).find((f: { helpUrl?: string }) => f.helpUrl)!.helpUrl!;
+    expect(helpUrl).toMatch(/^https:\/\/dequeuniversity\.com\/rules\/axe\//);
+    expect(jsonHostProblems({ url: LOCAL, helpUrl })).toEqual([]);
+    const sarif = JSON.parse(text(entries.find((e) => e.path === 'scan/a11ygate-scan.sarif')!));
+    expect(sarif.$schema).toBeTruthy();
+    expect(jsonHostProblems({ $schema: sarif.$schema, informationUri: sarif.runs[0].tool.driver.informationUri, helpUri: sarif.runs[0].tool.driver.rules[0].helpUri })).toEqual([]);
+    expect(jsonHostProblems({ userAgent: 'Mozilla/5.0 (compatible; A11yGate/0.2.0; +https://a11ygate.vercel.app) read-only accessibility scan' })).toEqual([]);
+    expect(textHostProblems('UA: Mozilla/5.0 (compatible; A11yGate/0.2.0; +https://a11ygate.vercel.app) read-only accessibility scan')).toEqual([]);
+    const html = await readFile(path.join(dir, 'report.html'), 'utf8');
+    expect(html).toMatch(/<a href="https:\/\/dequeuniversity\.com\/rules\/axe\/[^"]+">Engine rule help<span class="sr"> for /);
+    expect(html).toContain('<li><a href="https://www.w3.org/WAI/WCAG22/Understanding/');
+    expect(fileHostProblems('report.html', html)).toEqual([]);
+    for (const name of ['scan/a11ygate-scan.md', 'scan/a11ygate-scan.junit.xml', 'scan/a11ygate-scan.html']) {
+      const entry = entries.find((e) => e.path === name)!;
+      expect(text(entry), name).toMatch(/dequeuniversity\.com/);
+      expect(fileHostProblems(name, entry.data), name).toEqual([]);
+    }
   });
 });

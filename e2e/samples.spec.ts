@@ -78,8 +78,12 @@ test.describe('sample pack checkers (A11Y-R79)', () => {
   // More host-check negative tests (planted non-local URLs, incl. an axe result url in engines/axe.json) run
   // without Chromium in tests/sample-hosts.test.ts (npm test); the checker lives in tests/sample-hosts.ts.
   test('a scanned URL on another host fails, reference links only pass in link context', async () => {
-    expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toEqual([]);
-    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toEqual([]);
+    // Fix round 2026-11-28: a reference link passes only in the exact generator markup (rule-help list item), not
+    // as any href to a reference host.
+    expect(textHostProblems('<li><a href="https://dequeuniversity.com/rules/axe/4.14/label?application=playwright">Engine rule help<span class="sr"> for label</span></a></li>')).toEqual([]);
+    expect(textHostProblems('<a href="https://dequeuniversity.com/rules/axe/4.14/label">x</a>')).toHaveLength(1);
+    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://dequeuniversity.com/rules/axe/4.14/label?application=playwright)')).toEqual([]);
+    expect(textHostProblems('Site: http://127.0.0.1:4173/ [rule guidance](https://www.w3.org/WAI/x)')).toHaveLength(1);
     expect(textHostProblems('Site: https://example.com/')).toHaveLength(1);
     expect(textHostProblems('- https://dequeuniversity.com/ (scanned page)')).toHaveLength(1);
     expect(fileHostProblems('x.json', '{"pageUrl": "https://www.w3.org/"}')).toHaveLength(1);

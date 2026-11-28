@@ -5,8 +5,13 @@
 // an explicitly listed reference field/context, which may point only at that field's reference host(s).
 //  - JSON entries are walked structurally; a URL is a reference only if its key is in REFERENCE_FIELDS (by key
 //    name, not "any field named url") and its host is allowed for that key. Everything else must be the demo app.
-//  - Text entries (HTML, Markdown, JUnit XML, PDF text, README) allow reference hosts only right after a link
-//    context (href=", Markdown ](, the user agent "; +", "guidance: ").
+//  - Text entries (HTML, Markdown, JUnit XML, PDF text, README) allow a reference URL only inside one of the exact
+//    reference constructs the generators emit (REFERENCE_TEXT_CONTEXTS: the report's rule-help / W3C Understanding
+//    list items, Markdown "[rule guidance](...)", JUnit "  guidance: ...", the user agent "; +https://a11ygate...").
+//    The host alone never makes a URL a reference: an href to dequeuniversity.com anywhere else is a problem.
+//  - IP literals other than the literal 127.0.0.1 (bracketed IPv6, IPv4-mapped IPv6, decimal/hex/octal/short IPv4,
+//    percent-encoded or userinfo authorities) are problems; a token the checker cannot classify is a problem (fail
+//    closed), never a skip.
 //  - Scanned URLs are also extracted strictly from the evidence pack's structured outputs (axe results' `url`,
 //    scan pages/findings, SARIF locations, manifest scope, JUnit). A missing entry or field is a problem, not a skip.
 import { readZip } from '../lib/evidence/zip';
@@ -21,8 +26,39 @@ export const REFERENCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
   informationUri: ['a11ygate.vercel.app', 'www.w3.org'], // SARIF tool.driver / taxonomies (WCAG)
   userAgent: ['a11ygate.vercel.app'], // "... A11yGate/x (+https://a11ygate.vercel.app)"
 };
-const REFERENCE_TEXT_HOSTS = new Set(['www.w3.org', 'dequeuniversity.com', 'a11ygate.vercel.app', 'json.schemastore.org']);
-const REFERENCE_TEXT_CONTEXT = /(?:href="|\]\(|; \+|\bguidance: )$/;
+const AXE_HELP = String.raw`https://dequeuniversity\.com/rules/axe/\d+\.\d+/[a-z0-9-]+\?application=[a-z0-9-]+`;
+const W3C_UNDERSTANDING = String.raw`https://www\.w3\.org/WAI/WCAG2\d/Understanding/[a-z0-9-]+\.html`;
+/**
+ * The only places a text sample may contain a reference link: the exact markup the generators emit (derived from the
+ * real report.html / scan HTML / Markdown / JUnit output). Capture group 1 is the reference URL; it must also be the
+ * whole URL token at that position. Anything else (Start URL, page headings, <code>, any other href) is scanned data.
+ */
+export const REFERENCE_TEXT_CONTEXTS: readonly { name: string; re: RegExp }[] = [
+  // report-html-v2 howToFixSection / report.ts pageFinding: rule help link with a screen-reader rule suffix.
+  { name: 'html rule help', re: new RegExp(String.raw`<a href="(${AXE_HELP})">(?:Engine rule help|Rule guidance)<span class="sr"> for [a-z0-9-]+</span></a>`, 'g') },
+  // report-html-v2 howToFixSection: W3C Understanding document for a mapped WCAG criterion.
+  { name: 'html W3C Understanding', re: new RegExp(String.raw`<li><a href="(${W3C_UNDERSTANDING})">W3C Understanding \d+\.\d+\.\d+ [^<]+</a></li>`, 'g') },
+  // scan Markdown finding line: "— [rule guidance](helpUrl)".
+  { name: 'markdown rule guidance', re: new RegExp(String.raw`\[rule guidance\]\((${AXE_HELP})\)`, 'g') },
+  // export-junit failureBody: a line "  guidance: <helpUrl>".
+  { name: 'junit guidance', re: new RegExp(String.raw`(?:^|\n)  guidance: (${AXE_HELP})(?=</failure>|\n|$)`, 'g') },
+  // packages/cli/src/scan.ts user agent: "(compatible; A11yGate/<version>; +https://a11ygate.vercel.app)".
+  { name: 'user agent', re: /\(compatible; A11yGate\/\d+\.\d+\.\d+[0-9A-Za-z.-]*; \+(https:\/\/a11ygate\.vercel\.app)\)/g },
+];
+/** Start offsets → URL of every reference link in an (already decoded) text, found by context only. */
+function referenceSpans(text: string): Map<number, string> {
+  const spans = new Map<number, string>();
+  for (const { re } of REFERENCE_TEXT_CONTEXTS) {
+    for (const m of text.matchAll(re)) {
+      const url = m[1]!;
+      spans.set(m.index! + m[0].lastIndexOf(url), url);
+    }
+  }
+  return spans;
+}
+/** IP literals that are not the literal 127.0.0.1: bracketed IPv6 (incl. IPv4-mapped) anywhere, and hex IPv4 forms. */
+const IP_LITERAL = /\[[0-9a-f]*:[0-9a-f:.]*(?:%[0-9a-z%._~-]*)?\]|(?<![\w.])0x[0-9a-f]+(?:\.(?:0x[0-9a-f]+|\d+)){0,3}(?=[:/])/gi;
+const ipLiteralProblems = (text: string) => [...text.matchAll(IP_LITERAL)].map((m) => `IP literal ${m[0]} (only http://${SAMPLE_HOST} may be scanned)`);
 const LOOPBACK_ALIASES = /localhost|\[::1\]|0\.0\.0\.0/i;
 /** The demo app origin, as a LITERAL prefix of the raw string (checked before `new URL()` can normalise 127.1,
  * 0x7f.0.0.1, 2130706433, upper case, backslashes or userinfo into it). */
@@ -38,7 +74,8 @@ const SCANNED_RAW = /^http:\/\/127\.0\.0\.1:4173(?:[/?#][^\s\\@]*)?$/;
  * `host` is the raw authority (userinfo and port included, lower-cased) so `a@b`, `127.1:4173` etc. never match an
  * allowed host by accident.
  */
-const AUTHORITY = '[^\\s"\'<>()\\[\\]`\\\\/?#,]+';
+// Bracketed IPv6 hosts (`[2001:db8::1]`, `user@[::1]:4173`) are part of the authority, so they are always tokens.
+const AUTHORITY = '(?:[^\\s"\'<>()\\[\\]`\\\\/?#,]|\\[[^\\]\\s"\'<>]*\\]?)+';
 const URL_TOKEN = new RegExp(
   [
     `\\b[a-z][a-z0-9+.-]*:[\\\\/]{2}(${AUTHORITY})`, // scheme://host (also scheme:\\\\host)
@@ -100,10 +137,13 @@ export function textHostProblems(input: string): string[] {
   const text = decodeForHostCheck(input);
   const problems: string[] = [];
   if (LOOPBACK_ALIASES.test(text)) problems.push('mentions localhost / ::1 / 0.0.0.0');
+  problems.push(...ipLiteralProblems(text));
+  const references = referenceSpans(text);
   for (const t of urlTokens(text)) {
     const before = text.slice(Math.max(0, t.index - 40), t.index);
     if (t.bare ? bareOk(t.host) : isScannedOk(t.raw)) continue;
-    if (!t.bare && REFERENCE_TEXT_HOSTS.has(t.host) && /^https:\/\//.test(t.raw) && REFERENCE_TEXT_CONTEXT.test(before)) continue;
+    // A reference only by WHERE it is (an exact generator construct), never because its host is a reference host.
+    if (!t.bare && references.get(t.index) === t.raw) continue;
     problems.push(`${t.raw} (after "${before.slice(-25)}")`);
   }
   return [...new Set(problems)];
@@ -114,6 +154,7 @@ export function jsonHostProblems(value: unknown): string[] {
   const problems: string[] = [];
   const check = (text: string, path: string, key: string | undefined) => {
     if (LOOPBACK_ALIASES.test(decodeForHostCheck(text))) problems.push(`${path}: mentions localhost / ::1 / 0.0.0.0`);
+    for (const p of ipLiteralProblems(decodeForHostCheck(text))) problems.push(`${path}: ${p}`);
     const allowed = key !== undefined && Object.hasOwn(REFERENCE_FIELDS, key) ? REFERENCE_FIELDS[key]! : undefined;
     for (const t of urlTokens(decodeForHostCheck(text))) {
       if (t.bare ? bareOk(t.host) : allowed ? allowed.includes(t.host) && /^https:\/\//.test(t.raw) : isScannedOk(t.raw)) continue;
