@@ -7,7 +7,7 @@ import { AUTOMATED_TESTING_DISCLAIMER } from '@/lib/copy';
 import azureTemplate from '../../../integrations/azure-devops/a11ygate.yml?raw';
 import gitlabTemplate from '../../../integrations/gitlab/a11ygate.gitlab-ci.yml?raw';
 import { CI_FILES, CI_TARGETS, type CiTarget } from './ci-targets';
-import { GITLAB_ROOT_FILE, GITLAB_ROOT_TEMPLATE, gitlabRootLeftUnchanged } from './init-gitlab';
+import { GITLAB_ROOT_FILE, GITLAB_ROOT_SNIPPET, GITLAB_ROOT_TEMPLATE, gitlabRootLeftUnchanged } from './init-gitlab';
 import { PILOT_KICKOFF, pilotNextSteps, pilotSuccessCriteria } from './init-pilot';
 import { runBaseline } from './baseline';
 import { SCHEMA_COMMENT } from './config';
@@ -198,6 +198,21 @@ async function writeStarter(cwd: string, file: string, content: string, force: b
   return true;
 }
 
+/**
+ * Refuses before anything is written when the root .gitlab-ci.yml or the GitLab starter is a symlink (live or
+ * dangling, pointing anywhere), with or without --force. lstat only: the link is never followed.
+ */
+async function refuseGitlabSymlinks(cwd: string) {
+  const root = await realpath(cwd);
+  for (const file of [GITLAB_ROOT_FILE, CI_FILES.gitlab]) {
+    const info = await lstat(path.join(root, file)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });
+    if (info?.isSymbolicLink()) {
+      const snippet = file === GITLAB_ROOT_FILE ? ` Then make sure the root ${GITLAB_ROOT_FILE} contains:\n${GITLAB_ROOT_SNIPPET}` : '';
+      throw new Error(`${file} is a symlink; refusing to write anything (also with --force). Replace ${file} with a regular file (or remove it) and re-run init.${snippet}`);
+    }
+  }
+}
+
 /** Refuses before anything is written when a starter path is another name (hard link) for the existing root .gitlab-ci.yml. */
 async function refuseGitlabRootAliases(cwd: string, files: readonly string[]) {
   const root = await realpath(cwd);
@@ -271,7 +286,10 @@ export async function runInit(argv: readonly string[], io: RunIo = {}): Promise<
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     const starterFiles = ['.a11ygate.yml', CI_FILES[options.target], ...(options.pilot ? ['a11ygate-pilot/success-criteria.yml', 'a11ygate-pilot/KICKOFF.md'] : [])];
-    if (options.target === 'gitlab') await refuseGitlabRootAliases(cwd, starterFiles);
+    if (options.target === 'gitlab') {
+      await refuseGitlabSymlinks(cwd);
+      await refuseGitlabRootAliases(cwd, starterFiles);
+    }
     // Baselines deliberately retain baseline create's exclusive-create rule, even with --force.
     if (options.baseline) {
       const existing = await lstat(path.join(cwd, '.a11ygate-baseline.json')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; return null; });

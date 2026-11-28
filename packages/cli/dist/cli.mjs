@@ -9059,6 +9059,20 @@ async function writeStarter(cwd, file, content, force, stdout) {
 `);
   return true;
 }
+async function refuseGitlabSymlinks(cwd) {
+  const root = await realpath2(cwd);
+  for (const file of [GITLAB_ROOT_FILE, CI_FILES.gitlab]) {
+    const info = await lstat4(path16.join(root, file)).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return null;
+    });
+    if (info?.isSymbolicLink()) {
+      const snippet = file === GITLAB_ROOT_FILE ? ` Then make sure the root ${GITLAB_ROOT_FILE} contains:
+${GITLAB_ROOT_SNIPPET}` : "";
+      throw new Error(`${file} is a symlink; refusing to write anything (also with --force). Replace ${file} with a regular file (or remove it) and re-run init.${snippet}`);
+    }
+  }
+}
 async function refuseGitlabRootAliases(cwd, files) {
   const root = await realpath2(cwd);
   const existing = await lstat4(path16.join(root, GITLAB_ROOT_FILE)).catch((error) => {
@@ -9140,7 +9154,10 @@ async function runInit(argv2, io = {}) {
     validate(options);
     const cwd = io.cwd ?? process.cwd();
     const starterFiles = [".a11ygate.yml", CI_FILES[options.target], ...options.pilot ? ["a11ygate-pilot/success-criteria.yml", "a11ygate-pilot/KICKOFF.md"] : []];
-    if (options.target === "gitlab") await refuseGitlabRootAliases(cwd, starterFiles);
+    if (options.target === "gitlab") {
+      await refuseGitlabSymlinks(cwd);
+      await refuseGitlabRootAliases(cwd, starterFiles);
+    }
     if (options.baseline) {
       const existing = await lstat4(path16.join(cwd, ".a11ygate-baseline.json")).catch((error) => {
         if (error.code !== "ENOENT") throw error;

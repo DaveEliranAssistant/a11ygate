@@ -2,7 +2,7 @@
 
 Automated testing only. Not a WCAG audit, certification or legal advice.
 
-The quickest route is `a11ygate init --target gitlab` ([init guide](../../docs/integrations/init.md#finish-gitlab-or-azure-devops-setup)). It writes the job to `.gitlab-ci.a11ygate.yml` and, when there is no root `.gitlab-ci.yml`, creates one with the include and the merge request rule. If a root `.gitlab-ci.yml` already exists, init leaves it unchanged, prints the include and rule snippet, and exits with code 2; paste the snippet in yourself.
+The quickest route is `a11ygate init --target gitlab` ([init guide](../../docs/integrations/init.md#finish-gitlab-or-azure-devops-setup)). It writes the job to `.gitlab-ci.a11ygate.yml` and, when there is no root `.gitlab-ci.yml`, creates one with the include and the merge request rule. If a root `.gitlab-ci.yml` already exists, init leaves it unchanged, prints the include and rule snippet, and exits with code 2; paste the snippet in yourself. If the root `.gitlab-ci.yml` or `.gitlab-ci.a11ygate.yml` is a symlink (live or dangling), init writes nothing and exits with code 2; replace it with a regular file first.
 
 To set it up by hand, copy [`a11ygate.gitlab-ci.yml`](./a11ygate.gitlab-ci.yml) into a repository you own or are authorized to test. Then include the reviewed copy **and** add a `merge_request_event` rule directly in the root `.gitlab-ci.yml`. GitLab does not use rules from `include:` files when it decides whether to create a merge request pipeline, so the include alone is not enough ([GitLab: merge request pipelines](https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/)):
 

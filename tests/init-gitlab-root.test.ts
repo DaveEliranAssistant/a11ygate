@@ -96,6 +96,20 @@ describe('init --target gitlab root .gitlab-ci.yml (A11Y-R72)', () => {
 
 const sha = async (file: string) => createHash('sha256').update(await readFile(file)).digest('hex');
 
+/** Every entry under dir (never following symlinks): kind, readlink target or file bytes hash. */
+async function tree(dir: string, prefix = ''): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  for (const name of (await readdir(path.join(dir, prefix))).sort()) {
+    const rel = path.join(prefix, name);
+    const full = path.join(dir, rel);
+    const info = await lstat(full);
+    if (info.isSymbolicLink()) result[rel] = `link -> ${await readlink(full)}`;
+    else if (info.isDirectory()) { result[rel] = 'dir'; Object.assign(result, await tree(dir, rel)); }
+    else result[rel] = `file ${await sha(full)} ${info.mtimeMs}`;
+  }
+  return result;
+}
+
 describe('init --target gitlab never writes an existing root .gitlab-ci.yml (A11Y-R72, owner option (a))', () => {
   const existing: [string, string][] = [
     ['a customer pipeline', 'stages: [test]\n\ntest:unit:\n  stage: test\n  script:\n    - npm test\n'],
@@ -137,22 +151,31 @@ describe('init --target gitlab never writes an existing root .gitlab-ci.yml (A11
   it('writes nothing through a symlink to a file, without and with --force', async () => temporary(async (cwd) => {
     await writeFile(path.join(cwd, 'target.yml'), 'keep: me\n');
     await symlink(path.join(cwd, 'target.yml'), path.join(cwd, ROOT));
+    const before = await tree(cwd);
     for (const flags of [[], ['--force']]) {
-      const { code, err } = await init(cwd, ...flags);
+      const { code, out, err } = await init(cwd, ...flags);
       expect(code).toBe(2);
       expect(await read(cwd, 'target.yml')).toBe('keep: me\n');
       expect((await lstat(path.join(cwd, ROOT))).isSymbolicLink()).toBe(true);
+      expect(err).toContain(`${ROOT} is a symlink; refusing to write anything`);
       expect(err).toContain(GITLAB_ROOT_SNIPPET);
+      expect(out).not.toContain('Wrote ');
+      expect(await tree(cwd)).toEqual(before);
     }
   }));
 
   it('does not create the target of a dangling symlink, without and with --force', async () => temporary(async (cwd) => {
     const missing = path.join(cwd, 'missing.yml');
     await symlink(missing, path.join(cwd, ROOT));
+    const before = await tree(cwd);
     for (const flags of [[], ['--force']]) {
-      expect((await init(cwd, ...flags)).code).toBe(2);
+      const { code, out, err } = await init(cwd, ...flags);
+      expect(code).toBe(2);
       await expect(lstat(missing)).rejects.toMatchObject({ code: 'ENOENT' });
       expect(await readlink(path.join(cwd, ROOT))).toBe(missing);
+      expect(err).toContain(`${ROOT} is a symlink; refusing to write anything`);
+      expect(out).not.toContain('Wrote ');
+      expect(await tree(cwd)).toEqual(before);
     }
   }));
 
@@ -304,4 +327,85 @@ describe('GitLab docs describe the root merge request rule (A11Y-R72)', () => {
       expect(section(await readFile(file, 'utf8'), heading), file).toContain(`\`\`\`yaml\n${GITLAB_ROOT_SNIPPET}\`\`\``);
     }
   });
+});
+
+describe('init --target gitlab refuses a symlinked root or starter before writing anything (A11Y-R72, fix round 2026-11-28 part 2)', () => {
+  /** Builds the layout in cwd (and optionally a sibling temp dir outside cwd), runs init twice, asserts nothing changed. */
+  async function refuses(cwd: string, linked: string, expectSnippet: boolean, extra: string[] = []) {
+    const before = await tree(cwd);
+    for (const flags of [[], ['--force']]) {
+      const { code, out, err } = await init(cwd, ...extra, ...flags);
+      expect(code).toBe(2);
+      expect(err).toContain(`${linked} is a symlink; refusing to write anything`);
+      expect(err).toContain(`Replace ${linked} with a regular file`);
+      if (expectSnippet) expect(err).toContain(GITLAB_ROOT_SNIPPET);
+      expect(out).not.toContain('Wrote ');
+      expect(await tree(cwd)).toEqual(before);
+      expect((await lstat(path.join(cwd, linked))).isSymbolicLink()).toBe(true);
+    }
+    return before;
+  }
+
+  it.each([[[]], [['--pilot']]])('root -> starter, starter absent (dangling): starter is not created %j', async (extra) => temporary(async (cwd) => {
+    await symlink(JOBS, path.join(cwd, ROOT));
+    await refuses(cwd, ROOT, true, extra);
+    await expect(lstat(path.join(cwd, JOBS))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(lstat(path.join(cwd, 'a11ygate-pilot'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(lstat(path.join(cwd, '.a11ygate.yml'))).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
+
+  it('root -> starter, starter is a regular file (live): starter bytes stay the same', async () => temporary(async (cwd) => {
+    await writeFile(path.join(cwd, JOBS), 'customer: jobs\n');
+    await symlink(JOBS, path.join(cwd, ROOT));
+    await refuses(cwd, ROOT, true);
+    expect(await read(cwd, JOBS)).toBe('customer: jobs\n');
+    expect(await readlink(path.join(cwd, ROOT))).toBe(JOBS);
+  }));
+
+  it('root -> another file inside the project', async () => temporary(async (cwd) => {
+    await mkdir(path.join(cwd, 'ci'));
+    await writeFile(path.join(cwd, 'ci/pipeline.yml'), 'stages: [test]\n');
+    await symlink('ci/pipeline.yml', path.join(cwd, ROOT));
+    await refuses(cwd, ROOT, true);
+    expect(await read(cwd, 'ci/pipeline.yml')).toBe('stages: [test]\n');
+  }));
+
+  it('root -> a file in a sibling temp dir outside the project', async () => temporary(async (cwd) => temporary(async (outside) => {
+    const target = path.join(outside, 'shared.gitlab-ci.yml');
+    await writeFile(target, 'shared: true\n');
+    await symlink(target, path.join(cwd, ROOT));
+    const outsideBefore = await tree(outside);
+    await refuses(cwd, ROOT, true);
+    expect(await tree(outside)).toEqual(outsideBefore);
+  })));
+
+  it('dangling root symlink to a missing path outside the project', async () => temporary(async (cwd) => temporary(async (outside) => {
+    const missing = path.join(outside, 'nope', 'missing.yml');
+    await symlink(missing, path.join(cwd, ROOT));
+    await refuses(cwd, ROOT, true);
+    await expect(lstat(path.join(outside, 'nope'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readlink(path.join(cwd, ROOT))).toBe(missing);
+  })));
+
+  it('symlinked starter -> another file (live), no root present: root is not created', async () => temporary(async (cwd) => {
+    await writeFile(path.join(cwd, 'other.yml'), 'other: file\n');
+    await symlink('other.yml', path.join(cwd, JOBS));
+    await refuses(cwd, JOBS, false);
+    expect(await read(cwd, 'other.yml')).toBe('other: file\n');
+    await expect(lstat(path.join(cwd, ROOT))).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
+
+  it('symlinked starter -> missing path (dangling), no root present: neither root nor target is created', async () => temporary(async (cwd) => {
+    await symlink('missing.yml', path.join(cwd, JOBS));
+    await refuses(cwd, JOBS, false, ['--pilot']);
+    await expect(lstat(path.join(cwd, 'missing.yml'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(lstat(path.join(cwd, ROOT))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(lstat(path.join(cwd, 'a11ygate-pilot'))).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
+
+  it('refuses before creating a baseline', async () => temporary(async (cwd) => {
+    await symlink('missing.yml', path.join(cwd, ROOT));
+    await refuses(cwd, ROOT, true, ['--baseline', 'missing-scan.json']);
+    await expect(lstat(path.join(cwd, '.a11ygate-baseline.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+  }));
 });

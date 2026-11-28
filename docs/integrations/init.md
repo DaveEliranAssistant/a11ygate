@@ -122,7 +122,12 @@ workflow:
 
 The branch and tag rules keep your branch and tag pipelines running.
 
-If a root `.gitlab-ci.yml` already exists (a file, a symlink or a directory), init
+If the root `.gitlab-ci.yml` or `.gitlab-ci.a11ygate.yml` is a symlink (live or
+dangling, pointing anywhere), init refuses before writing anything, also with
+`--force`: it names the symlinked path, asks you to replace it with a regular file,
+and exits with code 2.
+
+If a root `.gitlab-ci.yml` already exists (a regular file or a directory), init
 leaves it unchanged and does not edit it, even with `--force`. (If a starter path is
 a hard link to that root file, init refuses before writing anything and exits with
 code 2.) Otherwise it still writes the
